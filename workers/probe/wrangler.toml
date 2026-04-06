@@ -2,6 +2,8 @@ name = "hoplens-probe"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
+[placement]
+mode = "smart"
 
 # ─── Variáveis de ambiente (valores não-secretos) ────────────────────────────
 [vars]

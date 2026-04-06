@@ -157,7 +157,7 @@ async function runProbe(
 
   try {
     // Seguir redirects manualmente para contar os hops
-    const { finalResponse, redirectCount } = await fetchWithRedirectCount(targetUrl);
+    const { redirectCount } = await fetchWithRedirectCount(targetUrl);
     base.redirect_count = redirectCount;
 
     // TTFB: tempo até receber os headers de resposta
@@ -217,7 +217,7 @@ async function runProbe(
     }
 
     // Usar redirect count do rastreamento manual
-    base.redirect_count = finalResponse.redirected ? redirectCount : 0;
+    base.redirect_count = redirectCount;
 
   } catch (err) {
     base.error = err instanceof Error ? err.message : String(err);

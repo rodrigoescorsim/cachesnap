@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { getSession } from '@/lib/auth'
 import sql from '@/lib/db'
 import { AutoRefresh } from './auto-refresh'
+import { TtfbChart, type ChartPoint } from './ttfb-chart'
 
 interface RegionStat {
   region: string
@@ -57,13 +58,16 @@ function formatDate(d: Date | null): string {
 
 export default async function MonitorDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ range?: string }>
 }) {
   const user = await getSession()
   if (!user) return null
 
   const { id } = await params
+  const { range = '24h' } = await searchParams
 
   const [monitor] = await sql<{ id: string; url: string; name: string | null; is_active: boolean; alert_threshold_ms: number }[]>`
     SELECT id, url, name, is_active, alert_threshold_ms
@@ -100,6 +104,40 @@ export default async function MonitorDetailPage({
     FROM alerts WHERE monitor_id = ${id}
     ORDER BY created_at DESC LIMIT 20
   `
+
+  // Série temporal para o gráfico — bucket size varia com o range selecionado
+  const chartRaw = range === '7d'
+    ? await sql<{ bucket: Date; region: string; ttfb_avg: number }[]>`
+        SELECT
+          time_bucket('6 hours', time) AS bucket,
+          region,
+          ROUND(AVG(ttfb_ms)::numeric, 0) AS ttfb_avg
+        FROM probe_results
+        WHERE monitor_id = ${id}
+          AND time > NOW() - INTERVAL '7 days'
+          AND ttfb_ms IS NOT NULL
+        GROUP BY bucket, region
+        ORDER BY bucket ASC, region ASC
+      `
+    : await sql<{ bucket: Date; region: string; ttfb_avg: number }[]>`
+        SELECT
+          time_bucket('30 minutes', time) AS bucket,
+          region,
+          ROUND(AVG(ttfb_ms)::numeric, 0) AS ttfb_avg
+        FROM probe_results
+        WHERE monitor_id = ${id}
+          AND time > NOW() - INTERVAL '24 hours'
+          AND ttfb_ms IS NOT NULL
+        GROUP BY bucket, region
+        ORDER BY bucket ASC, region ASC
+      `
+
+  // Converter Date → ISO string para serialização Server→Client Component
+  const chartPoints: ChartPoint[] = chartRaw.map(row => ({
+    bucket: row.bucket.toISOString(),
+    region: row.region,
+    ttfb_avg: Number(row.ttfb_avg),
+  }))
 
   return (
     <div className="space-y-8">
@@ -193,6 +231,13 @@ export default async function MonitorDetailPage({
         )}
       </section>
 
+      {/* TTFB Timeline */}
+      {stats.length > 0 && (
+        <section>
+          <TtfbChart data={chartPoints} range={range} />
+        </section>
+      )}
+
       {/* Alerts */}
       <section>
         <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-3">
@@ -225,7 +270,7 @@ export default async function MonitorDetailPage({
                         {a.actual_ms}ms vs {a.baseline_ms}ms baseline ({a.deviation_factor.toFixed(1)}x slower)
                       </p>
                     )}
-                    {(a.estimated_gain_ms != null || (a.actual_ms != null && a.baseline_ms != null)) && (
+                    {(a.estimated_gain_ms != null || (a.actual_ms != null && a.baseline_ms != null && a.actual_ms > a.baseline_ms)) && (
                       <p className="text-xs text-emerald-600 dark:text-emerald-400">
                         Fix this to recover ~{Math.round(a.estimated_gain_ms ?? (a.actual_ms! - a.baseline_ms!))}ms
                       </p>
