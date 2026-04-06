@@ -34,7 +34,7 @@ pub async fn list_active(
 
     let result = sqlx::query_as!(
         ActiveMonitor,
-        r#"SELECT id, url FROM monitors WHERE is_active = TRUE ORDER BY created_at"#
+        r#"SELECT id as "id!", url as "url!" FROM monitors WHERE is_active = TRUE ORDER BY created_at"#
     )
     .fetch_all(&state.db)
     .await;

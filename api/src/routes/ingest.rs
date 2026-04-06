@@ -57,7 +57,14 @@ pub async fn handler(
     .await;
 
     match result {
-        Ok(_) => (StatusCode::CREATED, Json(json!({ "ok": true }))).into_response(),
+        Ok(_) => {
+            // Disparar o detector de anomalias em background para não bloquear
+            let state_clone = state.clone();
+            tokio::spawn(async move {
+                crate::alerts::detector::check_for_anomalies(state_clone, payload).await;
+            });
+            (StatusCode::CREATED, Json(json!({ "ok": true }))).into_response()
+        },
         Err(e) => {
             tracing::error!("Failed to insert probe result: {e}");
             (

@@ -9,6 +9,11 @@ pub struct Config {
     pub resend_api_key: Option<String>,
     pub slack_webhook_url: Option<String>,
     pub app_url: String,
+    pub region_sa_east: String,
+    pub region_eu_west: String,
+    pub region_us_east: String,
+    pub region_ap_east: String,
+    pub region_oc: String,
 }
 
 impl Config {
@@ -25,6 +30,11 @@ impl Config {
             slack_webhook_url: optional("SLACK_WEBHOOK_URL"),
             app_url: std::env::var("APP_URL")
                 .unwrap_or_else(|_| "http://localhost:3000".to_string()),
+            region_sa_east: std::env::var("REGION_SA_EAST").unwrap_or_else(|_| "https://hoplens-probe-sa-east.rodrigoescorsim.workers.dev".to_string()),
+            region_eu_west: std::env::var("REGION_EU_WEST").unwrap_or_else(|_| "https://hoplens-probe-eu-west.rodrigoescorsim.workers.dev".to_string()),
+            region_us_east: std::env::var("REGION_US_EAST").unwrap_or_else(|_| "https://hoplens-probe-us-east.rodrigoescorsim.workers.dev".to_string()),
+            region_ap_east: std::env::var("REGION_AP_EAST").unwrap_or_else(|_| "https://hoplens-probe-ap-east.rodrigoescorsim.workers.dev".to_string()),
+            region_oc:      std::env::var("REGION_OC").unwrap_or_else(|_| "https://hoplens-probe-oc.rodrigoescorsim.workers.dev".to_string()),
         })
     }
 }
