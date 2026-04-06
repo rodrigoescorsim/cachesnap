@@ -4,6 +4,8 @@ import { getSession } from '@/lib/auth'
 import sql from '@/lib/db'
 import { AutoRefresh } from './auto-refresh'
 import { TtfbChart, type ChartPoint } from './ttfb-chart'
+import { MonitorActions } from './monitor-actions'
+import { extractPop, detectCdn } from '@/lib/edge-helpers'
 
 interface RegionStat {
   region: string
@@ -16,6 +18,7 @@ interface RegionStat {
   origin_avg_ms: number | null
   redirect_avg: number | null
   common_served_by: string | null
+  common_http_version: string | null
   error_count: number
   cache_hit_pct: number | null
   last_probe_at: Date | null
@@ -87,6 +90,7 @@ export default async function MonitorDetailPage({
       ROUND(AVG(origin_ms)::numeric, 1)     AS origin_avg_ms,
       ROUND(AVG(redirect_count)::numeric, 0) AS redirect_avg,
       MODE() WITHIN GROUP (ORDER BY served_by) AS common_served_by,
+      MODE() WITHIN GROUP (ORDER BY http_version) AS common_http_version,
       COUNT(*) FILTER (WHERE error IS NOT NULL)::int AS error_count,
       ROUND(
         100.0 * COUNT(*) FILTER (WHERE cache_status ILIKE '%HIT%') / NULLIF(COUNT(*), 0), 1
@@ -149,16 +153,41 @@ export default async function MonitorDetailPage({
           {' / '}
           <span className="text-zinc-600 dark:text-zinc-300">{monitor.name ?? new URL(monitor.url).hostname}</span>
         </nav>
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
               {monitor.name ?? new URL(monitor.url).hostname}
             </h1>
             <p className="text-sm text-zinc-400 mt-0.5">{monitor.url}</p>
           </div>
-          <span className={`text-sm font-medium shrink-0 ${monitor.is_active ? 'text-emerald-500' : 'text-zinc-400'}`}>
-            {monitor.is_active ? 'Active' : 'Paused'}
-          </span>
+          <div className="flex flex-col items-end gap-2">
+            <MonitorActions
+              id={monitor.id}
+              name={monitor.name}
+              alertThresholdMs={monitor.alert_threshold_ms}
+              isActive={monitor.is_active}
+            />
+            {/* Detected infrastructure */}
+            {(() => {
+              const cdn = stats.map(s => detectCdn(s.common_served_by)).find(Boolean) ?? null
+              const protocol = stats.map(s => s.common_http_version).find(Boolean) ?? null
+              if (!cdn && !protocol) return null
+              return (
+                <div className="flex gap-2">
+                  {cdn && (
+                    <span className="px-2 py-0.5 rounded bg-orange-100 dark:bg-orange-900/30 text-[10px] font-bold text-orange-700 dark:text-orange-400 uppercase tracking-tight border border-orange-200 dark:border-orange-800/50">
+                      CDN: {cdn}
+                    </span>
+                  )}
+                  {protocol && (
+                    <span className="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-[10px] font-bold text-blue-700 dark:text-blue-400 uppercase tracking-tight border border-blue-200 dark:border-blue-800/50">
+                      {protocol}
+                    </span>
+                  )}
+                </div>
+              )
+            })()}
+          </div>
         </div>
       </div>
 
@@ -195,9 +224,14 @@ export default async function MonitorDetailPage({
                       <span className="font-medium text-zinc-800 dark:text-zinc-200">
                         {REGION_LABELS[s.region] ?? s.region}
                       </span>
-                      {s.common_served_by && (
-                        <span className="block text-xs text-zinc-400 mt-0.5">{s.common_served_by}</span>
-                      )}
+                      {(() => {
+                        const pop = extractPop(s.common_served_by)
+                        return pop ? (
+                          <span className="block text-[10px] font-mono text-zinc-400 dark:text-zinc-500 mt-0.5 bg-zinc-100 dark:bg-zinc-800/50 px-1 py-0.5 rounded w-fit">
+                            {pop} PoP
+                          </span>
+                        ) : null
+                      })()}
                     </td>
                     <td className={`px-4 py-3 text-right font-semibold tabular-nums ${ttfbColor(s.ttfb_avg_ms)}`}>
                       {s.ttfb_avg_ms != null ? `${s.ttfb_avg_ms}ms` : '—'}

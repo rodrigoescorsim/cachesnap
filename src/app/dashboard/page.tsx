@@ -16,6 +16,18 @@ async function getMonitorSummaries(userId: string): Promise<MonitorSummary[]> {
       FROM alerts
       WHERE created_at > NOW() - INTERVAL '24 hours'
       GROUP BY monitor_id
+    ),
+    edge_pops AS (
+      SELECT
+        monitor_id,
+        ARRAY_REMOVE(
+          ARRAY_AGG(DISTINCT SUBSTRING(served_by FROM '-([A-Z]{2,4})$')),
+          NULL
+        ) AS edge_pops
+      FROM probe_results
+      WHERE time > NOW() - INTERVAL '24 hours'
+        AND served_by ~ '^[a-f0-9]+-[A-Z]{2,4}$'
+      GROUP BY monitor_id
     )
     SELECT
       m.id,
@@ -31,12 +43,14 @@ async function getMonitorSummaries(userId: string): Promise<MonitorSummary[]> {
         0
       )                                                            AS cache_hit_pct,
       MAX(pr.time)                                                 AS last_probe_at,
-      COALESCE(ac.cnt, 0)                                          AS alert_count
+      COALESCE(ac.cnt, 0)                                          AS alert_count,
+      ep.edge_pops
     FROM monitors m
     LEFT JOIN probe_results pr ON pr.monitor_id = m.id
     LEFT JOIN alert_counts ac ON ac.monitor_id = m.id
+    LEFT JOIN edge_pops ep ON ep.monitor_id = m.id
     WHERE m.user_id = ${userId}
-    GROUP BY m.id, ac.cnt
+    GROUP BY m.id, ac.cnt, ep.edge_pops
     ORDER BY alert_count DESC, m.created_at DESC
   `
 }
@@ -62,7 +76,7 @@ export default async function DashboardPage() {
                   <Link href={`/dashboard/monitors/${m.id}`} className="hover:underline text-zinc-700 dark:text-zinc-300">
                     {m.name ?? m.url}
                   </Link>
-                  {(m.error_count + m.alert_count) > 0 && ` — ${m.error_count + m.alert_count} problema${m.error_count + m.alert_count > 1 ? 's' : ''}`}
+                  {(m.error_count + m.alert_count) > 0 && ` — ${m.error_count + m.alert_count} issue${m.error_count + m.alert_count > 1 ? 's' : ''}`}
                 </li>
               ))}
             </ul>
@@ -73,26 +87,26 @@ export default async function DashboardPage() {
       {/* Header row */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-          Seus sites monitorados
+          Your monitored sites
           <span className="ml-2 text-sm font-normal text-zinc-400">({monitors.length})</span>
         </h2>
         <Link
           href="/dashboard/monitors/new"
           className="rounded-lg bg-zinc-900 dark:bg-zinc-50 px-3 py-1.5 text-sm font-medium text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors"
         >
-          Adicionar site
+          Add site
         </Link>
       </div>
 
       {/* Monitor cards */}
       {monitors.length === 0 ? (
         <div className="rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700 py-16 text-center">
-          <p className="text-sm text-zinc-500">Você ainda não está monitorando nenhum site.</p>
+          <p className="text-sm text-zinc-500">You are not monitoring any sites yet.</p>
           <Link
             href="/dashboard/monitors/new"
             className="mt-3 inline-block text-sm font-medium text-zinc-900 dark:text-zinc-50 hover:underline"
           >
-            Adicionar primeiro site
+            Add your first site
           </Link>
         </div>
       ) : (
@@ -120,31 +134,40 @@ export default async function DashboardPage() {
 
                 <div className="mt-5 space-y-3 border-t border-zinc-100 pt-4 dark:border-zinc-800">
                   <div className="flex items-start justify-between gap-3 text-sm">
-                    <span className="text-zinc-500 dark:text-zinc-400">Velocidade</span>
+                    <span className="text-zinc-500 dark:text-zinc-400">Speed</span>
                     <span className={`text-right font-medium ${speed.toneClass}`}>
                       {speed.detail}
                     </span>
                   </div>
 
                   <div className="flex items-start justify-between gap-3 text-sm">
-                    <span className="text-zinc-500 dark:text-zinc-400">Uso de cache</span>
+                    <span className="text-zinc-500 dark:text-zinc-400">Cache usage</span>
                     <span className={`text-right font-medium ${cache.toneClass}`}>
                       {cache.detail}
                     </span>
                   </div>
 
                   <div className="flex items-start justify-between gap-3 text-sm">
-                    <span className="text-zinc-500 dark:text-zinc-400">Problemas</span>
+                    <span className="text-zinc-500 dark:text-zinc-400">Issues</span>
                     <span className={`text-right font-medium ${problems.toneClass}`}>
                       {totalProblems === 0
-                        ? '0 nas últimas 24h'
-                        : `${totalProblems} ocorrência${totalProblems > 1 ? 's' : ''}`}
+                        ? '0 in last 24h'
+                        : `${totalProblems} incident${totalProblems > 1 ? 's' : ''}`}
                     </span>
                   </div>
+
+                  {m.edge_pops && m.edge_pops.length > 0 && (
+                    <div className="flex items-start justify-between gap-3 text-sm pt-1 border-t border-zinc-100 dark:border-zinc-800">
+                      <span className="text-zinc-500 dark:text-zinc-400 shrink-0">Edge PoPs</span>
+                      <span className="text-right text-xs text-zinc-400 dark:text-zinc-500 font-mono">
+                        {m.edge_pops.join(' · ')}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <p className="mt-4 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                  Ver detalhes
+                  View details
                 </p>
               </Link>
             )

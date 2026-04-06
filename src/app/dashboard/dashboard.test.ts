@@ -19,6 +19,7 @@ const base: MonitorSummary = {
   cache_hit_pct: 90,
   last_probe_at: new Date(),
   alert_count: 0,
+  edge_pops: null,
 }
 
 describe('statusLabel', () => {

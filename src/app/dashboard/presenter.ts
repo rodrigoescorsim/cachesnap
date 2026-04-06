@@ -9,6 +9,7 @@ export interface MonitorSummary {
   cache_hit_pct: number | null
   last_probe_at: Date | null
   alert_count: number
+  edge_pops: string[] | null
 }
 
 interface MetricSummary {
@@ -38,11 +39,11 @@ export function primaryInsight(
   cache: MetricSummary,
   problems: MetricSummary,
 ) {
-  if (!monitor.last_probe_at) return 'Estamos analisando este site agora.'
+  if (!monitor.last_probe_at) return 'Analyzing this site now.'
   if (monitor.error_count + monitor.alert_count > 0) return problems.helper
-  if (speed.label === 'Muito lento' || speed.label === 'Lento') return speed.helper
-  if (cache.label === 'Baixa') return cache.helper
-  return 'Tudo está rodando bem para os visitantes.'
+  if (speed.label === 'Very slow' || speed.label === 'Slow') return speed.helper
+  if (cache.label === 'Low') return cache.helper
+  return 'Everything is running smoothly for your visitors.'
 }
 
 export function statusColor(monitor: MonitorSummary) {
@@ -56,29 +57,29 @@ export function statusColor(monitor: MonitorSummary) {
 
 export function statusLabel(monitor: MonitorSummary) {
   const state = evaluateSiteState(monitor)
-  if (state === 'paused') return 'Pausado'
-  if (state === 'collecting') return 'Coletando dados'
-  if (state === 'attention') return 'Precisa de atenção'
-  if (state === 'improving') return 'Pode melhorar'
-  return 'Funcionando normalmente'
+  if (state === 'paused') return 'Paused'
+  if (state === 'collecting') return 'Collecting data'
+  if (state === 'attention') return 'Needs attention'
+  if (state === 'improving') return 'Can improve'
+  return 'Running normally'
 }
 
 export function speedSummary(monitor: MonitorSummary): MetricSummary {
   if (!monitor.last_probe_at || monitor.ttfb_avg_ms == null) {
     return {
-      label: 'Coletando dados',
-      detail: 'Aguardando medições',
+      label: 'Collecting data',
+      detail: 'Waiting for probes',
       toneClass: 'text-zinc-500 dark:text-zinc-400',
-      helper: 'Estamos analisando a velocidade.',
+      helper: 'Analyzing performance.',
     }
   }
 
   if (monitor.ttfb_avg_ms < 200) {
     return {
-      label: 'Rápido',
+      label: 'Fast',
       detail: `${monitor.ttfb_avg_ms} ms`,
       toneClass: 'text-emerald-500',
-      helper: 'Boa experiência para quem visita.',
+      helper: 'Great experience for visitors.',
     }
   }
 
@@ -87,60 +88,60 @@ export function speedSummary(monitor: MonitorSummary): MetricSummary {
       label: 'Normal',
       detail: `${monitor.ttfb_avg_ms} ms`,
       toneClass: 'text-emerald-500',
-      helper: 'Estável para a maioria dos visitantes.',
+      helper: 'Stable for most visitors.',
     }
   }
 
   if (monitor.ttfb_avg_ms <= 1200) {
     return {
-      label: 'Lento',
+      label: 'Slow',
       detail: `${monitor.ttfb_avg_ms} ms`,
       toneClass: 'text-amber-500',
-      helper: 'Alguns usuários podem perceber lentidão.',
+      helper: 'Some users might notice slowness.',
     }
   }
 
   return {
-    label: 'Muito lento',
+    label: 'Very slow',
     detail: `${monitor.ttfb_avg_ms} ms`,
     toneClass: 'text-red-500',
-    helper: 'Usuários podem perceber lentidão.',
+    helper: 'Users may experience significant delays.',
   }
 }
 
 export function cacheSummary(monitor: MonitorSummary): MetricSummary {
   if (!monitor.last_probe_at || monitor.cache_hit_pct == null) {
     return {
-      label: 'Analisando',
-      detail: 'Sem histórico suficiente',
+      label: 'Analyzing',
+      detail: 'Insufficient data',
       toneClass: 'text-zinc-500 dark:text-zinc-400',
-      helper: 'Estamos medindo o uso de cache.',
+      helper: 'Measuring cache utilization.',
     }
   }
 
   if (monitor.cache_hit_pct > 70) {
     return {
-      label: 'Boa',
+      label: 'Good',
       detail: `${monitor.cache_hit_pct}%`,
       toneClass: 'text-emerald-500',
-      helper: 'O cache está ajudando na velocidade.',
+      helper: 'Cache is helping speed up requests.',
     }
   }
 
   if (monitor.cache_hit_pct >= 30) {
     return {
-      label: 'Média',
+      label: 'Average',
       detail: `${monitor.cache_hit_pct}%`,
       toneClass: 'text-amber-500',
-      helper: 'Ainda há espaço para acelerar mais.',
+      helper: 'Room for further optimization.',
     }
   }
 
   return {
-    label: 'Baixa',
+    label: 'Low',
     detail: `${monitor.cache_hit_pct}%`,
     toneClass: 'text-red-500',
-    helper: 'O site pode depender demais do servidor de origem.',
+    helper: 'Heavily dependent on origin server.',
   }
 }
 
@@ -149,36 +150,36 @@ export function problemsSummary(monitor: MonitorSummary): MetricSummary {
 
   if (!monitor.last_probe_at) {
     return {
-      label: 'Coletando dados',
-      detail: 'Sem dados nas últimas 24h',
+      label: 'Collecting data',
+      detail: 'No data in last 24h',
       toneClass: 'text-zinc-500 dark:text-zinc-400',
-      helper: 'Estamos acompanhando possíveis falhas.',
+      helper: 'Monitoring for potential issues.',
     }
   }
 
   if (totalProblems === 0) {
     return {
-      label: 'Nenhum nas últimas 24h',
-      detail: 'Tudo normal',
+      label: 'None in last 24h',
+      detail: 'All normal',
       toneClass: 'text-emerald-500',
-      helper: 'Sem impacto recente para visitantes.',
+      helper: 'No recent impact for visitors.',
     }
   }
 
   if (totalProblems <= 3) {
     return {
-      label: 'Poucos problemas',
-      detail: `${totalProblems} ocorrência${totalProblems > 1 ? 's' : ''}`,
+      label: 'Few issues',
+      detail: `${totalProblems} incident${totalProblems > 1 ? 's' : ''}`,
       toneClass: 'text-amber-500',
-      helper: 'Vale revisar em breve.',
+      helper: 'Review recommended.',
     }
   }
 
   return {
-    label: 'Muitos problemas',
-    detail: `${totalProblems} ocorrências`,
+    label: 'Many issues',
+    detail: `${totalProblems} incidents`,
     toneClass: 'text-red-500',
-    helper: 'Isso pode afetar usuários e conversões.',
+    helper: 'Significant impact on real users.',
   }
 }
 
@@ -186,23 +187,23 @@ export function advisorNarrative(monitors: MonitorSummary[]): string | null {
   const active = monitors.filter(m => m.is_active && m.last_probe_at)
   if (active.length === 0) {
     if (monitors.length === 0) return null
-    return 'Estamos começando a analisar seus sites monitorados.'
+    return 'Starting exploration for your monitored sites.'
   }
 
   const withErrors = active.filter(m => m.error_count > 0)
   if (withErrors.length > 0) {
-    return `${withErrors.length} site${withErrors.length > 1 ? 's' : ''} precisa${withErrors.length > 1 ? 'm' : ''} de atenção agora.`
+    return `${withErrors.length} site${withErrors.length > 1 ? 's' : ''} need${withErrors.length > 1 ? '' : 's'} attention right now.`
   }
 
   const withAlerts = active.filter(m => m.alert_count > 0)
   if (withAlerts.length > 0) {
-    return `${withAlerts.length} site${withAlerts.length > 1 ? 's' : ''} mostra${withAlerts.length > 1 ? 'm' : ''} sinais de lentidão ou instabilidade.`
+    return `${withAlerts.length} site${withAlerts.length > 1 ? 's' : ''} show${withAlerts.length > 1 ? '' : 's'} signs of slowness or instability.`
   }
 
   const slow = active.filter(m => (m.ttfb_avg_ms ?? 0) > 800)
   if (slow.length > 0) {
-    return 'Seus sites estão no ar, mas alguns já mostram lentidão perceptível.'
+    return 'Your sites are up, but some have noticeable latency.'
   }
 
-  return 'Seu site está funcionando normalmente. Nenhum problema nas últimas 24 horas.'
+  return 'Everything is working normally. No issues in the last 24 hours.'
 }
