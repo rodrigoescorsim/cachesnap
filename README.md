@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# HopLens
 
-## Getting Started
+HopLens is an edge performance monitoring product focused on cache behavior, latency, and plain-English diagnosis across multiple regions.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 App Router + React 19 + Tailwind CSS 4
+- Rust API with `axum`
+- PostgreSQL / TimescaleDB + Redis
+- Cloudflare Workers for global probes
+
+## Project layout
+
+- `src/` — dashboard, auth, and Next.js API routes
+- `api/` — Rust ingest API, scheduler, baseline, and alerts
+- `workers/probe/` — Cloudflare Worker used for regional probes
+- `migrations/` — database schema and follow-up migrations
+- `docs/` — product, stack, worker, and status documentation
+
+## Running locally
+
+Prerequisites:
+
+- Node.js 20+
+- Rust toolchain
+- Docker Desktop
+
+Start the local stack:
+
+```bash
+./scripts/dev.sh
+```
+
+Run the Rust API:
+
+```bash
+cd api
+cargo watch -x run
+```
+
+Run the Next.js app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Endpoints:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Dashboard: `http://localhost:3000`
+- Rust API: `http://localhost:3001`
+- Healthcheck: `http://localhost:3001/health`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Validation
 
-## Learn More
+Frontend / app:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run lint
+npm run test
+npm run build
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Rust API:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+cd api
+cargo test
+```
 
-## Deploy on Vercel
+Worker:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+cd workers/probe
+npm test
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Notes
+
+- The app no longer depends on remote Google Fonts during build, which keeps `next build` working in restricted/offline environments.
+- Next.js behavior in this repo may differ from older versions. When changing framework-level behavior, check the local docs in `node_modules/next/dist/docs/`.
+- Current project status and next milestones live in `docs/STATUS.md`.

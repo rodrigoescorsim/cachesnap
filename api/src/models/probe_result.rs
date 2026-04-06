@@ -12,6 +12,10 @@ pub struct ProbeResultPayload {
     pub total_ms: Option<f64>,
     pub dns_ms: Option<f64>,    // null no Phase 1 (CF Workers), preenchido pelos Node.js probes
     pub tls_ms: Option<f64>,    // null no Phase 1 (CF Workers), preenchido pelos Node.js probes
+    #[serde(default)]
+    pub edge_ms: Option<f64>,   // parseado do Server-Timing pelo CF Worker
+    #[serde(default)]
+    pub origin_ms: Option<f64>, // parseado do Server-Timing pelo CF Worker
     pub status_code: Option<i32>,
     pub cache_status: Option<String>, // CF-Cache-Status, X-Vercel-Cache, etc.
     pub served_by: Option<String>,    // CF-Ray, X-Served-By
@@ -34,6 +38,8 @@ pub struct ProbeResult {
     pub total_ms: Option<f64>,
     pub dns_ms: Option<f64>,
     pub tls_ms: Option<f64>,
+    pub edge_ms: Option<f64>,
+    pub origin_ms: Option<f64>,
     pub status_code: Option<i32>,
     pub cache_status: Option<String>,
     pub served_by: Option<String>,

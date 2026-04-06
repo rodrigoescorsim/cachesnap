@@ -1,3 +1,5 @@
+import { parseServerTiming } from "./server-timing";
+
 /**
  * HopLens Probe — Cloudflare Worker
  *
@@ -42,8 +44,10 @@ interface ProbeResult {
   ttfb_ms: number | null;
   download_ms: number | null;
   total_ms: number | null;
-  dns_ms: null;  // sempre null em CF Workers — não disponível na plataforma
-  tls_ms: null;  // sempre null em CF Workers — não disponível na plataforma
+  dns_ms: null;      // sempre null em CF Workers — não disponível na plataforma
+  tls_ms: null;      // sempre null em CF Workers — não disponível na plataforma
+  edge_ms: number | null;   // parseado do header Server-Timing
+  origin_ms: number | null; // parseado do header Server-Timing
   status_code: number | null;
   cache_status: string | null;
   served_by: string | null;
@@ -56,7 +60,7 @@ interface ProbeResult {
 
 // ─── Handler principal ────────────────────────────────────────────────────────
 
-export default {
+const handler = {
   // Modo HTTP: chamado pelo Rust scheduler
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method !== "POST") {
@@ -111,6 +115,8 @@ export default {
   },
 };
 
+export default handler;
+
 // ─── Execução do probe ────────────────────────────────────────────────────────
 
 async function executeProbeAndIngest(
@@ -137,6 +143,8 @@ async function runProbe(
     total_ms: null,
     dns_ms: null,
     tls_ms: null,
+    edge_ms: null,
+    origin_ms: null,
     status_code: null,
     cache_status: null,
     served_by: null,
@@ -159,8 +167,10 @@ async function runProbe(
     const response = await fetch(targetUrl, {
       redirect: "follow",
       headers: {
-        "User-Agent": "HopLens-Probe/1.0 (+https://hoplens.io)",
-        "Accept": "*/*",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Encoding": "gzip, deflate, br",
       },
     });
     const ttfbEnd = performance.now();
@@ -168,6 +178,10 @@ async function runProbe(
     // Download: consumir o body e medir
     const bodyBytes = await response.arrayBuffer();
     const totalEnd = performance.now();
+
+    // Log debug headers (Visivel no wrangler tail)
+    const allHeaders = [...response.headers.entries()].map(([k,v]) => `${k}:${v}`).join(' | ');
+    console.log(`[DEBUG] Monitors ${monitorId} Headers: ${allHeaders}`);
 
     base.ttfb_ms = round(ttfbEnd - fetchStart);
     base.download_ms = round(totalEnd - ttfbEnd);
@@ -180,10 +194,27 @@ async function runProbe(
 
     // Ler headers de diagnóstico de cache e edge
     base.cache_status = readCacheStatus(response.headers);
+    if (base.cache_status) {
+      console.log(`[DEBUG] Found Cache Status: ${base.cache_status}`);
+    }
     base.served_by = response.headers.get("CF-Ray")
       ?? response.headers.get("X-Served-By")
       ?? null;
-    base.server_timing = response.headers.get("Server-Timing");
+    
+    // Captura o cabeçalho Server-Timing (case insensitive e tenta variação com hífen)
+    base.server_timing = response.headers.get("Server-Timing") ?? response.headers.get("server-timing");
+    const xTimer = response.headers.get("X-Timer") ?? response.headers.get("x-timer");
+    
+    if (base.server_timing || xTimer) {
+      if (base.server_timing) console.log(`[DEBUG] Found Server-Timing: ${base.server_timing}`);
+      if (xTimer) console.log(`[DEBUG] Found Fastly X-Timer: ${xTimer}`);
+      
+      const timing = parseServerTiming(base.server_timing, xTimer);
+      base.edge_ms   = timing.edge_ms;
+      base.origin_ms = timing.origin_ms;
+    } else {
+      console.log(`[DEBUG] Performance HEADERS (Server-Timing/X-Timer) ARE MISSING`);
+    }
 
     // Usar redirect count do rastreamento manual
     base.redirect_count = finalResponse.redirected ? redirectCount : 0;
@@ -236,25 +267,26 @@ async function fetchWithRedirectCount(
 // ─── Helpers de headers ───────────────────────────────────────────────────────
 
 function readCacheStatus(headers: Headers): string | null {
-  // Cloudflare
-  const cfCache = headers.get("CF-Cache-Status");
-  if (cfCache) return cfCache;
+  // Ordem importa: priorizamos headers específicos da aplicação/CDN original
+  const providers = [
+    "X-Vercel-Cache",    // Vercel
+    "X-Cache",           // CloudFront / Fastly
+    "X-Cache-Status",    // Nginx / Wikipedia
+    "X-Served-By",       // Fastly / Others
+    "Cache-Status",      // Netlify / General
+    "CF-Cache-Status",   // Cloudflare (colocado por último pois costuma ser DYNAMIC em proxies)
+  ];
 
-  // Vercel
-  const vercelCache = headers.get("X-Vercel-Cache");
-  if (vercelCache) return vercelCache;
-
-  // AWS CloudFront
-  const xCache = headers.get("X-Cache");
-  if (xCache) return xCache;
-
-  // Fastly
-  const xServedBy = headers.get("X-Served-By");
-  if (xServedBy) return null; // apenas indica o nó, não o status de cache
-
-  // Netlify
-  const netlifyCache = headers.get("X-Nf-Request-Id");
-  if (netlifyCache) return headers.get("Cache-Status") ?? null;
+  for (const header of providers) {
+    const value = headers.get(header);
+    // Se acharmos um HIT em qualquer lugar, retornamos ele imediatamente
+    if (value) {
+      const upper = value.toUpperCase();
+      if (upper.includes('HIT')) return 'HIT';
+      if (upper.includes('MISS')) return 'MISS';
+      return upper;
+    }
+  }
 
   return null;
 }
@@ -271,11 +303,12 @@ function detectHttpVersion(headers: Headers): string | null {
 }
 
 function resolveRegion(env: Env, request: Request): string {
-  // Preferir o colo real reportado pelo CF (mais preciso que a var de env)
+  // Preferir o REGION do environment (sa-east, eu-west, etc.) — mantém consistência
+  // com os REGION_LABELS do dashboard e com o scheduler Rust.
+  if (env.REGION && env.REGION !== "auto") return env.REGION;
+  // Fallback: colo IATA do CF (usado em dev local onde REGION="auto")
   const colo = (request as Request & { cf?: { colo?: string } }).cf?.colo;
-  if (colo) return colo;
-  // Fallback para a variável de ambiente do environment deployado
-  return env.REGION ?? "unknown";
+  return colo ?? env.REGION ?? "unknown";
 }
 
 function round(ms: number): number {

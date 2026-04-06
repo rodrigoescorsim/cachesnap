@@ -17,7 +17,7 @@ Write-Host "[*] Iniciando Frontend (Next.js) em uma nova janela..." -ForegroundC
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host '--- Iniciando Next.js ---' -ForegroundColor Blue; npm run dev"
 
 Write-Host ""
-Write-Host "✅ Tudo pronto! O HopLens está sendo inicializado." -ForegroundColor Green
+Write-Host "[+] Tudo pronto! O HopLens esta sendo inicializado." -ForegroundColor Green
 Write-Host "   API:       http://localhost:3001"
 Write-Host "   Dashboard: http://localhost:3000"
 Write-Host "   DB:        postgresql://hoplens:changeme_local@localhost:5432/hoplens"

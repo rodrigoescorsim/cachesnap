@@ -16,14 +16,7 @@ pub async fn start(state: AppState) {
     
     let mut ticker = interval(Duration::from_secs(10));
     
-    // Configurações das regiões via env
-    let regions = vec![
-        ("sa-east".to_string(), state.config.region_sa_east.clone()),
-        ("eu-west".to_string(), state.config.region_eu_west.clone()),
-        ("us-east".to_string(), state.config.region_us_east.clone()),
-        ("ap-east".to_string(), state.config.region_ap_east.clone()),
-        ("oc".to_string(),      state.config.region_oc.clone()),
-    ];
+    let regions = build_regions(&state);
 
     loop {
         ticker.tick().await;
@@ -91,11 +84,21 @@ async fn should_run_now(state: &AppState, monitor: &Monitor) -> bool {
     }
 }
 
-async fn dispatch_probes(state: &AppState, monitor: &Monitor, regions: Vec<(String, String)>) {
+pub fn build_regions(state: &AppState) -> Vec<(String, String)> {
+    vec![
+        ("sa-east".to_string(), state.config.region_sa_east.clone()),
+        ("eu-west".to_string(), state.config.region_eu_west.clone()),
+        ("us-east".to_string(), state.config.region_us_east.clone()),
+        ("ap-east".to_string(), state.config.region_ap_east.clone()),
+        ("oc".to_string(),      state.config.region_oc.clone()),
+    ]
+}
+
+pub async fn dispatch_probes(state: &AppState, monitor: &Monitor, regions: Vec<(String, String)>) {
     debug!("Dispatching probes for monitor {} ({})", monitor.id, monitor.url);
     
-    let client = reqwest::Client::new();
-    let ingest_url = format!("{}/api/ingest", state.config.app_url);
+    let client = state.http.clone();
+    let ingest_url = format!("{}/api/ingest", state.config.api_url.trim_end_matches('/'));
 
     for (region_name, worker_url) in regions {
         let monitor_id = monitor.id;

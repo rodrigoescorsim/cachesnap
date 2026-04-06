@@ -50,3 +50,6 @@ api/.cargo/
 
 # scripts
 scripts/*.log
+
+# Cloudflare Wrangler
+workers/probe/.wrangler/

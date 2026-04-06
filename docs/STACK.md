@@ -37,9 +37,9 @@
          │
          ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  NEXT.JS 14 (App Router)  — porta 3000                          │
-│  Dashboard "conselheiro" + Auth (NextAuth v4)                   │
-│  Lê dados direto do PostgreSQL via sqlx / pg                    │
+│  NEXT.JS 16 (App Router)  — porta 3000                          │
+│  Dashboard "conselheiro" + Auth custom (bcryptjs + pg sessions) │
+│  Lê dados direto do PostgreSQL via postgres.js                  │
 │  Deploy: Vercel (prod) ou container Docker (VPS alternativo)    │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -61,12 +61,35 @@ Os Probes ([index.ts](file:///c:/workspace/HopLens/workers/probe/src/index.ts)) 
 ## Estrutura de arquivos
 
 ```
-HopRay/
-├── src/                            ← Next.js 14 App Router
+HopLens/
+├── src/                            ← Next.js 16 App Router
+│   ├── proxy.ts                    ← proteção de rotas /dashboard/* (Next.js 16: middleware→proxy)
 │   ├── app/
-│   │   ├── layout.tsx              ← metadata HopLens
-│   │   └── page.tsx                ← placeholder (implementar Semana 2)
-│   └── lib/                        ← helpers compartilhados (a criar)
+│   │   ├── layout.tsx              ← metadata + fontes Geist
+│   │   ├── page.tsx                ← redireciona → /login ou /dashboard
+│   │   ├── actions/
+│   │   │   └── auth.ts             ← Server Actions: signup, login, logout
+│   │   ├── (auth)/                 ← route group (layout centralizado)
+│   │   │   ├── layout.tsx
+│   │   │   ├── login/page.tsx
+│   │   │   └── signup/page.tsx
+│   │   ├── dashboard/
+│   │   │   ├── layout.tsx          ← nav + verificação de sessão
+│   │   │   ├── page.tsx            ← overview: narrativa conselheiro + cards
+│   │   │   └── monitors/
+│   │   │       ├── new/page.tsx    ← formulário de criação
+│   │   │       └── [id]/page.tsx   ← detalhe: tabela por região + alertas
+│   │   └── api/
+│   │       └── monitors/
+│   │           ├── route.ts        ← GET (lista) / POST (cria)
+│   │           └── [id]/
+│   │               ├── route.ts    ← GET / PATCH / DELETE
+│   │               └── stats/route.ts ← stats por região + alertas recentes
+│   ├── lib/
+│   │   ├── db.ts                   ← singleton postgres.js (DATABASE_URL)
+│   │   └── auth.ts                 ← createSession / getSession / deleteSession
+│   └── test/
+│       └── setup.ts                ← configura env vars para testes unitários
 │
 ├── api/                            ← Rust / axum
 │   ├── src/
@@ -181,9 +204,10 @@ cd api && cargo test
 | `RESEND_API_KEY` | Rust API | — | API key do Resend para emails de alerta |
 | `SLACK_WEBHOOK_URL` | Rust API | — | Webhook do Slack para alertas |
 | `APP_URL` | Rust API | — | URL base do Next.js (para links nos alertas) |
-| `NEXTAUTH_SECRET` | Next.js | ✅ | Segredo de sessão do NextAuth |
-| `NEXTAUTH_URL` | Next.js | ✅ | URL base do Next.js |
-| `NEXT_PUBLIC_API_URL` | Next.js | ✅ | URL da Rust API (acessível pelo browser) |
+| `NEXT_PUBLIC_API_URL` | Next.js (futuro) | — | URL da Rust API (acessível pelo browser) |
+
+> **Nota:** `NEXTAUTH_SECRET` e `NEXTAUTH_URL` foram removidos — o sistema de auth é agora custom (sem NextAuth).
+> A sessão usa um UUID armazenado na tabela `sessions` do PostgreSQL + cookie HTTP-only `session=<token>`.
 
 Para desenvolvimento local, os valores padrão do `.env.example` funcionam sem alteração.
 
@@ -352,6 +376,84 @@ cargo test diagnosis
 
 ---
 
+## Auth — Como funciona
+
+O sistema de auth é 100% custom, sem bibliotecas externas de auth.
+
+### Fluxo
+1. **Signup/Login** → `src/app/actions/auth.ts` (Server Actions)
+2. Senha hasheada com `bcryptjs` (12 rounds)
+3. Sessão criada: UUID aleatório inserido na tabela `sessions` com `expires = NOW() + 30 dias`
+4. Cookie HTTP-only `session=<uuid>` enviado ao browser
+5. Em cada request: `getSession()` em `src/lib/auth.ts` busca o UUID no DB e retorna `{id, email}` do usuário
+
+### Proteção de rotas
+- `src/proxy.ts` — equivalente ao antigo `middleware.ts` no Next.js 16 (renomeado)
+- Verifica apenas se o cookie `session` está presente (verificação rápida, sem DB)
+- A validade real da sessão é verificada pelo `getSession()` dentro de cada Server Component/Action
+- Rotas protegidas: `/dashboard/**`
+
+### Segurança implementada
+- Cookie `httpOnly + sameSite=lax + secure` (em prod)
+- Anti-timing attack no login: `bcrypt.compare` sempre roda, mesmo quando o email não existe
+- Email normalizado para minúsculas antes de persistir/comparar
+
+---
+
+## API Routes (Next.js) — Endpoints
+
+Esses endpoints são usados pelo dashboard para CRUD de monitors. Autenticação via cookie de sessão.
+
+### `GET /api/monitors`
+Lista monitors do usuário autenticado.
+
+### `POST /api/monitors`
+Cria um novo monitor.
+```json
+{ "url": "https://...", "name": "opcional", "alert_threshold_ms": 1000 }
+```
+
+### `GET /api/monitors/:id`
+Detalhe de um monitor.
+
+### `PATCH /api/monitors/:id`
+Atualiza campos opcionais: `name`, `alert_threshold_ms`, `is_active`.
+
+### `DELETE /api/monitors/:id`
+Remove o monitor e seus dados em cascata.
+
+### `GET /api/monitors/:id/stats?hours=24`
+Retorna estatísticas por região (TTFB avg/min/max, cache hit %, erros) e alertas recentes.
+O parâmetro `hours` aceita 1–168 (padrão: 24).
+
+---
+
+## Testes
+
+### Rodar
+
+```bash
+npm test                # roda uma vez
+npm run test:watch      # modo watch
+npm run test:coverage   # com relatório de cobertura
+```
+
+### O que é testado
+
+| Arquivo de teste | O que testa |
+|:---|:---|
+| `src/lib/auth.test.ts` | `getSessionTokenFromCookie` — parsing puro de cookie header |
+| `src/app/dashboard/dashboard.test.ts` | `statusLabel` e `advisorNarrative` — lógica de UI do overview |
+
+### O que NÃO é testado ainda (próximos passos)
+
+- **Integração com DB**: signup/login/getSession requerem um PostgreSQL de teste rodando
+- **API Routes**: requerem `next dev` ou um test server
+
+Para testes de integração, usar um PostgreSQL separado (`TEST_DATABASE_URL`) e rodar via Docker em CI.
+
+---
+
 ## Docker
 
 ### Desenvolvimento local (apenas infra)
@@ -394,15 +496,17 @@ Na VPS, o Docker roda tudo. No local, só a infra vai pro Docker.
 
 | Camada | Tecnologia | Versão | Por quê |
 |:---|:---|:---|:---|
-| Dashboard | Next.js | 14 (App Router) | SSR, React Server Components, deploy Vercel |
-| Estilo | Tailwind CSS | 3 | Velocidade de desenvolvimento |
-| Backend API | Rust / axum | axum 0.7 | Performance, confiabilidade para processos longos, conhecimento do founder |
+| Dashboard | Next.js | 16.2 (App Router) | SSR, React Server Components, deploy Vercel |
+| Estilo | Tailwind CSS | 4 | Velocidade de desenvolvimento |
+| Backend API | Rust / axum | axum 0.7 | Performance, confiabilidade para processos longos |
 | Async runtime | tokio | 1 | Padrão para Rust async |
 | ORM/Queries | sqlx | 0.7 | Queries tipadas em compile-time, suporte a TimescaleDB |
+| DB client (Next.js) | postgres.js | 3 | Acesso direto ao PG do dashboard, sem ORM |
 | Banco de dados | TimescaleDB | pg16 | Compressão e queries de time-series otimizadas |
 | Cache/filas | Redis | 7 | Rate limiting e cache de resultados recentes |
 | Probes Phase 1 | Cloudflare Workers | — | 300+ cidades, ~$5/mês, sem infra a manter |
 | Probes Phase 2 | Node.js / Fly.io | — | Acesso a `net.Socket` para DNS/TCP/TLS breakdown |
-| Auth | NextAuth v4 | 4 | Self-hosted, sem Supabase, sessões no PostgreSQL |
+| Auth | Custom (bcryptjs + pg) | — | Self-hosted, sessões UUID na tabela `sessions`; NextAuth incompatível com Next.js 16 |
+| Testes | Vitest | 4 | Zero config, compatível com TypeScript nativo |
 | Email | Resend | — | API simples, 100 emails/dia grátis |
 | Containerização | Docker Compose | — | Paridade perfeita local ↔ VPS |

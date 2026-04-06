@@ -23,6 +23,7 @@ pub struct AppState {
     pub db: PgPool,
     pub redis: deadpool_redis::Pool,
     pub config: Arc<config::Config>,
+    pub http: reqwest::Client, // cliente compartilhado — reutiliza connection pool
 }
 
 #[tokio::main]
@@ -53,6 +54,7 @@ async fn main() -> Result<()> {
         db: db.clone(),
         redis,
         config: config.clone(),
+        http: reqwest::Client::new(),
     };
 
     // Iniciar tarefas de background em tokio tasks separadas
@@ -64,6 +66,7 @@ async fn main() -> Result<()> {
         .route("/health", get(routes::health::handler))
         .route("/api/ingest", post(routes::ingest::handler))
         .route("/api/monitors/active", get(routes::monitors::list_active))
+        .route("/api/monitors/{id}/dispatch", post(routes::dispatch::handler))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state);
