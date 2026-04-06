@@ -23,6 +23,7 @@ pub struct ProbeResultPayload {
 }
 
 /// Registro persistido no TimescaleDB
+#[allow(dead_code)]
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct ProbeResult {
     pub time: DateTime<Utc>,

@@ -1,4 +1,4 @@
-use crate::{models::probe_result::ProbeResultPayload, AppState};
+use crate::{diagnosis::engine::{self, DiagnosisInput}, models::probe_result::ProbeResultPayload, AppState};
 use tracing::{info, error};
 
 pub fn is_anomalous(actual_ttfb: f64, avg: f64, stddev: f64) -> bool {
@@ -15,20 +15,29 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
     
     if is_down {
         // Registrar alerta de DOWN
-        let err_msg = payload.error.clone().unwrap_or_else(|| "HTTP 500+".to_string());
-        
+        let diagnosis = engine::diagnose(&DiagnosisInput {
+            ttfb_ms: payload.ttfb_ms,
+            cache_status: payload.cache_status.clone(),
+            baseline_ttfb_ms: None,
+            redirect_count: payload.redirect_count,
+            http_version: payload.http_version.clone(),
+            region: payload.region.clone(),
+            error: payload.error.clone(),
+        });
+
         let db_res = sqlx::query!(
             r#"
             INSERT INTO alerts (
                 monitor_id, region, alert_type, metric, actual_ms, diagnosis, action
             ) VALUES (
-                $1, $2, 'down', 'uptime', $3, $4, 'Check server status and logs'
+                $1, $2, 'down', 'uptime', $3, $4, $5
             )
             "#,
             payload.monitor_id,
             payload.region,
             payload.total_ms,
-            format!("Site appears to be down or returning errors: {}", err_msg)
+            diagnosis.summary,
+            diagnosis.action
         )
         .execute(&state.db)
         .await;
@@ -61,19 +70,31 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
                 if is_anomalous(actual_ttfb, avg, stddev) {
                     let deviation_factor = if avg > 0.0 { actual_ttfb / avg } else { 0.0 };
                     
+                    let diag = engine::diagnose(&DiagnosisInput {
+                        ttfb_ms: payload.ttfb_ms,
+                        cache_status: payload.cache_status.clone(),
+                        baseline_ttfb_ms: Some(avg),
+                        redirect_count: payload.redirect_count,
+                        http_version: payload.http_version.clone(),
+                        region: payload.region.clone(),
+                        error: payload.error.clone(),
+                    });
+
                     let db_res = sqlx::query!(
                         r#"
                         INSERT INTO alerts (
                             monitor_id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, diagnosis, action
                         ) VALUES (
-                            $1, $2, 'anomaly', 'ttfb_ms', $3, $4, $5, 'TTFB spike detected', 'Investigate backend processing or edge cache hit rate'
+                            $1, $2, 'anomaly', 'ttfb_ms', $3, $4, $5, $6, $7
                         )
                         "#,
                         payload.monitor_id,
                         payload.region,
                         avg,
                         actual_ttfb,
-                        deviation_factor
+                        deviation_factor,
+                        diag.summary,
+                        diag.action
                     )
                     .execute(&state.db)
                     .await;

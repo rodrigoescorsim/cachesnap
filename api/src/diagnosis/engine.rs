@@ -1,5 +1,6 @@
 use serde::Serialize;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum Severity {
     Critical,
