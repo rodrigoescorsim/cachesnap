@@ -13,6 +13,8 @@ interface RegionStat {
   total_avg_ms: number | null
   edge_avg_ms: number | null
   origin_avg_ms: number | null
+  redirect_avg: number | null
+  common_served_by: string | null
   error_count: number
   cache_hit_pct: number | null
   last_probe_at: Date | null
@@ -28,6 +30,7 @@ interface Alert {
   deviation_factor: number | null
   diagnosis: string | null
   action: string | null
+  estimated_gain_ms: number | null
   created_at: Date
 }
 
@@ -78,6 +81,8 @@ export default async function MonitorDetailPage({
       ROUND(AVG(total_ms)::numeric, 1)      AS total_avg_ms,
       ROUND(AVG(edge_ms)::numeric, 1)       AS edge_avg_ms,
       ROUND(AVG(origin_ms)::numeric, 1)     AS origin_avg_ms,
+      ROUND(AVG(redirect_count)::numeric, 0) AS redirect_avg,
+      MODE() WITHIN GROUP (ORDER BY served_by) AS common_served_by,
       COUNT(*) FILTER (WHERE error IS NOT NULL)::int AS error_count,
       ROUND(
         100.0 * COUNT(*) FILTER (WHERE cache_status ILIKE '%HIT%') / NULLIF(COUNT(*), 0), 1
@@ -91,7 +96,7 @@ export default async function MonitorDetailPage({
 
   const alerts = await sql<Alert[]>`
     SELECT id, region, alert_type, metric, baseline_ms, actual_ms,
-           deviation_factor, diagnosis, action, created_at
+           deviation_factor, diagnosis, action, estimated_gain_ms, created_at
     FROM alerts WHERE monitor_id = ${id}
     ORDER BY created_at DESC LIMIT 20
   `
@@ -136,6 +141,7 @@ export default async function MonitorDetailPage({
                   <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">TTFB min/max</th>
                   <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Edge</th>
                   <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Origin</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Hops</th>
                   <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Cache hit</th>
                   <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Errors</th>
                   <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Last probe</th>
@@ -147,8 +153,13 @@ export default async function MonitorDetailPage({
                     key={s.region}
                     className={i < stats.length - 1 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}
                   >
-                    <td className="px-4 py-3 font-medium text-zinc-800 dark:text-zinc-200">
-                      {REGION_LABELS[s.region] ?? s.region}
+                    <td className="px-4 py-3">
+                      <span className="font-medium text-zinc-800 dark:text-zinc-200">
+                        {REGION_LABELS[s.region] ?? s.region}
+                      </span>
+                      {s.common_served_by && (
+                        <span className="block text-xs text-zinc-400 mt-0.5">{s.common_served_by}</span>
+                      )}
                     </td>
                     <td className={`px-4 py-3 text-right font-semibold tabular-nums ${ttfbColor(s.ttfb_avg_ms)}`}>
                       {s.ttfb_avg_ms != null ? `${s.ttfb_avg_ms}ms` : '—'}
@@ -161,6 +172,9 @@ export default async function MonitorDetailPage({
                     </td>
                     <td className={`px-4 py-3 text-right text-xs tabular-nums ${ttfbColor(s.origin_avg_ms)}`}>
                       {s.origin_avg_ms != null ? `${s.origin_avg_ms}ms` : '—'}
+                    </td>
+                    <td className={`px-4 py-3 text-right text-xs tabular-nums ${(s.redirect_avg ?? 0) > 0 ? 'text-amber-500 font-medium' : 'text-zinc-400'}`}>
+                      {(s.redirect_avg ?? 0) > 0 ? s.redirect_avg : '—'}
                     </td>
                     <td className="px-4 py-3 text-right text-zinc-700 dark:text-zinc-300">
                       {s.cache_hit_pct != null ? `${s.cache_hit_pct}%` : '—'}
@@ -209,6 +223,11 @@ export default async function MonitorDetailPage({
                     {a.deviation_factor != null && (
                       <p className="text-xs text-zinc-400">
                         {a.actual_ms}ms vs {a.baseline_ms}ms baseline ({a.deviation_factor.toFixed(1)}x slower)
+                      </p>
+                    )}
+                    {(a.estimated_gain_ms != null || (a.actual_ms != null && a.baseline_ms != null)) && (
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                        Fix this to recover ~{Math.round(a.estimated_gain_ms ?? (a.actual_ms! - a.baseline_ms!))}ms
                       </p>
                     )}
                   </div>

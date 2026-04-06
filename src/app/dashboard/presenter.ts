@@ -127,7 +127,7 @@ export function cacheSummary(monitor: MonitorSummary): MetricSummary {
     }
   }
 
-  if (monitor.cache_hit_pct >= 20) {
+  if (monitor.cache_hit_pct >= 30) {
     return {
       label: 'Média',
       detail: `${monitor.cache_hit_pct}%`,
@@ -139,7 +139,7 @@ export function cacheSummary(monitor: MonitorSummary): MetricSummary {
   return {
     label: 'Baixa',
     detail: `${monitor.cache_hit_pct}%`,
-    toneClass: 'text-amber-500',
+    toneClass: 'text-red-500',
     helper: 'O site pode depender demais do servidor de origem.',
   }
 }

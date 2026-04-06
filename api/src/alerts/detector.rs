@@ -28,16 +28,17 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
         let db_res = sqlx::query!(
             r#"
             INSERT INTO alerts (
-                monitor_id, region, alert_type, metric, actual_ms, diagnosis, action
+                monitor_id, region, alert_type, metric, actual_ms, diagnosis, action, estimated_gain_ms
             ) VALUES (
-                $1, $2, 'down', 'uptime', $3, $4, $5
+                $1, $2, 'down', 'uptime', $3, $4, $5, $6
             )
             "#,
             payload.monitor_id,
             payload.region,
             payload.total_ms,
             diagnosis.summary,
-            diagnosis.action
+            diagnosis.action,
+            diagnosis.estimated_gain_ms
         )
         .execute(&state.db)
         .await;
@@ -83,9 +84,9 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
                     let db_res = sqlx::query!(
                         r#"
                         INSERT INTO alerts (
-                            monitor_id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, diagnosis, action
+                            monitor_id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, diagnosis, action, estimated_gain_ms
                         ) VALUES (
-                            $1, $2, 'anomaly', 'ttfb_ms', $3, $4, $5, $6, $7
+                            $1, $2, 'anomaly', 'ttfb_ms', $3, $4, $5, $6, $7, $8
                         )
                         "#,
                         payload.monitor_id,
@@ -94,7 +95,8 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
                         actual_ttfb,
                         deviation_factor,
                         diag.summary,
-                        diag.action
+                        diag.action,
+                        diag.estimated_gain_ms
                     )
                     .execute(&state.db)
                     .await;

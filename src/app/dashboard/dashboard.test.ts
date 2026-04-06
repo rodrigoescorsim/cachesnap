@@ -102,6 +102,10 @@ describe('cacheSummary', () => {
     expect(cacheSummary({ ...base, cache_hit_pct: 45 }).label).toBe('Média')
     expect(cacheSummary({ ...base, cache_hit_pct: 0 }).label).toBe('Baixa')
   })
+
+  it('uses red for clearly low cache usage', () => {
+    expect(cacheSummary({ ...base, cache_hit_pct: 0 }).toneClass).toBe('text-red-500')
+  })
 })
 
 describe('problemsSummary', () => {
