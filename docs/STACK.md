@@ -18,8 +18,9 @@
                          ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  API RUST (axum)  — porta 3001                                  │
-│  ├─ POST /api/ingest   → persiste no TimescaleDB                │
-│  ├─ GET  /health       → status da API                          │
+│  ├─ POST /api/ingest          → persiste no TimescaleDB         │
+│  ├─ GET  /api/monitors/active → lista monitors p/ CF Worker     │
+│  ├─ GET  /health              → status da API                   │
 │  ├─ scheduler/         → dispara probes (tokio task)            │
 │  ├─ baseline/          → calcula avg/stddev por região          │
 │  ├─ diagnosis/engine   → regras de inferência (rule-based)      │
@@ -63,7 +64,8 @@ HopRay/
 │   │   ├── redis.rs                ← deadpool-redis Pool
 │   │   ├── routes/
 │   │   │   ├── health.rs           ← GET /health ✅
-│   │   │   └── ingest.rs           ← POST /api/ingest ✅
+│   │   │   ├── ingest.rs           ← POST /api/ingest ✅
+│   │   │   └── monitors.rs         ← GET /api/monitors/active ✅
 │   │   ├── models/
 │   │   │   └── probe_result.rs     ← ProbeResultPayload + ProbeResult
 │   │   ├── diagnosis/
@@ -223,6 +225,28 @@ x-probe-secret: <PROBE_SECRET>
 201 Created: { "ok": true }
 401 Unauthorized: { "error": "unauthorized" }
 500 Internal Server Error: { "error": "failed to store result" }
+```
+
+### `GET /api/monitors/active`
+Lista todos os monitors com `is_active = TRUE`. Chamado pelo CF Worker em modo scheduled.
+
+**Headers obrigatórios:**
+```
+x-probe-secret: <PROBE_SECRET>
+```
+
+**Response 200:**
+```json
+{
+  "monitors": [
+    { "id": "uuid-do-monitor", "url": "https://exemplo.com" }
+  ]
+}
+```
+
+```
+401 Unauthorized: { "error": "unauthorized" }
+500 Internal Server Error: { "error": "failed to fetch monitors" }
 ```
 
 ---

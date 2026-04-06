@@ -1,0 +1,26 @@
+{
+  "name": "hoplens-probe",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:sa-east": "wrangler deploy --env sa-east",
+    "deploy:eu-west": "wrangler deploy --env eu-west",
+    "deploy:us-east": "wrangler deploy --env us-east",
+    "deploy:ap-east": "wrangler deploy --env ap-east",
+    "deploy:oc": "wrangler deploy --env oc",
+    "deploy:all": "npm run deploy:sa-east && npm run deploy:eu-west && npm run deploy:us-east && npm run deploy:ap-east && npm run deploy:oc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260405.1",
+    "typescript": "^6.0.2",
+    "wrangler": "^4.80.0"
+  }
+}

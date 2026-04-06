@@ -63,6 +63,7 @@ async fn main() -> Result<()> {
     let app = Router::new()
         .route("/health", get(routes::health::handler))
         .route("/api/ingest", post(routes::ingest::handler))
+        .route("/api/monitors/active", get(routes::monitors::list_active))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state);

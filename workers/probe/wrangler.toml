@@ -1,0 +1,51 @@
+name = "hoplens-probe"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# ─── Variáveis de ambiente (valores não-secretos) ────────────────────────────
+[vars]
+# Sobrescrito por cada environment (veja abaixo)
+REGION = "auto"
+
+# ─── Cron triggers ────────────────────────────────────────────────────────────
+# O worker roda em modo scheduled a cada 5 minutos a partir do cron da CF.
+# O CF distribui execuções de cron por múltiplos PoPs automaticamente —
+# isso dá cobertura regional parcial sem configuração adicional.
+# request.cf.colo reporta qual PoP executou cada invocação.
+[triggers]
+crons = ["*/5 * * * *"]
+
+# ─── Environments por região ──────────────────────────────────────────────────
+# Cada environment é um worker SEPARADO deployado com nome único.
+# O Rust scheduler chama cada URL de worker individualmente.
+#
+# NOTA Phase 1: CF Workers roteiam requests ao PoP mais próximo do CHAMADOR
+# (o Rust scheduler na VPS). Para controle preciso de região, os Node.js probes
+# no Fly.io (Phase 1 Mês 2-3) complementam com regiões fixas.
+# O cron trigger deste worker fornece cobertura regional adicional e variada.
+
+[env.sa-east]
+name = "hoplens-probe-sa-east"
+[env.sa-east.vars]
+REGION = "sa-east"
+
+[env.eu-west]
+name = "hoplens-probe-eu-west"
+[env.eu-west.vars]
+REGION = "eu-west"
+
+[env.us-east]
+name = "hoplens-probe-us-east"
+[env.us-east.vars]
+REGION = "us-east"
+
+[env.ap-east]
+name = "hoplens-probe-ap-east"
+[env.ap-east.vars]
+REGION = "ap-east"
+
+[env.oc]
+name = "hoplens-probe-oc"
+[env.oc.vars]
+REGION = "oc"
