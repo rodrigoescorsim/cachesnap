@@ -1,19 +1,13 @@
 import Link from 'next/link'
 import { getSession } from '@/lib/auth'
 import sql from '@/lib/db'
-
-interface MonitorSummary {
-  id: string
-  url: string
-  name: string | null
-  is_active: boolean
-  ttfb_avg_ms: number | null
-  ttfb_worst_ms: number | null
-  error_count: number
-  cache_hit_pct: number | null
-  last_probe_at: Date | null
-  alert_count: number
-}
+import {
+  advisorNarrative,
+  cacheSummary,
+  problemsSummary,
+  speedSummary,
+  type MonitorSummary,
+} from './presenter'
 
 async function getMonitorSummaries(userId: string): Promise<MonitorSummary[]> {
   return sql<MonitorSummary[]>`
@@ -47,44 +41,6 @@ async function getMonitorSummaries(userId: string): Promise<MonitorSummary[]> {
   `
 }
 
-function statusColor(monitor: MonitorSummary) {
-  if (!monitor.is_active) return 'text-zinc-400'
-  if (monitor.error_count > 0 || monitor.alert_count > 0) return 'text-red-500'
-  if (monitor.ttfb_avg_ms && monitor.ttfb_avg_ms > 800) return 'text-amber-500'
-  if (!monitor.last_probe_at) return 'text-zinc-400'
-  return 'text-emerald-500'
-}
-
-function statusLabel(monitor: MonitorSummary) {
-  if (!monitor.is_active) return 'Paused'
-  if (monitor.error_count > 0) return 'Errors'
-  if (monitor.alert_count > 0) return 'Alert'
-  if (monitor.ttfb_avg_ms && monitor.ttfb_avg_ms > 800) return 'Slow'
-  if (!monitor.last_probe_at) return 'No data'
-  return 'Healthy'
-}
-
-function advisorNarrative(monitors: MonitorSummary[]): string | null {
-  const active = monitors.filter(m => m.is_active && m.last_probe_at)
-  if (active.length === 0) return null
-
-  const withAlerts = active.filter(m => m.alert_count > 0)
-  const withErrors = active.filter(m => m.error_count > 0)
-  const slow = active.filter(m => m.ttfb_avg_ms && m.ttfb_avg_ms > 800)
-
-  if (withErrors.length > 0) {
-    return `${withErrors.length} monitor${withErrors.length > 1 ? 's are' : ' is'} returning errors in the last 24h. Check the details below.`
-  }
-  if (withAlerts.length > 0) {
-    return `${withAlerts.length} monitor${withAlerts.length > 1 ? 's have' : ' has'} active alerts. Performance anomalies detected.`
-  }
-  if (slow.length > 0) {
-    const worst = slow.sort((a, b) => (b.ttfb_avg_ms ?? 0) - (a.ttfb_avg_ms ?? 0))[0]
-    return `${worst.name ?? worst.url} is averaging ${worst.ttfb_avg_ms}ms TTFB — above the 800ms threshold.`
-  }
-  return `All ${active.length} monitor${active.length > 1 ? 's are' : ' is'} healthy. No anomalies in the last 24 hours.`
-}
-
 export default async function DashboardPage() {
   const user = await getSession()
   if (!user) return null
@@ -106,8 +62,7 @@ export default async function DashboardPage() {
                   <Link href={`/dashboard/monitors/${m.id}`} className="hover:underline text-zinc-700 dark:text-zinc-300">
                     {m.name ?? m.url}
                   </Link>
-                  {m.error_count > 0 && ` — ${m.error_count} error${m.error_count > 1 ? 's' : ''}`}
-                  {m.alert_count > 0 && ` — ${m.alert_count} alert${m.alert_count > 1 ? 's' : ''}`}
+                  {(m.error_count + m.alert_count) > 0 && ` — ${m.error_count + m.alert_count} problema${m.error_count + m.alert_count > 1 ? 's' : ''}`}
                 </li>
               ))}
             </ul>
@@ -118,70 +73,82 @@ export default async function DashboardPage() {
       {/* Header row */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-          Monitors
+          Seus sites monitorados
           <span className="ml-2 text-sm font-normal text-zinc-400">({monitors.length})</span>
         </h2>
         <Link
           href="/dashboard/monitors/new"
           className="rounded-lg bg-zinc-900 dark:bg-zinc-50 px-3 py-1.5 text-sm font-medium text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-200 transition-colors"
         >
-          Add monitor
+          Adicionar site
         </Link>
       </div>
 
       {/* Monitor cards */}
       {monitors.length === 0 ? (
         <div className="rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700 py-16 text-center">
-          <p className="text-sm text-zinc-500">No monitors yet.</p>
+          <p className="text-sm text-zinc-500">Você ainda não está monitorando nenhum site.</p>
           <Link
             href="/dashboard/monitors/new"
             className="mt-3 inline-block text-sm font-medium text-zinc-900 dark:text-zinc-50 hover:underline"
           >
-            Add your first monitor
+            Adicionar primeiro site
           </Link>
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {monitors.map(m => (
-            <Link
-              key={m.id}
-              href={`/dashboard/monitors/${m.id}`}
-              className="block rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-50">
-                    {m.name ?? new URL(m.url).hostname}
-                  </p>
-                  <p className="truncate text-xs text-zinc-400 mt-0.5">{m.url}</p>
-                </div>
-                <span className={`shrink-0 text-xs font-medium ${statusColor(m)}`}>
-                  {statusLabel(m)}
-                </span>
-              </div>
+          {monitors.map(m => {
+            const speed = speedSummary(m)
+            const cache = cacheSummary(m)
+            const problems = problemsSummary(m)
+            const totalProblems = m.error_count + m.alert_count
 
-              <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                <div>
-                  <p className="text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
-                    {m.ttfb_avg_ms != null ? `${m.ttfb_avg_ms}` : '—'}
-                  </p>
-                  <p className="text-xs text-zinc-400">TTFB avg ms</p>
+            return (
+              <Link
+                key={m.id}
+                href={`/dashboard/monitors/${m.id}`}
+                className="block rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-semibold text-zinc-900 dark:text-zinc-50">
+                      {m.name ?? new URL(m.url).hostname}
+                    </p>
+                    <p className="truncate text-xs text-zinc-400 mt-0.5">{m.url}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
-                    {m.cache_hit_pct != null ? `${m.cache_hit_pct}%` : '—'}
-                  </p>
-                  <p className="text-xs text-zinc-400">Cache hit</p>
+
+                <div className="mt-5 space-y-3 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+                  <div className="flex items-start justify-between gap-3 text-sm">
+                    <span className="text-zinc-500 dark:text-zinc-400">Velocidade</span>
+                    <span className={`text-right font-medium ${speed.toneClass}`}>
+                      {speed.detail}
+                    </span>
+                  </div>
+
+                  <div className="flex items-start justify-between gap-3 text-sm">
+                    <span className="text-zinc-500 dark:text-zinc-400">Uso de cache</span>
+                    <span className={`text-right font-medium ${cache.toneClass}`}>
+                      {cache.detail}
+                    </span>
+                  </div>
+
+                  <div className="flex items-start justify-between gap-3 text-sm">
+                    <span className="text-zinc-500 dark:text-zinc-400">Problemas</span>
+                    <span className={`text-right font-medium ${problems.toneClass}`}>
+                      {totalProblems === 0
+                        ? '0 nas últimas 24h'
+                        : `${totalProblems} ocorrência${totalProblems > 1 ? 's' : ''}`}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <p className={`text-lg font-semibold tabular-nums ${m.alert_count > 0 ? 'text-red-500' : 'text-zinc-900 dark:text-zinc-50'}`}>
-                    {m.alert_count}
-                  </p>
-                  <p className="text-xs text-zinc-400">Alerts 24h</p>
-                </div>
-              </div>
-            </Link>
-          ))}
+
+                <p className="mt-4 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Ver detalhes
+                </p>
+              </Link>
+            )
+          })}
         </div>
       )}
     </div>

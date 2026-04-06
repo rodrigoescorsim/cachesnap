@@ -24,3 +24,6 @@
 2026-04-06T19:52:17Z ERR Connection terminated error="Error shutting down control stream: client disconnected" connIndex=0
 2026-04-06T19:52:36Z INF Registered tunnel connection connIndex=0 connection=4c6cd9c5-44fb-459a-b431-f711c59eed8a event=0 ip=198.41.192.67 location=gig08 protocol=http2
 2026-04-06T19:58:16Z ERR Failed to refresh DNS local resolver error="lookup region1.v2.argotunnel.com: i/o timeout"
+2026-04-06T20:18:21Z ERR Failed to refresh DNS local resolver error="lookup region1.v2.argotunnel.com: i/o timeout"
+2026-04-06T20:23:26Z ERR Failed to refresh DNS local resolver error="lookup region1.v2.argotunnel.com: i/o timeout"
+2026-04-06T20:33:31Z ERR Failed to refresh DNS local resolver error="lookup region1.v2.argotunnel.com: i/o timeout"
