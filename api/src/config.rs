@@ -1,0 +1,38 @@
+use anyhow::{Context, Result};
+
+#[derive(Debug, Clone)]
+pub struct Config {
+    pub database_url: String,
+    pub redis_url: String,
+    pub port: u16,
+    pub probe_secret: String,
+    pub resend_api_key: Option<String>,
+    pub slack_webhook_url: Option<String>,
+    pub app_url: String,
+}
+
+impl Config {
+    pub fn from_env() -> Result<Self> {
+        Ok(Self {
+            database_url: required("DATABASE_URL")?,
+            redis_url: required("REDIS_URL")?,
+            port: std::env::var("PORT")
+                .unwrap_or_else(|_| "3001".to_string())
+                .parse()
+                .context("PORT must be a valid number")?,
+            probe_secret: required("PROBE_SECRET")?,
+            resend_api_key: optional("RESEND_API_KEY"),
+            slack_webhook_url: optional("SLACK_WEBHOOK_URL"),
+            app_url: std::env::var("APP_URL")
+                .unwrap_or_else(|_| "http://localhost:3000".to_string()),
+        })
+    }
+}
+
+fn required(key: &str) -> Result<String> {
+    std::env::var(key).with_context(|| format!("Missing required env var: {key}"))
+}
+
+fn optional(key: &str) -> Option<String> {
+    std::env::var(key).ok().filter(|v| !v.is_empty())
+}

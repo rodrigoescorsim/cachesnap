@@ -1,0 +1,23 @@
+# Usado apenas na VPS: adiciona o container da API Rust
+# Uso: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+services:
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://hoplens:${DB_PASSWORD}@db:5432/hoplens
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      PORT: ${API_PORT:-3001}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
+      PROBE_SECRET: ${PROBE_SECRET}
+      APP_URL: ${APP_URL}
+    ports:
+      - "${API_PORT:-3001}:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped

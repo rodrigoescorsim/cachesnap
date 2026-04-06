@@ -39,3 +39,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Rust
+api/target/
+api/.cargo/
+
+# env (nunca commitar segredos)
+.env
+.env.local
+
+# scripts
+scripts/*.log
