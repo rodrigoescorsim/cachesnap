@@ -8,9 +8,16 @@ interface Props {
   name: string | null
   alertThresholdMs: number
   isActive: boolean
+  notifyEmail: string | null
+  notifyEmailEnabled: boolean
+  notifySlackWebhook: string | null
+  notifySlackEnabled: boolean
 }
 
-export function MonitorActions({ id, name, alertThresholdMs, isActive }: Props) {
+export function MonitorActions({
+  id, name, alertThresholdMs, isActive,
+  notifyEmail, notifyEmailEnabled, notifySlackWebhook, notifySlackEnabled,
+}: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [mode, setMode] = useState<'idle' | 'edit' | 'delete-confirm'>('idle')
@@ -38,6 +45,8 @@ export function MonitorActions({ id, name, alertThresholdMs, isActive }: Props) 
     const formData = new FormData(e.currentTarget)
     const newName = (formData.get('name') as string).trim()
     const newThreshold = Number(formData.get('alert_threshold_ms'))
+    const emailVal = (formData.get('notify_email') as string).trim()
+    const slackVal = (formData.get('notify_slack_webhook') as string).trim()
 
     startTransition(async () => {
       const res = await fetch(`/api/monitors/${id}`, {
@@ -46,6 +55,10 @@ export function MonitorActions({ id, name, alertThresholdMs, isActive }: Props) 
         body: JSON.stringify({
           name: newName || undefined,
           alert_threshold_ms: newThreshold,
+          notify_email: emailVal || null,
+          notify_email_enabled: formData.get('notify_email_enabled') === 'on',
+          notify_slack_webhook: slackVal || null,
+          notify_slack_enabled: formData.get('notify_slack_enabled') === 'on',
         }),
       })
       if (res.ok) {
@@ -139,6 +152,57 @@ export function MonitorActions({ id, name, alertThresholdMs, isActive }: Props) 
                 className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
               />
               <p className="mt-1 text-xs text-zinc-400">Alert when TTFB exceeds this value</p>
+            </div>
+
+            {/* Notifications */}
+            <div className="pt-2 border-t border-zinc-200 dark:border-zinc-700 space-y-4">
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Notifications</p>
+
+              {/* Email */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    id="notify-email-toggle"
+                    name="notify_email_enabled"
+                    type="checkbox"
+                    defaultChecked={notifyEmailEnabled}
+                    className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600 accent-zinc-900 dark:accent-zinc-100"
+                  />
+                  <label htmlFor="notify-email-toggle" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                    Email alerts
+                  </label>
+                </div>
+                <input
+                  name="notify_email"
+                  type="email"
+                  defaultValue={notifyEmail ?? ''}
+                  placeholder="you@example.com"
+                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+                />
+              </div>
+
+              {/* Slack / Discord */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    id="notify-slack-toggle"
+                    name="notify_slack_enabled"
+                    type="checkbox"
+                    defaultChecked={notifySlackEnabled}
+                    className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600 accent-zinc-900 dark:accent-zinc-100"
+                  />
+                  <label htmlFor="notify-slack-toggle" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                    Slack / Discord webhook
+                  </label>
+                </div>
+                <input
+                  name="notify_slack_webhook"
+                  type="url"
+                  defaultValue={notifySlackWebhook ?? ''}
+                  placeholder="https://hooks.slack.com/services/…"
+                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+                />
+              </div>
             </div>
 
             {error && <p className="text-xs text-red-500">{error}</p>}

@@ -72,8 +72,13 @@ export default async function MonitorDetailPage({
   const { id } = await params
   const { range = '24h' } = await searchParams
 
-  const [monitor] = await sql<{ id: string; url: string; name: string | null; is_active: boolean; alert_threshold_ms: number }[]>`
-    SELECT id, url, name, is_active, alert_threshold_ms
+  const [monitor] = await sql<{
+    id: string; url: string; name: string | null; is_active: boolean; alert_threshold_ms: number;
+    notify_email: string | null; notify_email_enabled: boolean;
+    notify_slack_webhook: string | null; notify_slack_enabled: boolean;
+  }[]>`
+    SELECT id, url, name, is_active, alert_threshold_ms,
+           notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled
     FROM monitors WHERE id = ${id} AND user_id = ${user.id} LIMIT 1
   `
   if (!monitor) notFound()
@@ -166,6 +171,10 @@ export default async function MonitorDetailPage({
               name={monitor.name}
               alertThresholdMs={monitor.alert_threshold_ms}
               isActive={monitor.is_active}
+              notifyEmail={monitor.notify_email}
+              notifyEmailEnabled={monitor.notify_email_enabled}
+              notifySlackWebhook={monitor.notify_slack_webhook}
+              notifySlackEnabled={monitor.notify_slack_enabled}
             />
             {/* Detected infrastructure */}
             {(() => {

@@ -12,4 +12,8 @@ pub struct Monitor {
     pub alert_threshold_ms: i32,
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
+    pub notify_email: Option<String>,
+    pub notify_email_enabled: bool,
+    pub notify_slack_webhook: Option<String>,
+    pub notify_slack_enabled: bool,
 }

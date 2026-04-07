@@ -31,7 +31,9 @@ pub async fn handler(
         r#"SELECT id as "id!", user_id as "user_id!", url as "url!", name,
                   check_interval_seconds as "check_interval_seconds!",
                   alert_threshold_ms as "alert_threshold_ms!",
-                  is_active as "is_active!", created_at as "created_at!"
+                  is_active as "is_active!", created_at as "created_at!",
+                  notify_email, notify_email_enabled as "notify_email_enabled!",
+                  notify_slack_webhook, notify_slack_enabled as "notify_slack_enabled!"
            FROM monitors WHERE id = $1 AND is_active = TRUE"#,
         monitor_id
     )

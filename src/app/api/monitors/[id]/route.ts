@@ -7,6 +7,10 @@ const updateSchema = z.object({
   name: z.string().max(100).optional(),
   alert_threshold_ms: z.number().int().min(100).max(30000).optional(),
   is_active: z.boolean().optional(),
+  notify_email: z.string().email().max(254).nullable().optional(),
+  notify_email_enabled: z.boolean().optional(),
+  notify_slack_webhook: z.string().url().max(500).nullable().optional(),
+  notify_slack_enabled: z.boolean().optional(),
 })
 
 export async function GET(
@@ -18,7 +22,9 @@ export async function GET(
 
   const { id } = await params
   const [monitor] = await sql`
-    SELECT id, url, name, check_interval_seconds, alert_threshold_ms, is_active, created_at
+    SELECT id, url, name, check_interval_seconds, alert_threshold_ms, is_active,
+           notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
+           created_at
     FROM monitors WHERE id = ${id} AND user_id = ${user.id} LIMIT 1
   `
 
@@ -43,19 +49,34 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
   }
 
-  const { name, alert_threshold_ms, is_active } = parsed.data
-  if (name === undefined && alert_threshold_ms === undefined && is_active === undefined) {
+  const {
+    name, alert_threshold_ms, is_active,
+    notify_email, notify_email_enabled,
+    notify_slack_webhook, notify_slack_enabled,
+  } = parsed.data
+
+  if (
+    name === undefined && alert_threshold_ms === undefined && is_active === undefined &&
+    notify_email === undefined && notify_email_enabled === undefined &&
+    notify_slack_webhook === undefined && notify_slack_enabled === undefined
+  ) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
   }
 
   const [monitor] = await sql`
     UPDATE monitors
     SET
-      name               = COALESCE(${name ?? null}, name),
-      alert_threshold_ms = COALESCE(${alert_threshold_ms ?? null}, alert_threshold_ms),
-      is_active          = COALESCE(${is_active ?? null}, is_active)
+      name                  = COALESCE(${name ?? null}, name),
+      alert_threshold_ms    = COALESCE(${alert_threshold_ms ?? null}, alert_threshold_ms),
+      is_active             = COALESCE(${is_active ?? null}, is_active),
+      notify_email          = CASE WHEN ${notify_email !== undefined} THEN ${notify_email ?? null} ELSE notify_email END,
+      notify_email_enabled  = COALESCE(${notify_email_enabled ?? null}, notify_email_enabled),
+      notify_slack_webhook  = CASE WHEN ${notify_slack_webhook !== undefined} THEN ${notify_slack_webhook ?? null} ELSE notify_slack_webhook END,
+      notify_slack_enabled  = COALESCE(${notify_slack_enabled ?? null}, notify_slack_enabled)
     WHERE id = ${id} AND user_id = ${user.id}
-    RETURNING id, url, name, check_interval_seconds, alert_threshold_ms, is_active, created_at
+    RETURNING id, url, name, check_interval_seconds, alert_threshold_ms, is_active,
+              notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
+              created_at
   `
 
   if (!monitor) return NextResponse.json({ error: 'Not found' }, { status: 404 })

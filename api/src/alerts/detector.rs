@@ -1,9 +1,10 @@
 use crate::{diagnosis::engine::{self, DiagnosisInput}, models::probe_result::ProbeResultPayload, AppState};
+use super::notifier::{self, AlertNotification};
 use tracing::{info, error};
 
 pub fn is_anomalous(actual_ttfb: f64, avg: f64, stddev: f64) -> bool {
     // Anomalia estatística: se TTFB é > média + (3 * desvio padrão)
-    // Exigimos também um mínimo de 500ms mais lento que a média, 
+    // Exigimos também um mínimo de 500ms mais lento que a média,
     // para não gerar ruído em sites ultrarrápidos (ex: média 20ms, vai a 40ms -> irrelevante).
     let threshold = f64::max(avg + (3.0 * stddev), avg + 500.0);
     actual_ttfb > threshold
@@ -12,9 +13,8 @@ pub fn is_anomalous(actual_ttfb: f64, avg: f64, stddev: f64) -> bool {
 pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
     // 1. Checar se é um erro claro ou downtime (ex: timeout na request ou status 500+)
     let is_down = payload.error.is_some() || payload.status_code.map(|s| s >= 500).unwrap_or(false);
-    
+
     if is_down {
-        // Registrar alerta de DOWN
         let diagnosis = engine::diagnose(&DiagnosisInput {
             ttfb_ms: payload.ttfb_ms,
             cache_status: payload.cache_status.clone(),
@@ -25,13 +25,13 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
             error: payload.error.clone(),
         });
 
-        let db_res = sqlx::query!(
+        let insert_res = sqlx::query_scalar!(
             r#"
             INSERT INTO alerts (
                 monitor_id, region, alert_type, metric, actual_ms, diagnosis, action, estimated_gain_ms
             ) VALUES (
                 $1, $2, 'down', 'uptime', $3, $4, $5, $6
-            )
+            ) RETURNING id
             "#,
             payload.monitor_id,
             payload.region,
@@ -40,13 +40,26 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
             diagnosis.action,
             diagnosis.estimated_gain_ms
         )
-        .execute(&state.db)
+        .fetch_one(&state.db)
         .await;
 
-        if let Err(e) = db_res {
-            error!("Failed to register DOWN alert: {}", e);
+        match insert_res {
+            Ok(alert_id) => {
+                tokio::spawn(notifier::notify(state, AlertNotification {
+                    alert_id,
+                    monitor_id: payload.monitor_id,
+                    alert_type: "down".to_string(),
+                    region: payload.region.clone(),
+                    diagnosis: Some(diagnosis.summary),
+                    action: Some(diagnosis.action),
+                    actual_ms: payload.total_ms,
+                    baseline_ms: None,
+                    deviation_factor: None,
+                }));
+            }
+            Err(e) => error!("Failed to register DOWN alert: {}", e),
         }
-        return; // Não precisa checar baseline se o site caiu
+        return;
     }
 
     // 2. Se está UP, checar baselines para anomalias estatísticas
@@ -70,7 +83,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
 
                 if is_anomalous(actual_ttfb, avg, stddev) {
                     let deviation_factor = if avg > 0.0 { actual_ttfb / avg } else { 0.0 };
-                    
+
                     let diag = engine::diagnose(&DiagnosisInput {
                         ttfb_ms: payload.ttfb_ms,
                         cache_status: payload.cache_status.clone(),
@@ -81,13 +94,14 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
                         error: payload.error.clone(),
                     });
 
-                    let db_res = sqlx::query!(
+                    let insert_res = sqlx::query_scalar!(
                         r#"
                         INSERT INTO alerts (
-                            monitor_id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, diagnosis, action, estimated_gain_ms
+                            monitor_id, region, alert_type, metric, baseline_ms, actual_ms,
+                            deviation_factor, diagnosis, action, estimated_gain_ms
                         ) VALUES (
                             $1, $2, 'anomaly', 'ttfb_ms', $3, $4, $5, $6, $7, $8
-                        )
+                        ) RETURNING id
                         "#,
                         payload.monitor_id,
                         payload.region,
@@ -98,19 +112,34 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
                         diag.action,
                         diag.estimated_gain_ms
                     )
-                    .execute(&state.db)
+                    .fetch_one(&state.db)
                     .await;
 
-                    if let Err(e) = db_res {
-                        error!("Failed to register ANOMALY alert: {}", e);
-                    } else {
-                        info!("Anomaly detected for monitor {} in region {}: baseline {}ms, actual {}ms", payload.monitor_id, payload.region, avg, actual_ttfb);
+                    match insert_res {
+                        Ok(alert_id) => {
+                            info!(
+                                "Anomaly detected for monitor {} in region {}: baseline {}ms, actual {}ms",
+                                payload.monitor_id, payload.region, avg, actual_ttfb
+                            );
+                            tokio::spawn(notifier::notify(state, AlertNotification {
+                                alert_id,
+                                monitor_id: payload.monitor_id,
+                                alert_type: "anomaly".to_string(),
+                                region: payload.region.clone(),
+                                diagnosis: Some(diag.summary),
+                                action: Some(diag.action),
+                                actual_ms: Some(actual_ttfb),
+                                baseline_ms: Some(avg),
+                                deviation_factor: Some(deviation_factor),
+                            }));
+                        }
+                        Err(e) => error!("Failed to register ANOMALY alert: {}", e),
                     }
                 }
-            },
+            }
             Ok(None) => {
                 // Sem baseline ainda, apenas ingere silenciosamente
-            },
+            }
             Err(e) => {
                 error!("Failed to fetch baseline for anomaly detection: {}", e);
             }
