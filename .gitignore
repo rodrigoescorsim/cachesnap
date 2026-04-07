@@ -53,3 +53,7 @@ scripts/*.log
 
 # Cloudflare Wrangler
 workers/probe/.wrangler/
+
+# logs
+cloudflared.log
+*.log
