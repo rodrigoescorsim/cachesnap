@@ -40,7 +40,7 @@ pub async fn handler(
         )
         "#,
         payload.monitor_id,
-        payload.region,
+        payload.region.clone(),
         payload.ttfb_ms,
         payload.download_ms,
         payload.total_ms,
@@ -49,16 +49,16 @@ pub async fn handler(
         payload.edge_ms,
         payload.origin_ms,
         payload.status_code,
-        payload.cache_status,
-        payload.served_by,
-        payload.server_timing,
-        payload.http_version,
+        payload.cache_status.clone(),
+        payload.served_by.clone(),
+        payload.server_timing.clone(),
+        payload.http_version.clone(),
         payload.redirect_count,
         payload.content_length,
-        payload.error,
+        payload.error.clone(),
         payload.age_s,
-        payload.security_headers as Option<serde_json::Value>,
-        payload.server_timing_breakdown as Option<serde_json::Value>,
+        payload.security_headers.clone(),
+        payload.server_timing_breakdown.clone()
     )
     .execute(&state.db)
     .await;

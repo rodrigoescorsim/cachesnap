@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Payload enviado pelo Cloudflare Worker para o endpoint de ingest
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct ProbeResultPayload {
     pub monitor_id: Uuid,
     pub region: String,
