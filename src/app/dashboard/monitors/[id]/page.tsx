@@ -20,6 +20,7 @@ interface RegionStat {
   redirect_avg: number | null
   common_served_by: string | null
   common_http_version: string | null
+  common_cache_status: string | null
   error_count: number
   cache_hit_pct: number | null
   uptime_pct: number | null
@@ -87,6 +88,101 @@ function uptimeColor(pct: number | null): string {
   if (pct >= 99) return 'text-green-500'
   if (pct >= 95) return 'text-amber-500'
   return 'text-red-500'
+}
+
+function redirectDisplay(redirectAvg: number | string | null): { text: string; tone: string } {
+  if (redirectAvg == null) {
+    return { text: '—', tone: 'text-zinc-400' }
+  }
+
+  const value = Number(redirectAvg)
+  if (Number.isNaN(value)) {
+    return { text: '—', tone: 'text-zinc-400' }
+  }
+
+  if (value === 0) {
+    return { text: '0', tone: 'text-emerald-600 dark:text-emerald-400' }
+  }
+
+  if (value <= 2) {
+    return { text: `${value}`, tone: 'text-amber-500 font-medium' }
+  }
+
+  return { text: `${value}`, tone: 'text-red-500 font-medium' }
+}
+
+function cacheDisplay(status: string | null, hitPct: number | null): { text: string; tone: string; title: string } {
+  const normalizedStatus = status?.toUpperCase() ?? null
+
+  if (normalizedStatus === 'HIT') {
+    return {
+      text: hitPct != null ? `${hitPct}% hit rate` : 'HIT',
+      tone: 'text-emerald-500',
+      title: 'Cache hit observed',
+    }
+  }
+
+  if (normalizedStatus === 'MISS') {
+    return {
+      text: 'MISS',
+      tone: 'text-amber-500',
+      title: 'Cache miss observed',
+    }
+  }
+
+  if (normalizedStatus === 'DYNAMIC' || normalizedStatus === 'BYPASS') {
+    return {
+      text: 'Dynamic',
+      tone: 'text-zinc-500 dark:text-zinc-400',
+      title: 'No cacheable response signal',
+    }
+  }
+
+  if (hitPct === 0) {
+    return {
+      text: 'No cache signal',
+      tone: 'text-zinc-400',
+      title: 'No cache headers were observed',
+    }
+  }
+
+  if (hitPct != null) {
+    return {
+      text: `${hitPct}% hit rate`,
+      tone: hitPct > 70 ? 'text-emerald-500' : hitPct >= 30 ? 'text-amber-500' : 'text-red-500',
+      title: 'Calculated from observed probe responses',
+    }
+  }
+
+  return {
+    text: 'No cache signal',
+    tone: 'text-zinc-400',
+    title: 'No cache headers were observed',
+  }
+}
+
+function serverTimingDisplay(ms: number | null): { text: string; tone: string; title: string } {
+  if (ms == null) {
+    return {
+      text: 'No Server-Timing',
+      tone: 'text-zinc-400',
+      title: 'The site did not expose Server-Timing or X-Timer headers',
+    }
+  }
+
+  if (ms === 0) {
+    return {
+      text: 'No timing signal',
+      tone: 'text-zinc-400',
+      title: 'Timing was not exposed in a meaningful way',
+    }
+  }
+
+  return {
+    text: `${ms}ms`,
+    tone: ttfbColor(ms),
+    title: 'Parsed from Server-Timing or X-Timer',
+  }
 }
 
 function trendColor(pct: number): string {
@@ -157,8 +253,9 @@ export default async function MonitorDetailPage({
       ROUND(AVG(edge_ms)::numeric, 1)            AS edge_avg_ms,
       ROUND(AVG(origin_ms)::numeric, 1)          AS origin_avg_ms,
       ROUND(AVG(redirect_count)::numeric, 0)     AS redirect_avg,
-      MODE() WITHIN GROUP (ORDER BY served_by)   AS common_served_by,
+      MODE() WITHIN GROUP (ORDER BY served_by)    AS common_served_by,
       MODE() WITHIN GROUP (ORDER BY http_version) AS common_http_version,
+      MODE() WITHIN GROUP (ORDER BY cache_status) AS common_cache_status,
       COUNT(*) FILTER (WHERE error IS NOT NULL)::int AS error_count,
       ROUND(
         100.0 * COUNT(*) FILTER (WHERE cache_status ILIKE '%HIT%') / NULLIF(COUNT(*), 0), 1
@@ -290,29 +387,63 @@ export default async function MonitorDetailPage({
             {(() => {
               const cdn = stats.map(s => detectCdn(s.common_served_by)).find(Boolean) ?? null
               const protocol = stats.map(s => s.common_http_version).find(Boolean) ?? null
-              if (!cdn && !protocol && !security) return null
+              const pops = [...new Set(
+                stats.map(s => extractPop(s.common_served_by)).filter((p): p is string => p != null)
+              )]
+              // Pick the most common cache status across all regions (normalize to uppercase)
+              const rawCache = stats.map(s => s.common_cache_status).find(Boolean) ?? null
+              const cacheStatus = rawCache?.toUpperCase() ?? null
+
+              if (pops.length === 0 && !cacheStatus && !protocol && !security) return null
+
+              const cacheClass = cacheStatus === 'HIT'
+                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50'
+                : cacheStatus === 'MISS'
+                ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700'
+                : cacheStatus === 'DYNAMIC'
+                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/50'
+                : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/50'
+
+              const protocolLabel = protocol === 'HTTP/1.1' ? 'H1.1' : protocol === 'HTTP/3' ? 'H3' : protocol ? 'H2' : null
+
               return (
-                <div className="flex gap-2 flex-wrap justify-end">
+                <div className="flex flex-col items-end gap-1">
+                  <div className="flex gap-1.5 flex-wrap justify-end">
+                    {pops.map(pop => (
+                      <span key={pop} className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px] font-mono font-medium text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
+                        {pop} PoP
+                      </span>
+                    ))}
+                    {cacheStatus && (
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border ${cacheClass}`}>
+                        {cacheStatus}
+                      </span>
+                    )}
+                    {protocolLabel && (
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border ${
+                        protocolLabel === 'H1.1'
+                          ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/50'
+                          : protocolLabel === 'H3'
+                          ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50'
+                          : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/50'
+                      }`}>
+                        {protocolLabel}
+                      </span>
+                    )}
+                    {security && (
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border ${
+                        security.score >= 4
+                          ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50'
+                          : security.score >= 2
+                          ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/50'
+                          : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800/50'
+                      }`}>
+                        Security {security.score}/5
+                      </span>
+                    )}
+                  </div>
                   {cdn && (
-                    <span className="px-2 py-0.5 rounded bg-orange-100 dark:bg-orange-900/30 text-[10px] font-bold text-orange-700 dark:text-orange-400 uppercase tracking-tight border border-orange-200 dark:border-orange-800/50">
-                      CDN: {cdn}
-                    </span>
-                  )}
-                  {protocol && (
-                    <span className="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-[10px] font-bold text-blue-700 dark:text-blue-400 uppercase tracking-tight border border-blue-200 dark:border-blue-800/50">
-                      {protocol}
-                    </span>
-                  )}
-                  {security && (
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border ${
-                      security.score >= 4
-                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50'
-                        : security.score >= 2
-                        ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/50'
-                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800/50'
-                    }`}>
-                      Security {security.score}/5
-                    </span>
+                    <p className="text-[10px] text-zinc-400 dark:text-zinc-500">Via {cdn}</p>
                   )}
                 </div>
               )
@@ -378,19 +509,45 @@ export default async function MonitorDetailPage({
                       <td className="px-4 py-3 text-right text-xs text-zinc-400 tabular-nums">
                         {s.ttfb_min_ms != null ? `${s.ttfb_min_ms} / ${s.ttfb_max_ms}ms` : '—'}
                       </td>
-                      <td className="px-4 py-3 text-right text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
-                        {s.edge_avg_ms != null ? `${s.edge_avg_ms}ms` : '—'}
-                      </td>
-                      <td className={`px-4 py-3 text-right text-xs tabular-nums ${ttfbColor(s.origin_avg_ms)}`}>
-                        {s.origin_avg_ms != null ? `${s.origin_avg_ms}ms` : '—'}
-                      </td>
-                      <td className={`px-4 py-3 text-right text-xs tabular-nums ${(s.redirect_avg ?? 0) > 0 ? 'text-amber-500 font-medium' : 'text-zinc-400'}`}>
-                        {(s.redirect_avg ?? 0) > 0 ? s.redirect_avg : '—'}
+                      <td className="px-4 py-3 text-right">
+                        {(() => {
+                          const edge = serverTimingDisplay(s.edge_avg_ms)
+                          return (
+                            <span className={`text-xs tabular-nums ${edge.tone}`} title={edge.title}>
+                              {edge.text}
+                            </span>
+                          )
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <span className="text-zinc-700 dark:text-zinc-300 tabular-nums text-xs">
-                          {s.cache_hit_pct != null ? `${s.cache_hit_pct}%` : '—'}
-                        </span>
+                        {(() => {
+                          const origin = serverTimingDisplay(s.origin_avg_ms)
+                          return (
+                            <span className={`text-xs tabular-nums ${origin.tone}`} title={origin.title}>
+                              {origin.text}
+                            </span>
+                          )
+                        })()}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {(() => {
+                          const redirects = redirectDisplay(s.redirect_avg)
+                          return (
+                            <span className={`text-xs tabular-nums ${redirects.tone}`}>
+                              {redirects.text}
+                            </span>
+                          )
+                        })()}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {(() => {
+                          const cache = cacheDisplay(s.common_cache_status, s.cache_hit_pct)
+                          return (
+                            <span className={`text-xs tabular-nums ${cache.tone}`} title={cache.title}>
+                              {cache.text}
+                            </span>
+                          )
+                        })()}
                         {ageLabel && (
                           <span
                             className={`block text-[10px] tabular-nums mt-0.5 ${isZombie ? 'text-amber-500 font-medium' : 'text-zinc-400'}`}

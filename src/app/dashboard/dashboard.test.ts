@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   advisorNarrative,
   cacheSummary,
@@ -17,32 +17,34 @@ const base: MonitorSummary = {
   ttfb_worst_ms: 300,
   error_count: 0,
   cache_hit_pct: 90,
+  uptime_pct: 100,
+  redirect_avg: 0,
+  security_score: 5,
   last_probe_at: new Date(),
   alert_count: 0,
-  edge_pops: null,
 }
 
 describe('statusLabel', () => {
-  it('returns Pausado when inactive', () => {
-    expect(statusLabel({ ...base, is_active: false })).toBe('Pausado')
+  it('returns paused when inactive', () => {
+    expect(statusLabel({ ...base, is_active: false })).toBe('Paused')
   })
 
-  it('returns Coletando dados when no probes yet', () => {
-    expect(statusLabel({ ...base, last_probe_at: null })).toBe('Coletando dados')
+  it('returns collecting data when no probes exist yet', () => {
+    expect(statusLabel({ ...base, last_probe_at: null })).toBe('Collecting data')
   })
 
-  it('returns Precisa de atenção when there are problems', () => {
-    expect(statusLabel({ ...base, error_count: 1 })).toBe('Precisa de atenção')
-    expect(statusLabel({ ...base, alert_count: 2 })).toBe('Precisa de atenção')
+  it('returns needs attention when problems are present', () => {
+    expect(statusLabel({ ...base, error_count: 1 })).toBe('Needs attention')
+    expect(statusLabel({ ...base, alert_count: 2 })).toBe('Needs attention')
   })
 
-  it('returns Pode melhorar when there are no incidents but performance needs tuning', () => {
-    expect(statusLabel({ ...base, ttfb_avg_ms: 950 })).toBe('Pode melhorar')
-    expect(statusLabel({ ...base, cache_hit_pct: 0 })).toBe('Pode melhorar')
+  it('returns can improve for performance tuning cases', () => {
+    expect(statusLabel({ ...base, ttfb_avg_ms: 950 })).toBe('Can improve')
+    expect(statusLabel({ ...base, cache_hit_pct: 0 })).toBe('Can improve')
   })
 
-  it('returns Funcionando normalmente when all good', () => {
-    expect(statusLabel(base)).toBe('Funcionando normalmente')
+  it('returns running normally when healthy', () => {
+    expect(statusLabel(base)).toBe('Running normally')
   })
 })
 
@@ -51,22 +53,22 @@ describe('advisorNarrative', () => {
     expect(advisorNarrative([])).toBeNull()
   })
 
-  it('returns onboarding message when there are monitors but no data yet', () => {
-    expect(advisorNarrative([{ ...base, is_active: false }])).toContain('analisar')
-    expect(advisorNarrative([{ ...base, last_probe_at: null }])).toContain('analisar')
+  it('returns onboarding language when monitors have no data yet', () => {
+    expect(advisorNarrative([{ ...base, is_active: false }])).toContain('Starting exploration')
+    expect(advisorNarrative([{ ...base, last_probe_at: null }])).toContain('Starting exploration')
   })
 
-  it('reports errors first', () => {
+  it('prioritizes errors over other signals', () => {
     const monitors = [
       { ...base, error_count: 2 },
       { ...base, id: '2', alert_count: 1 },
     ]
-    expect(advisorNarrative(monitors)).toContain('precisa de atenção')
+    expect(advisorNarrative(monitors)).toContain('need attention right now')
   })
 
-  it('reports alerts when no errors', () => {
+  it('reports instability when alerts exist without errors', () => {
     const monitors = [{ ...base, alert_count: 1 }]
-    expect(advisorNarrative(monitors)).toContain('sinais de lentidão')
+    expect(advisorNarrative(monitors)).toContain('signs of slowness or instability')
   })
 
   it('reports slowdown when monitors are slow', () => {
@@ -74,45 +76,45 @@ describe('advisorNarrative', () => {
       { ...base, name: 'My API', ttfb_avg_ms: 1200 },
       { ...base, id: '2', ttfb_avg_ms: 900 },
     ]
-    expect(advisorNarrative(monitors)).toContain('lentidão perceptível')
+    expect(advisorNarrative(monitors)).toContain('noticeable latency')
   })
 
-  it('reports healthy when all monitors are fine', () => {
+  it('reports healthy state when everything is fine', () => {
     const monitors = [base, { ...base, id: '2' }]
-    expect(advisorNarrative(monitors)).toContain('funcionando normalmente')
+    expect(advisorNarrative(monitors)).toContain('Everything is working normally')
   })
 })
 
 describe('speedSummary', () => {
-  it('classifies speed ranges in human terms', () => {
-    expect(speedSummary({ ...base, ttfb_avg_ms: 120 }).label).toBe('Rápido')
+  it('classifies speed ranges', () => {
+    expect(speedSummary({ ...base, ttfb_avg_ms: 120 }).label).toBe('Fast')
     expect(speedSummary({ ...base, ttfb_avg_ms: 350 }).label).toBe('Normal')
     expect(speedSummary({ ...base, ttfb_avg_ms: 580 }).label).toBe('Normal')
-    expect(speedSummary({ ...base, ttfb_avg_ms: 950 }).label).toBe('Lento')
-    expect(speedSummary({ ...base, ttfb_avg_ms: 1400 }).label).toBe('Muito lento')
+    expect(speedSummary({ ...base, ttfb_avg_ms: 950 }).label).toBe('Slow')
+    expect(speedSummary({ ...base, ttfb_avg_ms: 1400 }).label).toBe('Very slow')
   })
 
   it('shows collecting state when there is no data', () => {
-    expect(speedSummary({ ...base, last_probe_at: null }).label).toBe('Coletando dados')
+    expect(speedSummary({ ...base, last_probe_at: null }).label).toBe('Collecting data')
   })
 })
 
 describe('cacheSummary', () => {
-  it('classifies cache ranges in human terms', () => {
-    expect(cacheSummary({ ...base, cache_hit_pct: 90 }).label).toBe('Boa')
-    expect(cacheSummary({ ...base, cache_hit_pct: 45 }).label).toBe('Média')
-    expect(cacheSummary({ ...base, cache_hit_pct: 0 }).label).toBe('Baixa')
+  it('keeps the cache label consistent', () => {
+    expect(cacheSummary({ ...base, cache_hit_pct: 90 }).label).toBe('Cache hit rate')
+    expect(cacheSummary({ ...base, cache_hit_pct: 45 }).label).toBe('Cache hit rate')
+    expect(cacheSummary({ ...base, cache_hit_pct: 0 }).label).toBe('Cache hit rate')
   })
 
-  it('uses red for clearly low cache usage', () => {
+  it('uses red for clearly low cache hit rate', () => {
     expect(cacheSummary({ ...base, cache_hit_pct: 0 }).toneClass).toBe('text-red-500')
   })
 })
 
 describe('problemsSummary', () => {
   it('classifies problem volume in human terms', () => {
-    expect(problemsSummary({ ...base, alert_count: 0, error_count: 0 }).label).toBe('Nenhum nas últimas 24h')
-    expect(problemsSummary({ ...base, alert_count: 2, error_count: 0 }).label).toBe('Poucos problemas')
-    expect(problemsSummary({ ...base, alert_count: 3, error_count: 2 }).label).toBe('Muitos problemas')
+    expect(problemsSummary({ ...base, alert_count: 0, error_count: 0 }).label).toBe('None in last 24h')
+    expect(problemsSummary({ ...base, alert_count: 2, error_count: 0 }).label).toBe('Few issues')
+    expect(problemsSummary({ ...base, alert_count: 3, error_count: 2 }).label).toBe('Many issues')
   })
 })

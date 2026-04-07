@@ -7,9 +7,11 @@ export interface MonitorSummary {
   ttfb_worst_ms: number | null
   error_count: number
   cache_hit_pct: number | null
+  uptime_pct: number | null
+  redirect_avg: number | null
+  security_score: number | null
   last_probe_at: Date | null
   alert_count: number
-  edge_pops: string[] | null
 }
 
 interface MetricSummary {
@@ -31,19 +33,6 @@ function evaluateSiteState(monitor: MonitorSummary): SiteState {
   if (monitor.cache_hit_pct != null && monitor.cache_hit_pct < 20) return 'improving'
 
   return 'healthy'
-}
-
-export function primaryInsight(
-  monitor: MonitorSummary,
-  speed: MetricSummary,
-  cache: MetricSummary,
-  problems: MetricSummary,
-) {
-  if (!monitor.last_probe_at) return 'Analyzing this site now.'
-  if (monitor.error_count + monitor.alert_count > 0) return problems.helper
-  if (speed.label === 'Very slow' || speed.label === 'Slow') return speed.helper
-  if (cache.label === 'Low') return cache.helper
-  return 'Everything is running smoothly for your visitors.'
 }
 
 export function statusColor(monitor: MonitorSummary) {
@@ -112,7 +101,7 @@ export function speedSummary(monitor: MonitorSummary): MetricSummary {
 export function cacheSummary(monitor: MonitorSummary): MetricSummary {
   if (!monitor.last_probe_at || monitor.cache_hit_pct == null) {
     return {
-      label: 'Analyzing',
+      label: 'Cache hit rate',
       detail: 'Insufficient data',
       toneClass: 'text-zinc-500 dark:text-zinc-400',
       helper: 'Measuring cache utilization.',
@@ -121,7 +110,7 @@ export function cacheSummary(monitor: MonitorSummary): MetricSummary {
 
   if (monitor.cache_hit_pct > 70) {
     return {
-      label: 'Good',
+      label: 'Cache hit rate',
       detail: `${monitor.cache_hit_pct}%`,
       toneClass: 'text-emerald-500',
       helper: 'Cache is helping speed up requests.',
@@ -130,7 +119,7 @@ export function cacheSummary(monitor: MonitorSummary): MetricSummary {
 
   if (monitor.cache_hit_pct >= 30) {
     return {
-      label: 'Average',
+      label: 'Cache hit rate',
       detail: `${monitor.cache_hit_pct}%`,
       toneClass: 'text-amber-500',
       helper: 'Room for further optimization.',
@@ -138,7 +127,7 @@ export function cacheSummary(monitor: MonitorSummary): MetricSummary {
   }
 
   return {
-    label: 'Low',
+    label: 'Cache hit rate',
     detail: `${monitor.cache_hit_pct}%`,
     toneClass: 'text-red-500',
     helper: 'Heavily dependent on origin server.',
@@ -197,7 +186,7 @@ export function advisorNarrative(monitors: MonitorSummary[]): string | null {
 
   const withAlerts = active.filter(m => m.alert_count > 0)
   if (withAlerts.length > 0) {
-    return `${withAlerts.length} site${withAlerts.length > 1 ? 's' : ''} show${withAlerts.length > 1 ? '' : 's'} signs of slowness or instability.`
+    return `${withAlerts.length} site${withAlerts.length > 1 ? 's' : ''} have active issues.`
   }
 
   const slow = active.filter(m => (m.ttfb_avg_ms ?? 0) > 800)
