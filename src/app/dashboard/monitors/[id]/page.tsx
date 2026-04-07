@@ -206,7 +206,7 @@ export default async function MonitorDetailPage({
       ROUND(c.ttfb_avg::numeric, 0)::int        AS current_avg_ms,
       ROUND(p.ttfb_avg::numeric, 0)::int        AS previous_avg_ms,
       ROUND(
-        100.0 * (c.ttfb_avg - p.ttfb_avg) / NULLIF(p.ttfb_avg, 0), 1
+        (100.0 * (c.ttfb_avg - p.ttfb_avg) / NULLIF(p.ttfb_avg, 0))::numeric, 1
       )                                          AS change_pct
     FROM current_week c
     JOIN previous_week p USING (region)
