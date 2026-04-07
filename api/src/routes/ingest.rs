@@ -29,12 +29,14 @@ pub async fn handler(
             time, monitor_id, region,
             ttfb_ms, download_ms, total_ms, dns_ms, tls_ms, edge_ms, origin_ms,
             status_code, cache_status, served_by, server_timing,
-            http_version, redirect_count, content_length, error
+            http_version, redirect_count, content_length, error,
+            age_s, security_headers, server_timing_breakdown
         ) VALUES (
             NOW(), $1, $2,
             $3, $4, $5, $6, $7, $8, $9,
             $10, $11, $12, $13,
-            $14, $15, $16, $17
+            $14, $15, $16, $17,
+            $18, $19, $20
         )
         "#,
         payload.monitor_id,
@@ -54,6 +56,9 @@ pub async fn handler(
         payload.redirect_count,
         payload.content_length,
         payload.error,
+        payload.age_s,
+        payload.security_headers as Option<serde_json::Value>,
+        payload.server_timing_breakdown as Option<serde_json::Value>,
     )
     .execute(&state.db)
     .await;

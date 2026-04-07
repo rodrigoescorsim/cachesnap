@@ -38,6 +38,15 @@ interface ProbeRequest {
   ingest_url?: string; // sobrescreve INGEST_URL da env se fornecido
 }
 
+interface SecurityHeaders {
+  hsts: string | null;           // Strict-Transport-Security
+  csp: string | null;            // Content-Security-Policy
+  x_frame_options: string | null; // X-Frame-Options
+  x_content_type: string | null;  // X-Content-Type-Options
+  referrer_policy: string | null; // Referrer-Policy
+  score: number;                  // 0–5: number of headers present
+}
+
 interface ProbeResult {
   monitor_id: string;
   region: string;
@@ -56,6 +65,9 @@ interface ProbeResult {
   redirect_count: number;
   content_length: number | null;
   error: string | null;
+  age_s: number | null;                             // Age response header (zombie cache detection)
+  security_headers: SecurityHeaders | null;         // Security headers audit
+  server_timing_breakdown: Record<string, number> | null; // Full parsed Server-Timing entries
 }
 
 // ─── Handler principal ────────────────────────────────────────────────────────
@@ -153,6 +165,9 @@ async function runProbe(
     redirect_count: 0,
     content_length: null,
     error: null,
+    age_s: null,
+    security_headers: null,
+    server_timing_breakdown: null,
   };
 
   try {
@@ -204,17 +219,28 @@ async function runProbe(
     // Captura o cabeçalho Server-Timing (case insensitive e tenta variação com hífen)
     base.server_timing = response.headers.get("Server-Timing") ?? response.headers.get("server-timing");
     const xTimer = response.headers.get("X-Timer") ?? response.headers.get("x-timer");
-    
+
     if (base.server_timing || xTimer) {
       if (base.server_timing) console.log(`[DEBUG] Found Server-Timing: ${base.server_timing}`);
       if (xTimer) console.log(`[DEBUG] Found Fastly X-Timer: ${xTimer}`);
-      
+
       const timing = parseServerTiming(base.server_timing, xTimer);
-      base.edge_ms   = timing.edge_ms;
+      base.edge_ms = timing.edge_ms;
       base.origin_ms = timing.origin_ms;
+      base.server_timing_breakdown = timing.breakdown;
     } else {
       console.log(`[DEBUG] Performance HEADERS (Server-Timing/X-Timer) ARE MISSING`);
     }
+
+    // Age header — zombie cache detection (Age > 86400 → content older than 24h)
+    const ageHeader = response.headers.get("Age");
+    if (ageHeader) {
+      const parsed = parseInt(ageHeader, 10);
+      base.age_s = isNaN(parsed) ? null : parsed;
+    }
+
+    // Security headers audit (5-point score)
+    base.security_headers = collectSecurityHeaders(response.headers);
 
     // Usar redirect count do rastreamento manual
     base.redirect_count = redirectCount;
@@ -300,6 +326,30 @@ function detectHttpVersion(headers: Headers): string | null {
   if (altSvc?.includes("h3")) return "HTTP/3";
 
   return null;
+}
+
+function collectSecurityHeaders(headers: Headers): SecurityHeaders {
+  const hsts = headers.get("Strict-Transport-Security");
+  const csp = headers.get("Content-Security-Policy");
+  const xFrameOptions = headers.get("X-Frame-Options");
+  const xContentType = headers.get("X-Content-Type-Options");
+  const referrerPolicy = headers.get("Referrer-Policy");
+
+  let score = 0;
+  if (hsts) score++;
+  if (csp) score++;
+  if (xFrameOptions) score++;
+  if (xContentType) score++;
+  if (referrerPolicy) score++;
+
+  return {
+    hsts,
+    csp,
+    x_frame_options: xFrameOptions,
+    x_content_type: xContentType,
+    referrer_policy: referrerPolicy,
+    score,
+  };
 }
 
 function resolveRegion(env: Env, request: Request): string {

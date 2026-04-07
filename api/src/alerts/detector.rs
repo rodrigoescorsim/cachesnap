@@ -10,6 +10,30 @@ pub fn is_anomalous(actual_ttfb: f64, avg: f64, stddev: f64) -> bool {
     actual_ttfb > threshold
 }
 
+/// Returns true if a recent alert of this type already exists for the monitor+region
+/// (prevents flooding the alerts table for persistent conditions like anycast routing).
+async fn recent_alert_exists(state: &AppState, monitor_id: uuid::Uuid, region: &str, alert_type: &str) -> bool {
+    match sqlx::query_scalar!(
+        r#"
+        SELECT id FROM alerts
+        WHERE monitor_id = $1
+          AND region = $2
+          AND alert_type = $3
+          AND created_at > NOW() - INTERVAL '24 hours'
+        LIMIT 1
+        "#,
+        monitor_id,
+        region,
+        alert_type,
+    )
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(Some(_)) => true,
+        _ => false,
+    }
+}
+
 pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
     // 1. Checar se é um erro claro ou downtime (ex: timeout na request ou status 500+)
     let is_down = payload.error.is_some() || payload.status_code.map(|s| s >= 500).unwrap_or(false);
@@ -23,6 +47,8 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
             http_version: payload.http_version.clone(),
             region: payload.region.clone(),
             error: payload.error.clone(),
+            served_by: payload.served_by.clone(),
+            age_s: payload.age_s,
         });
 
         let insert_res = sqlx::query_scalar!(
@@ -92,6 +118,8 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
                         http_version: payload.http_version.clone(),
                         region: payload.region.clone(),
                         error: payload.error.clone(),
+                        served_by: payload.served_by.clone(),
+                        age_s: payload.age_s,
                     });
 
                     let insert_res = sqlx::query_scalar!(
@@ -121,7 +149,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
                                 "Anomaly detected for monitor {} in region {}: baseline {}ms, actual {}ms",
                                 payload.monitor_id, payload.region, avg, actual_ttfb
                             );
-                            tokio::spawn(notifier::notify(state, AlertNotification {
+                            tokio::spawn(notifier::notify(state.clone(), AlertNotification {
                                 alert_id,
                                 monitor_id: payload.monitor_id,
                                 alert_type: "anomaly".to_string(),
@@ -142,6 +170,125 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
             }
             Err(e) => {
                 error!("Failed to fetch baseline for anomaly detection: {}", e);
+            }
+        }
+    }
+
+    // 3. Anycast routing audit — at most once per 24h per monitor+region
+    if let Some(ref served_by) = payload.served_by {
+        // Use the dedicated helper instead of going through the full diagnose() pipeline
+        let is_anycast_mismatch = engine::detect_anycast_mismatch(served_by, &payload.region).is_some();
+
+        if is_anycast_mismatch {
+            // Build the human-readable diagnosis for the alert record
+            let anycast_diag = engine::diagnose(&DiagnosisInput {
+                ttfb_ms: payload.ttfb_ms,
+                cache_status: None,
+                baseline_ttfb_ms: None,
+                redirect_count: None,
+                http_version: None,
+                region: payload.region.clone(),
+                error: None,
+                served_by: Some(served_by.clone()),
+                age_s: None,
+            });
+
+            if !recent_alert_exists(&state, payload.monitor_id, &payload.region, "anycast").await {
+                let insert_res = sqlx::query_scalar!(
+                    r#"
+                    INSERT INTO alerts (
+                        monitor_id, region, alert_type, metric, diagnosis, action, estimated_gain_ms
+                    ) VALUES (
+                        $1, $2, 'anycast', 'routing', $3, $4, $5
+                    ) RETURNING id
+                    "#,
+                    payload.monitor_id,
+                    payload.region,
+                    anycast_diag.summary,
+                    anycast_diag.action,
+                    anycast_diag.estimated_gain_ms,
+                )
+                .fetch_one(&state.db)
+                .await;
+
+                match insert_res {
+                    Ok(alert_id) => {
+                        info!(
+                            "Anycast routing mismatch for monitor {} in region {}: {}",
+                            payload.monitor_id, payload.region, anycast_diag.summary
+                        );
+                        tokio::spawn(notifier::notify(state.clone(), AlertNotification {
+                            alert_id,
+                            monitor_id: payload.monitor_id,
+                            alert_type: "anycast".to_string(),
+                            region: payload.region.clone(),
+                            diagnosis: Some(anycast_diag.summary),
+                            action: Some(anycast_diag.action),
+                            actual_ms: None,
+                            baseline_ms: None,
+                            deviation_factor: None,
+                        }));
+                    }
+                    Err(e) => error!("Failed to register ANYCAST alert: {}", e),
+                }
+            }
+        }
+    }
+
+    // 4. Zombie cache audit — at most once per 24h per monitor+region
+    if let Some(age) = payload.age_s {
+        if age > 86_400 {
+            if !recent_alert_exists(&state, payload.monitor_id, &payload.region, "zombie_cache").await {
+                let zombie_diag = engine::diagnose(&DiagnosisInput {
+                    ttfb_ms: payload.ttfb_ms,
+                    cache_status: payload.cache_status.clone(),
+                    baseline_ttfb_ms: None,
+                    redirect_count: None,
+                    http_version: None,
+                    region: payload.region.clone(),
+                    error: None,
+                    served_by: None,
+                    age_s: Some(age),
+                });
+
+                let insert_res = sqlx::query_scalar!(
+                    r#"
+                    INSERT INTO alerts (
+                        monitor_id, region, alert_type, metric, actual_ms, diagnosis, action, estimated_gain_ms
+                    ) VALUES (
+                        $1, $2, 'zombie_cache', 'age_s', $3, $4, $5, $6
+                    ) RETURNING id
+                    "#,
+                    payload.monitor_id,
+                    payload.region,
+                    age as f64,
+                    zombie_diag.summary,
+                    zombie_diag.action,
+                    zombie_diag.estimated_gain_ms,
+                )
+                .fetch_one(&state.db)
+                .await;
+
+                match insert_res {
+                    Ok(alert_id) => {
+                        info!(
+                            "Zombie cache detected for monitor {} in region {}: Age={}s",
+                            payload.monitor_id, payload.region, age
+                        );
+                        tokio::spawn(notifier::notify(state, AlertNotification {
+                            alert_id,
+                            monitor_id: payload.monitor_id,
+                            alert_type: "zombie_cache".to_string(),
+                            region: payload.region.clone(),
+                            diagnosis: Some(zombie_diag.summary),
+                            action: Some(zombie_diag.action),
+                            actual_ms: Some(age as f64),
+                            baseline_ms: None,
+                            deviation_factor: None,
+                        }));
+                    }
+                    Err(e) => error!("Failed to register ZOMBIE_CACHE alert: {}", e),
+                }
             }
         }
     }

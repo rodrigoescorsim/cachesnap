@@ -24,6 +24,12 @@ pub struct ProbeResultPayload {
     pub redirect_count: Option<i32>,
     pub content_length: Option<i64>,
     pub error: Option<String>,
+    #[serde(default)]
+    pub age_s: Option<i32>,                              // Age response header (zombie cache detection)
+    #[serde(default)]
+    pub security_headers: Option<serde_json::Value>,     // {hsts, csp, x_frame_options, x_content_type, referrer_policy, score}
+    #[serde(default)]
+    pub server_timing_breakdown: Option<serde_json::Value>, // {metric_name: dur_ms, ...}
 }
 
 /// Registro persistido no TimescaleDB
@@ -48,4 +54,7 @@ pub struct ProbeResult {
     pub redirect_count: Option<i32>,
     pub content_length: Option<i64>,
     pub error: Option<String>,
+    pub age_s: Option<i32>,
+    pub security_headers: Option<serde_json::Value>,
+    pub server_timing_breakdown: Option<serde_json::Value>,
 }
