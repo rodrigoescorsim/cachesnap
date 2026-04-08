@@ -3,7 +3,6 @@ import { getSession } from '@/lib/auth'
 import sql from '@/lib/db'
 import { AutoRefresh } from './auto-refresh'
 import {
-  advisorNarrative,
   cacheSummary,
   problemsSummary,
   speedSummary,
@@ -107,33 +106,12 @@ export default async function DashboardPage() {
   if (!user) return null
 
   const monitors = await getMonitorSummaries(user.id)
-  const narrative = advisorNarrative(monitors)
-  const topActions = monitors.filter(m => m.alert_count > 0 || m.error_count > 0).slice(0, 3)
 
   return (
     <div className="space-y-8">
       <AutoRefresh />
 
-      {/* Advisor banner */}
-      {narrative && (
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-5 py-4">
-          <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{narrative}</p>
-          {topActions.length > 0 && (
-            <ul className="mt-3 space-y-1">
-              {topActions.map(m => (
-                <li key={m.id} className="text-sm text-zinc-500 dark:text-zinc-400">
-                  <Link href={`/dashboard/monitors/${m.id}`} className="hover:underline text-zinc-700 dark:text-zinc-300">
-                    {m.name ?? m.url}
-                  </Link>
-                  {(m.error_count + m.alert_count) > 0 && ` — ${m.error_count + m.alert_count} issue${m.error_count + m.alert_count > 1 ? 's' : ''}`}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {/* Header row */}
+      {/* Monitor list header */}
       <section className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/40 backdrop-blur px-5 py-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
@@ -182,19 +160,40 @@ export default async function DashboardPage() {
             const securityScore = m.security_score
 
             return (
-              <Link
+              <div
                 key={m.id}
-                href={`/dashboard/monitors/${m.id}`}
-                className="block rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3.5 cursor-pointer transition-all duration-200 hover:border-zinc-400 dark:hover:border-zinc-600 hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/20 dark:focus-visible:ring-zinc-50/20"
+                className="group relative block rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3.5 transition-all duration-200 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-md"
               >
-                <div className="min-w-0">
-                  <p className="truncate text-[15px] font-semibold text-zinc-900 dark:text-zinc-50 leading-tight">
-                    {m.name ?? new URL(m.url).hostname}
-                  </p>
-                  <p className="truncate text-xs text-zinc-400">{m.url}</p>
-                  <p className={`text-[11px] tabular-nums ${lastProbeTone}`}>
-                    {lastProbeText}
-                  </p>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <Link href={`/dashboard/monitors/${m.id}`} className="truncate text-[15px] font-semibold text-zinc-900 dark:text-zinc-50 leading-tight hover:underline">
+                      {m.name ?? new URL(m.url).hostname}
+                    </Link>
+                    <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-400 min-w-0">
+                      <span className="truncate">{m.url}</span>
+                      <span className="text-zinc-300 dark:text-zinc-700 shrink-0">•</span>
+                      <span className={`shrink-0 tabular-nums ${lastProbeTone}`}>
+                        {lastProbeText.replace('Updated: ', '')}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Link
+                      href={`/dashboard/monitors/${m.id}`} // Placeholder for actual edit route if different
+                      className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
+                      title="Edit monitor"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /><path d="m15 5 4 4" /></svg>
+                    </Link>
+                    <Link
+                      href={`/dashboard/monitors/${m.id}`} // Should ideally be a delete action
+                      className="p-1 text-zinc-400 hover:text-red-500 transition-colors"
+                      title="Delete monitor"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
+                    </Link>
+                  </div>
                 </div>
 
                 <div className="mt-3 grid grid-cols-3 gap-2">
@@ -264,7 +263,7 @@ export default async function DashboardPage() {
                     </span>
                   </div>
                 </div>
-              </Link>
+              </div>
             )
           })}
         </div>

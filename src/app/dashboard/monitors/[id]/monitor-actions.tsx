@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface Props {
   id: string
+  url: string
   name: string | null
   alertThresholdMs: number
   isActive: boolean
@@ -15,26 +16,56 @@ interface Props {
 }
 
 export function MonitorActions({
-  id, name, alertThresholdMs, isActive,
+  id, url, name, alertThresholdMs, isActive,
   notifyEmail, notifyEmailEnabled, notifySlackWebhook, notifySlackEnabled,
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [mode, setMode] = useState<'idle' | 'edit' | 'delete-confirm'>('idle')
+  const [pendingAction, setPendingAction] = useState<null | 'toggle' | 'edit' | 'delete' | 'bypass'>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  const isBypass = url.includes('__hoplens_bypass')
+
+  useEffect(() => {
+    if (!menuOpen) return
+
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (!menuRef.current?.contains(target)) setMenuOpen(false)
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [menuOpen])
 
   function handleToggleActive() {
     setError(null)
+    setPendingAction('toggle')
     startTransition(async () => {
-      const res = await fetch(`/api/monitors/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: !isActive }),
-      })
-      if (res.ok) {
-        router.refresh()
-      } else {
-        setError('Failed to update status')
+      try {
+        const res = await fetch(`/api/monitors/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_active: !isActive }),
+        })
+        if (res.ok) {
+          router.refresh()
+        } else {
+          setError('Failed to update status')
+        }
+      } finally {
+        setPendingAction(null)
       }
     })
   }
@@ -42,6 +73,7 @@ export function MonitorActions({
   function handleEdit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
+    setPendingAction('edit')
     const formData = new FormData(e.currentTarget)
     const newName = (formData.get('name') as string).trim()
     const newThreshold = Number(formData.get('alert_threshold_ms'))
@@ -49,74 +81,168 @@ export function MonitorActions({
     const slackVal = (formData.get('notify_slack_webhook') as string).trim()
 
     startTransition(async () => {
-      const res = await fetch(`/api/monitors/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newName || undefined,
-          alert_threshold_ms: newThreshold,
-          notify_email: emailVal || null,
-          notify_email_enabled: formData.get('notify_email_enabled') === 'on',
-          notify_slack_webhook: slackVal || null,
-          notify_slack_enabled: formData.get('notify_slack_enabled') === 'on',
-        }),
-      })
-      if (res.ok) {
-        setMode('idle')
-        router.refresh()
-      } else {
-        const json = await res.json().catch(() => ({}))
-        setError(json.error ?? 'Failed to update monitor')
+      try {
+        const res = await fetch(`/api/monitors/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: newName || undefined,
+            alert_threshold_ms: newThreshold,
+            notify_email: emailVal || null,
+            notify_email_enabled: formData.get('notify_email_enabled') === 'on',
+            notify_slack_webhook: slackVal || null,
+            notify_slack_enabled: formData.get('notify_slack_enabled') === 'on',
+          }),
+        })
+        if (res.ok) {
+          setMode('idle')
+          router.refresh()
+        } else {
+          const json = await res.json().catch(() => ({}))
+          setError(json.error ?? 'Failed to update monitor')
+        }
+      } finally {
+        setPendingAction(null)
       }
     })
   }
 
   function handleDelete() {
     setError(null)
+    setPendingAction('delete')
     startTransition(async () => {
-      const res = await fetch(`/api/monitors/${id}`, { method: 'DELETE' })
-      if (res.ok) {
-        router.push('/dashboard')
-      } else {
-        setError('Failed to delete monitor')
-        setMode('idle')
+      try {
+        const res = await fetch(`/api/monitors/${id}`, { method: 'DELETE' })
+        if (res.ok) {
+          router.push('/dashboard')
+        } else {
+          setError('Failed to delete monitor')
+          setMode('idle')
+        }
+      } finally {
+        setPendingAction(null)
+      }
+    })
+  }
+
+  function handleAddBypass() {
+    setError(null)
+    setPendingAction('bypass')
+    const bypassUrl = url.includes('?')
+      ? `${url}&__hoplens_bypass=1`
+      : `${url}?__hoplens_bypass=1`
+    const bypassName = `${name ?? new URL(url).hostname} (bypass)`
+
+    startTransition(async () => {
+      try {
+        const res = await fetch('/api/monitors', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: bypassUrl, name: bypassName }),
+        })
+        if (res.ok) {
+          const monitor = await res.json()
+          router.push(`/dashboard/monitors/${monitor.id}`)
+        } else {
+          const json = await res.json().catch(() => ({}))
+          setError(json.error ?? 'Failed to create bypass monitor')
+        }
+      } finally {
+        setPendingAction(null)
       }
     })
   }
 
   return (
     <>
-      {/* Action buttons — sit alongside the status badge */}
-      <div className="flex items-center gap-3 shrink-0">
-        <button
-          onClick={handleToggleActive}
-          disabled={isPending}
-          title={isActive ? 'Click to pause' : 'Click to activate'}
-          className={`text-sm font-medium disabled:opacity-50 transition-colors ${
-            isActive
-              ? 'text-emerald-500 hover:text-emerald-600'
-              : 'text-zinc-400 hover:text-zinc-500'
-          }`}
-        >
-          {isActive ? 'Active' : 'Paused'}
-        </button>
+      {/* Action buttons */}
+      <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+        <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-zinc-200 dark:border-zinc-700 bg-zinc-100/70 dark:bg-zinc-900 px-2.5 text-[12px] font-medium text-zinc-600 dark:text-zinc-300">
+          <span className={`h-1.5 w-1.5 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
+          <span className="text-zinc-500 dark:text-zinc-400">Status:</span>
+          <span className="font-semibold">{isActive ? 'Running' : 'Paused'}</span>
+        </span>
 
-        <button
-          onClick={() => { setMode(mode === 'edit' ? 'idle' : 'edit'); setError(null) }}
-          disabled={isPending}
-          className="text-xs text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 disabled:opacity-50 transition-colors"
-        >
-          Settings
-        </button>
+        <div ref={menuRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setMenuOpen(v => !v)}
+            disabled={pendingAction != null}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            title="More actions"
+            aria-label="More actions"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors disabled:opacity-50"
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden="true">
+              <circle cx="8" cy="3" r="1.2" />
+              <circle cx="8" cy="8" r="1.2" />
+              <circle cx="8" cy="13" r="1.2" />
+            </svg>
+          </button>
 
-        <button
-          onClick={() => { setMode(mode === 'delete-confirm' ? 'idle' : 'delete-confirm'); setError(null) }}
-          disabled={isPending}
-          className="text-xs text-red-400 hover:text-red-600 disabled:opacity-50 transition-colors"
-        >
-          Delete
-        </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-[calc(100%+6px)] z-20 min-w-[148px] rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  handleToggleActive()
+                  setMenuOpen(false)
+                }}
+                disabled={pendingAction != null}
+                className={`w-full rounded-md px-2.5 py-1.5 text-left text-xs font-medium transition-colors disabled:opacity-50 ${
+                  isActive
+                    ? 'text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+                    : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                }`}
+              >
+                {isPending && pendingAction === 'toggle'
+                  ? (isActive ? 'Pausing...' : 'Resuming...')
+                  : (isActive ? 'Pause monitor' : 'Resume monitor')}
+              </button>
+              {!isBypass && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleAddBypass()
+                    setMenuOpen(false)
+                  }}
+                  disabled={pendingAction != null}
+                  className="w-full rounded-md px-2.5 py-1.5 text-left text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors disabled:opacity-50"
+                >
+                  {isPending && pendingAction === 'bypass' ? 'Creating...' : 'Add bypass variant'}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode(mode === 'edit' ? 'idle' : 'edit')
+                  setError(null)
+                  setMenuOpen(false)
+                }}
+                disabled={pendingAction != null}
+                className="w-full rounded-md px-2.5 py-1.5 text-left text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode(mode === 'delete-confirm' ? 'idle' : 'delete-confirm')
+                  setError(null)
+                  setMenuOpen(false)
+                }}
+                disabled={pendingAction != null}
+                className="w-full rounded-md px-2.5 py-1.5 text-left text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50"
+              >
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
+      {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
 
       {/* Inline edit panel */}
       {mode === 'edit' && (
@@ -199,7 +325,7 @@ export function MonitorActions({
                   name="notify_slack_webhook"
                   type="url"
                   defaultValue={notifySlackWebhook ?? ''}
-                  placeholder="https://hooks.slack.com/services/…"
+                  placeholder="https://hooks.slack.com/services/..."
                   className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
                 />
               </div>
@@ -213,7 +339,7 @@ export function MonitorActions({
                 disabled={isPending}
                 className="rounded-lg bg-zinc-900 dark:bg-zinc-50 px-4 py-2 text-sm font-medium text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-200 disabled:opacity-50 transition-colors"
               >
-                {isPending ? 'Saving…' : 'Save'}
+                {isPending && pendingAction === 'edit' ? 'Saving...' : 'Save'}
               </button>
               <button
                 type="button"
@@ -240,7 +366,7 @@ export function MonitorActions({
               disabled={isPending}
               className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
             >
-              {isPending ? 'Deleting…' : 'Yes, delete'}
+              {isPending && pendingAction === 'delete' ? 'Deleting...' : 'Yes, delete'}
             </button>
             <button
               onClick={() => setMode('idle')}

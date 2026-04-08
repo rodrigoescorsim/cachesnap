@@ -35,6 +35,14 @@ interface WeekTrend {
   change_pct: number
 }
 
+interface Spike {
+  bucket: Date
+  region: string
+  ttfb_avg: number
+  prev_avg: number
+  spike_ms: number
+}
+
 interface SecurityHeaders {
   hsts: string | null
   csp: string | null
@@ -52,10 +60,28 @@ interface Alert {
   baseline_ms: number | null
   actual_ms: number | null
   deviation_factor: number | null
-  diagnosis: string | null
-  action: string | null
-  estimated_gain_ms: number | null
   created_at: Date
+}
+
+interface SecurityByRegion {
+  region: string
+  security_headers: SecurityHeaders | null
+  server_timing_breakdown: Record<string, number> | null
+  sampled_at: Date
+}
+
+interface CacheBypassMonitor {
+  id: string
+  url: string
+  name: string | null
+}
+
+interface CacheRegionStat {
+  region: string
+  ttfb_avg_ms: number | null
+  common_cache_status: string | null
+  cache_hit_pct: number | null
+  max_age_s: number | null
 }
 
 const REGION_LABELS: Record<string, string> = {
@@ -64,6 +90,26 @@ const REGION_LABELS: Record<string, string> = {
   'us-east': 'US East',
   'ap-east': 'Asia Pacific',
   'oc': 'Oceania',
+}
+
+const VALID_TABS = ['performance', 'cache', 'security', 'alerts'] as const
+type MonitorTab = (typeof VALID_TABS)[number]
+
+const TAB_LABELS: Record<MonitorTab, string> = {
+  performance: 'Performance',
+  cache: 'Cache',
+  security: 'Security',
+  alerts: 'Alerts',
+}
+
+const VALID_ALERT_TYPES = ['down', 'anomaly', 'anycast', 'zombie_cache'] as const
+type AlertType = (typeof VALID_ALERT_TYPES)[number]
+
+const ALERT_TYPE_LABELS: Record<AlertType, string> = {
+  down: 'Down',
+  anomaly: 'Anomaly',
+  anycast: 'Anycast',
+  zombie_cache: 'Zombie cache',
 }
 
 const SECURITY_HEADERS_LABELS: Array<{ key: keyof SecurityHeaders; label: string }> = [
@@ -192,9 +238,9 @@ function trendColor(pct: number): string {
 }
 
 function trendArrow(pct: number): string {
-  if (pct <= -5) return '↓'
-  if (pct >= 10) return '↑'
-  return '→'
+  if (pct <= -5) return 'â†“'
+  if (pct >= 10) return 'â†‘'
+  return 'â†’'
 }
 
 function formatDate(d: Date | null): string {
@@ -215,18 +261,68 @@ function scoreColor(score: number): string {
   return 'text-red-600 dark:text-red-400'
 }
 
+function readFirst(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0]
+  return value
+}
+
+function normalizeTab(value: string | undefined): MonitorTab {
+  return VALID_TABS.includes((value ?? '') as MonitorTab) ? (value as MonitorTab) : 'performance'
+}
+
+function normalizeAlertType(value: string | undefined): AlertType | null {
+  return VALID_ALERT_TYPES.includes((value ?? '') as AlertType) ? (value as AlertType) : null
+}
+
+function buildMonitorHref(tab: MonitorTab, range: string, alertType: AlertType | null = null): string {
+  const params = new URLSearchParams()
+  if (tab !== 'performance') params.set('tab', tab)
+  if (range === '7d') params.set('range', '7d')
+  if (tab === 'alerts' && alertType) params.set('alert_type', alertType)
+  const query = params.toString()
+  return query ? `?${query}` : '?'
+}
+
+function safeHostname(url: string): string | null {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return null
+  }
+}
+
+function timingBreakdownEntries(raw: Record<string, number> | null): Array<[string, number]> {
+  if (!raw) return []
+  return Object.entries(raw)
+    .map(([metric, value]) => [metric, Number(value)] as [string, number])
+    .filter(([, value]) => Number.isFinite(value))
+    .sort((a, b) => b[1] - a[1])
+}
+
+function formatMs(value: number | null): string {
+  if (value == null) return '-'
+  return `${Math.round(value)}ms`
+}
+
 export default async function MonitorDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ range?: string }>
+  searchParams: Promise<{ range?: string | string[]; tab?: string | string[]; alert_type?: string | string[] }>
 }) {
   const user = await getSession()
   if (!user) return null
 
   const { id } = await params
-  const { range = '24h' } = await searchParams
+  const rawSearchParams = await searchParams
+  const rangeValue = readFirst(rawSearchParams.range)
+  const tabValue = readFirst(rawSearchParams.tab)
+  const alertTypeValue = readFirst(rawSearchParams.alert_type)
+
+  const range = rangeValue === '7d' ? '7d' : '24h'
+  const activeTab = normalizeTab(tabValue)
+  const filteredAlertType = normalizeAlertType(alertTypeValue)
 
   const [monitor] = await sql<{
     id: string; url: string; name: string | null; is_active: boolean; alert_threshold_ms: number;
@@ -272,12 +368,21 @@ export default async function MonitorDetailPage({
     GROUP BY region ORDER BY region
   `
 
-  const alerts = await sql<Alert[]>`
-    SELECT id, region, alert_type, metric, baseline_ms, actual_ms,
-           deviation_factor, diagnosis, action, estimated_gain_ms, created_at
-    FROM alerts WHERE monitor_id = ${id}
-    ORDER BY created_at DESC LIMIT 20
-  `
+  const alerts = filteredAlertType
+    ? await sql<Alert[]>`
+        SELECT id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, created_at
+        FROM alerts
+        WHERE monitor_id = ${id} AND alert_type = ${filteredAlertType}
+        ORDER BY created_at DESC
+        LIMIT 100
+      `
+    : await sql<Alert[]>`
+        SELECT id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, created_at
+        FROM alerts
+        WHERE monitor_id = ${id}
+        ORDER BY created_at DESC
+        LIMIT 100
+      `
 
   // Week-over-week TTFB trend (last 7 days vs prior 7 days)
   const weekTrend = await sql<WeekTrend[]>`
@@ -311,7 +416,7 @@ export default async function MonitorDetailPage({
   `
 
   // Latest security headers audit (same for all regions — take most recent non-null)
-  const [secRow] = await sql<{ security_headers: SecurityHeaders }[]>`
+  const [secRow] = await sql<{ security_headers: SecurityHeaders | null }[]>`
     SELECT security_headers
     FROM probe_results
     WHERE monitor_id = ${id}
@@ -321,7 +426,7 @@ export default async function MonitorDetailPage({
   `
   const security: SecurityHeaders | null = secRow?.security_headers ?? null
 
-  // Série temporal para o gráfico — bucket size varia com o range selecionado
+  // SÃ©rie temporal para o grÃ¡fico — bucket size varia com o range selecionado
   const chartRaw = range === '7d'
     ? await sql<{ bucket: Date; region: string; ttfb_avg: number }[]>`
         SELECT
@@ -348,12 +453,102 @@ export default async function MonitorDetailPage({
         ORDER BY bucket ASC, region ASC
       `
 
-  // Converter Date → ISO string para serialização Server→Client Component
+  const spikes = await sql<Spike[]>`
+    WITH bucketed AS (
+      SELECT
+        time_bucket('30 minutes', time) AS bucket,
+        region,
+        ROUND(AVG(ttfb_ms)::numeric, 0) AS ttfb_avg
+      FROM probe_results
+      WHERE monitor_id = ${id}
+        AND time > NOW() - INTERVAL '24 hours'
+        AND ttfb_ms IS NOT NULL
+      GROUP BY bucket, region
+    ),
+    with_lag AS (
+      SELECT
+        bucket,
+        region,
+        ttfb_avg,
+        LAG(ttfb_avg) OVER (PARTITION BY region ORDER BY bucket) AS prev_avg
+      FROM bucketed
+    )
+    SELECT
+      bucket,
+      region,
+      ttfb_avg::int,
+      prev_avg::int,
+      (ttfb_avg - prev_avg)::int AS spike_ms
+    FROM with_lag
+    WHERE prev_avg IS NOT NULL
+      AND ttfb_avg > prev_avg * 1.5
+      AND (ttfb_avg - prev_avg) > 100
+    ORDER BY spike_ms DESC
+    LIMIT 5
+  `
+
+  const securityByRegion = await sql<SecurityByRegion[]>`
+    SELECT DISTINCT ON (region)
+      region,
+      security_headers,
+      server_timing_breakdown,
+      time AS sampled_at
+    FROM probe_results
+    WHERE monitor_id = ${id}
+      AND time > NOW() - INTERVAL '24 hours'
+      AND (security_headers IS NOT NULL OR server_timing_breakdown IS NOT NULL)
+    ORDER BY region, time DESC
+  `
+
+  const isBypassMonitor = monitor.url.includes('__hoplens_bypass')
+  const monitorHostname = safeHostname(monitor.url)
+
+  const bypassCandidates = !isBypassMonitor && monitorHostname
+    ? await sql<CacheBypassMonitor[]>`
+        SELECT id, url, name
+        FROM monitors
+        WHERE user_id = ${user.id}
+          AND id <> ${monitor.id}
+          AND url ILIKE '%__hoplens_bypass%'
+        ORDER BY created_at DESC
+      `
+    : []
+
+  const pairedBypassMonitor =
+    bypassCandidates.find(candidate => safeHostname(candidate.url) === monitorHostname) ?? null
+
+  const bypassStats = pairedBypassMonitor
+    ? await sql<CacheRegionStat[]>`
+        SELECT
+          region,
+          ROUND(AVG(ttfb_ms)::numeric, 1) AS ttfb_avg_ms,
+          MODE() WITHIN GROUP (ORDER BY cache_status) AS common_cache_status,
+          ROUND(
+            100.0 * COUNT(*) FILTER (WHERE cache_status ILIKE '%HIT%') / NULLIF(COUNT(*), 0), 1
+          ) AS cache_hit_pct,
+          MAX(age_s)::int AS max_age_s
+        FROM probe_results
+        WHERE monitor_id = ${pairedBypassMonitor.id}
+          AND time > NOW() - INTERVAL '24 hours'
+        GROUP BY region
+        ORDER BY region
+      `
+    : []
+
+  const cacheStatsByRegion = new Map(stats.map(row => [row.region, row]))
+  const bypassStatsByRegion = new Map(bypassStats.map(row => [row.region, row]))
+  const cacheRegions = [...new Set([...stats.map(row => row.region), ...bypassStats.map(row => row.region)])].sort()
+  const hasBypassComparison = pairedBypassMonitor != null && bypassStats.length > 0
+
+  // Converter Date â†’ ISO string para serializaÃ§Ã£o Serverâ†’Client Component
   const chartPoints: ChartPoint[] = chartRaw.map(row => ({
     bucket: row.bucket.toISOString(),
     region: row.region,
     ttfb_avg: Number(row.ttfb_avg),
   }))
+
+  const monitorDisplayName = monitor.name ?? monitorHostname ?? monitor.url
+  const securityRowsWithTiming = securityByRegion.filter(row => timingBreakdownEntries(row.server_timing_breakdown).length > 0)
 
   return (
     <div className="space-y-8">
@@ -363,26 +558,29 @@ export default async function MonitorDetailPage({
         <nav className="text-xs text-zinc-400 mb-2">
           <Link href="/dashboard" className="hover:underline">Overview</Link>
           {' / '}
-          <span className="text-zinc-600 dark:text-zinc-300">{monitor.name ?? new URL(monitor.url).hostname}</span>
+          <span className="text-zinc-600 dark:text-zinc-300">{monitorDisplayName}</span>
         </nav>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-              {monitor.name ?? new URL(monitor.url).hostname}
+              {monitorDisplayName}
             </h1>
             <p className="text-sm text-zinc-400 mt-0.5">{monitor.url}</p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <MonitorActions
-              id={monitor.id}
-              name={monitor.name}
-              alertThresholdMs={monitor.alert_threshold_ms}
-              isActive={monitor.is_active}
-              notifyEmail={monitor.notify_email}
-              notifyEmailEnabled={monitor.notify_email_enabled}
-              notifySlackWebhook={monitor.notify_slack_webhook}
-              notifySlackEnabled={monitor.notify_slack_enabled}
-            />
+            <div id="monitor-actions">
+              <MonitorActions
+                id={monitor.id}
+                url={monitor.url}
+                name={monitor.name}
+                alertThresholdMs={monitor.alert_threshold_ms}
+                isActive={monitor.is_active}
+                notifyEmail={monitor.notify_email}
+                notifyEmailEnabled={monitor.notify_email_enabled}
+                notifySlackWebhook={monitor.notify_slack_webhook}
+                notifySlackEnabled={monitor.notify_slack_enabled}
+              />
+            </div>
             {/* Detected infrastructure + security score */}
             {(() => {
               const cdn = stats.map(s => detectCdn(s.common_served_by)).find(Boolean) ?? null
@@ -393,7 +591,7 @@ export default async function MonitorDetailPage({
               const rawCache = stats.map(s => s.common_cache_status).find(Boolean) ?? null
               const cacheStatus = rawCache?.toUpperCase() ?? null
 
-              if (pops.length === 0 && !cacheStatus && !security) return null
+              if (!isBypassMonitor && pops.length === 0 && !cacheStatus && !security) return null
 
               const cacheClass = cacheStatus === 'HIT'
                 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50'
@@ -406,6 +604,14 @@ export default async function MonitorDetailPage({
               return (
                 <div className="flex flex-col items-end gap-1">
                   <div className="flex gap-1.5 flex-wrap justify-end">
+                    {isBypassMonitor && (
+                      <span
+                        className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/50"
+                        title="This monitor bypasses cache."
+                      >
+                        Bypass
+                      </span>
+                    )}
                     {pops.map(pop => (
                       <span key={pop} className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px] font-mono font-medium text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
                         {pop} PoP
@@ -438,7 +644,28 @@ export default async function MonitorDetailPage({
         </div>
       </div>
 
+      <nav aria-label="Monitor sections" className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/40">
+        <ul className="flex flex-wrap gap-1 p-1">
+          {VALID_TABS.map(tab => (
+            <li key={tab}>
+              <Link
+                href={buildMonitorHref(tab, range, tab === 'alerts' ? filteredAlertType : null)}
+                className={`inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  activeTab === tab
+                    ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-sm border border-zinc-200 dark:border-zinc-700'
+                    : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+              >
+                {TAB_LABELS[tab]}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
       {/* Region stats table */}
+      {activeTab === 'performance' && (
+      <>
       <section>
         <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-3">
           Performance by region — last 24h
@@ -539,7 +766,7 @@ export default async function MonitorDetailPage({
                             className={`block text-[10px] tabular-nums mt-0.5 ${isZombie ? 'text-amber-500 font-medium' : 'text-zinc-400'}`}
                             title={`Age header: ${s.max_age_s}s${isZombie ? ' — zombie cache detected' : ''}`}
                           >
-                            Age {ageLabel}{isZombie ? ' ⚠' : ''}
+                            Age {ageLabel}{isZombie ? ' âš ' : ''}
                           </span>
                         )}
                       </td>
@@ -583,6 +810,33 @@ export default async function MonitorDetailPage({
         </section>
       )}
 
+      {spikes.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-3">
+            Recent spikes - last 24h
+          </h2>
+          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
+            {spikes.map((spike, index) => (
+              <div key={index} className="flex items-center justify-between px-4 py-2.5 gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="shrink-0 text-xs font-mono text-zinc-400 w-[38px]">
+                    {new Date(spike.bucket).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                  </span>
+                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 truncate">
+                    {REGION_LABELS[spike.region] ?? spike.region}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 shrink-0 tabular-nums text-xs">
+                  <span className="text-zinc-400">{spike.prev_avg}ms to {spike.ttfb_avg}ms</span>
+                  <span className="font-semibold text-amber-500">+{spike.spike_ms}ms</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs text-zinc-400">Detected when TTFB increased by more than 50% between consecutive 30-minute windows.</p>
+        </section>
+      )}
+
       {/* Week-over-week trend */}
       {weekTrend.length > 0 && (
         <section>
@@ -596,7 +850,7 @@ export default async function MonitorDetailPage({
                   {REGION_LABELS[t.region] ?? t.region}
                 </span>
                 <div className="flex items-center gap-3 tabular-nums text-sm">
-                  <span className="text-zinc-400 text-xs">{t.previous_avg_ms}ms → {t.current_avg_ms}ms</span>
+                  <span className="text-zinc-400 text-xs">{t.previous_avg_ms}ms â†’ {t.current_avg_ms}ms</span>
                   <span className={`font-semibold ${trendColor(t.change_pct)}`}>
                     {trendArrow(t.change_pct)}{' '}
                     {t.change_pct > 0 ? '+' : ''}{t.change_pct}%
@@ -608,95 +862,282 @@ export default async function MonitorDetailPage({
           <p className="mt-1.5 text-xs text-zinc-400">Comparing last 7 days vs the prior 7 days.</p>
         </section>
       )}
+      </>
+      )}
 
-      {/* Security headers audit */}
-      {security && (
+      {activeTab === 'cache' && (
         <section>
           <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-            Security headers
+            Cache behavior by region - last 24h
           </h2>
-          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3">
-            <div className="flex items-center gap-3 mb-3">
-              <span className={`text-2xl font-bold tabular-nums ${scoreColor(security.score)}`}>
-                {security.score}<span className="text-base font-normal text-zinc-400">/5</span>
-              </span>
-              <span className="text-sm text-zinc-500">
-                {security.score === 5
-                  ? 'All security headers present'
-                  : security.score >= 3
-                  ? 'Some security headers missing'
-                  : 'Critical security headers missing'}
-              </span>
+          {stats.length === 0 ? (
+            <p className="text-sm text-zinc-400">No probe data yet. Results will appear within 5 minutes.</p>
+          ) : (
+            <div className="space-y-3">
+              <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Region</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Cache</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Hit rate</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Age</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">TTFB normal</th>
+                      {hasBypassComparison && (
+                        <>
+                          <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">TTFB bypass</th>
+                          <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Miss cost</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cacheRegions.map((region, index) => {
+                      const normal = cacheStatsByRegion.get(region) ?? null
+                      const bypass = bypassStatsByRegion.get(region) ?? null
+                      const cache = normal ? cacheDisplay(normal.common_cache_status, normal.cache_hit_pct) : null
+                      const ageLabel = formatAge(normal?.max_age_s ?? null)
+                      const missCost =
+                        normal?.ttfb_avg_ms != null && bypass?.ttfb_avg_ms != null
+                          ? Number((bypass.ttfb_avg_ms - normal.ttfb_avg_ms).toFixed(1))
+                          : null
+                      const missCostTone =
+                        missCost == null
+                          ? 'text-zinc-400'
+                          : missCost > 0
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : missCost < 0
+                          ? 'text-red-500'
+                          : 'text-zinc-500'
+
+                      return (
+                        <tr key={region} className={index < cacheRegions.length - 1 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}>
+                          <td className="px-4 py-3 font-medium text-zinc-800 dark:text-zinc-200">
+                            {REGION_LABELS[region] ?? region}
+                          </td>
+                          <td className="px-4 py-3 text-right text-xs">
+                            {cache ? (
+                              <span className={cache.tone} title={cache.title}>{cache.text}</span>
+                            ) : (
+                              <span className="text-zinc-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right text-xs tabular-nums">
+                            {normal?.cache_hit_pct != null ? `${normal.cache_hit_pct}%` : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-right text-xs tabular-nums">
+                            {ageLabel ? ageLabel : '-'}
+                          </td>
+                          <td className={`px-4 py-3 text-right text-xs tabular-nums font-medium ${ttfbColor(normal?.ttfb_avg_ms ?? null)}`}>
+                            {normal?.ttfb_avg_ms != null ? `${normal.ttfb_avg_ms}ms` : '-'}
+                          </td>
+                          {hasBypassComparison && (
+                            <>
+                              <td className={`px-4 py-3 text-right text-xs tabular-nums font-medium ${ttfbColor(bypass?.ttfb_avg_ms ?? null)}`}>
+                                {bypass?.ttfb_avg_ms != null ? `${bypass.ttfb_avg_ms}ms` : '-'}
+                              </td>
+                              <td className={`px-4 py-3 text-right text-xs tabular-nums font-semibold ${missCostTone}`}>
+                                {missCost != null ? `${missCost > 0 ? '+' : ''}${missCost}ms` : '-'}
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {hasBypassComparison && (
+                <p className="text-xs text-zinc-400">
+                  Miss cost formula: TTFB bypass - TTFB normal.
+                </p>
+              )}
+              {!isBypassMonitor && !pairedBypassMonitor && (
+                <p className="text-xs text-zinc-400">
+                  No bypass variant found for this hostname.{' '}
+                  <a href="#monitor-actions" className="text-blue-600 dark:text-blue-400 hover:underline">
+                    Add bypass variant -&gt;
+                  </a>
+                </p>
+              )}
+              {pairedBypassMonitor && !hasBypassComparison && (
+                <p className="text-xs text-zinc-400">
+                  Bypass monitor found ({pairedBypassMonitor.name ?? safeHostname(pairedBypassMonitor.url) ?? pairedBypassMonitor.url}), waiting for probe data.
+                </p>
+              )}
             </div>
-            <div className="flex flex-wrap gap-2">
-              {SECURITY_HEADERS_LABELS.map(({ key, label }) => {
-                const value = security[key]
-                const present = value != null && value !== 0
-                return (
-                  <span
-                    key={label}
-                    className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border ${
-                      present
-                        ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50'
-                        : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/50'
-                    }`}
-                    title={present ? String(value) : undefined}
-                  >
-                    <span>{present ? '✓' : '✗'}</span>
-                    {label}
-                  </span>
-                )
-              })}
+          )}
+        </section>
+      )}
+
+      {activeTab === 'security' && (
+        <section className="space-y-5">
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide">
+            Security and server timing
+          </h2>
+
+          {!security && securityByRegion.length === 0 && (
+            <p className="text-sm text-zinc-400">No security or server-timing data yet.</p>
+          )}
+
+          {security && (
+            <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3">
+              <div className="flex items-center gap-3 mb-2">
+                <span className={`text-2xl font-bold tabular-nums ${scoreColor(security.score)}`}>
+                  {security.score}<span className="text-base font-normal text-zinc-400">/5</span>
+                </span>
+                <span className="text-sm text-zinc-500">Latest observed security headers score.</span>
+              </div>
             </div>
+          )}
+
+          {securityByRegion.length > 0 && (
+            <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Region</th>
+                    {SECURITY_HEADERS_LABELS.map(({ label }) => (
+                      <th key={label} className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">{label}</th>
+                    ))}
+                    <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Score</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Sampled at</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {securityByRegion.map((row, index) => (
+                    <tr key={row.region} className={index < securityByRegion.length - 1 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}>
+                      <td className="px-4 py-3 font-medium text-zinc-800 dark:text-zinc-200">
+                        {REGION_LABELS[row.region] ?? row.region}
+                      </td>
+                      {SECURITY_HEADERS_LABELS.map(({ key, label }) => {
+                        const value = row.security_headers?.[key] ?? null
+                        const present = value != null && String(value).trim().length > 0
+                        return (
+                          <td key={`${row.region}-${label}`} className="px-4 py-3 text-xs">
+                            {present ? (
+                              <span className="font-mono text-zinc-600 dark:text-zinc-300 inline-block max-w-[280px] truncate" title={String(value)}>
+                                {String(value)}
+                              </span>
+                            ) : (
+                              <span className="text-zinc-400">missing</span>
+                            )}
+                          </td>
+                        )
+                      })}
+                      <td className={`px-4 py-3 text-right text-xs font-semibold tabular-nums ${row.security_headers ? scoreColor(row.security_headers.score) : 'text-zinc-400'}`}>
+                        {row.security_headers ? `${row.security_headers.score}/5` : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-right text-xs text-zinc-400">{formatDate(row.sampled_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div>
+            <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-2">
+              Server-Timing breakdown by region
+            </h3>
+            {securityRowsWithTiming.length === 0 ? (
+              <p className="text-sm text-zinc-400">No Server-Timing breakdown data yet.</p>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {securityRowsWithTiming.map(row => {
+                  const entries = timingBreakdownEntries(row.server_timing_breakdown)
+                  return (
+                    <div key={row.region} className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3">
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{REGION_LABELS[row.region] ?? row.region}</p>
+                        <p className="text-[11px] text-zinc-400">{formatDate(row.sampled_at)}</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        {entries.map(([metric, value]) => (
+                          <div key={metric} className="flex items-center justify-between gap-2 text-xs tabular-nums">
+                            <span className="font-mono text-zinc-500">{metric}</span>
+                            <span className={`font-semibold ${ttfbColor(value)}`}>{value.toFixed(1)}ms</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </section>
       )}
 
-      {/* Alerts */}
-      <section>
-        <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-          Recent alerts
-        </h2>
-        {alerts.length === 0 ? (
-          <p className="text-sm text-zinc-400">No alerts yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {alerts.map(a => (
-              <div
-                key={a.id}
-                className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3"
+      {activeTab === 'alerts' && (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide">Alerts</h2>
+            <div className="flex flex-wrap gap-1">
+              <Link
+                href={buildMonitorHref('alerts', range, null)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                  filteredAlertType == null
+                    ? 'bg-zinc-900 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-900'
+                    : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
-                      <span className="capitalize">{a.alert_type.replace('_', ' ')}</span>
-                      {' · '}
-                      <span className="text-zinc-500">{REGION_LABELS[a.region] ?? a.region}</span>
-                    </p>
-                    {a.diagnosis && (
-                      <p className="text-sm text-zinc-600 dark:text-zinc-400">{a.diagnosis}</p>
-                    )}
-                    {a.action && (
-                      <p className="text-sm text-blue-600 dark:text-blue-400">{a.action}</p>
-                    )}
-                    {a.deviation_factor != null && (
-                      <p className="text-xs text-zinc-400">
-                        {a.actual_ms}ms vs {a.baseline_ms}ms baseline ({a.deviation_factor.toFixed(1)}x slower)
-                      </p>
-                    )}
-                    {(a.estimated_gain_ms != null || (a.actual_ms != null && a.baseline_ms != null && a.actual_ms > a.baseline_ms)) && (
-                      <p className="text-xs text-emerald-600 dark:text-emerald-400">
-                        Fix this to recover ~{Math.round(a.estimated_gain_ms ?? (a.actual_ms! - a.baseline_ms!))}ms
-                      </p>
-                    )}
-                  </div>
-                  <span className="shrink-0 text-xs text-zinc-400">{formatDate(a.created_at)}</span>
-                </div>
-              </div>
-            ))}
+                All
+              </Link>
+              {VALID_ALERT_TYPES.map(type => (
+                <Link
+                  key={type}
+                  href={buildMonitorHref('alerts', range, type)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                    filteredAlertType === type
+                      ? 'bg-zinc-900 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-900'
+                      : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  {ALERT_TYPE_LABELS[type]}
+                </Link>
+              ))}
+            </div>
           </div>
-        )}
-      </section>
+
+          {alerts.length === 0 ? (
+            <p className="text-sm text-zinc-400">No alerts found for the current filter.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Date</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Region</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Type</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Metric</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Baseline</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Actual</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Deviation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {alerts.map((alert, index) => (
+                    <tr key={alert.id} className={index < alerts.length - 1 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}>
+                      <td className="px-4 py-3 text-xs text-zinc-400">{formatDate(alert.created_at)}</td>
+                      <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{REGION_LABELS[alert.region] ?? alert.region}</td>
+                      <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300 capitalize">{ALERT_TYPE_LABELS[alert.alert_type as AlertType] ?? alert.alert_type.replace('_', ' ')}</td>
+                      <td className="px-4 py-3 text-xs font-mono text-zinc-500">{alert.metric}</td>
+                      <td className="px-4 py-3 text-right text-xs tabular-nums text-zinc-500">{formatMs(alert.baseline_ms)}</td>
+                      <td className="px-4 py-3 text-right text-xs tabular-nums text-zinc-500">{formatMs(alert.actual_ms)}</td>
+                      <td className="px-4 py-3 text-right text-xs tabular-nums font-medium text-zinc-700 dark:text-zinc-300">
+                        {alert.deviation_factor != null ? `${alert.deviation_factor.toFixed(1)}x` : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   )
 }
+

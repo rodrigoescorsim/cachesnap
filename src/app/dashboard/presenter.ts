@@ -185,27 +185,7 @@ export function problemsSummary(monitor: MonitorSummary): MetricSummary {
   }
 }
 
-export function advisorNarrative(monitors: MonitorSummary[]): string | null {
-  const active = monitors.filter(m => m.is_active && m.last_probe_at)
-  if (active.length === 0) {
-    if (monitors.length === 0) return null
-    return 'Starting exploration for your monitored sites.'
-  }
-
-  const withErrors = active.filter(m => m.error_count > 0)
-  if (withErrors.length > 0) {
-    return `${withErrors.length} site${withErrors.length > 1 ? 's' : ''} need${withErrors.length > 1 ? '' : 's'} attention right now.`
-  }
-
-  const withAlerts = active.filter(m => m.alert_count > 0)
-  if (withAlerts.length > 0) {
-    return `${withAlerts.length} site${withAlerts.length > 1 ? 's' : ''} have active issues.`
-  }
-
-  const slow = active.filter(m => (m.ttfb_avg_ms ?? 0) > 800)
-  if (slow.length > 0) {
-    return 'Your sites are up, but some have noticeable latency.'
-  }
-
-  return 'Everything is working normally. No issues in the last 24 hours.'
+function getHostname(monitor: MonitorSummary): string {
+  return monitor.name ?? new URL(monitor.url).hostname
 }
+
