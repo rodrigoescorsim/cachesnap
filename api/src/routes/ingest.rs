@@ -22,7 +22,7 @@ pub async fn handler(
         return (StatusCode::UNAUTHORIZED, Json(json!({ "error": "unauthorized" }))).into_response();
     }
 
-    // Persistir no TimescaleDB
+    tracing::info!("Ingest: received result for monitor {} from region {} | bypass_ttfb: {:?}", payload.monitor_id, payload.region, payload.bypass_ttfb_ms);
     let result = sqlx::query(
         r#"
         INSERT INTO probe_results (
@@ -71,6 +71,9 @@ pub async fn handler(
 
     match result {
         Ok(_) => {
+            // Notificar via real-time (SSE)
+            let _ = state.tx.send(payload.monitor_id.to_string());
+
             // Disparar o detector de anomalias em background para não bloquear
             let state_clone = state.clone();
             tokio::spawn(async move {

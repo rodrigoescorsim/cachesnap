@@ -45,7 +45,11 @@ interface SecurityHeaders {
   x_frame_options: string | null; // X-Frame-Options
   x_content_type: string | null;  // X-Content-Type-Options
   referrer_policy: string | null; // Referrer-Policy
-  score: number;                  // 0–5: number of headers present
+  permissions_policy: string | null;
+  coop: string | null;
+  coep: string | null;
+  corp: string | null;
+  score: number;                  // 0–9: number of headers present
 }
 
 interface ProbeResult {
@@ -313,6 +317,9 @@ async function runBypassProbe(targetUrl: string): Promise<BypassProbeMetrics> {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5",
         "Accept-Encoding": "gzip, deflate, br",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
       },
     });
     const ttfbEnd = performance.now();
@@ -411,6 +418,10 @@ function collectSecurityHeaders(headers: Headers): SecurityHeaders {
   const xFrameOptions = headers.get("X-Frame-Options");
   const xContentType = headers.get("X-Content-Type-Options");
   const referrerPolicy = headers.get("Referrer-Policy");
+  const permissionsPolicy = headers.get("Permissions-Policy");
+  const coop = headers.get("Cross-Origin-Opener-Policy");
+  const coep = headers.get("Cross-Origin-Embedder-Policy");
+  const corp = headers.get("Cross-Origin-Resource-Policy");
 
   let score = 0;
   if (hsts) score++;
@@ -418,6 +429,10 @@ function collectSecurityHeaders(headers: Headers): SecurityHeaders {
   if (xFrameOptions) score++;
   if (xContentType) score++;
   if (referrerPolicy) score++;
+  if (permissionsPolicy) score++;
+  if (coop) score++;
+  if (coep) score++;
+  if (corp) score++;
 
   return {
     hsts,
@@ -425,6 +440,10 @@ function collectSecurityHeaders(headers: Headers): SecurityHeaders {
     x_frame_options: xFrameOptions,
     x_content_type: xContentType,
     referrer_policy: referrerPolicy,
+    permissions_policy: permissionsPolicy,
+    coop,
+    coep,
+    corp,
     score,
   };
 }

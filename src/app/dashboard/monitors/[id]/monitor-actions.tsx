@@ -84,7 +84,7 @@ export function MonitorActions({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: newName || undefined,
-            alert_threshold_ms: newThreshold,
+            alert_threshold_ms: Number(newThreshold) * 1000,
             notify_email: emailVal || null,
             notify_email_enabled: formData.get('notify_email_enabled') === 'on',
             notify_slack_webhook: slackVal || null,
@@ -221,15 +221,15 @@ export function MonitorActions({
 
             <div>
               <label htmlFor="edit-threshold" className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                Alert threshold (ms)
+                Alert threshold (seconds)
               </label>
               <input
                 id="edit-threshold"
                 name="alert_threshold_ms"
                 type="number"
-                defaultValue={alertThresholdMs}
-                min={100}
-                max={30000}
+                defaultValue={Math.round(alertThresholdMs / 1000)}
+                min={1}
+                max={30}
                 required
                 className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
               />

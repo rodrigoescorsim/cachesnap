@@ -47,6 +47,9 @@ pub async fn start(state: AppState) {
             tokio::spawn(async move {
                 if should_run_now(&state, &monitor).await {
                     let run_bypass = should_run_bypass(&state, &monitor).await;
+                    if run_bypass {
+                        info!("Scheduler: forcing bypass probe for monitor {} ({})", monitor.id, monitor.url);
+                    }
                     dispatch_probes(&state, &monitor, regions, run_bypass).await;
                 }
             });
@@ -91,7 +94,24 @@ async fn should_run_now(state: &AppState, monitor: &Monitor) -> bool {
 }
 
 async fn should_run_bypass(state: &AppState, monitor: &Monitor) -> bool {
-    check_interval(state, &format!("last_bypass:{}", monitor.id), 3600).await
+    // 1. Verifica se já passou 1 hora desde o último bypass (via Redis)
+    let interval_passed = check_interval(state, &format!("last_bypass:{}", monitor.id), 3600).await;
+    if interval_passed {
+        return true;
+    }
+
+    // 2. Garantia de histórico: Se Redis diz que não deu 1h, mas o banco está vazio de bypass, força agora.
+    // Isso garante que o PRIMEIRO probe de um monitor novo sempre tenha bypass.
+    let has_history = sqlx::query!(
+        r#"SELECT EXISTS(SELECT 1 FROM probe_results WHERE monitor_id = $1 AND bypass_ttfb_ms IS NOT NULL LIMIT 1) as "exists!""#,
+        monitor.id
+    )
+    .fetch_one(&state.db)
+    .await
+    .map(|r| r.exists)
+    .unwrap_or(true); // default true para evitar spam em caso de erro no DB
+
+    !has_history
 }
 
 pub fn build_regions(state: &AppState) -> Vec<(String, String)> {

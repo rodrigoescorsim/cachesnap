@@ -11,22 +11,22 @@ export default function NewMonitorPage() {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setErrors({})
-
+  
     const formData = new FormData(e.currentTarget)
     const url = formData.get('url') as string
     const name = formData.get('name') as string
-    const alert_threshold_ms = Number(formData.get('alert_threshold_ms'))
-
+    const alert_threshold_s = Number(formData.get('alert_threshold_s'))
+  
     if (!url) {
       setErrors({ url: 'URL is required' })
       return
     }
-
+  
     try { new URL(url) } catch {
       setErrors({ url: 'Must be a valid URL (include https://)' })
       return
     }
-
+  
     startTransition(async () => {
       const res = await fetch('/api/monitors', {
         method: 'POST',
@@ -34,10 +34,10 @@ export default function NewMonitorPage() {
         body: JSON.stringify({
           url,
           name: name || undefined,
-          alert_threshold_ms: alert_threshold_ms || 1000,
+          alert_threshold_ms: (alert_threshold_s || 5) * 1000,
         }),
       })
-
+  
       if (res.ok) {
         router.push('/dashboard')
       } else {
@@ -89,21 +89,21 @@ export default function NewMonitorPage() {
         </div>
 
         <div>
-          <label htmlFor="alert_threshold_ms" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Alert threshold (ms)
+          <label htmlFor="alert_threshold_s" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+            Alert threshold (seconds)
           </label>
           <input
-            id="alert_threshold_ms"
-            name="alert_threshold_ms"
+            id="alert_threshold_s"
+            name="alert_threshold_s"
             type="number"
-            defaultValue={1000}
-            min={100}
-            max={30000}
+            defaultValue={5}
+            min={1}
+            max={30}
             className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
           />
           <p className="mt-1 text-xs text-zinc-400">Alert when TTFB exceeds this value</p>
-          {errors.alert_threshold_ms && (
-            <p className="mt-1 text-xs text-red-500">{errors.alert_threshold_ms}</p>
+          {errors.alert_threshold_s && (
+            <p className="mt-1 text-xs text-red-500">{errors.alert_threshold_s}</p>
           )}
         </div>
 

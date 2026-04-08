@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getSession } from '@/lib/auth'
 import sql from '@/lib/db'
+import { RealTimeHub } from './real-time-hub'
 import { AutoRefresh } from './auto-refresh'
 import {
   cacheSummary,
@@ -110,7 +111,8 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <AutoRefresh />
+      <RealTimeHub />
+      <AutoRefresh intervalMs={300_000} /> {/* Fallback lento a cada 5m */}
 
       {/* Monitor list header */}
       <section className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/40 backdrop-blur px-5 py-4">
@@ -196,7 +198,11 @@ export default async function DashboardPage() {
                       Speed
                     </span>
                     <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${speed.toneClass}`}>
-                      {speed.detail === '—' ? <span className="text-zinc-300 dark:text-zinc-600">—</span> : speed.detail}
+                      {speed.detail === '—' ? (
+                        <span className="inline-block w-8 h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+                      ) : (
+                        speed.detail
+                      )}
                     </span>
                   </div>
 
@@ -205,7 +211,11 @@ export default async function DashboardPage() {
                       Cache hit rate
                     </span>
                     <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${cache.toneClass}`}>
-                      {cache.detail === '—' ? <span className="text-zinc-300 dark:text-zinc-600">—</span> : cache.detail}
+                      {cache.detail === '—' ? (
+                        <span className="inline-block w-12 h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+                      ) : (
+                        cache.detail
+                      )}
                       {cache.helper === 'Dynamic' && (
                         <span className="ml-2 text-[10px] font-normal tracking-wide text-zinc-400 dark:text-zinc-500">
                           {cache.helper}
@@ -219,7 +229,11 @@ export default async function DashboardPage() {
                       Uptime
                     </span>
                     <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${uptimeTone(uptimePct)}`}>
-                      {uptimePct != null ? `${uptimePct}%` : <span className="text-zinc-300 dark:text-zinc-600">—</span>}
+                      {uptimePct != null ? (
+                        `${uptimePct}%`
+                      ) : (
+                        <span className="inline-block w-10 h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+                      )}
                     </span>
                   </div>
 
@@ -228,9 +242,11 @@ export default async function DashboardPage() {
                       Redirect hops
                     </span>
                     <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${redirectTone(redirectCount)}`}>
-                      {redirectCount != null
-                        ? `${redirectCount}`
-                        : <span className="text-zinc-300 dark:text-zinc-600">—</span>}
+                      {redirectCount != null ? (
+                        `${redirectCount}`
+                      ) : (
+                        <span className="inline-block w-6 h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+                      )}
                     </span>
                   </div>
 
@@ -239,7 +255,11 @@ export default async function DashboardPage() {
                       Issues
                     </span>
                     <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${problems.toneClass}`}>
-                      {isCollecting ? <span className="text-zinc-300 dark:text-zinc-600">—</span> : `${totalProblems}`}
+                      {isCollecting ? (
+                        <span className="inline-block w-6 h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+                      ) : (
+                        `${totalProblems}`
+                      )}
                       {!isCollecting && (
                         <span className="ml-1 text-[10px] font-normal text-zinc-400 dark:text-zinc-500">
                           {totalProblems === 1 ? 'incident' : 'incidents'}
@@ -253,7 +273,11 @@ export default async function DashboardPage() {
                       Security
                     </span>
                     <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${securityTone(securityScore)}`}>
-                      {securityScore != null ? `${securityScore}/5` : <span className="text-zinc-300 dark:text-zinc-600">—</span>}
+                      {securityScore != null ? (
+                        `${securityScore}/5`
+                      ) : (
+                        <span className="inline-block w-8 h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+                      )}
                     </span>
                   </div>
                 </div>

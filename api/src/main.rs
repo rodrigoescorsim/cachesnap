@@ -15,6 +15,7 @@ use axum::{
 };
 use sqlx::PgPool;
 use std::sync::Arc;
+use tokio::sync::broadcast;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -23,15 +24,16 @@ pub struct AppState {
     pub db: PgPool,
     pub redis: deadpool_redis::Pool,
     pub config: Arc<config::Config>,
-    pub http: reqwest::Client, // cliente compartilhado — reutiliza connection pool
+    pub http: reqwest::Client,
+    pub tx: broadcast::Sender<String>,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Carregar .env (ignorado se as vars já estiverem no ambiente — Docker/VPS)
+    // Carregar .env
     dotenvy::dotenv().ok();
 
-    // Logging estruturado
+    // Logging
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -41,13 +43,11 @@ async fn main() -> Result<()> {
         .init();
 
     let config = Arc::new(config::Config::from_env()?);
-    tracing::info!("Starting HopLens API on port {}", config.port);
+    let (tx, _rx) = broadcast::channel(1024);
 
     // Conexões
     let db = db::connect(&config.database_url).await?;
     let redis = redis::connect(&config.redis_url)?;
-
-    // Migrations automáticas na inicialização
     db::run_migrations(&db).await?;
 
     let state = AppState {
@@ -55,15 +55,17 @@ async fn main() -> Result<()> {
         redis,
         config: config.clone(),
         http: reqwest::Client::new(),
+        tx,
     };
 
-    // Iniciar tarefas de background em tokio tasks separadas
+    // background tasks
     tokio::spawn(scheduler::runner::start(state.clone()));
     tokio::spawn(baseline::calculator::run(state.clone()));
 
     // Router
     let app = Router::new()
         .route("/health", get(routes::health::handler))
+        .route("/api/events", get(routes::events::handler)) // Nova rota SSE!
         .route("/api/ingest", post(routes::ingest::handler))
         .route("/api/monitors/active", get(routes::monitors::list_active))
         .route("/api/monitors/{id}/dispatch", post(routes::dispatch::handler))

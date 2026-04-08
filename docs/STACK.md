@@ -410,7 +410,7 @@ Lista monitors do usuário autenticado.
 ### `POST /api/monitors`
 Cria um novo monitor.
 ```json
-{ "url": "https://...", "name": "opcional", "alert_threshold_ms": 1000 }
+{ "url": "https://...", "name": "opcional", "alert_threshold_ms": 5000 }
 ```
 
 ### `GET /api/monitors/:id`

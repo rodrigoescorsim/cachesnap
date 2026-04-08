@@ -7,7 +7,7 @@ const createSchema = z.object({
   url: z.string().url('Must be a valid URL'),
   name: z.string().max(100).optional(),
   check_interval_seconds: z.number().int().min(60).max(3600).default(300),
-  alert_threshold_ms: z.number().int().min(100).max(30000).default(1000),
+  alert_threshold_ms: z.number().int().min(1000).max(30000).default(5000),
 })
 
 function normalizeMonitorUrl(rawUrl: string): string {

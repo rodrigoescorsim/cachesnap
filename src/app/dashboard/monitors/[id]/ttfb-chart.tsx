@@ -42,14 +42,6 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
   const regions = [...new Set(data.map(d => d.region))].sort()
   const allBuckets = [...new Set(data.map(d => d.bucket))].sort()
 
-  if (allBuckets.length < 2) {
-    return (
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-8 text-center text-sm text-zinc-400">
-        Not enough data for the selected range.
-      </div>
-    )
-  }
-
   // Lookup: region → Map<bucket, ttfb_avg>
   const byRegion: Record<string, Map<string, number>> = {}
   for (const d of data) {
@@ -57,16 +49,14 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
     byRegion[d.region].set(d.bucket, d.ttfb_avg)
   }
 
+  // Dimensões úteis
   const maxY = Math.max(...data.map(d => d.ttfb_avg), 1)
-  // Garante mínimo de 100ms na escala e nunca zero (evita divisão por zero em toY)
   const niceMax = Math.max(Math.ceil(maxY / 100) * 100, 100)
 
   const toX = (i: number) => PAD.left + (i / (allBuckets.length - 1)) * CW
   const toY = (ms: number) => PAD.top + (1 - ms / niceMax) * CH
 
   const yLabels = [0, Math.round(niceMax / 2), niceMax]
-
-  // 4 labels no eixo X espaçados uniformemente — deduplica para poucos buckets
   const n = allBuckets.length - 1
   const xIdxs = [...new Set([0, Math.round(n / 3), Math.round(2 * n / 3), n])]
 
@@ -87,88 +77,94 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
                   : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
               }`}
             >
-              {r}
+              {r.toUpperCase()}
             </Link>
           ))}
         </div>
       </div>
 
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
-          {/* Grid horizontal + labels eixo Y */}
-          {yLabels.map(v => (
-            <g key={v}>
-              <line
-                x1={PAD.left} x2={W - PAD.right}
-                y1={toY(v)}   y2={toY(v)}
-                stroke="currentColor" strokeOpacity={0.07} strokeWidth={1}
-              />
-              <text
-                x={PAD.left - 6} y={toY(v) + 4}
-                textAnchor="end" fontSize={9}
-                fill="currentColor" fillOpacity={0.4}
-              >
-                {v}ms
-              </text>
-            </g>
-          ))}
-
-          {/* Labels eixo X */}
-          {xIdxs.map((idx, i) => (
-            <text
-              key={idx}
-              x={toX(idx)}
-              y={H - 8}
-              textAnchor={i === 0 ? 'start' : i === xIdxs.length - 1 ? 'end' : 'middle'}
-              fontSize={8}
-              fill="currentColor" fillOpacity={0.35}
-            >
-              {formatLabel(allBuckets[idx], range)}
-            </text>
-          ))}
-
-          {/* Polylines por região */}
-          {regions.map(region => {
-            const regionMap = byRegion[region]
-            if (!regionMap || regionMap.size < 2) return null
-
-            const points = allBuckets
-              .map((b, i) => {
-                const v = regionMap.get(b)
-                return v != null ? `${toX(i)},${toY(v)}` : null
-              })
-              .filter((p): p is string => p !== null)
-              .join(' ')
-
-            return (
-              <polyline
-                key={region}
-                points={points}
-                fill="none"
-                stroke={REGION_COLORS[region] ?? '#71717a'}
-                strokeWidth={1.5}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-            )
-          })}
-        </svg>
-
-        {/* Legenda */}
-        <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-1 px-1">
-          {regions.map(region => (
-            <div key={region} className="flex items-center gap-1.5">
-              <div
-                className="w-5 h-0.5 rounded-full shrink-0"
-                style={{ backgroundColor: REGION_COLORS[region] ?? '#71717a' }}
-              />
-              <span className="text-xs text-zinc-500">
-                {REGION_LABELS[region] ?? region}
-              </span>
-            </div>
-          ))}
+      {allBuckets.length < 2 ? (
+        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-12 text-center">
+          <p className="text-sm text-zinc-400">Not enough data for the selected range.</p>
         </div>
-      </div>
+      ) : (
+        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-sm">
+          <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
+            {/* Grid horizontal + labels eixo Y */}
+            {yLabels.map(v => (
+              <g key={v}>
+                <line
+                  x1={PAD.left} x2={W - PAD.right}
+                  y1={toY(v)}   y2={toY(v)}
+                  stroke="currentColor" strokeOpacity={0.07} strokeWidth={1}
+                />
+                <text
+                  x={PAD.left - 6} y={toY(v) + 4}
+                  textAnchor="end" fontSize={9}
+                  fill="currentColor" fillOpacity={0.4}
+                >
+                  {v}ms
+                </text>
+              </g>
+            ))}
+
+            {/* Labels eixo X */}
+            {xIdxs.map((idx, i) => (
+              <text
+                key={idx}
+                x={toX(idx)}
+                y={H - 8}
+                textAnchor={i === 0 ? 'start' : i === xIdxs.length - 1 ? 'end' : 'middle'}
+                fontSize={8}
+                fill="currentColor" fillOpacity={0.35}
+              >
+                {formatLabel(allBuckets[idx], range)}
+              </text>
+            ))}
+
+            {/* Polylines por região */}
+            {regions.map(region => {
+              const regionMap = byRegion[region]
+              if (!regionMap || regionMap.size < 2) return null
+
+              const points = allBuckets
+                .map((b, i) => {
+                  const v = regionMap.get(b)
+                  return v != null ? `${toX(i)},${toY(v)}` : null
+                })
+                .filter((p): p is string => p !== null)
+                .join(' ')
+
+              return (
+                <polyline
+                  key={region}
+                  points={points}
+                  fill="none"
+                  stroke={REGION_COLORS[region] ?? '#71717a'}
+                  strokeWidth={1.5}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              )
+            })}
+          </svg>
+
+          {/* Legenda */}
+          <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-1 px-1">
+            {regions.map(region => (
+              <div key={region} className="flex items-center gap-1.5">
+                <div
+                  className="w-5 h-0.5 rounded-full shrink-0"
+                  style={{ backgroundColor: REGION_COLORS[region] ?? '#71717a' }}
+                />
+                <span className="text-xs text-zinc-500">
+                  {REGION_LABELS[region] ?? region}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

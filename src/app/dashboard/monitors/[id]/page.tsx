@@ -5,6 +5,7 @@ import sql from '@/lib/db'
 import { AutoRefresh } from './auto-refresh'
 import { TtfbChart, type ChartPoint } from './ttfb-chart'
 import { MonitorActions } from './monitor-actions'
+import { RealTimeHub } from '../../real-time-hub'
 import { extractPop, detectCdn } from '@/lib/edge-helpers'
 
 interface RegionStat {
@@ -50,6 +51,10 @@ interface SecurityHeaders {
   x_frame_options: string | null
   x_content_type: string | null
   referrer_policy: string | null
+  permissions_policy: string | null
+  coop: string | null
+  coep: string | null
+  corp: string | null
   score: number
 }
 
@@ -68,6 +73,7 @@ interface SecurityByRegion {
   region: string
   security_headers: SecurityHeaders | null
   server_timing_breakdown: Record<string, number> | null
+  served_by: string | null
   sampled_at: Date
 }
 
@@ -104,12 +110,16 @@ const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   zombie_cache: 'Zombie cache',
 }
 
-const SECURITY_HEADERS_LABELS: Array<{ key: keyof SecurityHeaders; label: string }> = [
-  { key: 'hsts', label: 'HSTS' },
-  { key: 'csp', label: 'CSP' },
-  { key: 'x_frame_options', label: 'X-Frame-Options' },
-  { key: 'x_content_type', label: 'X-Content-Type' },
-  { key: 'referrer_policy', label: 'Referrer-Policy' },
+const SECURITY_HEADERS_LABELS: { key: keyof SecurityHeaders; label: string; description: string }[] = [
+  { key: 'hsts', label: 'HSTS', description: 'Forces browsers to use HTTPS only, preventing SSL stripping attacks.' },
+  { key: 'csp', label: 'CSP', description: 'Restricts sources from which content can be loaded, mitigating XSS.' },
+  { key: 'x_frame_options', label: 'X-Frame', description: 'Protects visitors against clickjacking by restricting framing.' },
+  { key: 'x_content_type', label: 'X-Content', description: 'Prevents the browser from MIME-sniffing the response.' },
+  { key: 'referrer_policy', label: 'Referrer', description: 'Controls how much referrer information is sent with requests.' },
+  { key: 'permissions_policy', label: 'Permissions', description: 'Restricts use of browser features like camera, mic, or geoloc.' },
+  { key: 'coop', label: 'COOP', description: 'Isolates your page from other documents to prevent leak attacks.' },
+  { key: 'coep', label: 'COEP', description: 'Prevents loading cross-origin resources without permission.' },
+  { key: 'corp', label: 'CORP', description: 'Defines which origins can read the resources of your site.' },
 ]
 
 function ttfbColor(ms: number | null): string {
@@ -154,7 +164,7 @@ function cacheDisplay(status: string | null, hitPct: number | null): { text: str
 
   if (normalizedStatus === 'HIT') {
     return {
-      text: hitPct != null ? `${hitPct}% hit rate` : 'HIT',
+      text: hitPct != null ? `${formatPct(hitPct)}% hit rate` : 'HIT',
       tone: 'text-emerald-500',
       title: 'Cache hit observed',
     }
@@ -178,23 +188,23 @@ function cacheDisplay(status: string | null, hitPct: number | null): { text: str
 
   if (hitPct === 0) {
     return {
-      text: 'No cache signal',
-      tone: 'text-zinc-400',
+      text: 'Hidden',
+      tone: 'text-zinc-400/60',
       title: 'No cache headers were observed',
     }
   }
 
   if (hitPct != null) {
     return {
-      text: `${hitPct}% hit rate`,
+      text: `${formatPct(hitPct)}% hit rate`,
       tone: hitPct > 70 ? 'text-emerald-500' : hitPct >= 30 ? 'text-amber-500' : 'text-red-500',
       title: 'Calculated from observed probe responses',
     }
   }
 
   return {
-    text: 'No cache signal',
-    tone: 'text-zinc-400',
+    text: 'Hidden',
+    tone: 'text-zinc-400/60',
     title: 'No cache headers were observed',
   }
 }
@@ -202,16 +212,16 @@ function cacheDisplay(status: string | null, hitPct: number | null): { text: str
 function serverTimingDisplay(ms: number | null): { text: string; tone: string; title: string } {
   if (ms == null) {
     return {
-      text: 'Timing not exposed',
-      tone: 'text-zinc-400',
+      text: 'Hidden',
+      tone: 'text-zinc-400/60',
       title: 'The site did not expose Server-Timing or X-Timer headers',
     }
   }
 
   if (ms === 0) {
     return {
-      text: 'No timing signal',
-      tone: 'text-zinc-400',
+      text: 'Hidden',
+      tone: 'text-zinc-400/60',
       title: 'Timing was not exposed in a meaningful way',
     }
   }
@@ -230,9 +240,9 @@ function trendColor(pct: number): string {
 }
 
 function trendArrow(pct: number): string {
-  if (pct <= -5) return 'â†“'
-  if (pct >= 10) return 'â†‘'
-  return 'â†’'
+  if (pct <= -5) return '↓'
+  if (pct >= 10) return '↑'
+  return '→'
 }
 
 function formatDate(d: Date | null): string {
@@ -247,9 +257,15 @@ function formatAge(seconds: number | null): string | null {
   return `${Math.round(seconds / 86400)}d`
 }
 
+function formatPct(val: number | null, decimals: number = 1): string {
+  if (val == null) return '—'
+  if (val % 1 === 0) return Math.round(val).toString()
+  return val.toFixed(decimals)
+}
+
 function scoreColor(score: number): string {
-  if (score >= 4) return 'text-emerald-600 dark:text-emerald-400'
-  if (score >= 2) return 'text-amber-600 dark:text-amber-400'
+  if (score >= 7) return 'text-emerald-600 dark:text-emerald-400'
+  if (score >= 4) return 'text-amber-600 dark:text-amber-400'
   return 'text-red-600 dark:text-red-400'
 }
 
@@ -331,16 +347,16 @@ export default async function MonitorDetailPage({
     SELECT
       region,
       COUNT(*)::int                              AS probe_count,
-      ROUND(AVG(ttfb_ms)::numeric, 1)            AS ttfb_avg_ms,
+      ROUND(AVG(ttfb_ms)::numeric, 0)::int            AS ttfb_avg_ms,
       ROUND(
-        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ttfb_ms)::numeric, 1
-      )                                          AS ttfb_p95_ms,
-      ROUND(MIN(ttfb_ms)::numeric, 1)            AS ttfb_min_ms,
-      ROUND(MAX(ttfb_ms)::numeric, 1)            AS ttfb_max_ms,
-      ROUND(AVG(total_ms)::numeric, 1)           AS total_avg_ms,
-      ROUND(AVG(bypass_ttfb_ms)::numeric, 1)     AS bypass_ttfb_avg_ms,
-      ROUND(AVG(edge_ms)::numeric, 1)            AS edge_avg_ms,
-      ROUND(AVG(origin_ms)::numeric, 1)          AS origin_avg_ms,
+        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ttfb_ms)::numeric, 0
+      )::int                                          AS ttfb_p95_ms,
+      ROUND(MIN(ttfb_ms)::numeric, 0)::int            AS ttfb_min_ms,
+      ROUND(MAX(ttfb_ms)::numeric, 0)::int            AS ttfb_max_ms,
+      ROUND(AVG(total_ms)::numeric, 0)::int           AS total_avg_ms,
+      ROUND(AVG(bypass_ttfb_ms)::numeric, 0)::int     AS bypass_ttfb_avg_ms,
+      ROUND(AVG(edge_ms)::numeric, 0)::int            AS edge_avg_ms,
+      ROUND(AVG(origin_ms)::numeric, 0)::int          AS origin_avg_ms,
       ROUND(AVG(redirect_count)::numeric, 0)     AS redirect_avg,
       MODE() WITHIN GROUP (ORDER BY served_by)    AS common_served_by,
       MODE() WITHIN GROUP (ORDER BY http_version) AS common_http_version,
@@ -351,7 +367,7 @@ export default async function MonitorDetailPage({
       )                                          AS cache_hit_pct,
       ROUND(
         100.0 * COUNT(*) FILTER (WHERE error IS NULL AND status_code < 500)
-               / NULLIF(COUNT(*), 0), 2
+               / NULLIF(COUNT(*), 0), 1
       )                                          AS uptime_pct,
       MAX(age_s)::int                            AS max_age_s,
       MAX(time)                                  AS last_probe_at
@@ -359,6 +375,29 @@ export default async function MonitorDetailPage({
     WHERE monitor_id = ${id}
       AND time > NOW() - INTERVAL '24 hours'
     GROUP BY region ORDER BY region
+  `
+
+  const latestProbes = await sql<RegionStat[]>`
+    SELECT DISTINCT ON (region)
+      region,
+      ttfb_ms AS ttfb_avg_ms,
+      total_ms AS total_avg_ms,
+      (SELECT bypass_ttfb_ms FROM probe_results p2 
+       WHERE p2.monitor_id = p1.monitor_id AND p2.region = p1.region AND p2.bypass_ttfb_ms IS NOT NULL 
+       ORDER BY time DESC LIMIT 1) AS bypass_ttfb_avg_ms,
+      edge_ms AS edge_avg_ms,
+      origin_ms AS origin_avg_ms,
+      redirect_count AS redirect_avg,
+      served_by AS common_served_by,
+      http_version AS common_http_version,
+      cache_status AS common_cache_status,
+      status_code AS probe_count,
+      COALESCE(error, '') as error,
+      age_s AS max_age_s,
+      time AS last_probe_at
+    FROM probe_results p1
+    WHERE monitor_id = ${id}
+    ORDER BY region, time DESC
   `
 
   const alerts = filteredAlertType
@@ -377,7 +416,6 @@ export default async function MonitorDetailPage({
         LIMIT 100
       `
 
-  // Week-over-week TTFB trend (last 7 days vs prior 7 days)
   const weekTrend = await sql<WeekTrend[]>`
     WITH current_week AS (
       SELECT region, AVG(ttfb_ms) AS ttfb_avg
@@ -408,7 +446,6 @@ export default async function MonitorDetailPage({
     ORDER BY change_pct DESC
   `
 
-  // Latest security headers audit (same for all regions — take most recent non-null)
   const [secRow] = await sql<{ security_headers: SecurityHeaders | null }[]>`
     SELECT security_headers
     FROM probe_results
@@ -419,7 +456,6 @@ export default async function MonitorDetailPage({
   `
   const security: SecurityHeaders | null = secRow?.security_headers ?? null
 
-  // SÃ©rie temporal para o grÃ¡fico — bucket size varia com o range selecionado
   const chartRaw = range === '7d'
     ? await sql<{ bucket: Date; region: string; ttfb_avg: number }[]>`
         SELECT
@@ -485,6 +521,7 @@ export default async function MonitorDetailPage({
       region,
       security_headers,
       server_timing_breakdown,
+      served_by,
       time AS sampled_at
     FROM probe_results
     WHERE monitor_id = ${id}
@@ -499,7 +536,6 @@ export default async function MonitorDetailPage({
   const cacheRegions = [...new Set(stats.map(row => row.region))].sort()
   const hasBypassComparison = stats.some(row => row.bypass_ttfb_avg_ms != null)
 
-  // Converter Date â†’ ISO string para serializaÃ§Ã£o Serverâ†’Client Component
   const chartPoints: ChartPoint[] = chartRaw.map(row => ({
     bucket: row.bucket.toISOString(),
     region: row.region,
@@ -512,9 +548,9 @@ export default async function MonitorDetailPage({
   const isCollecting = totalProbes < 3
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      <RealTimeHub />
       <AutoRefresh />
-      {/* Monitor title header */}
       <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/30 px-4 py-3 sm:px-5 sm:py-3.5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
@@ -565,13 +601,13 @@ export default async function MonitorDetailPage({
                   )}
                   {security && (
                     <span title={securityHint} className={`inline-flex h-7 items-center rounded-md px-2.5 text-[11px] font-bold uppercase tracking-tight border ${
-                      security.score >= 4
+                      security.score >= 7
                         ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50'
-                        : security.score >= 2
+                        : security.score >= 4
                         ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/50'
                         : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800/50'
                     }`}>
-                      Security {security.score}/5
+                      Security {security.score}/9
                     </span>
                   )}
                 </>
@@ -655,206 +691,263 @@ export default async function MonitorDetailPage({
         </aside>
 
         <div className="min-w-0 space-y-8">
-      {/* Region stats table */}
       {activeTab === 'performance' && (
-      <>
-      <section>
-        <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-          Performance by region — last 24h
-        </h2>
-        {stats.length === 0 ? (
-          <p className="text-sm text-zinc-400">No probe data yet. Results will appear within 5 minutes.</p>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
-                  <th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Region</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">TTFB avg</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">P95</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">min/max</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Edge</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Origin</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Hops</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Cache</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Uptime</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">HTTP</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Errors</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Last probe</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.map((s, i) => {
-                  const ageLabel = formatAge(s.max_age_s)
-                  const isZombie = s.max_age_s != null && s.max_age_s > 86400
-                  return (
-                    <tr
-                      key={s.region}
-                      className={i < stats.length - 1 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}
-                    >
-                      <td className="px-4 py-3">
-                        <span className="font-medium text-zinc-800 dark:text-zinc-200">
+      <div className="space-y-10">
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              Live Activity — Regional Latest
+            </h2>
+          </div>
+          {latestProbes.length === 0 ? (
+            <p className="text-sm text-zinc-400 italic">Listening for incoming probes...</p>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/20 dark:bg-zinc-950/20 shadow-sm">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
+                    <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Region</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">PoP</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">TTFB</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Cache Bypass TTFB">Bypass</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Number of redirect hops">Hops</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Cache</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Status</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Sync</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {latestProbes.map((s, i) => {
+                    const isError = (s as any).error && (s as any).error !== ''
+                    const cache = cacheDisplay(s.common_cache_status, null)
+                    return (
+                      <tr key={s.region} className={i < latestProbes.length - 1 ? 'border-b border-zinc-100/50 dark:border-zinc-800/50' : ''}>
+                        <td className="px-3 py-2.5 font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
                           {REGION_LABELS[s.region] ?? s.region}
-                        </span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                           <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800/80 px-1.5 py-0.5 text-[9px] font-mono font-medium text-zinc-500 dark:text-zinc-400 ring-1 ring-inset ring-zinc-200/50 dark:ring-zinc-700/50">
+                             {extractPop(s.common_served_by) ?? 'UNK'}
+                           </span>
+                        </td>
+                        <td className={`px-3 py-2.5 text-right font-bold tabular-nums ${ttfbColor(s.ttfb_avg_ms)}`}>
+                          {s.ttfb_avg_ms != null ? `${s.ttfb_avg_ms}ms` : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-xs text-zinc-500 tabular-nums">
+                          {s.bypass_ttfb_avg_ms != null ? `${s.bypass_ttfb_avg_ms}ms` : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-bold text-zinc-700 dark:text-zinc-200 tabular-nums">
+                          {s.redirect_avg ?? 0}
+                        </td>
+                        <td className={`px-3 py-2.5 text-right text-xs font-medium uppercase ${cache.tone}`}>
+                           {cache.text}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
                         {(() => {
-                          const pop = extractPop(s.common_served_by)
-                          return pop ? (
-                            <span className="block text-[10px] font-mono text-zinc-400 dark:text-zinc-500 mt-0.5 bg-zinc-100 dark:bg-zinc-800/50 px-1 py-0.5 rounded w-fit">
-                              {pop} PoP
-                            </span>
-                          ) : null
-                        })()}
-                      </td>
-                      <td className={`px-4 py-3 text-right font-semibold tabular-nums ${ttfbColor(s.ttfb_avg_ms)}`}>
-                        {s.ttfb_avg_ms != null ? `${s.ttfb_avg_ms}ms` : '—'}
-                      </td>
-                      <td className={`px-4 py-3 text-right tabular-nums text-xs ${ttfbColor(s.ttfb_p95_ms)}`}>
-                        {s.ttfb_p95_ms != null ? `${s.ttfb_p95_ms}ms` : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-right text-xs text-zinc-400 tabular-nums">
-                        {s.ttfb_min_ms != null ? `${s.ttfb_min_ms} / ${s.ttfb_max_ms}ms` : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {(() => {
-                          const edge = serverTimingDisplay(s.edge_avg_ms)
-                          return (
-                            <span className={`text-xs tabular-nums ${edge.tone}`} title={edge.title}>
-                              {edge.text}
-                            </span>
-                          )
-                        })()}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {(() => {
-                          const origin = serverTimingDisplay(s.origin_avg_ms)
-                          return (
-                            <span className={`text-xs tabular-nums ${origin.tone}`} title={origin.title}>
-                              {origin.text}
+                          const status = s.probe_count
+                          const color = status < 300 ? 'bg-emerald-100/80 text-emerald-700' : status < 400 ? 'bg-blue-100/80 text-blue-700' : 'bg-red-100/80 text-red-700'
+                          return isError ? (
+                            <span className="inline-flex items-center rounded-md bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 uppercase" title={(s as any).error}>ERROR</span>
+                          ) : (
+                            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${color}`}>
+                              {status || 'OK'}
                             </span>
                           )
                         })()}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        {(() => {
-                          const redirects = redirectDisplay(s.redirect_avg)
-                          return (
-                            <span className={`text-xs tabular-nums ${redirects.tone}`}>
-                              {redirects.text}
-                            </span>
-                          )
-                        })()}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {(() => {
-                          const cache = cacheDisplay(s.common_cache_status, s.cache_hit_pct)
-                          return (
-                            <span className={`text-xs tabular-nums ${cache.tone}`} title={cache.title}>
-                              {cache.text}
-                            </span>
-                          )
-                        })()}
-                        {ageLabel && (
-                          <span
-                            className={`block text-[10px] tabular-nums mt-0.5 ${isZombie ? 'text-amber-500 font-medium' : 'text-zinc-400'}`}
-                            title={`Age header: ${s.max_age_s}s${isZombie ? ' — zombie cache detected' : ''}`}
-                          >
-                            Age {ageLabel}{isZombie ? ' âš ' : ''}
+                        <td className="px-3 py-2.5 text-right text-[10px] text-zinc-400 tabular-nums whitespace-nowrap">
+                          {s.last_probe_at ? new Date(s.last_probe_at).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        <section>
+          <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">
+            Daily Insights — 24h Statistical Averages
+          </h2>
+          {stats.length === 0 ? (
+            <p className="text-sm text-zinc-400">Compiling historical insights...</p>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-transparent">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
+                    <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Region</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">PoP</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">AVG TTFB</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">P95</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight whitespace-nowrap">Min/Max</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Edge</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Origin</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Cache</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Uptime</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">HTTP</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Errors</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.map((s, i) => {
+                    return (
+                      <tr
+                        key={s.region}
+                        className={i < stats.length - 1 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}
+                      >
+                        <td className="px-3 py-2.5">
+                          <span className="font-semibold text-zinc-900 dark:text-zinc-100 whitespace-nowrap">
+                            {REGION_LABELS[s.region] ?? s.region}
                           </span>
-                        )}
-                      </td>
-                      <td className={`px-4 py-3 text-right tabular-nums text-xs font-medium ${uptimeColor(s.uptime_pct)}`}>
-                        {s.uptime_pct != null ? `${s.uptime_pct}%` : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {s.common_http_version ? (
-                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                            s.common_http_version === 'HTTP/1.1'
-                              ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                              : s.common_http_version === 'HTTP/3'
-                              ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-                              : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                          }`}>
-                            {s.common_http_version === 'HTTP/1.1' ? '1.1' : s.common_http_version === 'HTTP/3' ? 'H3' : 'H2'}
-                          </span>
-                        ) : (
-                          <span className="text-zinc-400 text-xs">—</span>
-                        )}
-                      </td>
-                      <td className={`px-4 py-3 text-right ${s.error_count > 0 ? 'text-red-500 font-medium' : 'text-zinc-400'}`}>
-                        {s.error_count}
-                      </td>
-                      <td className="px-4 py-3 text-right text-xs text-zinc-400">
-                        {formatDate(s.last_probe_at)}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {(() => {
+                            const pop = extractPop(s.common_served_by)
+                            return pop ? (
+                              <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800/80 px-1.5 py-0.5 text-[9px] font-mono font-medium text-zinc-500 dark:text-zinc-400 ring-1 ring-inset ring-zinc-200/50 dark:ring-zinc-700/50 shadow-sm">
+                                {pop}
+                              </span>
+                            ) : (
+                              <span className="text-zinc-300 dark:text-zinc-700">—</span>
+                            )
+                          })()}
+                        </td>
+                        <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${ttfbColor(s.ttfb_avg_ms)}`}>
+                          {s.ttfb_avg_ms != null ? `${s.ttfb_avg_ms}ms` : '—'}
+                        </td>
+                        <td className={`px-3 py-2.5 text-right tabular-nums text-xs ${ttfbColor(s.ttfb_p95_ms)}`}>
+                          {s.ttfb_p95_ms != null ? `${s.ttfb_p95_ms}ms` : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-[11px] text-zinc-400 tabular-nums whitespace-nowrap">
+                          {s.ttfb_min_ms != null ? `${s.ttfb_min_ms}ms / ${s.ttfb_max_ms}ms` : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          {(() => {
+                            const edge = serverTimingDisplay(s.edge_avg_ms)
+                            return (
+                              <span className={`text-xs tabular-nums ${edge.tone}`} title={edge.title}>
+                                {edge.text}
+                              </span>
+                            )
+                          })()}
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-zinc-400/60 font-medium whitespace-nowrap font-mono text-[10px]">
+                          {(() => {
+                            const origin = serverTimingDisplay(s.origin_avg_ms)
+                            return (
+                              <span className={`tabular-nums ${origin.tone}`} title={origin.title}>
+                                {origin.text}
+                              </span>
+                            )
+                          })()}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          {(() => {
+                            const cache = cacheDisplay(s.common_cache_status, s.cache_hit_pct)
+                            return (
+                              <div className="flex flex-col items-end">
+                                <span className={`text-xs tabular-nums ${cache.tone} font-medium`} title={cache.title}>
+                                  {cache.text}
+                                </span>
+                              </div>
+                            )
+                          })()}
+                        </td>
+                        <td className={`px-3 py-2.5 text-right tabular-nums text-xs font-medium ${uptimeColor(s.uptime_pct)}`}>
+                          {s.uptime_pct != null ? `${formatPct(s.uptime_pct)}%` : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          {s.common_http_version ? (
+                            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded shadow-sm ring-1 ring-inset ${
+                              s.common_http_version === 'HTTP/1.1'
+                                ? 'bg-amber-100/50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 ring-amber-200/50 dark:ring-amber-800/50'
+                                : s.common_http_version === 'HTTP/3'
+                                ? 'bg-emerald-100/50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 ring-emerald-200/50 dark:ring-emerald-800/50'
+                                : 'bg-zinc-100/50 dark:bg-zinc-800/50 text-zinc-700 dark:text-zinc-400 ring-zinc-200/50 dark:ring-zinc-700/50'
+                            }`}>
+                              {s.common_http_version === 'HTTP/1.1' ? '1.1' : s.common_http_version === 'HTTP/3' ? 'H3' : 'H2'}
+                            </span>
+                          ) : (
+                            <span className="text-zinc-400 text-xs">—</span>
+                          )}
+                        </td>
+                        <td className={`px-3 py-2.5 text-right text-xs ${s.error_count > 0 ? 'text-red-500 font-bold' : 'text-zinc-400/60'}`}>
+                          {s.error_count}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {stats.length > 0 && (
+          <section>
+            <TtfbChart data={chartPoints} range={range} />
+          </section>
         )}
-      </section>
 
-      {/* TTFB Timeline */}
-      {stats.length > 0 && (
-        <section>
-          <TtfbChart data={chartPoints} range={range} />
-        </section>
-      )}
+        {spikes.length > 0 && (
+          <section>
+            <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">
+              Recent spikes - last 24h
+            </h2>
+            <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
+              {spikes.map((spike, index) => (
+                <div key={index} className="flex items-center justify-between px-4 py-2.5 gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="shrink-0 text-xs font-mono text-zinc-400 w-[38px]">
+                      {new Date(spike.bucket).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                    </span>
+                    <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 truncate">
+                      {REGION_LABELS[spike.region] ?? spike.region}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0 tabular-nums text-xs">
+                    <span className="text-zinc-400">{spike.prev_avg}ms to {spike.ttfb_avg}ms</span>
+                    <span className="font-semibold text-amber-500">+{spike.spike_ms}ms</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-1.5 text-xs text-zinc-400 italic">Detected when TTFB increased by more than 50% between consecutive 30-minute windows.</p>
+          </section>
+        )}
 
-      {spikes.length > 0 && (
-        <section>
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-            Recent spikes - last 24h
-          </h2>
-          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
-            {spikes.map((spike, index) => (
-              <div key={index} className="flex items-center justify-between px-4 py-2.5 gap-4">
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="shrink-0 text-xs font-mono text-zinc-400 w-[38px]">
-                    {new Date(spike.bucket).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+        {weekTrend.length > 0 && (
+          <section>
+            <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">
+              Week-over-week trend
+            </h2>
+            <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
+              {weekTrend.map(t => (
+                <div key={t.region} className="flex items-center justify-between px-4 py-3 gap-4">
+                  <span className="text-sm text-zinc-700 dark:text-zinc-300 font-medium min-w-[120px]">
+                    {REGION_LABELS[t.region] ?? t.region}
                   </span>
-                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 truncate">
-                    {REGION_LABELS[spike.region] ?? spike.region}
-                  </span>
+                  <div className="flex items-center gap-3 tabular-nums text-sm">
+                    <span className="text-zinc-400 text-xs">{t.previous_avg_ms}ms → {t.current_avg_ms}ms</span>
+                    <span className={`font-semibold ${trendColor(t.change_pct)}`}>
+                      {trendArrow(t.change_pct)}{' '}
+                      {t.change_pct > 0 ? '+' : ''}{t.change_pct}%
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0 tabular-nums text-xs">
-                  <span className="text-zinc-400">{spike.prev_avg}ms to {spike.ttfb_avg}ms</span>
-                  <span className="font-semibold text-amber-500">+{spike.spike_ms}ms</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="mt-1.5 text-xs text-zinc-400">Detected when TTFB increased by more than 50% between consecutive 30-minute windows.</p>
-        </section>
-      )}
-
-      {/* Week-over-week trend */}
-      {weekTrend.length > 0 && (
-        <section>
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-            Week-over-week trend
-          </h2>
-          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
-            {weekTrend.map(t => (
-              <div key={t.region} className="flex items-center justify-between px-4 py-3 gap-4">
-                <span className="text-sm text-zinc-700 dark:text-zinc-300 font-medium min-w-[120px]">
-                  {REGION_LABELS[t.region] ?? t.region}
-                </span>
-                <div className="flex items-center gap-3 tabular-nums text-sm">
-                  <span className="text-zinc-400 text-xs">{t.previous_avg_ms}ms â†’ {t.current_avg_ms}ms</span>
-                  <span className={`font-semibold ${trendColor(t.change_pct)}`}>
-                    {trendArrow(t.change_pct)}{' '}
-                    {t.change_pct > 0 ? '+' : ''}{t.change_pct}%
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="mt-1.5 text-xs text-zinc-400">Comparing last 7 days vs the prior 7 days.</p>
-        </section>
-      )}
-      </>
+              ))}
+            </div>
+            <p className="mt-1.5 text-xs text-zinc-400 italic">Comparing last 7 days vs the prior 7 days.</p>
+          </section>
+        )}
+      </div>
       )}
 
       {activeTab === 'cache' && (
@@ -881,22 +974,18 @@ export default async function MonitorDetailPage({
                       <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500" title="Average TTFB from the standard monitor URL">
                         TTFB normal
                       </th>
-                      {hasBypassComparison && (
-                        <>
-                          <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500" title="Average TTFB from native bypass requests (cache-bypass query param)">
-                            TTFB bypass
-                          </th>
-                          <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500" title="Cache delta = TTFB bypass - TTFB normal">
-                            Cache delta
-                          </th>
-                        </>
-                      )}
+                      <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500" title="Average TTFB from native bypass requests (cache-bypass query param)">
+                        TTFB bypass
+                      </th>
+                      <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500" title="Cache delta = TTFB bypass - TTFB normal">
+                        Cache delta
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {cacheRegions.map((region, index) => {
                       const normal = cacheStatsByRegion.get(region) ?? null
-                      const cache = normal ? cacheStatusLabel(normal.common_cache_status) : null
+                      const cache = normal ? cacheDisplay(normal.common_cache_status, normal.cache_hit_pct) : null
                       const ageLabel = formatAge(normal?.max_age_s ?? null)
                       const cacheDelta =
                         normal?.ttfb_avg_ms != null && normal?.bypass_ttfb_avg_ms != null
@@ -924,35 +1013,31 @@ export default async function MonitorDetailPage({
                             )}
                           </td>
                           <td className="px-4 py-3 text-right text-xs tabular-nums">
-                            {normal?.cache_hit_pct != null ? `${normal.cache_hit_pct}%` : '-'}
+                            {normal?.cache_hit_pct != null ? `${formatPct(normal.cache_hit_pct)}%` : '-'}
                           </td>
                           <td className="px-4 py-3 text-right text-xs tabular-nums">
                             {ageLabel ? ageLabel : '-'}
                           </td>
                           <td className={`px-4 py-3 text-right text-xs tabular-nums font-medium ${ttfbColor(normal?.ttfb_avg_ms ?? null)}`}>
-                            {normal?.ttfb_avg_ms != null ? `${normal.ttfb_avg_ms}ms` : '-'}
+                            {normal?.ttfb_avg_ms != null ? `${Math.round(normal.ttfb_avg_ms)}ms` : '-'}
                           </td>
-                          {hasBypassComparison && (
-                            <>
-                              <td className={`px-4 py-3 text-right text-xs tabular-nums font-medium ${ttfbColor(normal?.bypass_ttfb_avg_ms ?? null)}`}>
-                                {normal?.bypass_ttfb_avg_ms != null ? `${normal.bypass_ttfb_avg_ms}ms` : '-'}
-                              </td>
-                              <td
-                                className={`px-4 py-3 text-right text-xs tabular-nums font-semibold ${cacheDeltaTone}`}
-                                title={
-                                  cacheDelta == null
-                                    ? undefined
-                                    : cacheDelta > 0
-                                    ? 'Bypass is slower than normal; cache is likely helping.'
-                                    : cacheDelta < 0
-                                    ? 'Bypass is faster than normal; verify route parity and sample window.'
-                                    : 'No measurable delta between normal and bypass.'
-                                }
-                              >
-                                {cacheDelta != null ? `${cacheDelta > 0 ? '+' : ''}${cacheDelta}ms` : '-'}
-                              </td>
-                            </>
-                          )}
+                          <td className={`px-4 py-3 text-right text-xs tabular-nums font-medium ${ttfbColor(normal?.bypass_ttfb_avg_ms ?? null)}`}>
+                            {normal?.bypass_ttfb_avg_ms != null ? `${Math.round(normal.bypass_ttfb_avg_ms)}ms` : '-'}
+                          </td>
+                          <td
+                            className={`px-4 py-3 text-right text-xs tabular-nums font-semibold ${cacheDeltaTone}`}
+                            title={
+                              cacheDelta == null
+                                ? undefined
+                                : cacheDelta > 0
+                                ? 'Bypass is slower than normal; cache is likely helping.'
+                                : cacheDelta < 0
+                                ? 'Bypass is faster than normal; verify route parity and sample window.'
+                                : 'No measurable delta between normal and bypass.'
+                            }
+                          >
+                            {cacheDelta != null ? `${cacheDelta > 0 ? '+' : ''}${cacheDelta}ms` : '-'}
+                          </td>
                         </tr>
                       )
                     })}
@@ -989,57 +1074,123 @@ export default async function MonitorDetailPage({
             <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3">
               <div className="flex items-center gap-3 mb-2">
                 <span className={`text-2xl font-bold tabular-nums ${scoreColor(security.score)}`}>
-                  {security.score}<span className="text-base font-normal text-zinc-400">/5</span>
+                  {security.score}<span className="text-base font-normal text-zinc-400">/9</span>
                 </span>
                 <span className="text-sm text-zinc-500">Latest observed security headers score.</span>
               </div>
             </div>
           )}
 
-          {securityByRegion.length > 0 && (
-            <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
-                    <th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Region</th>
-                    {SECURITY_HEADERS_LABELS.map(({ label }) => (
-                      <th key={label} className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">{label}</th>
-                    ))}
-                    <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Score</th>
-                    <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Sampled at</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {securityByRegion.map((row, index) => (
-                    <tr key={row.region} className={index < securityByRegion.length - 1 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}>
-                      <td className="px-4 py-3 font-medium text-zinc-800 dark:text-zinc-200">
-                        {REGION_LABELS[row.region] ?? row.region}
-                      </td>
-                      {SECURITY_HEADERS_LABELS.map(({ key, label }) => {
-                        const value = row.security_headers?.[key] ?? null
-                        const present = value != null && String(value).trim().length > 0
-                        return (
-                          <td key={`${row.region}-${label}`} className="px-4 py-3 text-xs">
-                            {present ? (
-                              <span className="font-mono text-zinc-600 dark:text-zinc-300 inline-block max-w-[280px] truncate" title={String(value)}>
-                                {String(value)}
-                              </span>
-                            ) : (
-                              <span className="text-zinc-400">missing</span>
-                            )}
-                          </td>
-                        )
-                      })}
-                      <td className={`px-4 py-3 text-right text-xs font-semibold tabular-nums ${row.security_headers ? scoreColor(row.security_headers.score) : 'text-zinc-400'}`}>
-                        {row.security_headers ? `${row.security_headers.score}/5` : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-right text-xs text-zinc-400">{formatDate(row.sampled_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {(() => {
+            if (securityByRegion.length === 0) return null
+
+            // Agrupa regiões por "assinatura" de headers
+            const profiles = new Map<string, { headers: SecurityHeaders | null; regions: string[]; sampled_at: Date }>()
+            
+            securityByRegion.forEach(row => {
+              const sig = JSON.stringify(row.security_headers || {})
+              if (!profiles.has(sig)) {
+                profiles.set(sig, { headers: row.security_headers, regions: [], sampled_at: row.sampled_at })
+              }
+              profiles.get(sig)!.regions.push(row.region)
+            })
+
+            const sortedProfiles = [...profiles.values()].sort((a, b) => b.regions.length - a.regions.length)
+            const mainProfile = sortedProfiles[0]
+            const secondaryProfiles = sortedProfiles.slice(1)
+
+            return (
+              <div className="space-y-8">
+                {/* Perfil Global / Principal */}
+                <section className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Global Security Profile</h3>
+                    <div className="flex -space-x-2">
+                       {mainProfile.regions.map(r => (
+                         <div key={r} title={REGION_LABELS[r]} className="w-6 h-6 rounded-full bg-emerald-500 border-2 border-white dark:border-zinc-950 flex items-center justify-center text-[8px] text-white font-bold cursor-help shadow-sm">
+                           {r.split('-').map(p => p[0].toUpperCase()).join('')}
+                         </div>
+                       ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border-2 border-emerald-500/20 bg-emerald-50/10 dark:bg-emerald-500/5 p-6 shadow-sm ring-1 ring-emerald-500/10 transition-all hover:ring-emerald-500/30">
+                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        {SECURITY_HEADERS_LABELS.map(({ key, label, description }) => {
+                          const value = mainProfile.headers?.[key] ?? null
+                          const present = value != null && String(value).trim().length > 0
+                          return (
+                            <div key={key} className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-tight">{label}</span>
+                                {present ? (
+                                  <span className="inline-flex items-center rounded-md bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-400 ring-1 ring-inset ring-emerald-200/50 dark:ring-emerald-800/50 uppercase">Active</span>
+                                ) : (
+                                  <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[9px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-tight">Missing</span>
+                                )}
+                              </div>
+                              {present && (
+                                <div className="rounded border border-zinc-100 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 p-2">
+                                  <code className="block text-[10px] text-zinc-600 dark:text-zinc-400 break-all font-mono leading-relaxed">
+                                    {String(value)}
+                                  </code>
+                                </div>
+                              )}
+                              <p className="text-[10px] text-zinc-400 italic">
+                                {description}
+                              </p>
+                            </div>
+                          )
+                        })}
+                     </div>
+                  </div>
+                  <p className="text-[10px] text-zinc-400 text-right italic">Consistent across {mainProfile.regions.length} regions. Last verified: {formatDate(mainProfile.sampled_at)}</p>
+                </section>
+
+                {/* Drifts (Se houver) */}
+                {secondaryProfiles.length > 0 && (
+                  <section className="space-y-4">
+                    <h3 className="text-xs font-bold text-red-500 uppercase tracking-widest flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                      Security Drift Detected
+                    </h3>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {secondaryProfiles.map((prof, idx) => (
+                        <div key={idx} className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50/30 dark:bg-red-950/20 p-4 shadow-sm space-y-3">
+                           <div className="flex items-center justify-between">
+                              <p className="text-sm font-bold text-red-700 dark:text-red-400">Variant configuration</p>
+                              <div className="flex gap-1">
+                                {prof.regions.map(r => (
+                                  <span key={r} className="text-[10px] font-bold bg-white dark:bg-zinc-900 px-1.5 py-0.5 rounded border border-red-100 dark:border-red-900/50 text-red-600">
+                                    {REGION_LABELS[r]}
+                                  </span>
+                                ))}
+                              </div>
+                           </div>
+                           <div className="space-y-2">
+                              {SECURITY_HEADERS_LABELS.map(h => {
+                                const mainVal = mainProfile.headers?.[h.key]
+                                const driftVal = prof.headers?.[h.key]
+                                if (JSON.stringify(mainVal) === JSON.stringify(driftVal)) return null
+                                return (
+                                  <div key={h.key} className="text-[10px] p-2 bg-white/50 dark:bg-zinc-950/50 rounded border border-red-50 dark:border-red-900/30">
+                                    <p className="font-bold text-zinc-600 dark:text-zinc-400 uppercase mb-1">{h.label}</p>
+                                    <div className="grid grid-cols-2 gap-2 italic">
+                                      <div><span className="text-zinc-400">Main:</span><br/><span className="text-emerald-600 line-through opacity-50">{String((mainVal || 'Missing'))}</span></div>
+                                      <div><span className="text-red-600 font-bold">Drift:</span><br/><span className="text-red-700 dark:text-red-400">{String((driftVal || 'Missing'))}</span></div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                           </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </div>
+            )
+          })()}
 
           <div>
             <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-2">
@@ -1048,20 +1199,20 @@ export default async function MonitorDetailPage({
             {securityRowsWithTiming.length === 0 ? (
               <p className="text-sm text-zinc-400">No Server-Timing breakdown data yet.</p>
             ) : (
-              <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {securityRowsWithTiming.map(row => {
                   const entries = timingBreakdownEntries(row.server_timing_breakdown)
                   return (
-                    <div key={row.region} className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3">
-                      <div className="flex items-center justify-between gap-3 mb-2">
-                        <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{REGION_LABELS[row.region] ?? row.region}</p>
-                        <p className="text-[11px] text-zinc-400">{formatDate(row.sampled_at)}</p>
+                    <div key={row.region} className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm group hover:border-emerald-500/30 transition-colors">
+                      <div className="flex items-center justify-between gap-3 mb-3 pb-2 border-b border-zinc-50 dark:border-zinc-800">
+                        <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-tight">{REGION_LABELS[row.region] ?? row.region}</p>
+                        <p className="text-[10px] text-zinc-400 font-mono tracking-tighter">{extractPop(row.served_by) ?? 'UNK'}</p>
                       </div>
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         {entries.map(([metric, value]) => (
-                          <div key={metric} className="flex items-center justify-between gap-2 text-xs tabular-nums">
-                            <span className="font-mono text-zinc-500">{metric}</span>
-                            <span className={`font-semibold ${ttfbColor(value)}`}>{value.toFixed(1)}ms</span>
+                          <div key={metric} className="flex items-center justify-between gap-2 text-[11px] tabular-nums">
+                            <span className="font-mono text-zinc-500 dark:text-zinc-400">{metric}</span>
+                            <span className={`font-bold ${ttfbColor(value)} bg-zinc-50 dark:bg-zinc-900 px-1.5 py-0.5 rounded ring-1 ring-zinc-100 dark:ring-zinc-800`}>{value.toFixed(0)}ms</span>
                           </div>
                         ))}
                       </div>
