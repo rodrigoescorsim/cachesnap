@@ -195,7 +195,7 @@ async function runProbe(
     const totalEnd = performance.now();
 
     // Log debug headers (Visivel no wrangler tail)
-    const allHeaders = [...response.headers.entries()].map(([k,v]) => `${k}:${v}`).join(' | ');
+    const allHeaders = [...response.headers.entries()].map(([k, v]) => `${k}:${v}`).join(' | ');
     console.log(`[DEBUG] Monitors ${monitorId} Headers: ${allHeaders}`);
 
     base.ttfb_ms = round(ttfbEnd - fetchStart);
@@ -215,7 +215,7 @@ async function runProbe(
     base.served_by = response.headers.get("CF-Ray")
       ?? response.headers.get("X-Served-By")
       ?? null;
-    
+
     // Captura o cabeçalho Server-Timing (case insensitive e tenta variação com hífen)
     base.server_timing = response.headers.get("Server-Timing") ?? response.headers.get("server-timing");
     const xTimer = response.headers.get("X-Timer") ?? response.headers.get("x-timer");

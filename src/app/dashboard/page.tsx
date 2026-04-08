@@ -135,7 +135,7 @@ export default async function DashboardPage() {
 
       {/* Header row */}
       <section className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/40 backdrop-blur px-5 py-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
               <h2 className="text-xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
@@ -145,9 +145,6 @@ export default async function DashboardPage() {
                 {monitors.length} total
               </span>
             </div>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              {monitors.length} site{monitors.length === 1 ? '' : 's'} being checked every 5 minutes
-            </p>
           </div>
           <Link
             href="/dashboard/monitors/new"

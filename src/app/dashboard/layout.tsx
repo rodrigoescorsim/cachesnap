@@ -2,10 +2,25 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { logout } from '@/app/actions/auth'
+import sql from '@/lib/db'
+import { MonitorNavDropdown } from './monitor-nav-dropdown'
+
+interface NavMonitor {
+  id: string
+  url: string
+  name: string | null
+}
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const user = await getSession()
   if (!user) redirect('/login')
+  const monitors = await sql<NavMonitor[]>`
+    SELECT id, url, name
+    FROM monitors
+    WHERE user_id = ${user.id}
+    ORDER BY created_at DESC
+    LIMIT 100
+  `
 
   return (
     <div className="min-h-full flex flex-col">
@@ -22,12 +37,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               >
                 Overview
               </Link>
-              <Link
-                href="/dashboard#monitors"
-                className="text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50 transition-colors"
-              >
-                Monitors
-              </Link>
+              <MonitorNavDropdown monitors={monitors} />
             </nav>
           </div>
           <div className="flex items-center gap-4">
