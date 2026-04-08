@@ -7,6 +7,7 @@ import { TtfbChart, type ChartPoint } from './ttfb-chart'
 import { MonitorActions } from './monitor-actions'
 import { RealTimeHub } from '../../real-time-hub'
 import { extractPop, detectCdn } from '@/lib/edge-helpers'
+import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
 
 interface RegionStat {
   region: string
@@ -257,10 +258,12 @@ function formatAge(seconds: number | null): string | null {
   return `${Math.round(seconds / 86400)}d`
 }
 
-function formatPct(val: number | null, decimals: number = 1): string {
+function formatPct(val: number | string | null, decimals: number = 1): string {
   if (val == null) return '—'
-  if (val % 1 === 0) return Math.round(val).toString()
-  return val.toFixed(decimals)
+  const num = Number(val)
+  if (isNaN(num)) return '—'
+  if (num % 1 === 0) return Math.round(num).toString()
+  return num.toFixed(decimals)
 }
 
 function scoreColor(score: number): string {
@@ -527,6 +530,26 @@ export default async function MonitorDetailPage({
     WHERE monitor_id = ${id}
       AND time > NOW() - INTERVAL '24 hours'
       AND (security_headers IS NOT NULL OR server_timing_breakdown IS NOT NULL)
+    ORDER BY region, time DESC
+  `
+
+  const waterfallProbes = await sql<WaterfallProbe[]>`
+    SELECT DISTINCT ON (region)
+      region,
+      ttfb_ms,
+      download_ms,
+      total_ms,
+      edge_ms,
+      origin_ms,
+      redirect_count,
+      cache_status,
+      served_by,
+      age_s,
+      server_timing_breakdown,
+      time AS probed_at
+    FROM probe_results
+    WHERE monitor_id = ${id}
+      AND error IS NULL
     ORDER BY region, time DESC
   `
 
@@ -889,6 +912,10 @@ export default async function MonitorDetailPage({
             </div>
           )}
         </section>
+
+        {waterfallProbes.length > 0 && (
+          <ProbeWaterfall probes={waterfallProbes} />
+        )}
 
         {stats.length > 0 && (
           <section>
