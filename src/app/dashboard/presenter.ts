@@ -7,6 +7,7 @@ export interface MonitorSummary {
   ttfb_worst_ms: number | null
   error_count: number
   cache_hit_pct: number | null
+  cache_status: string | null
   uptime_pct: number | null
   redirect_avg: number | null
   security_score: number | null
@@ -56,10 +57,10 @@ export function statusLabel(monitor: MonitorSummary) {
 export function speedSummary(monitor: MonitorSummary): MetricSummary {
   if (!monitor.last_probe_at || monitor.ttfb_avg_ms == null) {
     return {
-      label: 'Collecting data',
-      detail: 'Waiting for probes',
+      label: 'Speed',
+      detail: '—',
       toneClass: 'text-zinc-500 dark:text-zinc-400',
-      helper: 'Analyzing performance.',
+      helper: 'Collecting data',
     }
   }
 
@@ -102,9 +103,21 @@ export function cacheSummary(monitor: MonitorSummary): MetricSummary {
   if (!monitor.last_probe_at || monitor.cache_hit_pct == null) {
     return {
       label: 'Cache hit rate',
-      detail: 'Insufficient data',
+      detail: '—',
       toneClass: 'text-zinc-500 dark:text-zinc-400',
-      helper: 'Measuring cache utilization.',
+      helper: 'Collecting data',
+    }
+  }
+
+  const cacheStatus = monitor.cache_status?.toUpperCase() ?? null
+  const isDynamic = cacheStatus === 'DYNAMIC' || cacheStatus === 'BYPASS'
+
+  if (isDynamic) {
+    return {
+      label: 'Cache hit rate',
+      detail: '0%',
+      toneClass: 'text-zinc-500 dark:text-zinc-400',
+      helper: 'Dynamic',
     }
   }
 
@@ -139,10 +152,10 @@ export function problemsSummary(monitor: MonitorSummary): MetricSummary {
 
   if (!monitor.last_probe_at) {
     return {
-      label: 'Collecting data',
-      detail: 'No data in last 24h',
+      label: 'Issues',
+      detail: '—',
       toneClass: 'text-zinc-500 dark:text-zinc-400',
-      helper: 'Monitoring for potential issues.',
+      helper: 'Collecting data',
     }
   }
 
@@ -167,8 +180,8 @@ export function problemsSummary(monitor: MonitorSummary): MetricSummary {
   return {
     label: 'Many issues',
     detail: `${totalProblems} incidents`,
-    toneClass: 'text-red-500',
-    helper: 'Significant impact on real users.',
+    toneClass: 'text-amber-500',
+    helper: 'Review recommended.',
   }
 }
 

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getSession } from '@/lib/auth'
 import sql from '@/lib/db'
+import { AutoRefresh } from './auto-refresh'
 import {
   advisorNarrative,
   cacheSummary,
@@ -39,6 +40,7 @@ async function getMonitorSummaries(userId: string): Promise<MonitorSummary[]> {
                / NULLIF(COUNT(pr.time), 0),
         0
       )                                                            AS cache_hit_pct,
+      MODE() WITHIN GROUP (ORDER BY pr.cache_status)               AS cache_status,
       ROUND(
         100.0 * COUNT(*) FILTER (WHERE pr.error IS NULL AND pr.status_code < 500)
                / NULLIF(COUNT(pr.time), 0),
@@ -59,7 +61,7 @@ async function getMonitorSummaries(userId: string): Promise<MonitorSummary[]> {
 }
 
 function formatProbeAge(lastProbeAt: Date | null): string {
-  if (!lastProbeAt) return 'Updated: no data yet'
+  if (!lastProbeAt) return 'Collecting data'
 
   const elapsedMs = Date.now() - new Date(lastProbeAt).getTime()
   if (elapsedMs < 60_000) return 'Updated: just now'
@@ -69,7 +71,7 @@ function formatProbeAge(lastProbeAt: Date | null): string {
 }
 
 function probeFreshnessTone(lastProbeAt: Date | null): string {
-  if (!lastProbeAt) return 'text-red-500 dark:text-red-400'
+  if (!lastProbeAt) return 'text-amber-500 dark:text-amber-400'
 
   const elapsedMs = Date.now() - new Date(lastProbeAt).getTime()
   if (elapsedMs > 6 * 60 * 60_000) return 'text-amber-500 dark:text-amber-400'
@@ -107,9 +109,12 @@ export default async function DashboardPage() {
   const monitors = await getMonitorSummaries(user.id)
   const narrative = advisorNarrative(monitors)
   const topActions = monitors.filter(m => m.alert_count > 0 || m.error_count > 0).slice(0, 3)
+  const hasAllData = monitors.every(m => m.last_probe_at)
 
   return (
     <div className="space-y-8">
+      <AutoRefresh hasData={hasAllData} />
+
       {/* Advisor banner */}
       {narrative && (
         <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-5 py-4">
@@ -174,6 +179,7 @@ export default async function DashboardPage() {
             const totalProblems = m.error_count + m.alert_count
             const lastProbeText = formatProbeAge(m.last_probe_at)
             const lastProbeTone = probeFreshnessTone(m.last_probe_at)
+            const isCollecting = m.last_probe_at == null
             const uptimePct = m.uptime_pct
             const redirectAvg = m.redirect_avg
             const redirectCount = redirectAvg == null ? null : Math.round(Number(redirectAvg))
@@ -201,7 +207,7 @@ export default async function DashboardPage() {
                       Speed
                     </span>
                     <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${speed.toneClass}`}>
-                      {speed.detail}
+                      {speed.detail === '—' ? <span className="text-zinc-300 dark:text-zinc-600">—</span> : speed.detail}
                     </span>
                   </div>
 
@@ -210,7 +216,12 @@ export default async function DashboardPage() {
                       Cache hit rate
                     </span>
                     <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${cache.toneClass}`}>
-                      {cache.detail}
+                      {cache.detail === '—' ? <span className="text-zinc-300 dark:text-zinc-600">—</span> : cache.detail}
+                      {cache.helper === 'Dynamic' && (
+                        <span className="ml-2 text-[10px] font-normal tracking-wide text-zinc-400 dark:text-zinc-500">
+                          {cache.helper}
+                        </span>
+                      )}
                     </span>
                   </div>
 
@@ -219,7 +230,7 @@ export default async function DashboardPage() {
                       Uptime
                     </span>
                     <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${uptimeTone(uptimePct)}`}>
-                      {uptimePct != null ? `${uptimePct}%` : 'No data'}
+                      {uptimePct != null ? `${uptimePct}%` : <span className="text-zinc-300 dark:text-zinc-600">—</span>}
                     </span>
                   </div>
 
@@ -229,10 +240,8 @@ export default async function DashboardPage() {
                     </span>
                     <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${redirectTone(redirectCount)}`}>
                       {redirectCount != null
-                        ? redirectCount === 0
-                          ? '0 hops'
-                          : `${redirectCount} hop${redirectCount === 1 ? '' : 's'}`
-                        : 'No data'}
+                        ? `${redirectCount}`
+                        : <span className="text-zinc-300 dark:text-zinc-600">—</span>}
                     </span>
                   </div>
 
@@ -241,16 +250,12 @@ export default async function DashboardPage() {
                       Issues
                     </span>
                     <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${problems.toneClass}`}>
-                      {totalProblems === 0
-                        ? '0'
-                        : `${totalProblems}`}
-                      <span className="ml-1 text-[10px] font-normal text-zinc-400 dark:text-zinc-500">
-                        {totalProblems === 0
-                          ? 'in last 24h'
-                          : totalProblems === 1
-                          ? 'incident'
-                          : 'incidents'}
-                      </span>
+                      {isCollecting ? <span className="text-zinc-300 dark:text-zinc-600">—</span> : `${totalProblems}`}
+                      {!isCollecting && (
+                        <span className="ml-1 text-[10px] font-normal text-zinc-400 dark:text-zinc-500">
+                          {totalProblems === 1 ? 'incident' : 'incidents'}
+                        </span>
+                      )}
                     </span>
                   </div>
 
@@ -259,7 +264,7 @@ export default async function DashboardPage() {
                       Security
                     </span>
                     <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${securityTone(securityScore)}`}>
-                      {securityScore != null ? `${securityScore}/5` : 'No data'}
+                      {securityScore != null ? `${securityScore}/5` : <span className="text-zinc-300 dark:text-zinc-600">—</span>}
                     </span>
                   </div>
                 </div>

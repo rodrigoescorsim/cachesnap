@@ -17,6 +17,7 @@ const base: MonitorSummary = {
   ttfb_worst_ms: 300,
   error_count: 0,
   cache_hit_pct: 90,
+  cache_status: 'HIT',
   uptime_pct: 100,
   redirect_avg: 0,
   security_score: 5,
@@ -103,11 +104,18 @@ describe('cacheSummary', () => {
   it('keeps the cache label consistent', () => {
     expect(cacheSummary({ ...base, cache_hit_pct: 90 }).label).toBe('Cache hit rate')
     expect(cacheSummary({ ...base, cache_hit_pct: 45 }).label).toBe('Cache hit rate')
-    expect(cacheSummary({ ...base, cache_hit_pct: 0 }).label).toBe('Cache hit rate')
+    expect(cacheSummary({ ...base, cache_hit_pct: 0, cache_status: 'DYNAMIC' }).label).toBe('Cache hit rate')
+  })
+
+  it('shows dynamic as the primary cache reading when the route is not cacheable', () => {
+    const summary = cacheSummary({ ...base, cache_hit_pct: 0, cache_status: 'DYNAMIC' })
+    expect(summary.detail).toBe('0%')
+    expect(summary.helper).toBe('Dynamic')
+    expect(summary.toneClass).toBe('text-zinc-500 dark:text-zinc-400')
   })
 
   it('uses red for clearly low cache hit rate', () => {
-    expect(cacheSummary({ ...base, cache_hit_pct: 0 }).toneClass).toBe('text-red-500')
+    expect(cacheSummary({ ...base, cache_hit_pct: 0, cache_status: 'MISS' }).toneClass).toBe('text-red-500')
   })
 })
 
