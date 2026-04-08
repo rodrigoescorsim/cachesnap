@@ -164,7 +164,7 @@ function cacheDisplay(status: string | null, hitPct: number | null): { text: str
 function serverTimingDisplay(ms: number | null): { text: string; tone: string; title: string } {
   if (ms == null) {
     return {
-      text: 'No Server-Timing',
+      text: 'Timing not exposed',
       tone: 'text-zinc-400',
       title: 'The site did not expose Server-Timing or X-Timer headers',
     }
@@ -357,7 +357,7 @@ export default async function MonitorDetailPage({
 
   return (
     <div className="space-y-8">
-      <AutoRefresh hasData={stats.length > 0} />
+      <AutoRefresh />
       {/* Breadcrumb + title */}
       <div>
         <nav className="text-xs text-zinc-400 mb-2">
@@ -386,7 +386,6 @@ export default async function MonitorDetailPage({
             {/* Detected infrastructure + security score */}
             {(() => {
               const cdn = stats.map(s => detectCdn(s.common_served_by)).find(Boolean) ?? null
-              const protocol = stats.map(s => s.common_http_version).find(Boolean) ?? null
               const pops = [...new Set(
                 stats.map(s => extractPop(s.common_served_by)).filter((p): p is string => p != null)
               )]
@@ -394,7 +393,7 @@ export default async function MonitorDetailPage({
               const rawCache = stats.map(s => s.common_cache_status).find(Boolean) ?? null
               const cacheStatus = rawCache?.toUpperCase() ?? null
 
-              if (pops.length === 0 && !cacheStatus && !protocol && !security) return null
+              if (pops.length === 0 && !cacheStatus && !security) return null
 
               const cacheClass = cacheStatus === 'HIT'
                 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50'
@@ -403,8 +402,6 @@ export default async function MonitorDetailPage({
                 : cacheStatus === 'DYNAMIC'
                 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/50'
                 : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/50'
-
-              const protocolLabel = protocol === 'HTTP/1.1' ? 'H1.1' : protocol === 'HTTP/3' ? 'H3' : protocol ? 'H2' : null
 
               return (
                 <div className="flex flex-col items-end gap-1">
@@ -417,17 +414,6 @@ export default async function MonitorDetailPage({
                     {cacheStatus && (
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border ${cacheClass}`}>
                         {cacheStatus}
-                      </span>
-                    )}
-                    {protocolLabel && (
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border ${
-                        protocolLabel === 'H1.1'
-                          ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/50'
-                          : protocolLabel === 'H3'
-                          ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50'
-                          : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/50'
-                      }`}>
-                        {protocolLabel}
                       </span>
                     )}
                     {security && (

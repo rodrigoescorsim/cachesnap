@@ -3,14 +3,17 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
-export function AutoRefresh({ hasData }: { hasData: boolean }) {
+export function AutoRefresh({ intervalMs = 60_000 }: { intervalMs?: number }) {
   const router = useRouter()
 
   useEffect(() => {
-    if (hasData) return
-    const id = setInterval(() => router.refresh(), 5000)
+    const id = setInterval(() => {
+      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+        router.refresh()
+      }
+    }, intervalMs)
     return () => clearInterval(id)
-  }, [hasData, router])
+  }, [intervalMs, router])
 
   return null
 }

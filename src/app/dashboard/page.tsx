@@ -109,11 +109,10 @@ export default async function DashboardPage() {
   const monitors = await getMonitorSummaries(user.id)
   const narrative = advisorNarrative(monitors)
   const topActions = monitors.filter(m => m.alert_count > 0 || m.error_count > 0).slice(0, 3)
-  const hasAllData = monitors.every(m => m.last_probe_at)
 
   return (
     <div className="space-y-8">
-      <AutoRefresh hasData={hasAllData} />
+      <AutoRefresh />
 
       {/* Advisor banner */}
       {narrative && (
@@ -161,7 +160,7 @@ export default async function DashboardPage() {
 
       {/* Monitor cards */}
       {monitors.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700 py-16 text-center">
+        <div id="monitors" className="rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700 py-16 text-center">
           <p className="text-sm text-zinc-500">You are not monitoring any sites yet.</p>
           <Link
             href="/dashboard/monitors/new"
@@ -171,7 +170,7 @@ export default async function DashboardPage() {
           </Link>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
+        <div id="monitors" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
           {monitors.map(m => {
             const speed = speedSummary(m)
             const cache = cacheSummary(m)
