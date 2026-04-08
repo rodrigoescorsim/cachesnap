@@ -51,7 +51,7 @@ pub async fn handler(
 
     let regions = runner::build_regions(&state);
     tokio::spawn(async move {
-        runner::dispatch_probes(&state, &monitor, regions).await;
+        runner::dispatch_probes(&state, &monitor, regions, true).await;
     });
 
     (StatusCode::ACCEPTED, Json(json!({ "ok": true, "monitor_id": monitor_id }))).into_response()

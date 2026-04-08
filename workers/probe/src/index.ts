@@ -36,6 +36,7 @@ interface ProbeRequest {
   monitor_id: string;
   url: string;
   ingest_url?: string; // sobrescreve INGEST_URL da env se fornecido
+  run_bypass?: boolean;
 }
 
 interface SecurityHeaders {
@@ -65,6 +66,10 @@ interface ProbeResult {
   redirect_count: number;
   content_length: number | null;
   error: string | null;
+  bypass_ttfb_ms: number | null;
+  bypass_total_ms: number | null;
+  bypass_status_code: number | null;
+  bypass_error: string | null;
   age_s: number | null;                             // Age response header (zombie cache detection)
   security_headers: SecurityHeaders | null;         // Security headers audit
   server_timing_breakdown: Record<string, number> | null; // Full parsed Server-Timing entries
@@ -110,7 +115,7 @@ const handler = {
 
     // Executar probe em background (não bloqueia a response)
     ctx.waitUntil(
-      executeProbeAndIngest(body.monitor_id, body.url, region, ingestUrl, env.PROBE_SECRET)
+      executeProbeAndIngest(body.monitor_id, body.url, region, ingestUrl, env.PROBE_SECRET, !!body.run_bypass)
     );
 
     return new Response(JSON.stringify({ ok: true, region }), {
@@ -137,8 +142,9 @@ async function executeProbeAndIngest(
   region: string,
   ingestUrl: string,
   probeSecret: string,
+  runBypass: boolean,
 ): Promise<void> {
-  const result = await runProbe(monitorId, targetUrl, region);
+  const result = await runProbe(monitorId, targetUrl, region, runBypass);
   await sendToIngest(result, ingestUrl, probeSecret);
 }
 
@@ -146,6 +152,7 @@ async function runProbe(
   monitorId: string,
   targetUrl: string,
   region: string,
+  runBypass: boolean,
 ): Promise<ProbeResult> {
   const base: ProbeResult = {
     monitor_id: monitorId,
@@ -165,6 +172,10 @@ async function runProbe(
     redirect_count: 0,
     content_length: null,
     error: null,
+    bypass_ttfb_ms: null,
+    bypass_total_ms: null,
+    bypass_status_code: null,
+    bypass_error: null,
     age_s: null,
     security_headers: null,
     server_timing_breakdown: null,
@@ -245,11 +256,77 @@ async function runProbe(
     // Usar redirect count do rastreamento manual
     base.redirect_count = redirectCount;
 
+    // Native bypass probe: run only if requested (default once per hour from scheduler).
+    if (runBypass) {
+      const bypassMetrics = await runBypassProbe(targetUrl);
+      base.bypass_ttfb_ms = bypassMetrics.ttfb_ms;
+      base.bypass_total_ms = bypassMetrics.total_ms;
+      base.bypass_status_code = bypassMetrics.status_code;
+      base.bypass_error = bypassMetrics.error;
+    }
+
   } catch (err) {
     base.error = err instanceof Error ? err.message : String(err);
   }
 
+  // If bypass was requested but failed or wasn't captured, return partial base.
+  // We no longer force collection here if runBypass is false.
+
   return base;
+}
+
+interface BypassProbeMetrics {
+  ttfb_ms: number | null;
+  total_ms: number | null;
+  status_code: number | null;
+  error: string | null;
+}
+
+function appendBypassParam(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (!parsed.searchParams.has("__hoplens_bypass")) {
+      parsed.searchParams.set("__hoplens_bypass", "1");
+    }
+    return parsed.toString();
+  } catch {
+    if (url.includes("__hoplens_bypass=")) return url;
+    return url.includes("?") ? `${url}&__hoplens_bypass=1` : `${url}?__hoplens_bypass=1`;
+  }
+}
+
+async function runBypassProbe(targetUrl: string): Promise<BypassProbeMetrics> {
+  const bypassUrl = appendBypassParam(targetUrl);
+  const result: BypassProbeMetrics = {
+    ttfb_ms: null,
+    total_ms: null,
+    status_code: null,
+    error: null,
+  };
+
+  try {
+    const start = performance.now();
+    const response = await fetch(bypassUrl, {
+      redirect: "follow",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Encoding": "gzip, deflate, br",
+      },
+    });
+    const ttfbEnd = performance.now();
+    await response.arrayBuffer();
+    const end = performance.now();
+
+    result.ttfb_ms = round(ttfbEnd - start);
+    result.total_ms = round(end - start);
+    result.status_code = response.status;
+  } catch (err) {
+    result.error = err instanceof Error ? err.message : String(err);
+  }
+
+  return result;
 }
 
 // Faz fetch seguindo redirects manualmente para contar os hops
@@ -424,7 +501,7 @@ async function runScheduledProbes(env: Env): Promise<void> {
     const batch = monitors.slice(i, i + CONCURRENCY);
     await Promise.allSettled(
       batch.map(monitor =>
-        executeProbeAndIngest(monitor.id, monitor.url, region, env.INGEST_URL, env.PROBE_SECRET)
+        executeProbeAndIngest(monitor.id, monitor.url, region, env.INGEST_URL, env.PROBE_SECRET, false)
       )
     );
   }

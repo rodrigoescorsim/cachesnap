@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 
 interface Props {
   id: string
-  url: string
   name: string | null
   alertThresholdMs: number
   isActive: boolean
@@ -16,18 +15,16 @@ interface Props {
 }
 
 export function MonitorActions({
-  id, url, name, alertThresholdMs, isActive,
+  id, name, alertThresholdMs, isActive,
   notifyEmail, notifyEmailEnabled, notifySlackWebhook, notifySlackEnabled,
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [mode, setMode] = useState<'idle' | 'edit' | 'delete-confirm'>('idle')
-  const [pendingAction, setPendingAction] = useState<null | 'toggle' | 'edit' | 'delete' | 'bypass'>(null)
+  const [pendingAction, setPendingAction] = useState<null | 'toggle' | 'edit' | 'delete'>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-
-  const isBypass = url.includes('__hoplens_bypass')
 
   useEffect(() => {
     if (!menuOpen) return
@@ -125,34 +122,6 @@ export function MonitorActions({
     })
   }
 
-  function handleAddBypass() {
-    setError(null)
-    setPendingAction('bypass')
-    const bypassUrl = url.includes('?')
-      ? `${url}&__hoplens_bypass=1`
-      : `${url}?__hoplens_bypass=1`
-    const bypassName = `${name ?? new URL(url).hostname} (bypass)`
-
-    startTransition(async () => {
-      try {
-        const res = await fetch('/api/monitors', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: bypassUrl, name: bypassName }),
-        })
-        if (res.ok) {
-          const monitor = await res.json()
-          router.push(`/dashboard/monitors/${monitor.id}`)
-        } else {
-          const json = await res.json().catch(() => ({}))
-          setError(json.error ?? 'Failed to create bypass monitor')
-        }
-      } finally {
-        setPendingAction(null)
-      }
-    })
-  }
-
   return (
     <>
       {/* Action buttons */}
@@ -200,19 +169,6 @@ export function MonitorActions({
                   ? (isActive ? 'Pausing...' : 'Resuming...')
                   : (isActive ? 'Pause monitor' : 'Resume monitor')}
               </button>
-              {!isBypass && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleAddBypass()
-                    setMenuOpen(false)
-                  }}
-                  disabled={pendingAction != null}
-                  className="w-full rounded-md px-2.5 py-1.5 text-left text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors disabled:opacity-50"
-                >
-                  {isPending && pendingAction === 'bypass' ? 'Creating...' : 'Add bypass variant'}
-                </button>
-              )}
               <button
                 type="button"
                 onClick={() => {

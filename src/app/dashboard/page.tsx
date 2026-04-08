@@ -8,6 +8,7 @@ import {
   speedSummary,
   type MonitorSummary,
 } from './presenter'
+import { MonitorCardActions } from './monitor-card-actions'
 
 async function getMonitorSummaries(userId: string): Promise<MonitorSummary[]> {
   return sql<MonitorSummary[]>`
@@ -164,11 +165,19 @@ export default async function DashboardPage() {
                 key={m.id}
                 className="group relative block rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3.5 transition-all duration-200 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-md"
               >
+                <Link
+                  href={`/dashboard/monitors/${m.id}`}
+                  aria-label={`Open monitor ${m.name ?? new URL(m.url).hostname}`}
+                  className="absolute inset-0 z-10 rounded-xl"
+                />
+
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <Link href={`/dashboard/monitors/${m.id}`} className="truncate text-[15px] font-semibold text-zinc-900 dark:text-zinc-50 leading-tight hover:underline">
-                      {m.name ?? new URL(m.url).hostname}
-                    </Link>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <p className="truncate text-[15px] font-semibold text-zinc-900 dark:text-zinc-50 leading-tight">
+                        {m.name ?? new URL(m.url).hostname}
+                      </p>
+                    </div>
                     <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-400 min-w-0">
                       <span className="truncate">{m.url}</span>
                       <span className="text-zinc-300 dark:text-zinc-700 shrink-0">•</span>
@@ -178,22 +187,7 @@ export default async function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Link
-                      href={`/dashboard/monitors/${m.id}`} // Placeholder for actual edit route if different
-                      className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
-                      title="Edit monitor"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /><path d="m15 5 4 4" /></svg>
-                    </Link>
-                    <Link
-                      href={`/dashboard/monitors/${m.id}`} // Should ideally be a delete action
-                      className="p-1 text-zinc-400 hover:text-red-500 transition-colors"
-                      title="Delete monitor"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
-                    </Link>
-                  </div>
+                  <MonitorCardActions monitorId={m.id} monitorLabel={m.name ?? new URL(m.url).hostname} />
                 </div>
 
                 <div className="mt-3 grid grid-cols-3 gap-2">

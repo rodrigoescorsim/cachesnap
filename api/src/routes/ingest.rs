@@ -23,43 +23,49 @@ pub async fn handler(
     }
 
     // Persistir no TimescaleDB
-    let result = sqlx::query!(
+    let result = sqlx::query(
         r#"
         INSERT INTO probe_results (
             time, monitor_id, region,
             ttfb_ms, download_ms, total_ms, dns_ms, tls_ms, edge_ms, origin_ms,
             status_code, cache_status, served_by, server_timing,
             http_version, redirect_count, content_length, error,
+            bypass_ttfb_ms, bypass_total_ms, bypass_status_code, bypass_error,
             age_s, security_headers, server_timing_breakdown
         ) VALUES (
             NOW(), $1, $2,
             $3, $4, $5, $6, $7, $8, $9,
             $10, $11, $12, $13,
             $14, $15, $16, $17,
-            $18, $19, $20
+            $18, $19, $20, $21,
+            $22, $23, $24
         )
         "#,
-        payload.monitor_id,
-        payload.region.clone(),
-        payload.ttfb_ms,
-        payload.download_ms,
-        payload.total_ms,
-        payload.dns_ms,
-        payload.tls_ms,
-        payload.edge_ms,
-        payload.origin_ms,
-        payload.status_code,
-        payload.cache_status.clone(),
-        payload.served_by.clone(),
-        payload.server_timing.clone(),
-        payload.http_version.clone(),
-        payload.redirect_count,
-        payload.content_length,
-        payload.error.clone(),
-        payload.age_s,
-        payload.security_headers.clone(),
-        payload.server_timing_breakdown.clone()
     )
+    .bind(payload.monitor_id)
+    .bind(payload.region.clone())
+    .bind(payload.ttfb_ms)
+    .bind(payload.download_ms)
+    .bind(payload.total_ms)
+    .bind(payload.dns_ms)
+    .bind(payload.tls_ms)
+    .bind(payload.edge_ms)
+    .bind(payload.origin_ms)
+    .bind(payload.status_code)
+    .bind(payload.cache_status.clone())
+    .bind(payload.served_by.clone())
+    .bind(payload.server_timing.clone())
+    .bind(payload.http_version.clone())
+    .bind(payload.redirect_count)
+    .bind(payload.content_length)
+    .bind(payload.error.clone())
+    .bind(payload.bypass_ttfb_ms)
+    .bind(payload.bypass_total_ms)
+    .bind(payload.bypass_status_code)
+    .bind(payload.bypass_error.clone())
+    .bind(payload.age_s)
+    .bind(payload.security_headers.clone())
+    .bind(payload.server_timing_breakdown.clone())
     .execute(&state.db)
     .await;
 

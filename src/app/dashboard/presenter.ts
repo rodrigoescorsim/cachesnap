@@ -1,4 +1,4 @@
-export interface MonitorSummary {
+﻿export interface MonitorSummary {
   id: string
   url: string
   name: string | null
@@ -58,7 +58,7 @@ export function speedSummary(monitor: MonitorSummary): MetricSummary {
   if (!monitor.last_probe_at || monitor.ttfb_avg_ms == null) {
     return {
       label: 'Speed',
-      detail: '—',
+      detail: '-',
       toneClass: 'text-zinc-500 dark:text-zinc-400',
       helper: 'Collecting data',
     }
@@ -103,7 +103,7 @@ export function cacheSummary(monitor: MonitorSummary): MetricSummary {
   if (!monitor.last_probe_at || monitor.cache_hit_pct == null) {
     return {
       label: 'Cache hit rate',
-      detail: '—',
+      detail: '-',
       toneClass: 'text-zinc-500 dark:text-zinc-400',
       helper: 'Collecting data',
     }
@@ -153,7 +153,7 @@ export function problemsSummary(monitor: MonitorSummary): MetricSummary {
   if (!monitor.last_probe_at) {
     return {
       label: 'Issues',
-      detail: '—',
+      detail: '-',
       toneClass: 'text-zinc-500 dark:text-zinc-400',
       helper: 'Collecting data',
     }

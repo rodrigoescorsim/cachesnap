@@ -10,6 +10,12 @@ const createSchema = z.object({
   alert_threshold_ms: z.number().int().min(100).max(30000).default(1000),
 })
 
+function normalizeMonitorUrl(rawUrl: string): string {
+  const parsed = new URL(rawUrl)
+  parsed.searchParams.delete('__hoplens_bypass')
+  return parsed.toString()
+}
+
 export async function GET() {
   const user = await getSession()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -38,10 +44,11 @@ export async function POST(request: NextRequest) {
   }
 
   const { url, name, check_interval_seconds, alert_threshold_ms } = parsed.data
+  const normalizedUrl = normalizeMonitorUrl(url)
 
   const [monitor] = await sql`
     INSERT INTO monitors (user_id, url, name, check_interval_seconds, alert_threshold_ms)
-    VALUES (${user.id}, ${url}, ${name ?? null}, ${check_interval_seconds}, ${alert_threshold_ms})
+    VALUES (${user.id}, ${normalizedUrl}, ${name ?? null}, ${check_interval_seconds}, ${alert_threshold_ms})
     RETURNING id, url, name, check_interval_seconds, alert_threshold_ms, is_active, created_at
   `
 

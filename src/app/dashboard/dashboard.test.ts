@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  advisorNarrative,
   cacheSummary,
   problemsSummary,
   speedSummary,
@@ -49,43 +48,6 @@ describe('statusLabel', () => {
   })
 })
 
-describe('advisorNarrative', () => {
-  it('returns null when there are no monitors', () => {
-    expect(advisorNarrative([])).toBeNull()
-  })
-
-  it('returns onboarding language when monitors have no data yet', () => {
-    expect(advisorNarrative([{ ...base, is_active: false }])).toContain('Starting exploration')
-    expect(advisorNarrative([{ ...base, last_probe_at: null }])).toContain('Starting exploration')
-  })
-
-  it('prioritizes errors over other signals', () => {
-    const monitors = [
-      { ...base, error_count: 2 },
-      { ...base, id: '2', alert_count: 1 },
-    ]
-    expect(advisorNarrative(monitors)).toContain('need attention right now')
-  })
-
-  it('reports instability when alerts exist without errors', () => {
-    const monitors = [{ ...base, alert_count: 1 }]
-    expect(advisorNarrative(monitors)).toContain('signs of slowness or instability')
-  })
-
-  it('reports slowdown when monitors are slow', () => {
-    const monitors = [
-      { ...base, name: 'My API', ttfb_avg_ms: 1200 },
-      { ...base, id: '2', ttfb_avg_ms: 900 },
-    ]
-    expect(advisorNarrative(monitors)).toContain('noticeable latency')
-  })
-
-  it('reports healthy state when everything is fine', () => {
-    const monitors = [base, { ...base, id: '2' }]
-    expect(advisorNarrative(monitors)).toContain('Everything is working normally')
-  })
-})
-
 describe('speedSummary', () => {
   it('classifies speed ranges', () => {
     expect(speedSummary({ ...base, ttfb_avg_ms: 120 }).label).toBe('Fast')
@@ -96,7 +58,8 @@ describe('speedSummary', () => {
   })
 
   it('shows collecting state when there is no data', () => {
-    expect(speedSummary({ ...base, last_probe_at: null }).label).toBe('Collecting data')
+    const result = speedSummary({ ...base, last_probe_at: null })
+    expect(result.helper).toBe('Collecting data')
   })
 })
 

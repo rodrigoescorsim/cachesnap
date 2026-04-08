@@ -25,6 +25,14 @@ pub struct ProbeResultPayload {
     pub content_length: Option<i64>,
     pub error: Option<String>,
     #[serde(default)]
+    pub bypass_ttfb_ms: Option<f64>,
+    #[serde(default)]
+    pub bypass_total_ms: Option<f64>,
+    #[serde(default)]
+    pub bypass_status_code: Option<i32>,
+    #[serde(default)]
+    pub bypass_error: Option<String>,
+    #[serde(default)]
     pub age_s: Option<i32>,                              // Age response header (zombie cache detection)
     #[serde(default)]
     pub security_headers: Option<serde_json::Value>,     // {hsts, csp, x_frame_options, x_content_type, referrer_policy, score}
@@ -54,6 +62,10 @@ pub struct ProbeResult {
     pub redirect_count: Option<i32>,
     pub content_length: Option<i64>,
     pub error: Option<String>,
+    pub bypass_ttfb_ms: Option<f64>,
+    pub bypass_total_ms: Option<f64>,
+    pub bypass_status_code: Option<i32>,
+    pub bypass_error: Option<String>,
     pub age_s: Option<i32>,
     pub security_headers: Option<serde_json::Value>,
     pub server_timing_breakdown: Option<serde_json::Value>,

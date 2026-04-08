@@ -46,14 +46,15 @@ pub async fn start(state: AppState) {
             
             tokio::spawn(async move {
                 if should_run_now(&state, &monitor).await {
-                    dispatch_probes(&state, &monitor, regions).await;
+                    let run_bypass = should_run_bypass(&state, &monitor).await;
+                    dispatch_probes(&state, &monitor, regions, run_bypass).await;
                 }
             });
         }
     }
 }
 
-async fn should_run_now(state: &AppState, monitor: &Monitor) -> bool {
+async fn check_interval(state: &AppState, key: &str, interval_secs: i64) -> bool {
     let mut conn = match state.redis.get().await {
         Ok(c) => c,
         Err(e) => {
@@ -62,12 +63,8 @@ async fn should_run_now(state: &AppState, monitor: &Monitor) -> bool {
         }
     };
 
-    let key = format!("last_check:{}", monitor.id);
     let now = chrono::Utc::now().timestamp();
-    let interval = monitor.check_interval_seconds as i64;
 
-    // Script Lua para garantir atomicidade: 
-    // Se (now - last_check) >= interval OU last_check não existe, define now e retorna true.
     let script = r#"
         local last_check = redis.call('GET', KEYS[1])
         local now = tonumber(ARGV[1])
@@ -80,13 +77,21 @@ async fn should_run_now(state: &AppState, monitor: &Monitor) -> bool {
         return 0
     "#;
 
-    match cmd("EVAL").arg(script).arg(1).arg(&key).arg(now).arg(interval).query_async::<_, i32>(&mut conn).await {
+    match cmd("EVAL").arg(script).arg(1).arg(key).arg(now).arg(interval_secs).query_async::<_, i32>(&mut conn).await {
         Ok(should_run) => should_run == 1,
         Err(e) => {
-            error!("Scheduler: Lua script failed: {e}");
+            error!("Scheduler: Lua script failed for key {}: {}", key, e);
             false
         }
     }
+}
+
+async fn should_run_now(state: &AppState, monitor: &Monitor) -> bool {
+    check_interval(state, &format!("last_check:{}", monitor.id), monitor.check_interval_seconds as i64).await
+}
+
+async fn should_run_bypass(state: &AppState, monitor: &Monitor) -> bool {
+    check_interval(state, &format!("last_bypass:{}", monitor.id), 3600).await
 }
 
 pub fn build_regions(state: &AppState) -> Vec<(String, String)> {
@@ -99,8 +104,8 @@ pub fn build_regions(state: &AppState) -> Vec<(String, String)> {
     ]
 }
 
-pub async fn dispatch_probes(state: &AppState, monitor: &Monitor, regions: Vec<(String, String)>) {
-    debug!("Dispatching probes for monitor {} ({})", monitor.id, monitor.url);
+pub async fn dispatch_probes(state: &AppState, monitor: &Monitor, regions: Vec<(String, String)>, run_bypass: bool) {
+    debug!("Dispatching probes for monitor {} ({}) | bypass={}", monitor.id, monitor.url, run_bypass);
     
     let client = state.http.clone();
     let ingest_url = format!("{}/api/ingest", state.config.api_url.trim_end_matches('/'));
@@ -117,7 +122,8 @@ pub async fn dispatch_probes(state: &AppState, monitor: &Monitor, regions: Vec<(
             let body = json!({
                 "monitor_id": monitor_id,
                 "url": target_url,
-                "ingest_url": ingest_url
+                "ingest_url": ingest_url,
+                "run_bypass": run_bypass
             });
 
             match client.post(&worker_url)
@@ -127,7 +133,7 @@ pub async fn dispatch_probes(state: &AppState, monitor: &Monitor, regions: Vec<(
                 .await {
                 Ok(resp) => {
                     if resp.status().is_success() {
-                        debug!("Probe dispatched to {} for monitor {}", region_name, monitor_id);
+                        debug!("Probe dispatched to {} for monitor {} (bypass={})", region_name, monitor_id, run_bypass);
                     } else {
                         error!("Failed to dispatch probe to {}: status {}", region_name, resp.status());
                     }

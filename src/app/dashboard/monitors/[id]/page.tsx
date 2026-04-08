@@ -11,6 +11,7 @@ interface RegionStat {
   region: string
   probe_count: number
   ttfb_avg_ms: number | null
+  bypass_ttfb_avg_ms: number | null
   ttfb_p95_ms: number | null
   ttfb_min_ms: number | null
   ttfb_max_ms: number | null
@@ -70,20 +71,6 @@ interface SecurityByRegion {
   sampled_at: Date
 }
 
-interface CacheBypassMonitor {
-  id: string
-  url: string
-  name: string | null
-}
-
-interface CacheRegionStat {
-  region: string
-  ttfb_avg_ms: number | null
-  common_cache_status: string | null
-  cache_hit_pct: number | null
-  max_age_s: number | null
-}
-
 const REGION_LABELS: Record<string, string> = {
   'sa-east': 'South America',
   'eu-west': 'Europe',
@@ -101,6 +88,11 @@ const TAB_LABELS: Record<MonitorTab, string> = {
   security: 'Security',
   alerts: 'Alerts',
 }
+
+const TAB_GROUPS: Array<{ label: string; tabs: MonitorTab[] }> = [
+  { label: 'Observe', tabs: ['performance', 'cache', 'security'] },
+  { label: 'Respond', tabs: ['alerts'] },
+]
 
 const VALID_ALERT_TYPES = ['down', 'anomaly', 'anycast', 'zombie_cache'] as const
 type AlertType = (typeof VALID_ALERT_TYPES)[number]
@@ -346,6 +338,7 @@ export default async function MonitorDetailPage({
       ROUND(MIN(ttfb_ms)::numeric, 1)            AS ttfb_min_ms,
       ROUND(MAX(ttfb_ms)::numeric, 1)            AS ttfb_max_ms,
       ROUND(AVG(total_ms)::numeric, 1)           AS total_avg_ms,
+      ROUND(AVG(bypass_ttfb_ms)::numeric, 1)     AS bypass_ttfb_avg_ms,
       ROUND(AVG(edge_ms)::numeric, 1)            AS edge_avg_ms,
       ROUND(AVG(origin_ms)::numeric, 1)          AS origin_avg_ms,
       ROUND(AVG(redirect_count)::numeric, 0)     AS redirect_avg,
@@ -500,45 +493,11 @@ export default async function MonitorDetailPage({
     ORDER BY region, time DESC
   `
 
-  const isBypassMonitor = monitor.url.includes('__hoplens_bypass')
   const monitorHostname = safeHostname(monitor.url)
 
-  const bypassCandidates = !isBypassMonitor && monitorHostname
-    ? await sql<CacheBypassMonitor[]>`
-        SELECT id, url, name
-        FROM monitors
-        WHERE user_id = ${user.id}
-          AND id <> ${monitor.id}
-          AND url ILIKE '%__hoplens_bypass%'
-        ORDER BY created_at DESC
-      `
-    : []
-
-  const pairedBypassMonitor =
-    bypassCandidates.find(candidate => safeHostname(candidate.url) === monitorHostname) ?? null
-
-  const bypassStats = pairedBypassMonitor
-    ? await sql<CacheRegionStat[]>`
-        SELECT
-          region,
-          ROUND(AVG(ttfb_ms)::numeric, 1) AS ttfb_avg_ms,
-          MODE() WITHIN GROUP (ORDER BY cache_status) AS common_cache_status,
-          ROUND(
-            100.0 * COUNT(*) FILTER (WHERE cache_status ILIKE '%HIT%') / NULLIF(COUNT(*), 0), 1
-          ) AS cache_hit_pct,
-          MAX(age_s)::int AS max_age_s
-        FROM probe_results
-        WHERE monitor_id = ${pairedBypassMonitor.id}
-          AND time > NOW() - INTERVAL '24 hours'
-        GROUP BY region
-        ORDER BY region
-      `
-    : []
-
   const cacheStatsByRegion = new Map(stats.map(row => [row.region, row]))
-  const bypassStatsByRegion = new Map(bypassStats.map(row => [row.region, row]))
-  const cacheRegions = [...new Set([...stats.map(row => row.region), ...bypassStats.map(row => row.region)])].sort()
-  const hasBypassComparison = pairedBypassMonitor != null && bypassStats.length > 0
+  const cacheRegions = [...new Set(stats.map(row => row.region))].sort()
+  const hasBypassComparison = stats.some(row => row.bypass_ttfb_avg_ms != null)
 
   // Converter Date â†’ ISO string para serializaÃ§Ã£o Serverâ†’Client Component
   const chartPoints: ChartPoint[] = chartRaw.map(row => ({
@@ -549,49 +508,32 @@ export default async function MonitorDetailPage({
 
   const monitorDisplayName = monitor.name ?? monitorHostname ?? monitor.url
   const securityRowsWithTiming = securityByRegion.filter(row => timingBreakdownEntries(row.server_timing_breakdown).length > 0)
+  const totalProbes = stats.reduce((sum, s) => sum + s.probe_count, 0)
+  const isCollecting = totalProbes < 3
 
   return (
     <div className="space-y-8">
       <AutoRefresh />
-      {/* Breadcrumb + title */}
-      <div>
-        <nav className="text-xs text-zinc-400 mb-2">
-          <Link href="/dashboard" className="hover:underline">Overview</Link>
-          {' / '}
-          <span className="text-zinc-600 dark:text-zinc-300">{monitorDisplayName}</span>
-        </nav>
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+      {/* Monitor title header */}
+      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/30 px-4 py-3 sm:px-5 sm:py-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-[40px] leading-[0.96] font-semibold tracking-[-0.02em] text-zinc-900 dark:text-zinc-50">
               {monitorDisplayName}
             </h1>
-            <p className="text-sm text-zinc-400 mt-0.5">{monitor.url}</p>
+            <p className="text-sm text-zinc-400 mt-1.5 truncate">{monitor.url}</p>
           </div>
-          <div className="flex flex-col items-end gap-2">
-            <div id="monitor-actions">
-              <MonitorActions
-                id={monitor.id}
-                url={monitor.url}
-                name={monitor.name}
-                alertThresholdMs={monitor.alert_threshold_ms}
-                isActive={monitor.is_active}
-                notifyEmail={monitor.notify_email}
-                notifyEmailEnabled={monitor.notify_email_enabled}
-                notifySlackWebhook={monitor.notify_slack_webhook}
-                notifySlackEnabled={monitor.notify_slack_enabled}
-              />
-            </div>
-            {/* Detected infrastructure + security score */}
+
+          <div className="flex items-center gap-1.5 flex-wrap justify-end">
             {(() => {
               const cdn = stats.map(s => detectCdn(s.common_served_by)).find(Boolean) ?? null
               const pops = [...new Set(
                 stats.map(s => extractPop(s.common_served_by)).filter((p): p is string => p != null)
               )]
-              // Pick the most common cache status across all regions (normalize to uppercase)
               const rawCache = stats.map(s => s.common_cache_status).find(Boolean) ?? null
               const cacheStatus = rawCache?.toUpperCase() ?? null
 
-              if (!isBypassMonitor && pops.length === 0 && !cacheStatus && !security) return null
+              if (pops.length === 0 && !cacheStatus && !security) return null
 
               const cacheClass = cacheStatus === 'HIT'
                 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50'
@@ -600,69 +542,119 @@ export default async function MonitorDetailPage({
                 : cacheStatus === 'DYNAMIC'
                 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/50'
                 : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/50'
+              const cdnHint = cdn ? `Via ${cdn}` : undefined
+              const securityHint = security
+                ? SECURITY_HEADERS_LABELS.map(({ key, label }) => {
+                    const value = security[key]
+                    const present = value != null && value !== 0
+                    return `${label}: ${present ? 'present' : 'missing'}`
+                  }).join(' | ')
+                : undefined
 
               return (
-                <div className="flex flex-col items-end gap-1">
-                  <div className="flex gap-1.5 flex-wrap justify-end">
-                    {isBypassMonitor && (
-                      <span
-                        className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/50"
-                        title="This monitor bypasses cache."
-                      >
-                        Bypass
-                      </span>
-                    )}
-                    {pops.map(pop => (
-                      <span key={pop} className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px] font-mono font-medium text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
-                        {pop} PoP
-                      </span>
-                    ))}
-                    {cacheStatus && (
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border ${cacheClass}`}>
-                        {cacheStatus}
-                      </span>
-                    )}
-                    {security && (
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight border ${
-                        security.score >= 4
-                          ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50'
-                          : security.score >= 2
-                          ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/50'
-                          : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800/50'
-                      }`}>
-                        Security {security.score}/5
-                      </span>
-                    )}
-                  </div>
-                  {cdn && (
-                    <p className="text-[10px] text-zinc-400 dark:text-zinc-500">Via {cdn}</p>
+                <>
+                  {pops.map(pop => (
+                    <span key={pop} title={cdnHint} className="inline-flex h-7 items-center rounded-md px-2.5 bg-zinc-100 dark:bg-zinc-800 text-[11px] font-mono font-medium text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
+                      {pop} PoP
+                    </span>
+                  ))}
+                  {cacheStatus && (
+                    <span title={cdnHint} className={`inline-flex h-7 items-center rounded-md px-2.5 text-[11px] font-bold uppercase tracking-tight border ${cacheClass}`}>
+                      {cacheStatus}
+                    </span>
                   )}
-                </div>
+                  {security && (
+                    <span title={securityHint} className={`inline-flex h-7 items-center rounded-md px-2.5 text-[11px] font-bold uppercase tracking-tight border ${
+                      security.score >= 4
+                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50'
+                        : security.score >= 2
+                        ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/50'
+                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800/50'
+                    }`}>
+                      Security {security.score}/5
+                    </span>
+                  )}
+                </>
               )
             })()}
+
+            <MonitorActions
+              id={monitor.id}
+              name={monitor.name}
+              alertThresholdMs={monitor.alert_threshold_ms}
+              isActive={monitor.is_active}
+              notifyEmail={monitor.notify_email}
+              notifyEmailEnabled={monitor.notify_email_enabled}
+              notifySlackWebhook={monitor.notify_slack_webhook}
+              notifySlackEnabled={monitor.notify_slack_enabled}
+            />
           </div>
         </div>
       </div>
 
-      <nav aria-label="Monitor sections" className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/40">
-        <ul className="flex flex-wrap gap-1 p-1">
-          {VALID_TABS.map(tab => (
-            <li key={tab}>
-              <Link
-                href={buildMonitorHref(tab, range, tab === 'alerts' ? filteredAlertType : null)}
-                className={`inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  activeTab === tab
-                    ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-sm border border-zinc-200 dark:border-zinc-700'
-                    : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
-              >
-                {TAB_LABELS[tab]}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      {isCollecting && (
+        <div className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 flex items-start gap-3">
+          <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-amber-400 animate-pulse" />
+          <div>
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Collecting data</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+              We&apos;re running the first probes. Results will appear within 5 minutes. Stats below may not be representative yet.
+            </p>
+          </div>
+        </div>
+      )}
 
+      <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start">
+        <aside className="lg:sticky lg:top-6">
+          <nav aria-label="Monitor sections" className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/30 p-3">
+            <div className="px-2 pb-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-400">
+                Monitor
+              </p>
+              <p className="mt-2 truncate text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                {monitorDisplayName}
+              </p>
+            </div>
+
+            <div className="space-y-4 border-t border-zinc-200 dark:border-zinc-800 pt-3">
+              {TAB_GROUPS.map(group => (
+                <div key={group.label}>
+                  <p className="px-2 pb-1.5 text-[11px] font-medium text-zinc-400">
+                    {group.label}
+                  </p>
+                  <ul className="space-y-0.5">
+                    {group.tabs.map(tab => (
+                      <li key={tab}>
+                        <Link
+                          href={buildMonitorHref(tab, range, tab === 'alerts' ? filteredAlertType : null)}
+                          className={`flex items-center justify-between rounded-lg px-2.5 py-2 text-sm transition-colors ${
+                            activeTab === tab
+                              ? 'bg-white dark:bg-zinc-950 text-zinc-950 dark:text-zinc-50 shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-800'
+                              : 'text-zinc-600 dark:text-zinc-300 hover:bg-white/80 dark:hover:bg-zinc-950/70 hover:text-zinc-900 dark:hover:text-zinc-50'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${
+                                activeTab === tab
+                                  ? 'bg-zinc-900 dark:bg-zinc-100'
+                                  : 'bg-zinc-300 dark:bg-zinc-700'
+                              }`}
+                            />
+                            <span>{TAB_LABELS[tab]}</span>
+                          </span>
+                          <span className="text-xs text-zinc-400">›</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </nav>
+        </aside>
+
+        <div className="min-w-0 space-y-8">
       {/* Region stats table */}
       {activeTab === 'performance' && (
       <>
@@ -879,14 +871,24 @@ export default async function MonitorDetailPage({
                   <thead>
                     <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
                       <th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Region</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Cache</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500" title="Most common cache status in the last 24h">
+                        Cache
+                      </th>
                       <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Hit rate</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Age</th>
-                      <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">TTFB normal</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500" title="Highest HTTP Age header seen in this region over the last 24h">
+                        Max age (24h)
+                      </th>
+                      <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500" title="Average TTFB from the standard monitor URL">
+                        TTFB normal
+                      </th>
                       {hasBypassComparison && (
                         <>
-                          <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">TTFB bypass</th>
-                          <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500">Miss cost</th>
+                          <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500" title="Average TTFB from native bypass requests (cache-bypass query param)">
+                            TTFB bypass
+                          </th>
+                          <th className="px-4 py-2.5 text-right text-xs font-medium text-zinc-500" title="Cache delta = TTFB bypass - TTFB normal">
+                            Cache delta
+                          </th>
                         </>
                       )}
                     </tr>
@@ -894,20 +896,19 @@ export default async function MonitorDetailPage({
                   <tbody>
                     {cacheRegions.map((region, index) => {
                       const normal = cacheStatsByRegion.get(region) ?? null
-                      const bypass = bypassStatsByRegion.get(region) ?? null
-                      const cache = normal ? cacheDisplay(normal.common_cache_status, normal.cache_hit_pct) : null
+                      const cache = normal ? cacheStatusLabel(normal.common_cache_status) : null
                       const ageLabel = formatAge(normal?.max_age_s ?? null)
-                      const missCost =
-                        normal?.ttfb_avg_ms != null && bypass?.ttfb_avg_ms != null
-                          ? Number((bypass.ttfb_avg_ms - normal.ttfb_avg_ms).toFixed(1))
+                      const cacheDelta =
+                        normal?.ttfb_avg_ms != null && normal?.bypass_ttfb_avg_ms != null
+                          ? Number((normal.bypass_ttfb_avg_ms - normal.ttfb_avg_ms).toFixed(1))
                           : null
-                      const missCostTone =
-                        missCost == null
+                      const cacheDeltaTone =
+                        cacheDelta == null
                           ? 'text-zinc-400'
-                          : missCost > 0
+                          : cacheDelta > 0
                           ? 'text-emerald-600 dark:text-emerald-400'
-                          : missCost < 0
-                          ? 'text-red-500'
+                          : cacheDelta < 0
+                          ? 'text-amber-600 dark:text-amber-400'
                           : 'text-zinc-500'
 
                       return (
@@ -933,11 +934,22 @@ export default async function MonitorDetailPage({
                           </td>
                           {hasBypassComparison && (
                             <>
-                              <td className={`px-4 py-3 text-right text-xs tabular-nums font-medium ${ttfbColor(bypass?.ttfb_avg_ms ?? null)}`}>
-                                {bypass?.ttfb_avg_ms != null ? `${bypass.ttfb_avg_ms}ms` : '-'}
+                              <td className={`px-4 py-3 text-right text-xs tabular-nums font-medium ${ttfbColor(normal?.bypass_ttfb_avg_ms ?? null)}`}>
+                                {normal?.bypass_ttfb_avg_ms != null ? `${normal.bypass_ttfb_avg_ms}ms` : '-'}
                               </td>
-                              <td className={`px-4 py-3 text-right text-xs tabular-nums font-semibold ${missCostTone}`}>
-                                {missCost != null ? `${missCost > 0 ? '+' : ''}${missCost}ms` : '-'}
+                              <td
+                                className={`px-4 py-3 text-right text-xs tabular-nums font-semibold ${cacheDeltaTone}`}
+                                title={
+                                  cacheDelta == null
+                                    ? undefined
+                                    : cacheDelta > 0
+                                    ? 'Bypass is slower than normal; cache is likely helping.'
+                                    : cacheDelta < 0
+                                    ? 'Bypass is faster than normal; verify route parity and sample window.'
+                                    : 'No measurable delta between normal and bypass.'
+                                }
+                              >
+                                {cacheDelta != null ? `${cacheDelta > 0 ? '+' : ''}${cacheDelta}ms` : '-'}
                               </td>
                             </>
                           )}
@@ -950,20 +962,12 @@ export default async function MonitorDetailPage({
 
               {hasBypassComparison && (
                 <p className="text-xs text-zinc-400">
-                  Miss cost formula: TTFB bypass - TTFB normal.
+                  Cache delta formula: TTFB bypass - TTFB normal. Positive means cache is likely helping. Negative means bypass was faster in this window.
                 </p>
               )}
-              {!isBypassMonitor && !pairedBypassMonitor && (
+              {!hasBypassComparison && (
                 <p className="text-xs text-zinc-400">
-                  No bypass variant found for this hostname.{' '}
-                  <a href="#monitor-actions" className="text-blue-600 dark:text-blue-400 hover:underline">
-                    Add bypass variant -&gt;
-                  </a>
-                </p>
-              )}
-              {pairedBypassMonitor && !hasBypassComparison && (
-                <p className="text-xs text-zinc-400">
-                  Bypass monitor found ({pairedBypassMonitor.name ?? safeHostname(pairedBypassMonitor.url) ?? pairedBypassMonitor.url}), waiting for probe data.
+                  Bypass metrics are enabled by default, waiting for enough samples in this 24h window.
                 </p>
               )}
             </div>
@@ -1137,7 +1141,51 @@ export default async function MonitorDetailPage({
           )}
         </section>
       )}
+        </div>
+      </div>
     </div>
   )
+}
+
+function cacheStatusLabel(status: string | null): { text: string; tone: string; title: string } {
+  const normalized = status?.toUpperCase().trim() ?? ''
+
+  if (normalized.includes('HIT')) {
+    return {
+      text: 'HIT',
+      tone: 'text-emerald-600 dark:text-emerald-400',
+      title: 'Cache hit was the most common outcome in this region.',
+    }
+  }
+
+  if (normalized.includes('MISS')) {
+    return {
+      text: 'MISS',
+      tone: 'text-amber-600 dark:text-amber-400',
+      title: 'Cache miss was the most common outcome in this region.',
+    }
+  }
+
+  if (normalized === 'DYNAMIC' || normalized === 'BYPASS') {
+    return {
+      text: 'DYNAMIC',
+      tone: 'text-zinc-500 dark:text-zinc-400',
+      title: 'Response is treated as dynamic (not served from cache).',
+    }
+  }
+
+  if (normalized.length > 0) {
+    return {
+      text: normalized,
+      tone: 'text-zinc-500 dark:text-zinc-400',
+      title: 'Most common cache status observed in this region.',
+    }
+  }
+
+  return {
+    text: 'NO SIGNAL',
+    tone: 'text-zinc-400',
+    title: 'No cache status signal was observed.',
+  }
 }
 

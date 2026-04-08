@@ -69,6 +69,9 @@ export default function NewMonitorPage() {
             required
             className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
           />
+          <p className="mt-1 text-xs text-zinc-400">
+            Bypass checks are automatic. Use the normal URL only.
+          </p>
           {errors.url && <p className="mt-1 text-xs text-red-500">{errors.url}</p>}
         </div>
 
