@@ -142,6 +142,7 @@ pub async fn dispatch_probes(state: &AppState, monitor: &Monitor, regions: Vec<(
         let worker_url = worker_url.to_string();
         let ingest_url = ingest_url.clone();
         let client = client.clone();
+        let region = region_name.clone();
 
         tokio::spawn(async move {
             let body = json!({
@@ -158,13 +159,13 @@ pub async fn dispatch_probes(state: &AppState, monitor: &Monitor, regions: Vec<(
                 .await {
                 Ok(resp) => {
                     if resp.status().is_success() {
-                        debug!("Probe dispatched to {} for monitor {} (bypass={})", region_name, monitor_id, run_bypass);
+                        debug!("Probe dispatched to {} for monitor {} (bypass={})", region, monitor_id, run_bypass);
                     } else {
-                        error!("Failed to dispatch probe to {}: status {}", region_name, resp.status());
+                        error!("Failed to dispatch probe to {}: status {}", region, resp.status());
                     }
                 },
                 Err(e) => {
-                    error!("Error dispatching probe to {}: {}", region_name, e);
+                    error!("Error dispatching probe to {}: {}", region, e);
                 }
             }
         });

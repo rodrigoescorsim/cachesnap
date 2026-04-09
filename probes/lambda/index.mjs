@@ -97,22 +97,36 @@ export const handler = async (event) => {
     const { redirectCount } = await countRedirects(url);
     result.redirect_count = redirectCount;
 
-    // 2. Main probe with granular timing
+    // 2. Main probe (Edge) — Always run first to check cache status
     const metrics = await measureUrl(url);
     Object.assign(result, metrics);
 
-    // 3. Bypass probe (cache-busting) — only when requested
+    // 3. Smart Bypass logic
+    // We only need a second bypass request if the first one was a CACHE HIT.
+    // If it was a MISS, we already hit the origin and have its latency.
     if (run_bypass) {
-      try {
-        const bypassUrl = appendBypassParam(url);
-        const bypassMetrics = await measureUrl(bypassUrl, true);
-        result.bypass_ttfb_ms = bypassMetrics.ttfb_ms;
-        result.bypass_total_ms = bypassMetrics.total_ms;
-        result.bypass_status_code = bypassMetrics.status_code;
-      } catch (err) {
-        result.bypass_error = err.message;
+      if (metrics.cache_status === 'HIT') {
+        try {
+          // It was a HIT, so we need a direct origin comparison point
+          const bypassUrl = appendBypassParam(url);
+          const bypassMetrics = await measureUrl(bypassUrl, true);
+          result.bypass_ttfb_ms = bypassMetrics.ttfb_ms;
+          result.bypass_total_ms = bypassMetrics.total_ms;
+          result.bypass_status_code = bypassMetrics.status_code;
+        } catch (err) {
+          result.bypass_error = err.message;
+        }
+      } else {
+        // It was a MISS, BYPASS, or DYNAMIC. We already have the origin data.
+        // We populate the bypass fields with the main metrics to ensure 1:1 reports are complete.
+        result.bypass_ttfb_ms = metrics.ttfb_ms;
+        result.bypass_total_ms = metrics.total_ms;
+        result.bypass_status_code = metrics.status_code;
+        // Mark as "Smart Bypass Reuse" for debugging if needed
+        result.server_timing_breakdown = { ...result.server_timing_breakdown, _bypass_mode: 'reused_from_miss' };
       }
     }
+    
   } catch (err) {
     result.error = err.message;
   }

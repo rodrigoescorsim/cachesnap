@@ -12,10 +12,6 @@ export function RealTimeHub() {
     const eventSource = new EventSource(`${apiUrl}/api/events`)
 
     eventSource.onmessage = (event) => {
-      // Quando recebemos qualquer atualização de monitor, 
-      // pedimos ao Next.js para revalidar os dados do dashboard.
-      // O router.refresh() é inteligente: ele busca apenas os dados novos (RSC) 
-      // sem recarregar a página inteira ou perder o estado do cliente.
       console.log('Real-time update received for monitor:', event.data)
       router.refresh()
     }
