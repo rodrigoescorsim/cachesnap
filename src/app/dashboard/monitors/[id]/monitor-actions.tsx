@@ -126,12 +126,6 @@ export function MonitorActions({
     <>
       {/* Action buttons */}
       <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
-        <span className="inline-flex h-7 items-center gap-1.5 rounded-full border border-zinc-200 dark:border-zinc-700 bg-zinc-100/70 dark:bg-zinc-900 px-2.5 text-[12px] font-medium text-zinc-600 dark:text-zinc-300">
-          <span className={`h-1.5 w-1.5 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
-          <span className="text-zinc-500 dark:text-zinc-400">Status:</span>
-          <span className="font-semibold">{isActive ? 'Running' : 'Paused'}</span>
-        </span>
-
         <div ref={menuRef} className="relative">
           <button
             type="button"
@@ -139,15 +133,16 @@ export function MonitorActions({
             disabled={pendingAction != null}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
-            title="More actions"
-            aria-label="More actions"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors disabled:opacity-50"
+            title="Monitor settings"
+            aria-label="Monitor settings"
+            className="inline-flex h-8 items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-1 text-xs font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all shadow-sm disabled:opacity-50"
           >
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor" aria-hidden="true">
-              <circle cx="8" cy="3" r="1.2" />
-              <circle cx="8" cy="8" r="1.2" />
-              <circle cx="8" cy="13" r="1.2" />
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 opacity-60" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 4h2.5M12.5 4H15M1 12h8.5M12.5 12H15" />
+              <circle cx="5.5" cy="4" r="2" />
+              <circle cx="10.5" cy="12" r="2" />
             </svg>
+            Settings
           </button>
 
           {menuOpen && (

@@ -35,6 +35,8 @@ async function getMonitorSummaries(userId: string): Promise<MonitorSummary[]> {
       m.is_active,
       ROUND(AVG(pr.ttfb_ms)::numeric, 0)                          AS ttfb_avg_ms,
       ROUND(MAX(pr.ttfb_ms)::numeric, 0)                          AS ttfb_worst_ms,
+      ROUND(AVG(pr.dns_ms)::numeric, 0)                           AS dns_avg_ms,
+      ROUND(AVG(pr.tls_ms)::numeric, 0)                           AS tls_avg_ms,
       COUNT(*) FILTER (WHERE pr.error IS NOT NULL)::int            AS error_count,
       ROUND(
         100.0 * COUNT(*) FILTER (WHERE pr.cache_status = 'HIT')
@@ -201,7 +203,12 @@ export default async function DashboardPage() {
                       {speed.detail === '—' ? (
                         <span className="inline-block w-8 h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
                       ) : (
-                        speed.detail
+                        <>
+                          {speed.detail}
+                          {m.dns_avg_ms != null && m.dns_avg_ms > 200 && (
+                            <span className="ml-1 text-[9px] font-medium text-purple-500 animate-pulse">! (dns)</span>
+                          )}
+                        </>
                       )}
                     </span>
                   </div>

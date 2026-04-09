@@ -6,6 +6,8 @@ export interface ChartPoint {
   bucket: string  // ISO string — serializado pelo Server Component antes de passar ao client
   region: string
   ttfb_avg: number
+  dns_avg: number | null
+  tls_avg: number | null
 }
 
 const REGION_COLORS: Record<string, string> = {
@@ -48,129 +50,164 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
   const regions = [...new Set(data.map(d => d.region))].sort()
   const allBuckets = [...new Set(data.map(d => d.bucket))].sort()
 
-  // Lookup: region → Map<bucket, ttfb_avg>
-  const byRegion: Record<string, Map<string, number>> = {}
+  const byRegion: Record<string, Map<string, ChartPoint>> = {}
   for (const d of data) {
     if (!byRegion[d.region]) byRegion[d.region] = new Map()
-    byRegion[d.region].set(d.bucket, d.ttfb_avg)
+    byRegion[d.region].set(d.bucket, d)
   }
 
-  // Dimensões úteis
-  const maxY = Math.max(...data.map(d => d.ttfb_avg), 1)
-  const niceMax = Math.max(Math.ceil(maxY / 100) * 100, 100)
+  // Calculate global averages per bucket
+  const globalAverages = allBuckets.map(b => {
+    const points = data.filter(d => d.bucket === b)
+    const dns = points.reduce((acc, p) => acc + (p.dns_avg ?? 0), 0) / points.length
+    const tls = points.reduce((acc, p) => acc + (p.tls_avg ?? 0), 0) / points.length
+    return { bucket: b, dns, tls }
+  })
+
+  // TTFB max
+  const maxTtfb = Math.max(...data.map(d => d.ttfb_avg), 1)
+  const niceMaxTtfb = Math.max(Math.ceil(maxTtfb / 100) * 100, 100)
+
+  // Network max
+  const maxNet = Math.max(...data.map(d => (d.dns_avg ?? 0) + (d.tls_avg ?? 0)), 1)
+  const niceMaxNet = Math.max(Math.ceil(maxNet / 50) * 50, 50)
 
   const toX = (i: number) => PAD.left + (i / (allBuckets.length - 1)) * CW
-  const toY = (ms: number) => PAD.top + (1 - ms / niceMax) * CH
+  const toYTtfb = (ms: number) => PAD.top + (1 - ms / niceMaxTtfb) * CH
+  const toYNet = (ms: number) => PAD.top + (1 - ms / niceMaxNet) * CH
 
-  const yLabels = [0, Math.round(niceMax / 2), niceMax]
+  const ttfbYLabels = [0, Math.round(niceMaxTtfb / 2), niceMaxTtfb]
+  const netYLabels = [0, Math.round(niceMaxNet / 2), niceMaxNet]
+  
   const n = allBuckets.length - 1
   const xIdxs = [...new Set([0, Math.round(n / 3), Math.round(2 * n / 3), n])]
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide">
-          TTFB over time
+        <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+          Performance trends
         </h2>
-        <div className="flex gap-1">
+        <div className="flex bg-zinc-100 dark:bg-zinc-800 p-1 rounded-lg gap-1">
           {['24h', '7d'].map(r => (
             <Link
               key={r}
               href={`?range=${r}`}
-              className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+              className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all duration-200 uppercase tracking-wider ${
                 range === r
-                  ? 'bg-zinc-900 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-900'
+                  ? 'bg-white dark:bg-zinc-700 text-zinc-950 dark:text-zinc-50 shadow-sm'
                   : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
               }`}
             >
-              {r.toUpperCase()}
+              {r}
             </Link>
           ))}
         </div>
       </div>
 
       {allBuckets.length < 2 ? (
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-12 text-center">
-          <p className="text-sm text-zinc-400">Not enough data for the selected range.</p>
+        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/30 p-12 text-center">
+          <p className="text-sm text-zinc-400">Analyzing historical patterns...</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shadow-sm">
-          <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
-            {/* Grid horizontal + labels eixo Y */}
-            {yLabels.map(v => (
-              <g key={v}>
-                <line
-                  x1={PAD.left} x2={W - PAD.right}
-                  y1={toY(v)}   y2={toY(v)}
-                  stroke="currentColor" strokeOpacity={0.07} strokeWidth={1}
-                />
-                <text
-                  x={PAD.left - 6} y={toY(v) + 4}
-                  textAnchor="end" fontSize={9}
-                  fill="currentColor" fillOpacity={0.4}
-                >
-                  {v}ms
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* ── CHART 1: TTFB ── */}
+          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 p-4 shadow-sm relative overflow-hidden group">
+            <div className="absolute top-4 right-4 text-[10px] font-bold text-zinc-400 uppercase tracking-tight">Main Speed (TTFB)</div>
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
+              {ttfbYLabels.map(v => (
+                <g key={v}>
+                  <line x1={PAD.left} x2={W - PAD.right} y1={toYTtfb(v)} y2={toYTtfb(v)} stroke="currentColor" strokeOpacity={0.07} strokeWidth={1} />
+                  <text x={PAD.left - 6} y={toYTtfb(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}ms</text>
+                </g>
+              ))}
+
+              {xIdxs.map((idx, i) => (
+                <text key={idx} x={toX(idx)} y={H - 8} textAnchor={i === 0 ? 'start' : i === xIdxs.length - 1 ? 'end' : 'middle'} fontSize={8} fill="currentColor" fillOpacity={0.35}>
+                  {formatLabel(allBuckets[idx], range)}
                 </text>
-              </g>
-            ))}
+              ))}
 
-            {/* Labels eixo X */}
-            {xIdxs.map((idx, i) => (
-              <text
-                key={idx}
-                x={toX(idx)}
-                y={H - 8}
-                textAnchor={i === 0 ? 'start' : i === xIdxs.length - 1 ? 'end' : 'middle'}
-                fontSize={8}
-                fill="currentColor" fillOpacity={0.35}
-              >
-                {formatLabel(allBuckets[idx], range)}
-              </text>
-            ))}
+              {regions.map(region => {
+                const regionMap = byRegion[region]
+                if (!regionMap || regionMap.size < 2) return null
+                const points = allBuckets.map((b, i) => {
+                  const p = regionMap.get(b)
+                  return p ? `${toX(i)},${toYTtfb(p.ttfb_avg)}` : null
+                }).filter((p): p is string => p !== null).join(' ')
+                return <polyline key={region} points={points} fill="none" stroke={REGION_COLORS[region] ?? '#71717a'} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+              })}
+            </svg>
+          </div>
 
-            {/* Polylines por região */}
-            {regions.map(region => {
-              const regionMap = byRegion[region]
-              if (!regionMap || regionMap.size < 2) return null
+          {/* ── CHART 2: NETWORK LAYER ── */}
+          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 p-4 shadow-sm relative overflow-hidden group">
+            <div className="absolute top-4 right-4 text-[10px] font-bold text-zinc-400 uppercase tracking-tight">Network Phase (DNS/TLS)</div>
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
+              {netYLabels.map(v => (
+                <g key={v}>
+                  <line x1={PAD.left} x2={W - PAD.right} y1={toYNet(v)} y2={toYNet(v)} stroke="currentColor" strokeOpacity={0.07} strokeWidth={1} />
+                  <text x={PAD.left - 6} y={toYNet(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}ms</text>
+                </g>
+              ))}
 
-              const points = allBuckets
-                .map((b, i) => {
-                  const v = regionMap.get(b)
-                  return v != null ? `${toX(i)},${toY(v)}` : null
-                })
-                .filter((p): p is string => p !== null)
-                .join(' ')
+              {xIdxs.map((idx, i) => (
+                <text key={idx} x={toX(idx)} y={H - 8} textAnchor={i === 0 ? 'start' : i === xIdxs.length - 1 ? 'end' : 'middle'} fontSize={8} fill="currentColor" fillOpacity={0.35}>
+                  {formatLabel(allBuckets[idx], range)}
+                </text>
+              ))}
 
-              return (
-                <polyline
-                  key={region}
-                  points={points}
-                  fill="none"
-                  stroke={REGION_COLORS[region] ?? '#71717a'}
-                  strokeWidth={1.5}
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                />
-              )
-            })}
-          </svg>
+              {/* Global DNS Line (Purple) */}
+              <polyline
+                points={globalAverages.map((g, i) => `${toX(i)},${toYNet(g.dns)}`).join(' ')}
+                fill="none" stroke="#a855f7" strokeWidth={2} strokeDasharray="4 2" strokeOpacity={0.6}
+              />
+              {/* Global TLS Line (Fuchsia) */}
+              <polyline
+                points={globalAverages.map((g, i) => `${toX(i)},${toYNet(g.tls)}`).join(' ')}
+                fill="none" stroke="#d946ef" strokeWidth={2} strokeDasharray="4 2" strokeOpacity={0.6}
+              />
 
-          {/* Legenda */}
-          <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-1 px-1">
-            {regions.map(region => (
-              <div key={region} className="flex items-center gap-1.5">
-                <div
-                  className="w-5 h-0.5 rounded-full shrink-0"
-                  style={{ backgroundColor: REGION_COLORS[region] ?? '#71717a' }}
-                />
-                <span className="text-xs text-zinc-500">
-                  {REGION_LABELS[region] ?? region}
-                </span>
-              </div>
-            ))}
+              {regions.map(region => {
+                const regionMap = byRegion[region]
+                if (!regionMap || regionMap.size < 2) return null
+                const points = allBuckets.map((b, i) => {
+                  const p = regionMap.get(b)
+                  return p ? `${toX(i)},${toYNet((p.dns_avg ?? 0) + (p.tls_avg ?? 0))}` : null
+                }).filter((p): p is string => p !== null).join(' ')
+                return <polyline key={region} points={points} fill="none" stroke={REGION_COLORS[region] ?? '#71717a'} strokeWidth={1} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={0.4} />
+              })}
+            </svg>
           </div>
         </div>
       )}
+
+      {/* Legenda consolidada */}
+      <div className="flex flex-wrap gap-x-6 gap-y-2 mt-4 justify-between items-center">
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {regions.map(region => (
+            <div key={region} className="flex items-center gap-1.5">
+              <div
+                className="w-2.5 h-2.5 rounded-full shrink-0"
+                style={{ backgroundColor: REGION_COLORS[region] ?? '#71717a' }}
+              />
+              <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-tight">
+                {REGION_LABELS[region] ?? region}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-4 border-l border-zinc-200 dark:border-zinc-800 pl-4">
+           <div className="flex items-center gap-1.5">
+             <div className="w-4 h-0.5 border-t-2 border-dashed border-purple-500 opacity-60" />
+             <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-tight">Global DNS</span>
+           </div>
+           <div className="flex items-center gap-1.5">
+             <div className="w-4 h-0.5 border-t-2 border-dashed border-fuchsia-500 opacity-60" />
+             <span className="text-[10px] font-bold text-fuchsia-600 dark:text-fuchsia-400 uppercase tracking-tight">Global TLS</span>
+           </div>
+        </div>
+      </div>
     </div>
   )
 }

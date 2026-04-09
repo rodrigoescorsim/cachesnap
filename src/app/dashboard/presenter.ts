@@ -1,10 +1,12 @@
-﻿export interface MonitorSummary {
+export interface MonitorSummary {
   id: string
   url: string
   name: string | null
   is_active: boolean
   ttfb_avg_ms: number | null
   ttfb_worst_ms: number | null
+  tls_avg_ms: number | null
+  dns_avg_ms: number | null
   error_count: number
   cache_hit_pct: number | null
   cache_status: string | null

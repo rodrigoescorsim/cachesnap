@@ -469,11 +469,13 @@ export default async function MonitorDetailPage({
   const security: SecurityHeaders | null = secRow?.security_headers ?? null
 
   const chartRaw = range === '7d'
-    ? await sql<{ bucket: Date; region: string; ttfb_avg: number }[]>`
+    ? await sql<{ bucket: Date; region: string; ttfb_avg: number; dns_avg: number | null; tls_avg: number | null }[]>`
         SELECT
           time_bucket('6 hours', time) AS bucket,
           region,
-          ROUND(AVG(ttfb_ms)::numeric, 0) AS ttfb_avg
+          ROUND(AVG(ttfb_ms)::numeric, 0) AS ttfb_avg,
+          ROUND(AVG(dns_ms)::numeric, 0) AS dns_avg,
+          ROUND(AVG(tls_ms)::numeric, 0) AS tls_avg
         FROM probe_results
         WHERE monitor_id = ${id}
           AND time > NOW() - INTERVAL '7 days'
@@ -481,11 +483,13 @@ export default async function MonitorDetailPage({
         GROUP BY bucket, region
         ORDER BY bucket ASC, region ASC
       `
-    : await sql<{ bucket: Date; region: string; ttfb_avg: number }[]>`
+    : await sql<{ bucket: Date; region: string; ttfb_avg: number; dns_avg: number | null; tls_avg: number | null }[]>`
         SELECT
           time_bucket('30 minutes', time) AS bucket,
           region,
-          ROUND(AVG(ttfb_ms)::numeric, 0) AS ttfb_avg
+          ROUND(AVG(ttfb_ms)::numeric, 0) AS ttfb_avg,
+          ROUND(AVG(dns_ms)::numeric, 0) AS dns_avg,
+          ROUND(AVG(tls_ms)::numeric, 0) AS tls_avg
         FROM probe_results
         WHERE monitor_id = ${id}
           AND time > NOW() - INTERVAL '24 hours'
@@ -574,6 +578,8 @@ export default async function MonitorDetailPage({
     bucket: row.bucket.toISOString(),
     region: row.region,
     ttfb_avg: Number(row.ttfb_avg),
+    dns_avg: row.dns_avg != null ? Number(row.dns_avg) : null,
+    tls_avg: row.tls_avg != null ? Number(row.tls_avg) : null,
   }))
 
   const monitorDisplayName = monitor.name ?? monitorHostname ?? monitor.url
@@ -585,73 +591,35 @@ export default async function MonitorDetailPage({
     <div className="space-y-6">
       <RealTimeHub />
       <AutoRefresh />
-      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/30 px-4 py-3 sm:px-5 sm:py-3.5">
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/30 px-4 py-2.5 sm:px-4 sm:py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-[40px] leading-[0.96] font-semibold tracking-[-0.02em] text-zinc-900 dark:text-zinc-50">
+            <h1 className="text-[32px] leading-tight font-bold tracking-[-0.03em] text-zinc-900 dark:text-zinc-50">
               {monitorDisplayName}
             </h1>
-            <p className="text-sm text-zinc-400 mt-1.5 truncate">{monitor.url}</p>
+            <p className="text-xs text-zinc-400 mt-0.5 truncate tracking-tight">{monitor.url}</p>
           </div>
 
-          <div className="flex items-center gap-1.5 flex-wrap justify-end">
-            {(() => {
-              const cdn = stats.map(s => detectCdn(s.common_served_by)).find(Boolean) ?? null
-              const pops = [...new Set(
-                stats.map(s => extractPop(s.common_served_by)).filter((p): p is string => p != null)
-              )]
-              const rawCache = stats.map(s => s.common_cache_status).find(Boolean) ?? null
-              const cacheStatus = rawCache?.toUpperCase() ?? null
-
-              if (pops.length === 0 && !cacheStatus && !security) return null
-
-              const cacheClass = cacheStatus === 'HIT'
-                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50'
-                : cacheStatus === 'MISS'
-                ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700'
-                : cacheStatus === 'DYNAMIC'
-                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800/50'
-                : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/50'
-              const cdnHint = cdn ? `Via ${cdn}` : undefined
-              const securityHint = security
-                ? SECURITY_HEADERS_LABELS.map(({ key, label }) => {
-                    const value = security[key]
-                    const present = value != null && value !== 0
-                    return `${label}: ${present ? 'present' : 'missing'}`
-                  }).join(' | ')
-                : undefined
-
-              return (
-                <>
-                  {pops.map(pop => {
-                    const city = popToCity(pop)
-                    const label = city === pop ? `${pop} PoP` : city
-                    return (
-                      <span key={pop} title={`${pop} ${cdnHint || ''}`} className="inline-flex h-7 items-center rounded-md px-2.5 bg-zinc-100 dark:bg-zinc-800 text-[11px] font-medium text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
-                        {label}
-                      </span>
-                    )
-                  })}
-                  {cacheStatus && (
-                    <span title={cdnHint} className={`inline-flex h-7 items-center rounded-md px-2.5 text-[11px] font-bold uppercase tracking-tight border ${cacheClass}`}>
-                      {cacheStatus}
-                    </span>
-                  )}
-                  {security && (
-                    <span title={securityHint} className={`inline-flex h-7 items-center rounded-md px-2.5 text-[11px] font-bold uppercase tracking-tight border ${
-                      security.score >= 7
-                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50'
-                        : security.score >= 4
-                        ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/50'
-                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800/50'
-                    }`}>
-                      Security {security.score}/9
-                    </span>
-                  )}
-                </>
-              )
-            })()}
-
+          <div className="flex items-center gap-3 flex-wrap justify-end">
+            <div className="flex items-center gap-2">
+              {alerts.length > 0 && (
+                 <span className="inline-flex items-center rounded-full bg-red-100 dark:bg-red-900/40 px-2.5 py-1 text-xs font-bold text-red-700 dark:text-red-400 animate-pulse">
+                   {alerts.length} Incident{alerts.length > 1 ? 's' : ''}
+                 </span>
+              )}
+              {security && (
+                <div className="flex items-center gap-1.5 px-3 py-0.5 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700">
+                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Security</span>
+                  <span className={`text-xs font-bold ${security.score >= 7 ? 'text-emerald-500' : security.score >= 4 ? 'text-amber-500' : 'text-red-500'}`}>
+                    {security.score}/9
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center gap-1.5 pl-3 ml-1 border-l border-zinc-200 dark:border-zinc-800 h-6">
+                 <div className={`h-2 w-2 rounded-full ${monitor.is_active ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
+                 <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">{monitor.is_active ? 'Active' : 'Paused'}</span>
+              </div>
+            </div>
             <MonitorActions
               id={monitor.id}
               name={monitor.name}
@@ -750,10 +718,10 @@ export default async function MonitorDetailPage({
                   <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
                     <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Region</th>
                     <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">PoP</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="DNS Lookup Time">DNS</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="TLS Handshake Time">TLS</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">TTFB</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Cache Bypass TTFB">Bypass</th>
-                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="DNS / TLS (Network Layer)">Net (D/T)</th>
-                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Number of redirect hops">Hops</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Cache</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Status</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Sync</th>
@@ -773,23 +741,17 @@ export default async function MonitorDetailPage({
                              {popToCity(extractPop(s.common_served_by)) ?? 'UNK'}
                            </span>
                         </td>
+                        <td className="px-3 py-2.5 text-right text-xs font-mono text-purple-600 dark:text-purple-400 tabular-nums">
+                          {s.dns_avg_ms != null ? `${s.dns_avg_ms}ms` : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-xs font-mono text-fuchsia-600 dark:text-fuchsia-400 tabular-nums">
+                          {s.tls_avg_ms != null ? `${s.tls_avg_ms}ms` : '—'}
+                        </td>
                         <td className={`px-3 py-2.5 text-right font-bold tabular-nums ${ttfbColor(s.ttfb_avg_ms)}`}>
                           {s.ttfb_avg_ms != null ? `${s.ttfb_avg_ms}ms` : '—'}
                         </td>
                         <td className="px-3 py-2.5 text-right text-xs text-zinc-500 tabular-nums">
                           {s.bypass_ttfb_avg_ms != null ? `${s.bypass_ttfb_avg_ms}ms` : '—'}
-                        </td>
-                        <td className="px-3 py-2.5 text-right text-xs text-zinc-400 tabular-nums">
-                          {s.dns_avg_ms != null || s.tls_avg_ms != null ? (
-                            <>
-                              <span className="text-purple-600 dark:text-purple-400">{s.dns_avg_ms ?? '-'}</span>
-                              /
-                              <span className="text-fuchsia-600 dark:text-fuchsia-400">{s.tls_avg_ms ?? '-'}</span>
-                            </>
-                          ) : '—'}
-                        </td>
-                        <td className="px-3 py-2.5 text-right font-bold text-zinc-700 dark:text-zinc-200 tabular-nums">
-                          {s.redirect_avg ?? 0}
                         </td>
                         <td className={`px-3 py-2.5 text-right text-xs font-medium uppercase ${cache.tone}`}>
                            {cache.text}
@@ -798,12 +760,22 @@ export default async function MonitorDetailPage({
                         {(() => {
                           const status = s.probe_count
                           const color = status < 300 ? 'bg-emerald-100/80 text-emerald-700' : status < 400 ? 'bg-blue-100/80 text-blue-700' : 'bg-red-100/80 text-red-700'
-                          return isError ? (
-                            <span className="inline-flex items-center rounded-md bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 uppercase" title={(s as any).error}>ERROR</span>
-                          ) : (
-                            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${color}`}>
-                              {status || 'OK'}
-                            </span>
+                          const hops = Number(s.redirect_avg ?? 0)
+                          return (
+                            <div className="flex items-center justify-end gap-1.5">
+                              {hops > 0 && (
+                                <span className="inline-flex items-center rounded-md bg-purple-100 px-1 py-0.5 text-[9px] font-bold text-purple-600" title={`${hops} redirect hops`}>
+                                  {hops}H
+                                </span>
+                              )}
+                              {isError ? (
+                                <span className="inline-flex items-center rounded-md bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 uppercase" title={(s as any).error}>ERR</span>
+                              ) : (
+                                <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${color}`}>
+                                  {status || 'OK'}
+                                </span>
+                              )}
+                            </div>
                           )
                         })()}
                       </td>
@@ -831,16 +803,14 @@ export default async function MonitorDetailPage({
                 <thead>
                   <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
                     <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Region</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average DNS Lookup">DNS</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average TLS Handshake">TLS</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">TTFB</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Bypass</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">P95</th>
-                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight whitespace-nowrap">Min/Max</th>
-                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight whitespace-nowrap" title="Network Layer: DNS / TLS (Average)">Net (D/T)</th>
-                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Edge</th>
-                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Origin</th>
-                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight whitespace-nowrap">Cache Hit Rate</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight whitespace-nowrap">Min / Max</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Cache</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Uptime</th>
-                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">HTTP</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Errors</th>
                   </tr>
                 </thead>
@@ -856,6 +826,12 @@ export default async function MonitorDetailPage({
                             {REGION_LABELS[s.region] ?? s.region}
                           </span>
                         </td>
+                        <td className="px-3 py-2.5 text-right text-xs font-mono text-purple-600 dark:text-purple-400 tabular-nums">
+                          {s.dns_avg_ms != null ? `${s.dns_avg_ms}ms` : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-xs font-mono text-fuchsia-600 dark:text-fuchsia-400 tabular-nums">
+                          {s.tls_avg_ms != null ? `${s.tls_avg_ms}ms` : '—'}
+                        </td>
                         <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${ttfbColor(s.ttfb_avg_ms)}`}>
                           {s.ttfb_avg_ms != null ? `${s.ttfb_avg_ms}ms` : '—'}
                         </td>
@@ -868,41 +844,12 @@ export default async function MonitorDetailPage({
                         <td className="px-3 py-2.5 text-right text-[11px] text-zinc-400 tabular-nums whitespace-nowrap">
                           {s.ttfb_min_ms != null ? `${s.ttfb_min_ms}ms / ${s.ttfb_max_ms}ms` : '—'}
                         </td>
-                        <td className="px-3 py-2.5 text-right text-[11px] font-mono text-zinc-400 tabular-nums">
-                          {s.dns_avg_ms != null || s.tls_avg_ms != null ? (
-                            <>
-                              <span className="text-purple-600 dark:text-purple-400">{s.dns_avg_ms ?? '-'}</span>
-                              <span className="opacity-50 mx-0.5">/</span>
-                              <span className="text-fuchsia-600 dark:text-fuchsia-400">{s.tls_avg_ms ?? '-'}</span>
-                            </>
-                          ) : '—'}
-                        </td>
-                        <td className="px-3 py-2.5 text-right">
-                          {(() => {
-                            const edge = serverTimingDisplay(s.edge_avg_ms)
-                            return (
-                              <span className={`text-xs tabular-nums ${edge.tone}`} title={edge.title}>
-                                {edge.text}
-                              </span>
-                            )
-                          })()}
-                        </td>
-                        <td className="px-3 py-2.5 text-right">
-                          {(() => {
-                            const origin = serverTimingDisplay(s.origin_avg_ms)
-                            return (
-                              <span className={`text-xs tabular-nums ${origin.tone}`} title={origin.title}>
-                                {origin.text}
-                              </span>
-                            )
-                          })()}
-                        </td>
                         <td className="px-3 py-2.5 text-right">
                           {(() => {
                             const cache = cacheDisplay(s.common_cache_status, s.cache_hit_pct)
                             return (
                               <div className="flex flex-col items-end">
-                                <span className={`text-xs tabular-nums ${cache.tone} font-medium`} title={cache.title}>
+                                <span className={`text-[10px] font-bold uppercase ${cache.tone}`} title={cache.title}>
                                   {cache.text}
                                 </span>
                               </div>
@@ -1345,9 +1292,9 @@ export default async function MonitorDetailPage({
           )}
         </section>
       )}
-        </div>
-      </div>
     </div>
+  </div>
+</div>
   )
 }
 

@@ -37,6 +37,8 @@ const REGION_LABELS: Record<string, string> = {
 
 // ── segment palette (for legend + bars) ─────────────────────────────────────
 const SEGS = {
+  dns:      { bg: 'bg-purple-500',  label: 'DNS Lookup' },
+  tls:      { bg: 'bg-fuchsia-500', label: 'TLS Handshake' },
   edge:     { bg: 'bg-blue-500',    label: 'Edge (CDN)' },
   origin:   { bg: 'bg-amber-400',   label: 'Origin' },
   ttfb:     { bg: 'bg-zinc-400',    label: 'TTFB (unattributed)' },
@@ -82,15 +84,17 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
 
       <div className="space-y-3">
         {probes.map(probe => {
-          const total   = probe.total_ms ?? probe.ttfb_ms ?? 0
-          const ttfb    = probe.ttfb_ms ?? 0
-          const download = probe.download_ms ?? Math.max(0, total - ttfb)
-          const edge    = probe.edge_ms ?? 0
-          const origin  = probe.origin_ms ?? 0
+          const total   = Number(probe.total_ms ?? probe.ttfb_ms ?? 0)
+          const ttfb    = Number(probe.ttfb_ms ?? 0)
+          const download = Number(probe.download_ms ?? Math.max(0, total - ttfb))
+          const dns     = Number(probe.dns_ms ?? 0)
+          const tls     = Number(probe.tls_ms ?? 0)
+          const edge    = Number(probe.edge_ms ?? 0)
+          const origin  = Number(probe.origin_ms ?? 0)
 
-          // Portion of TTFB not explained by edge+origin Server-Timing entries
-          const unknownTtfb = Math.max(0, ttfb - (edge + origin))
-          const hasBreakdown = edge > 0 || origin > 0
+          // Portion of TTFB not explained by DNS, TLS, edge+origin Server-Timing entries
+          const unknownTtfb = Math.max(0, ttfb - (dns + tls + edge + origin))
+          const hasBreakdown = dns > 0 || tls > 0 || edge > 0 || origin > 0
           const hasServerTiming = breakdownEntries(probe.server_timing_breakdown).length > 0
 
           const pop = extractPop(probe.served_by)
@@ -147,8 +151,8 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
 
                 {/* Timing summary */}
                 <div className="flex items-center gap-3 tabular-nums text-[10px] text-zinc-500 flex-wrap justify-end">
-                  {probe.dns_ms != null && probe.dns_ms > 0 && <span>DNS <span className="font-medium text-purple-600 dark:text-purple-400">{probe.dns_ms.toFixed(0)}ms</span></span>}
-                  {probe.tls_ms != null && probe.tls_ms > 0 && <span>TLS <span className="font-medium text-fuchsia-600 dark:text-fuchsia-400">{probe.tls_ms.toFixed(0)}ms</span></span>}
+                  {dns > 0 && <span>DNS <span className="font-medium text-purple-600 dark:text-purple-400">{Math.round(dns)}ms</span></span>}
+                  {tls > 0 && <span>TLS <span className="font-medium text-fuchsia-600 dark:text-fuchsia-400">{Math.round(tls)}ms</span></span>}
                   {edge > 0 && <span className="text-blue-600 font-medium">Edge {edge}ms</span>}
                   {origin > 0 && <span className="text-amber-600 font-medium">Origin {origin}ms</span>}
                   <span>
@@ -167,6 +171,20 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
                 <div className="flex h-5 w-full rounded-md overflow-hidden bg-zinc-100 dark:bg-zinc-800">
                   {hasBreakdown ? (
                     <>
+                      {dns > 0 && (
+                        <div
+                          className={`${SEGS.dns.bg} h-full shrink-0`}
+                          style={{ width: pct(dns, maxTotal) }}
+                          title={`DNS Lookup: ${dns}ms`}
+                        />
+                      )}
+                      {tls > 0 && (
+                        <div
+                          className={`${SEGS.tls.bg} h-full shrink-0`}
+                          style={{ width: pct(tls, maxTotal) }}
+                          title={`TLS Handshake: ${tls}ms`}
+                        />
+                      )}
                       {edge > 0 && (
                         <div
                           className={`${SEGS.edge.bg} h-full shrink-0`}
@@ -247,13 +265,13 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
               )}
 
               {/* ── Network Layer (DNS/TLS) ── */}
-              {((probe.dns_ms != null && probe.dns_ms > 0) || (probe.tls_ms != null && probe.tls_ms > 0)) && (
+              {(dns > 0 || tls > 0) && (
                 <div className="border-t border-zinc-100 dark:border-zinc-800 px-3 py-2.5 bg-zinc-50/50 dark:bg-zinc-950/20">
                   <p className="text-[9px] font-semibold uppercase tracking-widest text-zinc-400 mb-2">
                     Network Layer Timing
                   </p>
                   <div className="space-y-1.5">
-                    {probe.dns_ms != null && probe.dns_ms > 0 && (
+                    {dns > 0 && (
                       <div className="flex items-center gap-2">
                         <span className="w-[72px] shrink-0 text-[10px] font-mono text-zinc-500 truncate" title="DNS Lookup">
                           dns
@@ -261,15 +279,15 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
                         <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
                           <div
                             className="h-full rounded-full bg-purple-400 dark:bg-purple-500"
-                            style={{ width: pct(probe.dns_ms, Math.max(probe.dns_ms, ttfb > 0 ? ttfb : maxTotal)) }}
+                            style={{ width: pct(dns, Math.max(dns, ttfb > 0 ? ttfb : maxTotal)) }}
                           />
                         </div>
                         <span className="w-[40px] shrink-0 text-right text-[10px] tabular-nums text-zinc-500">
-                          {probe.dns_ms.toFixed(0)}ms
+                          {Math.round(dns)}ms
                         </span>
                       </div>
                     )}
-                    {probe.tls_ms != null && probe.tls_ms > 0 && (
+                    {tls > 0 && (
                       <div className="flex items-center gap-2">
                         <span className="w-[72px] shrink-0 text-[10px] font-mono text-zinc-500 truncate" title="TLS Handshake">
                           tls
@@ -277,11 +295,11 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
                         <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
                           <div
                             className="h-full rounded-full bg-fuchsia-400 dark:bg-fuchsia-500"
-                            style={{ width: pct(probe.tls_ms, Math.max(probe.tls_ms, ttfb > 0 ? ttfb : maxTotal)) }}
+                            style={{ width: pct(tls, Math.max(tls, ttfb > 0 ? ttfb : maxTotal)) }}
                           />
                         </div>
                         <span className="w-[40px] shrink-0 text-right text-[10px] tabular-nums text-zinc-500">
-                          {probe.tls_ms.toFixed(0)}ms
+                          {Math.round(tls)}ms
                         </span>
                       </div>
                     )}
