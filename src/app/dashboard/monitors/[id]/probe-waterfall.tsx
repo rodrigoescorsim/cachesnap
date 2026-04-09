@@ -9,6 +9,8 @@ import {
 
 export interface WaterfallProbe {
   region: string
+  dns_ms: number | null
+  tls_ms: number | null
   ttfb_ms: number | null
   download_ms: number | null
   total_ms: number | null
@@ -145,6 +147,8 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
 
                 {/* Timing summary */}
                 <div className="flex items-center gap-3 tabular-nums text-[10px] text-zinc-500 flex-wrap justify-end">
+                  {probe.dns_ms != null && probe.dns_ms > 0 && <span>DNS <span className="font-medium text-purple-600 dark:text-purple-400">{probe.dns_ms.toFixed(0)}ms</span></span>}
+                  {probe.tls_ms != null && probe.tls_ms > 0 && <span>TLS <span className="font-medium text-fuchsia-600 dark:text-fuchsia-400">{probe.tls_ms.toFixed(0)}ms</span></span>}
                   {edge > 0 && <span className="text-blue-600 font-medium">Edge {edge}ms</span>}
                   {origin > 0 && <span className="text-amber-600 font-medium">Origin {origin}ms</span>}
                   <span>
@@ -238,6 +242,49 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
                         </span>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Network Layer (DNS/TLS) ── */}
+              {((probe.dns_ms != null && probe.dns_ms > 0) || (probe.tls_ms != null && probe.tls_ms > 0)) && (
+                <div className="border-t border-zinc-100 dark:border-zinc-800 px-3 py-2.5 bg-zinc-50/50 dark:bg-zinc-950/20">
+                  <p className="text-[9px] font-semibold uppercase tracking-widest text-zinc-400 mb-2">
+                    Network Layer Timing
+                  </p>
+                  <div className="space-y-1.5">
+                    {probe.dns_ms != null && probe.dns_ms > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="w-[72px] shrink-0 text-[10px] font-mono text-zinc-500 truncate" title="DNS Lookup">
+                          dns
+                        </span>
+                        <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-purple-400 dark:bg-purple-500"
+                            style={{ width: pct(probe.dns_ms, Math.max(probe.dns_ms, ttfb > 0 ? ttfb : maxTotal)) }}
+                          />
+                        </div>
+                        <span className="w-[40px] shrink-0 text-right text-[10px] tabular-nums text-zinc-500">
+                          {probe.dns_ms.toFixed(0)}ms
+                        </span>
+                      </div>
+                    )}
+                    {probe.tls_ms != null && probe.tls_ms > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="w-[72px] shrink-0 text-[10px] font-mono text-zinc-500 truncate" title="TLS Handshake">
+                          tls
+                        </span>
+                        <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-fuchsia-400 dark:bg-fuchsia-500"
+                            style={{ width: pct(probe.tls_ms, Math.max(probe.tls_ms, ttfb > 0 ? ttfb : maxTotal)) }}
+                          />
+                        </div>
+                        <span className="w-[40px] shrink-0 text-right text-[10px] tabular-nums text-zinc-500">
+                          {probe.tls_ms.toFixed(0)}ms
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

@@ -18,6 +18,8 @@ interface RegionStat {
   ttfb_min_ms: number | null
   ttfb_max_ms: number | null
   total_avg_ms: number | null
+  dns_avg_ms: number | null
+  tls_avg_ms: number | null
   edge_avg_ms: number | null
   origin_avg_ms: number | null
   redirect_avg: number | null
@@ -361,6 +363,8 @@ export default async function MonitorDetailPage({
       ROUND(MAX(ttfb_ms)::numeric, 0)::int            AS ttfb_max_ms,
       ROUND(AVG(total_ms)::numeric, 0)::int           AS total_avg_ms,
       ROUND(AVG(bypass_ttfb_ms)::numeric, 0)::int     AS bypass_ttfb_avg_ms,
+      ROUND(AVG(dns_ms)::numeric, 0)::int             AS dns_avg_ms,
+      ROUND(AVG(tls_ms)::numeric, 0)::int             AS tls_avg_ms,
       ROUND(AVG(edge_ms)::numeric, 0)::int            AS edge_avg_ms,
       ROUND(AVG(origin_ms)::numeric, 0)::int          AS origin_avg_ms,
       ROUND(AVG(redirect_count)::numeric, 0)     AS redirect_avg,
@@ -391,6 +395,8 @@ export default async function MonitorDetailPage({
       (SELECT bypass_ttfb_ms FROM probe_results p2 
        WHERE p2.monitor_id = p1.monitor_id AND p2.region = p1.region AND p2.bypass_ttfb_ms IS NOT NULL 
        ORDER BY time DESC LIMIT 1) AS bypass_ttfb_avg_ms,
+      dns_ms AS dns_avg_ms,
+      tls_ms AS tls_avg_ms,
       edge_ms AS edge_avg_ms,
       origin_ms AS origin_avg_ms,
       redirect_count AS redirect_avg,
@@ -539,6 +545,8 @@ export default async function MonitorDetailPage({
   const waterfallProbes = await sql<WaterfallProbe[]>`
     SELECT DISTINCT ON (region)
       region,
+      ROUND(dns_ms::numeric, 1) AS dns_ms,
+      ROUND(tls_ms::numeric, 1) AS tls_ms,
       ttfb_ms,
       download_ms,
       total_ms,
@@ -744,6 +752,7 @@ export default async function MonitorDetailPage({
                     <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">PoP</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">TTFB</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Cache Bypass TTFB">Bypass</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="DNS / TLS (Network Layer)">Net (D/T)</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Number of redirect hops">Hops</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Cache</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Status</th>
@@ -769,6 +778,15 @@ export default async function MonitorDetailPage({
                         </td>
                         <td className="px-3 py-2.5 text-right text-xs text-zinc-500 tabular-nums">
                           {s.bypass_ttfb_avg_ms != null ? `${s.bypass_ttfb_avg_ms}ms` : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-xs text-zinc-400 tabular-nums">
+                          {s.dns_avg_ms != null || s.tls_avg_ms != null ? (
+                            <>
+                              <span className="text-purple-600 dark:text-purple-400">{s.dns_avg_ms ?? '-'}</span>
+                              /
+                              <span className="text-fuchsia-600 dark:text-fuchsia-400">{s.tls_avg_ms ?? '-'}</span>
+                            </>
+                          ) : '—'}
                         </td>
                         <td className="px-3 py-2.5 text-right font-bold text-zinc-700 dark:text-zinc-200 tabular-nums">
                           {s.redirect_avg ?? 0}
@@ -817,6 +835,7 @@ export default async function MonitorDetailPage({
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Bypass</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">P95</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight whitespace-nowrap">Min/Max</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight whitespace-nowrap" title="Network Layer: DNS / TLS (Average)">Net (D/T)</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Edge</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Origin</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight whitespace-nowrap">Cache Hit Rate</th>
@@ -848,6 +867,15 @@ export default async function MonitorDetailPage({
                         </td>
                         <td className="px-3 py-2.5 text-right text-[11px] text-zinc-400 tabular-nums whitespace-nowrap">
                           {s.ttfb_min_ms != null ? `${s.ttfb_min_ms}ms / ${s.ttfb_max_ms}ms` : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-[11px] font-mono text-zinc-400 tabular-nums">
+                          {s.dns_avg_ms != null || s.tls_avg_ms != null ? (
+                            <>
+                              <span className="text-purple-600 dark:text-purple-400">{s.dns_avg_ms ?? '-'}</span>
+                              <span className="opacity-50 mx-0.5">/</span>
+                              <span className="text-fuchsia-600 dark:text-fuchsia-400">{s.tls_avg_ms ?? '-'}</span>
+                            </>
+                          ) : '—'}
                         </td>
                         <td className="px-3 py-2.5 text-right">
                           {(() => {
