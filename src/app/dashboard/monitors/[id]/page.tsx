@@ -6,7 +6,7 @@ import { AutoRefresh } from './auto-refresh'
 import { TtfbChart, type ChartPoint } from './ttfb-chart'
 import { MonitorActions } from './monitor-actions'
 import { RealTimeHub } from '../../real-time-hub'
-import { extractPop, detectCdn } from '@/lib/edge-helpers'
+import { extractPop, detectCdn, popToCity } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
 
 interface RegionStat {
@@ -82,8 +82,11 @@ const REGION_LABELS: Record<string, string> = {
   'sa-east': 'South America',
   'eu-west': 'Europe',
   'us-east': 'US East',
+  'us-west': 'US West',
   'ap-east': 'Asia Pacific',
+  'ap-south': 'India',
   'oc': 'Oceania',
+  'af-south': 'Africa',
 }
 
 const VALID_TABS = ['performance', 'cache', 'security', 'alerts'] as const
@@ -165,7 +168,7 @@ function cacheDisplay(status: string | null, hitPct: number | null): { text: str
 
   if (normalizedStatus === 'HIT') {
     return {
-      text: hitPct != null ? `${formatPct(hitPct)}% hit rate` : 'HIT',
+      text: hitPct != null ? `${formatPct(hitPct)}%` : 'HIT',
       tone: 'text-emerald-500',
       title: 'Cache hit observed',
     }
@@ -197,7 +200,7 @@ function cacheDisplay(status: string | null, hitPct: number | null): { text: str
 
   if (hitPct != null) {
     return {
-      text: `${formatPct(hitPct)}% hit rate`,
+      text: `${formatPct(hitPct)}%`,
       tone: hitPct > 70 ? 'text-emerald-500' : hitPct >= 30 ? 'text-amber-500' : 'text-red-500',
       title: 'Calculated from observed probe responses',
     }
@@ -612,11 +615,15 @@ export default async function MonitorDetailPage({
 
               return (
                 <>
-                  {pops.map(pop => (
-                    <span key={pop} title={cdnHint} className="inline-flex h-7 items-center rounded-md px-2.5 bg-zinc-100 dark:bg-zinc-800 text-[11px] font-mono font-medium text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
-                      {pop} PoP
-                    </span>
-                  ))}
+                  {pops.map(pop => {
+                    const city = popToCity(pop)
+                    const label = city === pop ? `${pop} PoP` : city
+                    return (
+                      <span key={pop} title={`${pop} ${cdnHint || ''}`} className="inline-flex h-7 items-center rounded-md px-2.5 bg-zinc-100 dark:bg-zinc-800 text-[11px] font-medium text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
+                        {label}
+                      </span>
+                    )
+                  })}
                   {cacheStatus && (
                     <span title={cdnHint} className={`inline-flex h-7 items-center rounded-md px-2.5 text-[11px] font-bold uppercase tracking-tight border ${cacheClass}`}>
                       {cacheStatus}
@@ -753,8 +760,8 @@ export default async function MonitorDetailPage({
                           {REGION_LABELS[s.region] ?? s.region}
                         </td>
                         <td className="px-3 py-2.5">
-                           <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800/80 px-1.5 py-0.5 text-[9px] font-mono font-medium text-zinc-500 dark:text-zinc-400 ring-1 ring-inset ring-zinc-200/50 dark:ring-zinc-700/50">
-                             {extractPop(s.common_served_by) ?? 'UNK'}
+                           <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800/80 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500 dark:text-zinc-400 ring-1 ring-inset ring-zinc-200/50 dark:ring-zinc-700/50" title={extractPop(s.common_served_by) ?? 'Unknown'}>
+                             {popToCity(extractPop(s.common_served_by)) ?? 'UNK'}
                            </span>
                         </td>
                         <td className={`px-3 py-2.5 text-right font-bold tabular-nums ${ttfbColor(s.ttfb_avg_ms)}`}>
@@ -806,13 +813,13 @@ export default async function MonitorDetailPage({
                 <thead>
                   <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
                     <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Region</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">PoP</th>
-                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">AVG TTFB</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">TTFB</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Bypass</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">P95</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight whitespace-nowrap">Min/Max</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Edge</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Origin</th>
-                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Cache</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight whitespace-nowrap">Cache Hit Rate</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Uptime</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">HTTP</th>
                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Errors</th>
@@ -830,20 +837,11 @@ export default async function MonitorDetailPage({
                             {REGION_LABELS[s.region] ?? s.region}
                           </span>
                         </td>
-                        <td className="px-3 py-2.5">
-                          {(() => {
-                            const pop = extractPop(s.common_served_by)
-                            return pop ? (
-                              <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800/80 px-1.5 py-0.5 text-[9px] font-mono font-medium text-zinc-500 dark:text-zinc-400 ring-1 ring-inset ring-zinc-200/50 dark:ring-zinc-700/50 shadow-sm">
-                                {pop}
-                              </span>
-                            ) : (
-                              <span className="text-zinc-300 dark:text-zinc-700">—</span>
-                            )
-                          })()}
-                        </td>
                         <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${ttfbColor(s.ttfb_avg_ms)}`}>
                           {s.ttfb_avg_ms != null ? `${s.ttfb_avg_ms}ms` : '—'}
+                        </td>
+                        <td className="px-3 py-2.5 text-right text-xs text-zinc-500 tabular-nums">
+                          {s.bypass_ttfb_avg_ms != null ? `${s.bypass_ttfb_avg_ms}ms` : '—'}
                         </td>
                         <td className={`px-3 py-2.5 text-right tabular-nums text-xs ${ttfbColor(s.ttfb_p95_ms)}`}>
                           {s.ttfb_p95_ms != null ? `${s.ttfb_p95_ms}ms` : '—'}
@@ -861,11 +859,11 @@ export default async function MonitorDetailPage({
                             )
                           })()}
                         </td>
-                        <td className="px-3 py-2.5 text-right text-zinc-400/60 font-medium whitespace-nowrap font-mono text-[10px]">
+                        <td className="px-3 py-2.5 text-right">
                           {(() => {
                             const origin = serverTimingDisplay(s.origin_avg_ms)
                             return (
-                              <span className={`tabular-nums ${origin.tone}`} title={origin.title}>
+                              <span className={`text-xs tabular-nums ${origin.tone}`} title={origin.title}>
                                 {origin.text}
                               </span>
                             )

@@ -115,13 +115,18 @@ async fn should_run_bypass(state: &AppState, monitor: &Monitor) -> bool {
 }
 
 pub fn build_regions(state: &AppState) -> Vec<(String, String)> {
-    vec![
-        ("sa-east".to_string(), state.config.region_sa_east.clone()),
-        ("eu-west".to_string(), state.config.region_eu_west.clone()),
-        ("us-east".to_string(), state.config.region_us_east.clone()),
-        ("ap-east".to_string(), state.config.region_ap_east.clone()),
-        ("oc".to_string(),      state.config.region_oc.clone()),
-    ]
+    let all = vec![
+        ("sa-east".to_string(),  state.config.region_sa_east.clone()),
+        ("eu-west".to_string(),  state.config.region_eu_west.clone()),
+        ("us-east".to_string(),  state.config.region_us_east.clone()),
+        ("us-west".to_string(),  state.config.region_us_west.clone()),
+        ("ap-east".to_string(),  state.config.region_ap_east.clone()),
+        ("ap-south".to_string(), state.config.region_ap_south.clone()),
+        ("oc".to_string(),       state.config.region_oc.clone()),
+        ("af-south".to_string(), state.config.region_af_south.clone()),
+    ];
+    // Filter out regions with empty URLs (not yet configured)
+    all.into_iter().filter(|(_, url)| !url.is_empty()).collect()
 }
 
 pub async fn dispatch_probes(state: &AppState, monitor: &Monitor, regions: Vec<(String, String)>, run_bypass: bool) {

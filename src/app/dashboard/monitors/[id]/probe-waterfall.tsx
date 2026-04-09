@@ -1,4 +1,4 @@
-import { extractPop } from '@/lib/edge-helpers'
+import { extractPop, popToCity } from '@/lib/edge-helpers'
 import {
   breakdownColor,
   breakdownEntries,
@@ -26,8 +26,11 @@ const REGION_LABELS: Record<string, string> = {
   'sa-east': 'South America',
   'eu-west': 'Europe',
   'us-east': 'US East',
+  'us-west': 'US West',
   'ap-east': 'Asia Pacific',
+  'ap-south': 'India',
   'oc': 'Oceania',
+  'af-south': 'Africa',
 }
 
 // ── segment palette (for legend + bars) ─────────────────────────────────────
@@ -106,8 +109,8 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
                   </span>
 
                   {pop && (
-                    <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[9px] font-mono font-medium text-zinc-500 ring-1 ring-inset ring-zinc-200/50">
-                      {pop}
+                    <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500 ring-1 ring-inset ring-zinc-200/50" title={pop}>
+                      {popToCity(pop)}
                     </span>
                   )}
 

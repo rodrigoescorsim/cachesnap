@@ -12,16 +12,22 @@ const REGION_COLORS: Record<string, string> = {
   'sa-east': '#f59e0b',
   'eu-west': '#3b82f6',
   'us-east': '#10b981',
+  'us-west': '#06b6d4',
   'ap-east': '#8b5cf6',
+  'ap-south': '#ec4899',
   'oc':      '#f43f5e',
+  'af-south': '#a855f7',
 }
 
 const REGION_LABELS: Record<string, string> = {
   'sa-east': 'South America',
   'eu-west': 'Europe',
   'us-east': 'US East',
+  'us-west': 'US West',
   'ap-east': 'Asia Pacific',
+  'ap-south': 'India',
   'oc':      'Oceania',
+  'af-south': 'Africa',
 }
 
 // Dimensões do viewBox SVG

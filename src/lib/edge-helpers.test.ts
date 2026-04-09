@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { extractPop, detectCdn } from './edge-helpers'
+import { extractPop, detectCdn, popToCity } from './edge-helpers'
 
 describe('extractPop', () => {
   it('extracts IATA code from a standard CF-Ray', () => {
@@ -26,6 +26,24 @@ describe('extractPop', () => {
   it('returns null for X-Served-By Fastly format (lowercase colo)', () => {
     // Fastly X-Served-By: "cache-lax8632-LAX" would match, but "cache-gru1234" would not
     expect(extractPop('cache-gru1234')).toBeNull()
+  })
+})
+
+describe('popToCity', () => {
+  it('translates known IATA codes to city names', () => {
+    expect(popToCity('GRU')).toBe('São Paulo')
+    expect(popToCity('gru')).toBe('São Paulo') // handles lowercase
+    expect(popToCity('IAD')).toBe('Dulles/Virginia')
+    expect(popToCity('FRA')).toBe('Frankfurt')
+  })
+
+  it('returns the input code if no mapping is found', () => {
+    expect(popToCity('UNKNOWN')).toBe('UNKNOWN')
+    expect(popToCity('XXX')).toBe('XXX')
+  })
+
+  it('returns null for null input', () => {
+    expect(popToCity(null)).toBeNull()
   })
 })
 

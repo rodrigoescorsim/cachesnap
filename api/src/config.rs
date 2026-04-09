@@ -13,8 +13,11 @@ pub struct Config {
     pub region_sa_east: String,
     pub region_eu_west: String,
     pub region_us_east: String,
+    pub region_us_west: String,
     pub region_ap_east: String,
+    pub region_ap_south: String,
     pub region_oc: String,
+    pub region_af_south: String,
 }
 
 impl Config {
@@ -33,11 +36,14 @@ impl Config {
                 .unwrap_or_else(|_| "http://localhost:3000".to_string()),
             api_url: std::env::var("API_URL")
                 .unwrap_or_else(|_| "http://localhost:3001".to_string()),
-            region_sa_east: std::env::var("REGION_SA_EAST").unwrap_or_else(|_| "https://hoplens-probe-sa-east.rodrigoescorsim.workers.dev".to_string()),
-            region_eu_west: std::env::var("REGION_EU_WEST").unwrap_or_else(|_| "https://hoplens-probe-eu-west.rodrigoescorsim.workers.dev".to_string()),
-            region_us_east: std::env::var("REGION_US_EAST").unwrap_or_else(|_| "https://hoplens-probe-us-east.rodrigoescorsim.workers.dev".to_string()),
-            region_ap_east: std::env::var("REGION_AP_EAST").unwrap_or_else(|_| "https://hoplens-probe-ap-east.rodrigoescorsim.workers.dev".to_string()),
-            region_oc:      std::env::var("REGION_OC").unwrap_or_else(|_| "https://hoplens-probe-oc.rodrigoescorsim.workers.dev".to_string()),
+            region_sa_east:  std::env::var("REGION_SA_EAST").unwrap_or_default(),
+            region_eu_west:  std::env::var("REGION_EU_WEST").unwrap_or_default(),
+            region_us_east:  std::env::var("REGION_US_EAST").unwrap_or_default(),
+            region_us_west:  std::env::var("REGION_US_WEST").unwrap_or_default(),
+            region_ap_east:  std::env::var("REGION_AP_EAST").unwrap_or_default(),
+            region_ap_south: std::env::var("REGION_AP_SOUTH").unwrap_or_default(),
+            region_oc:       std::env::var("REGION_OC").unwrap_or_default(),
+            region_af_south: std::env::var("REGION_AF_SOUTH").unwrap_or_default(),
         })
     }
 }

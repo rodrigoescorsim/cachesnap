@@ -227,9 +227,26 @@ async function runProbe(
     if (base.cache_status) {
       console.log(`[DEBUG] Found Cache Status: ${base.cache_status}`);
     }
-    base.served_by = response.headers.get("CF-Ray")
-      ?? response.headers.get("X-Served-By")
-      ?? null;
+
+    // Corrigido: Só confiar no CF-Ray se o destino for comprovadamente Cloudflare.
+    // Caso contrário, estaríamos lendo o raio de diagnóstico do próprio nó do Worker.
+    const isCloudflare = response.headers.get("server")?.toLowerCase().includes("cloudflare") 
+                      || response.headers.has("cf-cache-status")
+                      || response.headers.has("cf-ray");
+
+    base.served_by = null;
+    if (isCloudflare) {
+      base.served_by = response.headers.get("CF-Ray");
+    } 
+    
+    // Se não for CF ou se CF-Ray falhou, tenta outros provedores conhecidos
+    if (!base.served_by) {
+      base.served_by = response.headers.get("X-Served-By")  // Fastly / Varnish
+                    ?? response.headers.get("X-Vercel-Id")   // Vercel (contem o PoP)
+                    ?? response.headers.get("X-Amz-Cf-Id")   // CloudFront
+                    ?? response.headers.get("X-Azure-Ref")   // Azure
+                    ?? null;
+    }
 
     // Captura o cabeçalho Server-Timing (case insensitive e tenta variação com hífen)
     base.server_timing = response.headers.get("Server-Timing") ?? response.headers.get("server-timing");
