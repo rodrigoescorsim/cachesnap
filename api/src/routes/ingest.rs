@@ -27,18 +27,18 @@ pub async fn handler(
         r#"
         INSERT INTO probe_results (
             time, monitor_id, region,
-            ttfb_ms, download_ms, total_ms, dns_ms, tls_ms, edge_ms, origin_ms,
+            ttfb_ms, download_ms, total_ms, dns_ms, tcp_ms, tls_ms, edge_ms, origin_ms,
             status_code, cache_status, served_by, server_timing,
             http_version, redirect_count, content_length, error,
             bypass_ttfb_ms, bypass_total_ms, bypass_status_code, bypass_error,
-            age_s, security_headers, server_timing_breakdown
+            age_s, security_headers, server_timing_breakdown, probe_version
         ) VALUES (
             NOW(), $1, $2,
-            $3, $4, $5, $6, $7, $8, $9,
-            $10, $11, $12, $13,
-            $14, $15, $16, $17,
-            $18, $19, $20, $21,
-            $22, $23, $24
+            $3, $4, $5, $6, $7, $8, $9, $10,
+            $11, $12, $13, $14,
+            $15, $16, $17, $18,
+            $19, $20, $21, $22,
+            $23, $24, $25, $26
         )
         "#,
     )
@@ -48,6 +48,7 @@ pub async fn handler(
     .bind(payload.download_ms)
     .bind(payload.total_ms)
     .bind(payload.dns_ms)
+    .bind(payload.tcp_ms)
     .bind(payload.tls_ms)
     .bind(payload.edge_ms)
     .bind(payload.origin_ms)
@@ -66,6 +67,7 @@ pub async fn handler(
     .bind(payload.age_s)
     .bind(payload.security_headers.clone())
     .bind(payload.server_timing_breakdown.clone())
+    .bind(payload.probe_version.clone())
     .execute(&state.db)
     .await;
 

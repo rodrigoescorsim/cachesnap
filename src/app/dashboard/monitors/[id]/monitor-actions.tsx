@@ -24,6 +24,29 @@ export function MonitorActions({
   const [pendingAction, setPendingAction] = useState<null | 'toggle' | 'edit' | 'delete'>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // Cooldown logic for Refresh
+  const [cooldown, setCooldown] = useState(0)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    // Load last click from localStorage to persist cooldown across refreshes
+    const lastClick = localStorage.getItem(`last_dispatch_${id}`)
+    if (lastClick) {
+      const diff = Math.floor((Date.now() - Number(lastClick)) / 1000)
+      if (diff < 30) setCooldown(30 - diff)
+    }
+  }, [id])
+
+  useEffect(() => {
+    if (cooldown > 0) {
+      timerRef.current = setTimeout(() => setCooldown(c => c - 1), 1000)
+    } else {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
+  }, [cooldown])
+
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -122,10 +145,73 @@ export function MonitorActions({
     })
   }
 
+  async function handleDispatch(bypass: boolean) {
+    if (cooldown > 0) return
+    setError(null)
+    setPendingAction('toggle')
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/api/monitors/${id}/dispatch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bypass }),
+        })
+        if (res.ok) {
+          const now = Date.now()
+          localStorage.setItem(`last_dispatch_${id}`, String(now))
+          setCooldown(30)
+          router.refresh()
+        } else {
+          const json = await res.json().catch(() => ({}))
+          setError(json.error || 'Dispatch failed')
+        }
+      } finally {
+        setPendingAction(null)
+      }
+    })
+  }
+
   return (
     <>
       {/* Action buttons */}
       <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+        {/* Refresh with Cache */}
+        <button
+          type="button"
+          onClick={() => handleDispatch(false)}
+          disabled={cooldown > 0 || pendingAction != null}
+          title="Refresh measuring Edge Cache"
+          className={`inline-flex h-8 items-center gap-2 rounded-lg border px-3 py-1 text-xs font-bold transition-all shadow-sm disabled:opacity-50 ${
+            cooldown > 0 
+              ? 'bg-zinc-50 dark:bg-zinc-800/50 text-zinc-400 border-zinc-200 dark:border-zinc-800' 
+              : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/40'
+          }`}
+        >
+          <svg viewBox="0 0 16 16" className={`h-3.5 w-3.5 ${isPending && pendingAction === 'toggle' ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M1 1v4h4M15 15v-4h-4M13.6 4.5A7 7 0 1 0 14.5 9" />
+          </svg>
+          {cooldown > 0 ? `Wait ${cooldown}s` : 'Refresh'}
+        </button>
+
+        {/* Refresh with Bypass */}
+        <button
+          type="button"
+          onClick={() => handleDispatch(true)}
+          disabled={cooldown > 0 || pendingAction != null}
+          title="Refresh bypassing Edge Cache (Hit Origin)"
+          className={`inline-flex h-8 items-center gap-2 rounded-lg border px-3 py-1 text-xs font-bold transition-all shadow-sm disabled:opacity-50 ${
+            cooldown > 0 
+              ? 'bg-zinc-50 dark:bg-zinc-800/50 text-zinc-400 border-zinc-200 dark:border-zinc-800' 
+              : 'bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-950 border-transparent hover:bg-zinc-800 dark:hover:bg-zinc-200'
+          }`}
+        >
+          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 1v6M8 9v6M13 3l-2 2M5 11l-2 2M15 8h-6M7 8H1M13 13l-2-2M5 5l-2-2" />
+          </svg>
+          {cooldown > 0 ? `${cooldown}s` : 'Bypass'}
+        </button>
+
+
         <div ref={menuRef} className="relative">
           <button
             type="button"

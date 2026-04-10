@@ -68,7 +68,7 @@ async fn main() -> Result<()> {
         .route("/api/events", get(routes::events::handler)) // Nova rota SSE!
         .route("/api/ingest", post(routes::ingest::handler))
         .route("/api/monitors/active", get(routes::monitors::list_active))
-        .route("/api/monitors/{id}/dispatch", post(routes::dispatch::handler))
+        .route("/api/monitors/:id/dispatch", post(routes::dispatch::handler))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(state);

@@ -439,6 +439,7 @@ export default async function MonitorDetailPage({
        WHERE p2.monitor_id = p1.monitor_id AND p2.region = p1.region AND p2.bypass_ttfb_ms IS NOT NULL 
        ORDER BY time DESC LIMIT 1) AS bypass_ttfb_avg_ms,
       dns_ms AS dns_avg_ms,
+      tcp_ms AS tcp_avg_ms,
       tls_ms AS tls_avg_ms,
       edge_ms AS edge_avg_ms,
       origin_ms AS origin_avg_ms,
@@ -448,6 +449,7 @@ export default async function MonitorDetailPage({
       cache_status AS common_cache_status,
       status_code AS probe_count,
       COALESCE(error, '') as error,
+      probe_version,
       age_s AS max_age_s,
       time AS last_probe_at
     FROM probe_results p1
@@ -698,25 +700,37 @@ export default async function MonitorDetailPage({
           <div className="flex items-center gap-3 flex-wrap justify-end">
             <div className="flex items-center gap-2">
               {alerts.length > 0 && (
-                <span className="inline-flex items-center rounded-full bg-red-100 dark:bg-red-900/40 px-2.5 py-1 text-xs font-bold text-red-700 dark:text-red-400 animate-pulse">
-                  {alerts.length} Incident{alerts.length > 1 ? 's' : ''}
-                </span>
+                <Link
+                  href={buildMonitorHref('incidents', range)}
+                  className="flex items-center gap-1.5 px-3 py-0.5 h-7 rounded-full bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900 transition-colors"
+                >
+                  <span className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-tight">Incidents</span>
+                  <span className="text-xs font-bold text-red-600 dark:text-red-400">
+                    {alerts.length}
+                  </span>
+                </Link>
               )}
               {security && (
-                <div className="flex items-center gap-1.5 px-3 py-0.5 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700">
+                <Link
+                  href={buildMonitorHref('security', range)}
+                  className="flex items-center gap-1.5 px-3 py-0.5 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                >
                   <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Security</span>
                   <span className={`text-xs font-bold ${security.score >= 7 ? 'text-emerald-500' : security.score >= 4 ? 'text-amber-500' : 'text-red-500'}`}>
                     {security.score}/9
                   </span>
-                </div>
+                </Link>
               )}
-              <div className="flex items-center gap-1.5 px-3 py-0.5 h-7 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/30">
+              <Link
+                href={buildMonitorHref('performance', range)}
+                className="flex items-center gap-1.5 px-3 py-0.5 h-7 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-colors"
+              >
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
                 <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Live Sync</span>
-              </div>
+              </Link>
               <div className="flex items-center gap-1.5 pl-3 ml-1 border-l border-zinc-200 dark:border-zinc-800 h-6">
                 <div className={`h-2 w-2 rounded-full ${monitor.is_active ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
                 <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">{monitor.is_active ? 'Active' : 'Paused'}</span>
@@ -830,11 +844,13 @@ export default async function MonitorDetailPage({
                               <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Region</th>
                               <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">PoP</th>
                               <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="DNS Lookup Time">DNS</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="TCP Connection Time">TCP</th>
                               <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="TLS Handshake Time">TLS</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">TTFB</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Time to First Byte (Total)">TTFB</th>
                               <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Cache</th>
                               <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Status</th>
                               <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Sync</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight text-teal-500">V</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -848,11 +864,14 @@ export default async function MonitorDetailPage({
                                   </td>
                                   <td className="px-3 py-2.5">
                                     <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800/80 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500 dark:text-zinc-400 ring-1 ring-inset ring-zinc-200/50 dark:ring-zinc-700/50" title={extractPop(s.common_served_by) ?? 'Unknown'}>
-                                      {popToCity(extractPop(s.common_served_by)) ?? 'UNK'}
+                                      {popToCity(extractPop(s.common_served_by)) ?? '—'}
                                     </span>
                                   </td>
                                   <td className="px-3 py-2.5 text-right text-xs font-mono text-purple-600 dark:text-purple-400 tabular-nums">
                                     <VisualGlow value={s.dns_avg_ms}>{s.dns_avg_ms != null ? `${s.dns_avg_ms}ms` : '—'}</VisualGlow>
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right text-xs font-mono text-indigo-600 dark:text-indigo-400 tabular-nums">
+                                    <VisualGlow value={s.tcp_avg_ms}>{s.tcp_avg_ms != null ? `${s.tcp_avg_ms}ms` : '—'}</VisualGlow>
                                   </td>
                                   <td className="px-3 py-2.5 text-right text-xs font-mono text-fuchsia-600 dark:text-fuchsia-400 tabular-nums">
                                     <VisualGlow value={s.tls_avg_ms}>{s.tls_avg_ms != null ? `${s.tls_avg_ms}ms` : '—'}</VisualGlow>
@@ -888,6 +907,9 @@ export default async function MonitorDetailPage({
                                   </td>
                                   <td className="px-3 py-2.5 text-right text-[10px] text-zinc-400 tabular-nums whitespace-nowrap">
                                     {s.last_probe_at ? new Date(s.last_probe_at).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right text-[10px] font-mono text-teal-600/70">
+                                    {(s as any).probe_version || 'old'}
                                   </td>
                                 </tr>
                               )
@@ -1264,7 +1286,7 @@ export default async function MonitorDetailPage({
                         <div key={row.region} className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm group hover:border-emerald-500/30 transition-colors">
                           <div className="flex items-center justify-between gap-3 mb-3 pb-2 border-b border-zinc-50 dark:border-zinc-800">
                             <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-tight">{REGION_LABELS[row.region] ?? row.region}</p>
-                            <p className="text-[10px] text-zinc-400 font-mono tracking-tighter">{extractPop(row.served_by) ?? 'UNK'}</p>
+                            <p className="text-[10px] text-zinc-400 font-mono tracking-tighter">{extractPop(row.served_by) ?? '—'}</p>
                           </div>
                           <div className="space-y-2">
                             {entries.map(([metric, value]) => (

@@ -132,7 +132,11 @@ export const handler = async (event) => {
   }
 
   // 4. Report to HopLens ingest API
-  await sendToIngest(ingest_url, result, probeSecret);
+  const reportData = {
+    ...result,
+    probe_version: "1.18"
+  };
+  await sendToIngest(ingest_url, reportData, probeSecret);
 
   return {
     statusCode: 200,
@@ -167,17 +171,46 @@ async function measureUrl(targetUrl, isBypass = false) {
       'Accept-Encoding': 'gzip, deflate, br',
     };
 
-    // For bypass probes, add cache-busting headers
+    const nonce = Math.random().toString(36).substring(2, 15);
+
+    // ── Header Strategy ──
+    // For bypass probes (Manual Refresh / Alerts), we force the edge to miss.
+    // For normal probes (Automatic Sync), we want to measure cache performance,
+    // so we don't send Cache-Control: no-cache.
     if (isBypass) {
       requestHeaders['Cache-Control'] = 'no-cache, no-store, must-revalidate';
       requestHeaders['Pragma'] = 'no-cache';
+    } else {
+      // Light hint for the network layer to prefer freshness without forcing origin fetch
+      requestHeaders['X-HopLens-Salt'] = nonce;
     }
+    requestHeaders['X-Hoplens-Bypass'] = isBypass ? 'true' : 'false';
+    requestHeaders['Connection'] = 'close';
+
+    const probeUrl = new URL(targetUrl);
+    // Only use query params for bypass probes to force edge misses.
+    // For automatic sync, we keep the URL clean to measure real cache performance.
+    if (isBypass) {
+      probeUrl.searchParams.set('hl_v', '1.16');
+      probeUrl.searchParams.set('hl_s', nonce);
+    }
+    const finalUrl = probeUrl.toString();
+
+    // Browser-like headers with unique UA per probe to prevent connection pooling
+    const dynamicUA = `HopLens-Probe/1.12 (Nonce:${nonce}; Region:${process.env.AWS_REGION})`;
 
     const req = transport.get(
-      targetUrl,
+      finalUrl,
       {
-        headers: requestHeaders,
-        timeout: 15000,
+        headers: {
+          ...requestHeaders,
+          'User-Agent': dynamicUA,
+          'X-Hoplens-Nonce': nonce,
+          'Connection': 'close',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
+        timeout: 10000,
+        agent: false, // Hard disable of connection pooling
       },
       (res) => {
         timings.ttfbEnd = performance.now();
@@ -187,6 +220,12 @@ async function measureUrl(targetUrl, isBypass = false) {
 
         res.on('end', () => {
           timings.end = performance.now();
+          
+          if (res.socket) {
+            res.socket.setKeepAlive(false);
+            res.socket.unref();
+            res.socket.destroy();
+          }
 
           const h = res.headers;
           const bodyLength = chunks.reduce((acc, c) => acc + c.length, 0);
@@ -195,7 +234,6 @@ async function measureUrl(targetUrl, isBypass = false) {
           const cacheStatus = readCacheStatus(h);
 
           // ── Served-By / PoP Detection ──
-          // CF-Ray is only trustworthy if the TARGET is on Cloudflare.
           const isCloudflare =
             (h['server'] || '').toLowerCase().includes('cloudflare') ||
             h['cf-cache-status'] != null ||
@@ -203,14 +241,19 @@ async function measureUrl(targetUrl, isBypass = false) {
 
           let servedBy = null;
           if (isCloudflare) {
-            servedBy = h['cf-ray'] || null;
+             // Prioritize cf-ray and x-amz-cf-pop (Cloudflare/CloudFront style)
+             servedBy = h['cf-ray'] || h['x-amz-cf-pop'] || null;
           }
+          
           if (!servedBy) {
             servedBy =
-              h['x-served-by'] ||    // Fastly / Varnish
               h['x-vercel-id'] ||    // Vercel
+              h['x-served-by'] ||    // Fastly / Varnish
               h['x-amz-cf-id'] ||    // CloudFront
-              h['x-azure-ref'] ||    // Azure CDN
+              h['x-azure-ref'] ||    // Azure
+              h['x-edge-location'] || // General
+              h['x-cache-info'] ||   // Fastly
+              h['server'] ||         // Last resort
               null;
           }
 
@@ -255,6 +298,7 @@ async function measureUrl(targetUrl, isBypass = false) {
             download_ms: round(timings.end - timings.ttfbEnd),
             total_ms: round(timings.end - timings.start),
             dns_ms: timings.dnsEnd != null ? round(timings.dnsEnd - timings.start) : null,
+            tcp_ms: timings.tcpEnd != null ? round(timings.tcpEnd - (timings.dnsEnd || timings.start)) : null,
             tls_ms:
               timings.tlsEnd != null && timings.tcpEnd != null
                 ? round(timings.tlsEnd - timings.tcpEnd)

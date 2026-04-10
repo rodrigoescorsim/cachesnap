@@ -9,6 +9,11 @@ use uuid::Uuid;
 
 use crate::{models::monitor::Monitor, scheduler::runner, AppState};
 
+#[derive(serde::Deserialize)]
+pub struct DispatchRequest {
+    pub bypass: Option<bool>,
+}
+
 /// POST /api/monitors/:id/dispatch
 /// Dispara probes imediatos para um monitor em todas as regiões.
 /// Autenticado pelo mesmo PROBE_SECRET dos workers (chamada interna).
@@ -16,6 +21,7 @@ pub async fn handler(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(monitor_id): Path<Uuid>,
+    Json(payload): Json<DispatchRequest>,
 ) -> impl IntoResponse {
     let secret = headers
         .get("x-probe-secret")
@@ -50,9 +56,11 @@ pub async fn handler(
     };
 
     let regions = runner::build_regions(&state);
+    let run_bypass = payload.bypass.unwrap_or(true);
+    
     tokio::spawn(async move {
-        runner::dispatch_probes(&state, &monitor, regions, true).await;
+        runner::dispatch_probes(&state, &monitor, regions, run_bypass).await;
     });
 
-    (StatusCode::ACCEPTED, Json(json!({ "ok": true, "monitor_id": monitor_id }))).into_response()
+    (StatusCode::ACCEPTED, Json(json!({ "ok": true, "monitor_id": monitor_id, "bypass": run_bypass }))).into_response()
 }

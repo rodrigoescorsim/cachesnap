@@ -11,6 +11,7 @@ pub struct ProbeResultPayload {
     pub download_ms: Option<f64>,
     pub total_ms: Option<f64>,
     pub dns_ms: Option<f64>,    // null no Phase 1 (CF Workers), preenchido pelos Node.js probes
+    pub tcp_ms: Option<f64>,
     pub tls_ms: Option<f64>,    // null no Phase 1 (CF Workers), preenchido pelos Node.js probes
     #[serde(default)]
     pub edge_ms: Option<f64>,   // parseado do Server-Timing pelo CF Worker
@@ -38,6 +39,8 @@ pub struct ProbeResultPayload {
     pub security_headers: Option<serde_json::Value>,     // {hsts, csp, x_frame_options, x_content_type, referrer_policy, score}
     #[serde(default)]
     pub server_timing_breakdown: Option<serde_json::Value>, // {metric_name: dur_ms, ...}
+    #[serde(default)]
+    pub probe_version: Option<String>,
 }
 
 /// Registro persistido no TimescaleDB
@@ -51,6 +54,7 @@ pub struct ProbeResult {
     pub download_ms: Option<f64>,
     pub total_ms: Option<f64>,
     pub dns_ms: Option<f64>,
+    pub tcp_ms: Option<f64>,
     pub tls_ms: Option<f64>,
     pub edge_ms: Option<f64>,
     pub origin_ms: Option<f64>,
@@ -69,4 +73,5 @@ pub struct ProbeResult {
     pub age_s: Option<i32>,
     pub security_headers: Option<serde_json::Value>,
     pub server_timing_breakdown: Option<serde_json::Value>,
+    pub probe_version: Option<String>,
 }
