@@ -1,30 +1,52 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { shouldRefresh } from './real-time-hub.helpers'
 
-export function RealTimeHub() {
+interface Props {
+  /** The current logged-in user ID, used for server-side SSE filtering. */
+  userId?: string
+  /**
+   * When set, only SSE events for this monitor ID trigger a refresh.
+   * Omit on the dashboard overview to react to any monitor update.
+   */
+  watchId?: string
+  /** How long to wait after the last qualifying message before refreshing. Default: 2000 ms. */
+  debounceMs?: number
+}
+
+export function RealTimeHub({ userId, watchId, debounceMs = 2_000 }: Props) {
   const router = useRouter()
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    // URL da API Rust (default local: 3001)
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-    const eventSource = new EventSource(`${apiUrl}/api/events`)
-
-    eventSource.onmessage = (event) => {
-      console.log('Real-time update received for monitor:', event.data)
-      router.refresh()
+    if (!userId) {
+      console.warn('[RealTimeHub] Missing userId, real-time updates may not be isolated.')
+      return
     }
 
-    eventSource.onerror = (err) => {
-      console.error('SSE connection error:', err)
-      // O navegador tenta reconectar automaticamente por padrão.
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+    const es = new EventSource(`${apiUrl}/api/events?user_id=${userId}`)
+
+    es.onmessage = (event) => {
+      const incomingId = event.data.trim()
+      if (!shouldRefresh(incomingId, watchId)) return
+
+      // Debounce: batch rapid multi-region updates into a single refresh
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => router.refresh(), debounceMs)
+    }
+
+    es.onerror = () => {
+      // The browser retries automatically; no manual intervention needed.
     }
 
     return () => {
-      eventSource.close()
+      es.close()
+      if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [router])
+  }, [router, userId, watchId, debounceMs])
 
   return null
 }

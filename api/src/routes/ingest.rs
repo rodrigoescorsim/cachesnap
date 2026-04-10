@@ -71,8 +71,24 @@ pub async fn handler(
 
     match result {
         Ok(_) => {
-            // Notificar via real-time (SSE)
-            let _ = state.tx.send(payload.monitor_id.to_string());
+            // Notificar via real-time (SSE) com isolamento por usuário
+            let db = state.db.clone();
+            let monitor_id = payload.monitor_id;
+            let tx = state.tx.clone();
+            
+            tokio::spawn(async move {
+                let user_result = sqlx::query!("SELECT user_id FROM monitors WHERE id = $1", monitor_id)
+                    .fetch_optional(&db)
+                    .await;
+                
+                if let Ok(Some(row)) = user_result {
+                    let msg = serde_json::json!({
+                        "u": row.user_id,
+                        "m": monitor_id
+                    }).to_string();
+                    let _ = tx.send(msg);
+                }
+            });
 
             // Disparar o detector de anomalias em background para não bloquear
             let state_clone = state.clone();

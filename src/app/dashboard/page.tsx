@@ -10,6 +10,7 @@ import {
   type MonitorSummary,
 } from './presenter'
 import { MonitorCardActions } from './monitor-card-actions'
+import { VisualGlow } from './visual-glow'
 
 async function getMonitorSummaries(userId: string): Promise<MonitorSummary[]> {
   return sql<MonitorSummary[]>`
@@ -113,7 +114,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <RealTimeHub />
+      <RealTimeHub userId={user.id} />
       <AutoRefresh intervalMs={300_000} /> {/* Fallback lento a cada 5m */}
 
       {/* Monitor list header */}
@@ -124,6 +125,13 @@ export default async function DashboardPage() {
               <h2 className="text-xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
                 Active monitors
               </h2>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/30">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Live</span>
+              </div>
               <span className="rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-2.5 py-1 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
                 {monitors.length} total
               </span>
@@ -185,9 +193,9 @@ export default async function DashboardPage() {
                     <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-400 min-w-0">
                       <span className="truncate">{m.url}</span>
                       <span className="text-zinc-300 dark:text-zinc-700 shrink-0">•</span>
-                      <span className={`shrink-0 tabular-nums ${lastProbeTone}`}>
+                      <VisualGlow value={m.last_probe_at} className={`shrink-0 tabular-nums ${lastProbeTone}`}>
                         {lastProbeText.replace('Updated: ', '')}
-                      </span>
+                      </VisualGlow>
                     </div>
                   </div>
 
@@ -199,49 +207,51 @@ export default async function DashboardPage() {
                     <span className="block text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                       Speed
                     </span>
-                    <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${speed.toneClass}`}>
-                      {speed.detail === '—' ? (
+                    {speed.detail === '—' ? (
+                      <span className="mt-0.5 block text-[13px] font-semibold tabular-nums">
                         <span className="inline-block w-8 h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-                      ) : (
-                        <>
-                          {speed.detail}
-                          {m.dns_avg_ms != null && m.dns_avg_ms > 200 && (
-                            <span className="ml-1 text-[9px] font-medium text-purple-500 animate-pulse">! (dns)</span>
-                          )}
-                        </>
-                      )}
-                    </span>
+                      </span>
+                    ) : (
+                      <VisualGlow value={speed.detail} className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${speed.toneClass}`}>
+                        {speed.detail}
+                        {m.dns_avg_ms != null && m.dns_avg_ms > 200 && (
+                          <span className="ml-1 text-[9px] font-medium text-purple-500 animate-pulse">! (dns)</span>
+                        )}
+                      </VisualGlow>
+                    )}
                   </div>
 
                   <div className="rounded-lg border border-zinc-100 bg-zinc-50/80 px-2.5 py-1.5 dark:border-zinc-800 dark:bg-zinc-950/40">
                     <span className="block text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                       Cache hit rate
                     </span>
-                    <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${cache.toneClass}`}>
-                      {cache.detail === '—' ? (
+                    {cache.detail === '—' ? (
+                      <span className="mt-0.5 block text-[13px] font-semibold tabular-nums">
                         <span className="inline-block w-12 h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-                      ) : (
-                        cache.detail
-                      )}
-                      {cache.helper === 'Dynamic' && (
-                        <span className="ml-2 text-[10px] font-normal tracking-wide text-zinc-400 dark:text-zinc-500">
-                          {cache.helper}
-                        </span>
-                      )}
-                    </span>
+                      </span>
+                    ) : (
+                      <VisualGlow value={cache.detail} className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${cache.toneClass}`}>
+                        {cache.detail}
+                        {cache.helper === 'Dynamic' && (
+                          <span className="ml-2 text-[10px] font-normal tracking-wide text-zinc-400 dark:text-zinc-500">
+                            {cache.helper}
+                          </span>
+                        )}
+                      </VisualGlow>
+                    )}
                   </div>
 
                   <div className="rounded-lg border border-zinc-100 bg-zinc-50/80 px-2.5 py-1.5 dark:border-zinc-800 dark:bg-zinc-950/40">
                     <span className="block text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
                       Uptime
                     </span>
-                    <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${uptimeTone(uptimePct)}`}>
+                    <VisualGlow value={m.uptime_pct} className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${uptimeTone(uptimePct)}`}>
                       {uptimePct != null ? (
                         `${uptimePct}%`
                       ) : (
                         <span className="inline-block w-10 h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
                       )}
-                    </span>
+                    </VisualGlow>
                   </div>
 
                   <div className="rounded-lg border border-zinc-100 bg-zinc-50/80 px-2.5 py-1.5 dark:border-zinc-800 dark:bg-zinc-950/40">
@@ -281,7 +291,7 @@ export default async function DashboardPage() {
                     </span>
                     <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${securityTone(securityScore)}`}>
                       {securityScore != null ? (
-                        `${securityScore}/5`
+                        `${securityScore}/9`
                       ) : (
                         <span className="inline-block w-8 h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
                       )}

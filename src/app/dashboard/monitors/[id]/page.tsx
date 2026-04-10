@@ -8,6 +8,7 @@ import { MonitorActions } from './monitor-actions'
 import { RealTimeHub } from '../../real-time-hub'
 import { extractPop, detectCdn, popToCity } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
+import { VisualGlow } from '../../visual-glow'
 
 interface RegionStat {
   region: string
@@ -471,13 +472,17 @@ export default async function MonitorDetailPage({
   const security: SecurityHeaders | null = secRow?.security_headers ?? null
 
   const chartRaw = range === '7d'
-    ? await sql<{ bucket: Date; region: string; ttfb_avg: number; dns_avg: number | null; tls_avg: number | null }[]>`
+    ? await sql<{ bucket: Date; region: string; ttfb_avg: number; dns_avg: number | null; tls_avg: number | null; cache_hit_pct: number | null }[]>`
         SELECT
           time_bucket('6 hours', time) AS bucket,
           region,
-          ROUND(AVG(ttfb_ms)::numeric, 0) AS ttfb_avg,
-          ROUND(AVG(dns_ms)::numeric, 0) AS dns_avg,
-          ROUND(AVG(tls_ms)::numeric, 0) AS tls_avg
+          ROUND(AVG(ttfb_ms)::numeric, 0)                                          AS ttfb_avg,
+          ROUND(AVG(dns_ms)::numeric, 0)                                           AS dns_avg,
+          ROUND(AVG(tls_ms)::numeric, 0)                                           AS tls_avg,
+          ROUND(
+            100.0 * COUNT(*) FILTER (WHERE cache_status ILIKE '%HIT%')
+                   / NULLIF(COUNT(*), 0), 0
+          )                                                                         AS cache_hit_pct
         FROM probe_results
         WHERE monitor_id = ${id}
           AND time > NOW() - INTERVAL '7 days'
@@ -485,13 +490,17 @@ export default async function MonitorDetailPage({
         GROUP BY bucket, region
         ORDER BY bucket ASC, region ASC
       `
-    : await sql<{ bucket: Date; region: string; ttfb_avg: number; dns_avg: number | null; tls_avg: number | null }[]>`
+    : await sql<{ bucket: Date; region: string; ttfb_avg: number; dns_avg: number | null; tls_avg: number | null; cache_hit_pct: number | null }[]>`
         SELECT
           time_bucket('30 minutes', time) AS bucket,
           region,
-          ROUND(AVG(ttfb_ms)::numeric, 0) AS ttfb_avg,
-          ROUND(AVG(dns_ms)::numeric, 0) AS dns_avg,
-          ROUND(AVG(tls_ms)::numeric, 0) AS tls_avg
+          ROUND(AVG(ttfb_ms)::numeric, 0)                                          AS ttfb_avg,
+          ROUND(AVG(dns_ms)::numeric, 0)                                           AS dns_avg,
+          ROUND(AVG(tls_ms)::numeric, 0)                                           AS tls_avg,
+          ROUND(
+            100.0 * COUNT(*) FILTER (WHERE cache_status ILIKE '%HIT%')
+                   / NULLIF(COUNT(*), 0), 0
+          )                                                                         AS cache_hit_pct
         FROM probe_results
         WHERE monitor_id = ${id}
           AND time > NOW() - INTERVAL '24 hours'
@@ -618,6 +627,7 @@ export default async function MonitorDetailPage({
     ttfb_avg: Number(row.ttfb_avg),
     dns_avg: row.dns_avg != null ? Number(row.dns_avg) : null,
     tls_avg: row.tls_avg != null ? Number(row.tls_avg) : null,
+    cache_hit_pct: row.cache_hit_pct != null ? Number(row.cache_hit_pct) : null,
   }))
 
   const monitorDisplayName = monitor.name ?? monitorHostname ?? monitor.url
@@ -627,7 +637,7 @@ export default async function MonitorDetailPage({
 
   return (
     <div className="space-y-6">
-      <RealTimeHub />
+      <RealTimeHub userId={user.id} watchId={monitor.id} />
       <AutoRefresh />
       <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/30 px-4 py-2.5 sm:px-4 sm:py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -653,6 +663,13 @@ export default async function MonitorDetailPage({
                   </span>
                 </div>
               )}
+              <div className="flex items-center gap-1.5 px-3 py-0.5 h-7 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/30">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Live Sync</span>
+              </div>
               <div className="flex items-center gap-1.5 pl-3 ml-1 border-l border-zinc-200 dark:border-zinc-800 h-6">
                  <div className={`h-2 w-2 rounded-full ${monitor.is_active ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">{monitor.is_active ? 'Active' : 'Paused'}</span>
@@ -769,13 +786,13 @@ export default async function MonitorDetailPage({
                            </span>
                         </td>
                         <td className="px-3 py-2.5 text-right text-xs font-mono text-purple-600 dark:text-purple-400 tabular-nums">
-                          {s.dns_avg_ms != null ? `${s.dns_avg_ms}ms` : '—'}
+                          <VisualGlow value={s.dns_avg_ms}>{s.dns_avg_ms != null ? `${s.dns_avg_ms}ms` : '—'}</VisualGlow>
                         </td>
                         <td className="px-3 py-2.5 text-right text-xs font-mono text-fuchsia-600 dark:text-fuchsia-400 tabular-nums">
-                          {s.tls_avg_ms != null ? `${s.tls_avg_ms}ms` : '—'}
+                          <VisualGlow value={s.tls_avg_ms}>{s.tls_avg_ms != null ? `${s.tls_avg_ms}ms` : '—'}</VisualGlow>
                         </td>
                         <td className={`px-3 py-2.5 text-right font-bold tabular-nums ${ttfbColor(s.ttfb_avg_ms)}`}>
-                          {s.ttfb_avg_ms != null ? `${s.ttfb_avg_ms}ms` : '—'}
+                          <VisualGlow value={s.ttfb_avg_ms}>{s.ttfb_avg_ms != null ? `${s.ttfb_avg_ms}ms` : '—'}</VisualGlow>
                         </td>
                         <td className={`px-3 py-2.5 text-right text-xs font-medium uppercase ${cache.tone}`}>
                            {cache.text}
