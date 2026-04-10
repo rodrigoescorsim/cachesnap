@@ -275,7 +275,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
                             "Zombie cache detected for monitor {} in region {}: Age={}s",
                             payload.monitor_id, payload.region, age
                         );
-                        tokio::spawn(notifier::notify(state, AlertNotification {
+                        tokio::spawn(notifier::notify(state.clone(), AlertNotification {
                             alert_id,
                             monitor_id: payload.monitor_id,
                             alert_type: "zombie_cache".to_string(),
@@ -288,6 +288,66 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
                         }));
                     }
                     Err(e) => error!("Failed to register ZOMBIE_CACHE alert: {}", e),
+                }
+            }
+        }
+    }
+
+    // 5. SSL Expiry audit — at most once per 24h per monitor+region
+    if let Some(sec) = &payload.security_headers {
+        if let Some(ssl) = sec.get("ssl") {
+            if let Some(days_val) = ssl.get("days_remaining") {
+                if let Some(days) = days_val.as_i64() {
+                    if days < 15 {
+                        if !recent_alert_exists(&state, payload.monitor_id, &payload.region, "ssl_expiry").await {
+                            let diag = crate::diagnosis::engine::Diagnosis {
+                                severity: "critical".into(),
+                                cause: format!("SSL Certificate will expire in {} days.", days),
+                                action: "Renew your SSL certificate immediately to prevent site downtime and security warnings.".into(),
+                                summary: format!("SSL Certificate expiring in {} days", days),
+                                estimated_gain_ms: None,
+                            };
+                            
+                            let insert_res = sqlx::query_scalar!(
+                                r#"
+                                INSERT INTO alerts (
+                                    monitor_id, region, alert_type, metric, actual_ms, diagnosis, action, estimated_gain_ms
+                                ) VALUES (
+                                    $1, $2, 'ssl_expiry', 'days_remaining', $3, $4, $5, $6
+                                ) RETURNING id
+                                "#,
+                                payload.monitor_id,
+                                payload.region,
+                                days as f64,
+                                diag.summary,
+                                diag.action,
+                                diag.estimated_gain_ms,
+                            )
+                            .fetch_one(&state.db)
+                            .await;
+
+                            match insert_res {
+                                Ok(alert_id) => {
+                                    info!(
+                                        "SSL expiry detected for monitor {} in region {}: {} days remaining",
+                                        payload.monitor_id, payload.region, days
+                                    );
+                                    tokio::spawn(notifier::notify(state.clone(), AlertNotification {
+                                        alert_id,
+                                        monitor_id: payload.monitor_id,
+                                        alert_type: "ssl_expiry".to_string(),
+                                        region: payload.region.clone(),
+                                        diagnosis: Some(diag.summary),
+                                        action: Some(diag.action),
+                                        actual_ms: Some(days as f64),
+                                        baseline_ms: None,
+                                        deviation_factor: None,
+                                    }));
+                                }
+                                Err(e) => error!("Failed to register SSL_EXPIRY alert: {}", e),
+                            }
+                        }
+                    }
                 }
             }
         }

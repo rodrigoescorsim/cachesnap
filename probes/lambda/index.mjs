@@ -155,6 +155,7 @@ async function measureUrl(targetUrl, isBypass = false) {
       tlsEnd: null,
       ttfbEnd: null,
       end: null,
+      sslData: null,
     };
 
     const requestHeaders = {
@@ -226,6 +227,12 @@ async function measureUrl(targetUrl, isBypass = false) {
             originMs = parsed.origin_ms;
             breakdown = parsed.breakdown;
           }
+          
+          if (!breakdown) breakdown = {};
+          if (timings.tcpEnd != null) {
+            const tcpStart = timings.dnsEnd != null ? timings.dnsEnd : timings.start;
+            breakdown.tcp_ms = round(timings.tcpEnd - tcpStart);
+          }
 
           // ── Age header (zombie cache detection) ──
           let ageS = null;
@@ -239,6 +246,9 @@ async function measureUrl(targetUrl, isBypass = false) {
 
           // ── Security Headers Audit (9-point) ──
           const securityHeaders = collectSecurityHeaders(h);
+          if (timings.sslData) {
+            securityHeaders.ssl = timings.sslData;
+          }
 
           resolve({
             ttfb_ms: round(timings.ttfbEnd - timings.start),
@@ -277,6 +287,16 @@ async function measureUrl(targetUrl, isBypass = false) {
       });
       socket.on('secureConnect', () => {
         timings.tlsEnd = performance.now();
+        const cert = socket.getPeerCertificate && socket.getPeerCertificate();
+        if (cert && cert.valid_to) {
+          timings.sslData = {
+            valid_to: cert.valid_to,
+            valid_from: cert.valid_from,
+            days_remaining: Math.floor((new Date(cert.valid_to).getTime() - Date.now()) / 86400000),
+            issuer: cert.issuer?.O || cert.issuer?.CN,
+            protocol: socket.getProtocol ? socket.getProtocol() : null,
+          };
+        }
       });
     });
 

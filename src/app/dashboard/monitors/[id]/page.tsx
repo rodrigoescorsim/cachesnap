@@ -61,6 +61,13 @@ interface SecurityHeaders {
   coep: string | null
   corp: string | null
   score: number
+  ssl?: {
+    valid_to?: string
+    valid_from?: string
+    days_remaining?: number
+    issuer?: string
+    protocol?: string
+  }
 }
 
 interface Alert {
@@ -1123,6 +1130,35 @@ export default async function MonitorDetailPage({
 
                 return (
                   <div className="space-y-8">
+                    {mainProfile.headers?.ssl && (
+                      <section className="space-y-4">
+                        <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                          SSL / TLS Profile
+                        </h3>
+                        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-6 flex flex-wrap items-center justify-between gap-6 shadow-sm">
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Issuer</p>
+                            <p className="font-semibold text-zinc-900 dark:text-zinc-100">{mainProfile.headers.ssl.issuer || 'Unknown CA'}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Protocol</p>
+                            <p className="font-mono text-xs font-bold text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-900 px-2 py-0.5 rounded">{mainProfile.headers.ssl.protocol || 'TLS'}</p>
+                          </div>
+                          <div className="space-y-1 border-l border-zinc-200 dark:border-zinc-800 pl-6">
+                            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Expires In</p>
+                            <p className={`font-bold tabular-nums ${(mainProfile.headers.ssl.days_remaining ?? 99) < 15 ? 'text-red-500 animate-pulse' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                              {mainProfile.headers.ssl.days_remaining} days
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Valid To</p>
+                            <p className="text-[11px] font-mono text-zinc-500">{new Date(mainProfile.headers.ssl.valid_to || '').toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                          </div>
+                        </div>
+                      </section>
+                    )}
+
                     {/* Perfil Global / Principal */}
                     <section className="space-y-4">
                       <div className="flex items-center justify-between">
