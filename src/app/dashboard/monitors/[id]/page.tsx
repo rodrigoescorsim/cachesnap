@@ -887,11 +887,24 @@ export default async function MonitorDetailPage({
                                       const status = s.probe_count
                                       const color = status < 300 ? 'bg-emerald-100/80 text-emerald-700' : status < 400 ? 'bg-blue-100/80 text-blue-700' : 'bg-red-100/80 text-red-700'
                                       const hops = Number(s.redirect_avg ?? 0)
+                                      const age = Number(s.max_age_s ?? 0)
+                                      
+                                      const formatAge = (s: number) => {
+                                        if (s < 60) return `${s}s`;
+                                        if (s < 3600) return `${Math.floor(s / 60)}m`;
+                                        return `${Math.floor(s / 3600)}h`;
+                                      };
+
                                       return (
                                         <div className="flex items-center justify-end gap-1.5">
+                                          {age > 0 && (
+                                            <span className="inline-flex items-center rounded-md bg-amber-100/80 px-1 py-0.5 text-[9px] font-bold text-amber-700" title={`Object age in cache: ${age} seconds`}>
+                                              {formatAge(age)}
+                                            </span>
+                                          )}
                                           {hops > 0 && (
-                                            <span className="inline-flex items-center rounded-md bg-purple-100 px-1 py-0.5 text-[9px] font-bold text-purple-600" title={`${hops} redirect hops`}>
-                                              {hops}H
+                                            <span className="inline-flex items-center rounded-md bg-indigo-100/80 px-1 py-0.5 text-[9px] font-bold text-indigo-700" title={`${hops} redirect hops`}>
+                                              {hops} ↷
                                             </span>
                                           )}
                                           {isError ? (

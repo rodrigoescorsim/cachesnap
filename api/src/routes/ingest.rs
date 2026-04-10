@@ -22,6 +22,13 @@ pub async fn handler(
         return (StatusCode::UNAUTHORIZED, Json(json!({ "error": "unauthorized" }))).into_response();
     }
 
+    // Trava de Segurança: Rejeitar probes antigos (ex: Cloudflare Workers fantasmas)
+    let version = payload.probe_version.as_deref().unwrap_or("old");
+    if version != "1.18" {
+        tracing::warn!("Ingest: rejected stale probe version '{}' from region {}", version, payload.region);
+        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "deprecated probe version", "required": "1.18" }))).into_response();
+    }
+
     tracing::info!("Ingest: received result for monitor {} from region {} | bypass_ttfb: {:?}", payload.monitor_id, payload.region, payload.bypass_ttfb_ms);
     let result = sqlx::query(
         r#"

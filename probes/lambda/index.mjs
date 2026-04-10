@@ -180,10 +180,9 @@ async function measureUrl(targetUrl, isBypass = false) {
     if (isBypass) {
       requestHeaders['Cache-Control'] = 'no-cache, no-store, must-revalidate';
       requestHeaders['Pragma'] = 'no-cache';
-    } else {
-      // Light hint for the network layer to prefer freshness without forcing origin fetch
-      requestHeaders['X-HopLens-Salt'] = nonce;
+      requestHeaders['X-HopLens-Salt'] = nonce; // Only salt headers on bypass
     }
+    
     requestHeaders['X-Hoplens-Bypass'] = isBypass ? 'true' : 'false';
     requestHeaders['Connection'] = 'close';
 
@@ -204,10 +203,7 @@ async function measureUrl(targetUrl, isBypass = false) {
       {
         headers: {
           ...requestHeaders,
-          'User-Agent': dynamicUA,
           'X-Hoplens-Nonce': nonce,
-          'Connection': 'close',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
         timeout: 10000,
         agent: false, // Hard disable of connection pooling
