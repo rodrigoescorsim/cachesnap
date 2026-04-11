@@ -981,6 +981,12 @@ export default async function MonitorDetailPage({
                               </th>
                               <th
                                 className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
+                                title="HTTP Protocol version (e.g. H3 = HTTP/3, H2 = HTTP/2, 1.1 = HTTP/1.1)"
+                              >
+                                HTTP
+                              </th>
+                              <th
+                                className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
                                 title="HTTP status code of the final response after redirects; ↷ shows redirect hop count"
                               >
                                 Status
@@ -1068,6 +1074,23 @@ export default async function MonitorDetailPage({
                                     )}
                                   </td>
                                   <td className="px-3 py-2.5 text-right">
+                                    {s.common_http_version ? (
+                                      <span
+                                        className={`text-[9px] font-mono px-1.5 py-0.5 rounded shadow-sm ring-1 ring-inset ${s.common_http_version === 'HTTP/1.1'
+                                          ? 'bg-amber-100/50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 ring-amber-200/50 dark:ring-amber-800/50'
+                                          : s.common_http_version === 'HTTP/3'
+                                            ? 'bg-emerald-100/50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 ring-emerald-200/50 dark:ring-emerald-800/50'
+                                            : 'bg-zinc-100/50 dark:bg-zinc-800/50 text-zinc-700 dark:text-zinc-400 ring-zinc-200/50 dark:ring-zinc-700/50'
+                                          }`}
+                                        title={`Protocol: ${s.common_http_version}`}
+                                      >
+                                        {s.common_http_version === 'HTTP/1.1' ? '1.1' : s.common_http_version === 'HTTP/3' ? 'H3' : 'H2'}
+                                      </span>
+                                    ) : (
+                                      <span className="text-zinc-400 text-xs">—</span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right">
                                     {(() => {
                                       const code = s.status_code
                                       const color
@@ -1140,7 +1163,6 @@ export default async function MonitorDetailPage({
                               <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight whitespace-nowrap" title="Min and max TTFB">Min / Max</th>
                               <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Cache</th>
                               <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Uptime</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Most common HTTP version">HTTP</th>
                               <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Errors</th>
                             </tr>
                           </thead>
@@ -1188,20 +1210,6 @@ export default async function MonitorDetailPage({
                                   </td>
                                   <td className={`px-3 py-2.5 text-right tabular-nums text-xs font-medium ${uptimeColor(s.uptime_pct)}`}>
                                     {s.uptime_pct != null ? `${formatPct(s.uptime_pct)}%` : '—'}
-                                  </td>
-                                  <td className="px-3 py-2.5 text-right">
-                                    {s.common_http_version ? (
-                                      <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded shadow-sm ring-1 ring-inset ${s.common_http_version === 'HTTP/1.1'
-                                        ? 'bg-amber-100/50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 ring-amber-200/50 dark:ring-amber-800/50'
-                                        : s.common_http_version === 'HTTP/3'
-                                          ? 'bg-emerald-100/50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 ring-emerald-200/50 dark:ring-emerald-800/50'
-                                          : 'bg-zinc-100/50 dark:bg-zinc-800/50 text-zinc-700 dark:text-zinc-400 ring-zinc-200/50 dark:ring-zinc-700/50'
-                                        }`}>
-                                        {s.common_http_version === 'HTTP/1.1' ? '1.1' : s.common_http_version === 'HTTP/3' ? 'H3' : 'H2'}
-                                      </span>
-                                    ) : (
-                                      <span className="text-zinc-400 text-xs">—</span>
-                                    )}
                                   </td>
                                   <td className={`px-3 py-2.5 text-right text-xs ${s.error_count > 0 ? 'text-red-500 font-bold' : 'text-zinc-400/60'}`}>
                                     {s.error_count}
