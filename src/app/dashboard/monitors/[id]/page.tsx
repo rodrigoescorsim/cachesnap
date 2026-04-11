@@ -16,10 +16,13 @@ interface RegionStat {
   region: string
   probe_count: number
   ttfb_avg_ms: number | null
+  edge_hit_avg_ms: number | null
+  origin_miss_avg_ms: number | null
   bypass_ttfb_avg_ms: number | null
   ttfb_p95_ms: number | null
   ttfb_min_ms: number | null
   ttfb_max_ms: number | null
+  download_avg_ms: number | null
   total_avg_ms: number | null
   dns_avg_ms: number | null
   tcp_avg_ms: number | null
@@ -113,6 +116,17 @@ interface SecurityByRegion {
   sampled_at: Date
 }
 
+const REGION_DESCRIPTIONS: Record<string, string> = {
+  'sa-east': 'South America — AWS sa-east-1 (São Paulo, BR)',
+  'us-east': 'US East — AWS us-east-2 (Ohio, US)',
+  'us-west': 'US West — AWS us-west-2 (Oregon, US)',
+  'eu-west': 'Europe — AWS eu-central-1 (Frankfurt, DE)',
+  'ap-south': 'India — AWS ap-south-1 (Mumbai, IN)',
+  'ap-east': 'Asia Pacific — AWS ap-northeast-1 (Tokyo, JP)',
+  'oc': 'Oceania — AWS ap-southeast-2 (Sydney, AU)',
+  'af-south': 'Africa — AWS af-south-1 (Cape Town, ZA)',
+}
+
 const REGION_LABELS: Record<string, string> = {
   'sa-east': 'South America',
   'eu-west': 'Europe',
@@ -180,18 +194,46 @@ const SECURITY_HEADERS_LABELS: { key: keyof SecurityHeaders; label: string; desc
 
 function ttfbColor(ms: number | null): string {
   if (ms == null) return 'text-zinc-400'
-  if (ms < 200) return 'text-emerald-500'
-  if (ms < 500) return 'text-green-500'
-  if (ms < 800) return 'text-amber-500'
+  if (ms <= 150) return 'text-emerald-500' // Excellent (Green)
+  if (ms <= 300) return 'text-green-500'   // Good (Lime)
+  if (ms <= 600) return 'text-amber-500'   // Acceptable (Amber)
+  return 'text-red-500'                   // High Latency (Red)
+}
+
+/** P95 thresholds are naturally higher as they represent tail latency. */
+function p95Color(ms: number | null): string {
+  if (ms == null) return 'text-zinc-400'
+  if (ms <= 400) return 'text-emerald-500'
+  if (ms <= 700) return 'text-green-500'
+  if (ms <= 1100) return 'text-amber-500'
   return 'text-red-500'
 }
 
-function uptimeColor(pct: number | null): string {
-  if (pct == null) return 'text-zinc-400'
-  if (pct >= 99.9) return 'text-emerald-500'
-  if (pct >= 99) return 'text-green-500'
-  if (pct >= 95) return 'text-amber-500'
+/** Edge TTFB should be very fast (Cache HITs). */
+function edgeTtfbColor(ms: number | null): string {
+  if (ms == null) return 'text-zinc-400'
+  if (ms <= 100) return 'text-emerald-500'
+  if (ms <= 200) return 'text-green-500'
+  if (ms <= 300) return 'text-amber-500'
   return 'text-red-500'
+}
+
+/** Origin TTFB accounts for backend processing and network distance. */
+function originTtfbColor(ms: number | null): string {
+  if (ms == null) return 'text-zinc-400'
+  if (ms <= 300) return 'text-emerald-500'
+  if (ms <= 600) return 'text-green-500'
+  if (ms <= 900) return 'text-amber-500'
+  return 'text-red-500'
+}
+
+function uptimeColor(pct: number | null, errorCount: number = 0): string {
+  if (pct == null) return 'text-zinc-400'
+  if (errorCount > 5) return 'text-red-500 font-bold'
+  if (errorCount > 0) return 'text-amber-500 font-semibold'
+  if (pct >= 99.9) return 'text-emerald-500'
+  if (pct >= 99.0) return 'text-green-500'
+  return 'text-amber-500'
 }
 
 function redirectDisplay(redirectAvg: number | string | null): { text: string; tone: string } {
@@ -228,21 +270,22 @@ function cacheDisplay(status: string | null, hitPct: number | null): { text: str
 
   if (normalizedStatus === 'MISS') {
     return {
-      text: 'MISS',
+      text: hitPct != null ? `${formatPct(hitPct)}%` : 'MISS',
       tone: 'text-amber-500',
       title: 'Cache miss observed',
     }
   }
 
-  if (normalizedStatus === 'DYNAMIC' || normalizedStatus === 'BYPASS') {
+  if (normalizedStatus === 'DYNAMIC' || normalizedStatus === 'BYPASS' || normalizedStatus === 'HIDDEN') {
     return {
-      text: 'Dynamic',
+      text: normalizedStatus === 'HIDDEN' ? 'Hidden' : normalizedStatus === 'DYNAMIC' ? 'Dynamic' : 'Bypass',
       tone: 'text-zinc-500 dark:text-zinc-400',
       title: 'No cacheable response signal',
     }
   }
 
-  if (hitPct === 0) {
+  // Fallback for 0% hit rate with no clear status
+  if (hitPct === 0 || normalizedStatus === null) {
     return {
       text: 'Hidden',
       tone: 'text-zinc-400/60',
@@ -250,26 +293,10 @@ function cacheDisplay(status: string | null, hitPct: number | null): { text: str
     }
   }
 
-  if (hitPct != null) {
-    return {
-      text: `${formatPct(hitPct)}%`,
-      tone: hitPct > 70 ? 'text-emerald-500' : hitPct >= 30 ? 'text-amber-500' : 'text-red-500',
-      title: 'Calculated from observed probe responses',
-    }
-  }
-
-  if (status) {
-    return {
-      text: status,
-      tone: 'text-zinc-500 dark:text-zinc-400',
-      title: 'Observed from response headers',
-    }
-  }
-
   return {
-    text: 'Hidden',
-    tone: 'text-zinc-400/60',
-    title: 'No cache headers were observed',
+    text: hitPct != null ? `${formatPct(hitPct)}%` : '—',
+    tone: hitPct != null && hitPct > 70 ? 'text-emerald-500' : 'text-amber-500',
+    title: 'Observed from response headers',
   }
 }
 
@@ -471,18 +498,21 @@ export default async function MonitorDetailPage({
       region,
       COUNT(*)::int                              AS probe_count,
       ROUND(AVG(ttfb_ms)::numeric, 0)::int            AS ttfb_avg_ms,
+      ROUND(AVG(ttfb_ms) FILTER (WHERE cache_status ILIKE '%HIT%')::numeric, 0)::int AS edge_hit_avg_ms,
+      ROUND(AVG(ttfb_ms) FILTER (WHERE cache_status NOT ILIKE '%HIT%' OR cache_status IS NULL)::numeric, 0)::int AS origin_miss_avg_ms,
       ROUND(
         PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ttfb_ms)::numeric, 0
       )::int                                          AS ttfb_p95_ms,
       ROUND(MIN(ttfb_ms)::numeric, 0)::int            AS ttfb_min_ms,
       ROUND(MAX(ttfb_ms)::numeric, 0)::int            AS ttfb_max_ms,
+      ROUND(AVG(download_ms)::numeric, 0)::int        AS download_avg_ms,
       ROUND(AVG(total_ms)::numeric, 0)::int           AS total_avg_ms,
       ROUND(AVG(bypass_ttfb_ms)::numeric, 0)::int     AS bypass_ttfb_avg_ms,
       ROUND(AVG(dns_ms)::numeric, 0)::int             AS dns_avg_ms,
       ROUND(AVG(tcp_ms)::numeric, 0)::int              AS tcp_avg_ms,
       ROUND(AVG(tls_ms)::numeric, 0)::int             AS tls_avg_ms,
       ROUND(AVG(edge_ms)::numeric, 0)::int            AS edge_avg_ms,
-      ROUND(AVG(origin_ms)::numeric, 0)::int          AS origin_avg_ms,
+      ROUND(AVG(origin_ms)::numeric, 0)::int            AS origin_avg_ms,
       ROUND(AVG(redirect_count)::numeric, 0)     AS redirect_avg,
       MODE() WITHIN GROUP (ORDER BY served_by)    AS common_served_by,
       MODE() WITHIN GROUP (ORDER BY http_version) AS common_http_version,
@@ -1022,7 +1052,9 @@ export default async function MonitorDetailPage({
                               return (
                                 <tr key={s.region} className={i < latestProbes.length - 1 ? 'border-b border-zinc-100/50 dark:border-zinc-800/50' : ''}>
                                   <td className="px-3 py-2.5 font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
-                                    {REGION_LABELS[s.region] ?? s.region}
+                                    <span title={REGION_DESCRIPTIONS[s.region] ?? s.region}>
+                                      {REGION_LABELS[s.region] ?? s.region}
+                                    </span>
                                   </td>
                                   <td className="px-3 py-2.5">
                                     <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800/80 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500 dark:text-zinc-400 ring-1 ring-inset ring-zinc-200/50 dark:ring-zinc-700/50" title={extractPop(s.common_served_by) ?? 'Unknown'}>
@@ -1153,28 +1185,66 @@ export default async function MonitorDetailPage({
                       <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-transparent">
                         <table className="w-full text-sm">
                           <thead>
+                            {(() => {
+                              const hasEdgeData = stats.some(s => s.edge_hit_avg_ms !== null);
+                              const hasOriginData = stats.some(s => s.origin_miss_avg_ms !== null);
+                              const showSplitTtfb = hasEdgeData && hasOriginData;
+                              
+                              // Contextual labels for single-column mode
+                              let singleTtfbLabel = "TTFB";
+                              let singleTtfbTitle = "Average Time to First Byte (Total processing and travel time)";
+                              
+                              if (!showSplitTtfb) {
+                                if (hasEdgeData) {
+                                  singleTtfbLabel = "Edge TTFB";
+                                  singleTtfbTitle = "Average Time to First Byte (All requests served from Edge)";
+                                } else if (hasOriginData) {
+                                  singleTtfbLabel = "Origin TTFB";
+                                  singleTtfbTitle = "Average Time to First Byte (All requests served from Origin/Dynamic)";
+                                }
+                              }
+
+                              return (
+                                <>
                             <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
                               <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Region</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average DNS lookup">DNS</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average TCP connect">TCP</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average TLS handshake">TLS</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average time to first byte">TTFB</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="P95 TTFB">P95</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight whitespace-nowrap" title="Min and max TTFB">Min / Max</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Cache</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Uptime</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Errors</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average duration of DNS hostname resolution (mapping domain to IP).">DNS</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average time to establish a TCP connection with the edge server.">TCP</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average duration of the SSL/TLS handshake for a secure connection.">TLS</th>
+                              
+                              {showSplitTtfb ? (
+                                <>
+                                  <th className="px-3 py-2 text-right text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tight" title="Average Time to First Byte for Cache HITs (Edge performance)">Edge TTFB</th>
+                                  <th className="px-3 py-2 text-right text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-tight" title="Average Time to First Byte for Cache MISS/Bypass (Server performance)">Origin TTFB</th>
+                                </>
+                              ) : (
+                                <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title={singleTtfbTitle}>{singleTtfbLabel}</th>
+                              )}
+
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="The 95th percentile of TTFB - 95% of requests were faster than this value, representing the 'worst-case' typical experience.">P95</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight whitespace-nowrap" title="The absolute minimum and maximum TTFB values observed in this region over the last 24h.">Min / Max</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Mean duration to download the entire response body after receiving the first byte of headers.">Download</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="The cumulative end-to-end duration for the full request-response lifecycle (Total = DNS + Connect + Wait + Download).">Total</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average Edge Cache Hit ratio across all probes in this region.">Cache</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Regional availability percentage - success rate of all automated probes in the last 24h.">Uptime</th>
                             </tr>
+                                </>
+                              )
+                            })()}
                           </thead>
                           <tbody>
                             {stats.map((s, i) => {
+                              const hasEdgeData = stats.some(st => st.edge_hit_avg_ms !== null);
+                              const hasOriginData = stats.some(st => st.origin_miss_avg_ms !== null);
+                              const showSplitTtfb = hasEdgeData && hasOriginData;
+
                               return (
                                 <tr
                                   key={s.region}
                                   className={i < stats.length - 1 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}
                                 >
                                   <td className="px-3 py-2.5">
-                                    <span className="font-semibold text-zinc-900 dark:text-zinc-100 whitespace-nowrap">
+                                    <span className="font-semibold text-zinc-900 dark:text-zinc-100 whitespace-nowrap" title={REGION_DESCRIPTIONS[s.region] ?? s.region}>
                                       {REGION_LABELS[s.region] ?? s.region}
                                     </span>
                                   </td>
@@ -1187,32 +1257,48 @@ export default async function MonitorDetailPage({
                                   <td className={`px-3 py-2.5 text-right text-xs font-mono tabular-nums ${TIMING.tls.text}`}>
                                     {s.tls_avg_ms != null ? `${s.tls_avg_ms}ms` : '—'}
                                   </td>
-                                  <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${ttfbColor(s.ttfb_avg_ms)}`}>
-                                    {s.ttfb_avg_ms != null ? `${s.ttfb_avg_ms}ms` : '—'}
-                                  </td>
-                                  <td className={`px-3 py-2.5 text-right tabular-nums text-xs ${ttfbColor(s.ttfb_p95_ms)}`}>
+                                  
+                                  {showSplitTtfb ? (
+                                    <>
+                                      <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${edgeTtfbColor(s.edge_hit_avg_ms)}`}>
+                                        {s.edge_hit_avg_ms != null ? `${s.edge_hit_avg_ms}ms` : '—'}
+                                      </td>
+                                      <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${originTtfbColor(s.origin_miss_avg_ms)}`}>
+                                        {s.origin_miss_avg_ms != null ? `${s.origin_miss_avg_ms}ms` : '—'}
+                                      </td>
+                                    </>
+                                  ) : (
+                                    <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${ttfbColor(s.ttfb_avg_ms)}`}>
+                                      {s.ttfb_avg_ms != null ? `${s.ttfb_avg_ms}ms` : '—'}
+                                    </td>
+                                  )}
+
+                                  <td className={`px-3 py-2.5 text-right tabular-nums text-xs ${p95Color(s.ttfb_p95_ms)}`}>
                                     {s.ttfb_p95_ms != null ? `${s.ttfb_p95_ms}ms` : '—'}
                                   </td>
-                                  <td className="px-3 py-2.5 text-right text-[11px] text-zinc-400 tabular-nums whitespace-nowrap">
+                                  <td className="px-3 py-2.5 text-right text-[11px] text-zinc-500 tabular-nums whitespace-nowrap">
                                     {s.ttfb_min_ms != null ? `${s.ttfb_min_ms}ms / ${s.ttfb_max_ms}ms` : '—'}
+                                  </td>
+                                  <td className={`px-3 py-2.5 text-right text-xs font-mono tabular-nums ${TIMING.download.text}`}>
+                                    {s.download_avg_ms != null ? `${s.download_avg_ms}ms` : '—'}
+                                  </td>
+                                  <td className={`px-3 py-2.5 text-right text-xs font-mono font-semibold tabular-nums ${TIMING.total.text}`}>
+                                    {s.total_avg_ms != null ? `${s.total_avg_ms}ms` : '—'}
                                   </td>
                                   <td className="px-3 py-2.5 text-right">
                                     {(() => {
                                       const cache = cacheDisplay(s.common_cache_status, s.cache_hit_pct)
                                       return (
                                         <div className="flex flex-col items-end">
-                                          <span className={`text-[10px] font-bold uppercase ${cache.tone}`} title={cache.title}>
+                                          <span className={`text-xs font-bold uppercase ${cache.tone}`} title={cache.title}>
                                             {cache.text}
                                           </span>
                                         </div>
                                       )
                                     })()}
                                   </td>
-                                  <td className={`px-3 py-2.5 text-right tabular-nums text-xs font-medium ${uptimeColor(s.uptime_pct)}`}>
+                                  <td className={`px-3 py-2.5 text-right tabular-nums text-xs ${uptimeColor(s.uptime_pct, s.error_count)}`}>
                                     {s.uptime_pct != null ? `${formatPct(s.uptime_pct)}%` : '—'}
-                                  </td>
-                                  <td className={`px-3 py-2.5 text-right text-xs ${s.error_count > 0 ? 'text-red-500 font-bold' : 'text-zinc-400/60'}`}>
-                                    {s.error_count}
                                   </td>
                                 </tr>
                               )
@@ -1601,7 +1687,7 @@ export default async function MonitorDetailPage({
 
                       return last24h.map((t, i) => (
                         <div key={i} className="flex-1 flex flex-col items-center group relative">
-                          <div 
+                          <div
                             className={`w-full rounded-t-sm transition-all ${t.count > 0 ? 'bg-red-500/60 group-hover:bg-red-500' : 'bg-zinc-200 dark:bg-zinc-800'}`}
                             style={{ height: `${Math.max((t.count / maxCount) * 100, 4)}%` }}
                           >
@@ -1679,7 +1765,7 @@ export default async function MonitorDetailPage({
                         {alerts.map((alert) => {
                           const severity = (alert.deviation_factor ?? 0) > 4 ? 'CRITICAL' : (alert.deviation_factor ?? 0) > 2 ? 'WARNING' : 'STATED';
                           const severityColor = severity === 'CRITICAL' ? 'bg-red-500 text-white' : severity === 'WARNING' ? 'bg-amber-500 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400';
-                          
+
                           return (
                             <tr key={alert.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors">
                               <td className="px-4 py-3.5">
