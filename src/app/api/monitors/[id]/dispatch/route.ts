@@ -31,7 +31,7 @@ export async function POST(
         'Content-Type': 'application/json',
         'x-probe-secret': probeSecret || '',
       },
-      body: JSON.stringify({ bypass })
+      body: JSON.stringify({ bypass, is_manual: true })
     })
 
     if (!res.ok) {

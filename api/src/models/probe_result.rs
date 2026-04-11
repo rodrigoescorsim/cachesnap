@@ -41,6 +41,16 @@ pub struct ProbeResultPayload {
     pub server_timing_breakdown: Option<serde_json::Value>, // {metric_name: dur_ms, ...}
     #[serde(default)]
     pub probe_version: Option<String>,
+    #[serde(default)]
+    pub is_manual: bool,
+    #[serde(default)]
+    pub bypass_served_by: Option<String>,
+    #[serde(default)]
+    pub bypass_server_timing: Option<String>,
+    #[serde(default)]
+    pub bypass_server_timing_breakdown: Option<serde_json::Value>,
+    #[serde(default)]
+    pub bypass_age_s: Option<i32>,
 }
 
 /// Registro persistido no TimescaleDB
@@ -74,4 +84,9 @@ pub struct ProbeResult {
     pub security_headers: Option<serde_json::Value>,
     pub server_timing_breakdown: Option<serde_json::Value>,
     pub probe_version: Option<String>,
+    pub is_manual: bool,
+    pub bypass_served_by: Option<String>,
+    pub bypass_server_timing: Option<String>,
+    pub bypass_server_timing_breakdown: Option<serde_json::Value>,
+    pub bypass_age_s: Option<i32>,
 }

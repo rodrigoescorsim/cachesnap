@@ -53,7 +53,7 @@ export const handler = async (event) => {
     body = event;
   }
 
-  const { monitor_id, url, ingest_url, run_bypass } = body;
+  const { monitor_id, url, ingest_url, run_bypass, is_manual } = body;
   const probeSecret = process.env.PROBE_SECRET;
   const region = process.env.REGION || 'unknown';
 
@@ -90,6 +90,11 @@ export const handler = async (event) => {
     age_s: null,
     security_headers: null,
     server_timing_breakdown: null,
+    is_manual: !!is_manual,
+    bypass_served_by: null,
+    bypass_server_timing: null,
+    bypass_server_timing_breakdown: null,
+    bypass_age_s: null,
   };
 
   try {
@@ -97,34 +102,52 @@ export const handler = async (event) => {
     const { redirectCount } = await countRedirects(url);
     result.redirect_count = redirectCount;
 
-    // 2. Main probe (Edge) — Always run first to check cache status
-    const metrics = await measureUrl(url);
+    // 2. Main probe (Edge)
+    // If it's a manual bypass request, we force bypass on the main metrics for immediate visibility.
+    // If it's an automatic/scheduled check (run_bypass without is_manual), we keep the main metrics 'clean' for stats.
+    const shouldBypassMain = !!is_manual && !!run_bypass;
+    const mainUrl = shouldBypassMain ? appendBypassParam(url) : url;
+    const metrics = await measureUrl(mainUrl, shouldBypassMain);
     Object.assign(result, metrics);
 
     // 3. Smart Bypass logic
-    // We only need a second bypass request if the first one was a CACHE HIT.
-    // If it was a MISS, we already hit the origin and have its latency.
     if (run_bypass) {
-      if (metrics.cache_status === 'HIT') {
-        try {
-          // It was a HIT, so we need a direct origin comparison point
-          const bypassUrl = appendBypassParam(url);
-          const bypassMetrics = await measureUrl(bypassUrl, true);
-          result.bypass_ttfb_ms = bypassMetrics.ttfb_ms;
-          result.bypass_total_ms = bypassMetrics.total_ms;
-          result.bypass_status_code = bypassMetrics.status_code;
-        } catch (err) {
-          result.bypass_error = err.message;
-        }
-      } else {
-        // It was a MISS, BYPASS, or DYNAMIC. We already have the origin data.
-        // We populate the bypass fields with the main metrics to ensure 1:1 reports are complete.
+      const cacheStatus = metrics.cache_status || 'HIDDEN';
+      const isConfirmedHit = cacheStatus === 'HIT';
+      const isNaturalMiss = ['MISS', 'EXPIRED', 'BYPASS', 'DYNAMIC'].includes(cacheStatus);
+
+      if (shouldBypassMain || isNaturalMiss) {
+        // We already have a MISS (either forced or natural). Use it as the comparison point.
         result.bypass_ttfb_ms = metrics.ttfb_ms;
         result.bypass_total_ms = metrics.total_ms;
         result.bypass_status_code = metrics.status_code;
-        // Mark as "Smart Bypass Reuse" for debugging if needed
-        result.server_timing_breakdown = { ...result.server_timing_breakdown, _bypass_mode: 'reused_from_miss' };
+        result.bypass_served_by = metrics.served_by;
+        result.bypass_server_timing = metrics.server_timing;
+        result.bypass_server_timing_breakdown = metrics.server_timing_breakdown;
+        result.bypass_age_s = metrics.age_s;
+      } else if (isConfirmedHit && !shouldBypassMain) {
+        // We HIT cache, so we perform a second dedicated bypass probe.
+        try {
+          const bypassUrl = appendBypassParam(url);
+          const bypassMetrics = await measureUrl(bypassUrl, true);
+          
+          // Validation: Only record if the second probe actually MISSED cache.
+          // If it's still HIT, the cache-busting didn't work.
+          const isBypassSuccess = ['MISS', 'EXPIRED', 'BYPASS', 'DYNAMIC'].includes(bypassMetrics.cache_status);
+          if (isBypassSuccess) {
+            result.bypass_ttfb_ms = bypassMetrics.ttfb_ms;
+            result.bypass_total_ms = bypassMetrics.total_ms;
+            result.bypass_status_code = bypassMetrics.status_code;
+            result.bypass_served_by = bypassMetrics.served_by;
+            result.bypass_server_timing = bypassMetrics.server_timing;
+            result.bypass_server_timing_breakdown = bypassMetrics.server_timing_breakdown;
+            result.bypass_age_s = bypassMetrics.age_s;
+          }
+        } catch (err) {
+          result.bypass_error = err.message;
+        }
       }
+      // If HIDDEN, we skip bypass comparison as we lack a reliable baseline.
     }
     
   } catch (err) {
@@ -134,7 +157,7 @@ export const handler = async (event) => {
   // 4. Report to HopLens ingest API
   const reportData = {
     ...result,
-    probe_version: "1.19"
+    probe_version: "1.22"
   };
   await sendToIngest(ingest_url, reportData, probeSecret);
 
@@ -190,8 +213,10 @@ async function measureUrl(targetUrl, isBypass = false) {
     // Only use query params for bypass probes to force edge misses.
     // For automatic sync, we keep the URL clean to measure real cache performance.
     if (isBypass) {
-      probeUrl.searchParams.set('hl_v', '1.16');
+      probeUrl.searchParams.set('hl_v', '1.19');
       probeUrl.searchParams.set('hl_s', nonce);
+      probeUrl.searchParams.set('__hoplens_bypass', '1');
+      probeUrl.searchParams.set('_t', Date.now().toString());
     }
     const finalUrl = probeUrl.toString();
 
@@ -235,17 +260,23 @@ async function measureUrl(targetUrl, isBypass = false) {
             h['cf-cache-status'] != null ||
             h['cf-ray'] != null;
 
+          const isCloudfront = 
+            h['x-amz-cf-id'] != null || 
+            h['x-amz-cf-pop'] != null ||
+            (h['server'] || '').toLowerCase().includes('cloudfront');
+
           let servedBy = null;
           if (isCloudflare) {
-             // Prioritize cf-ray and x-amz-cf-pop (Cloudflare/CloudFront style)
              servedBy = h['cf-ray'] || h['x-amz-cf-pop'] || null;
+          } else if (isCloudfront) {
+             servedBy = h['x-amz-cf-pop'] || h['x-amz-cf-id'] || null;
           }
           
           if (!servedBy) {
             servedBy =
               h['x-vercel-id'] ||    // Vercel
               h['x-served-by'] ||    // Fastly / Varnish
-              h['x-amz-cf-id'] ||    // CloudFront
+              h['x-amz-cf-id'] ||    // CloudFront (generic ID if not already caught)
               h['x-azure-ref'] ||    // Azure
               h['x-edge-location'] || // General
               h['x-cache-info'] ||   // Fastly

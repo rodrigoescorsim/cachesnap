@@ -12,6 +12,7 @@ use crate::{models::monitor::Monitor, scheduler::runner, AppState};
 #[derive(serde::Deserialize)]
 pub struct DispatchRequest {
     pub bypass: Option<bool>,
+    pub is_manual: Option<bool>,
 }
 
 /// POST /api/monitors/:id/dispatch
@@ -57,9 +58,10 @@ pub async fn handler(
 
     let regions = runner::build_regions(&state);
     let run_bypass = payload.bypass.unwrap_or(true);
+    let is_manual = payload.is_manual.unwrap_or(true); // Default to true if called via /dispatch API
     
     tokio::spawn(async move {
-        runner::dispatch_probes(&state, &monitor, regions, run_bypass).await;
+        runner::dispatch_probes(&state, &monitor, regions, run_bypass, is_manual).await;
     });
 
     (StatusCode::ACCEPTED, Json(json!({ "ok": true, "monitor_id": monitor_id, "bypass": run_bypass }))).into_response()

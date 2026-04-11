@@ -50,7 +50,7 @@ pub async fn start(state: AppState) {
                     if run_bypass {
                         info!("Scheduler: forcing bypass probe for monitor {} ({})", monitor.id, monitor.url);
                     }
-                    dispatch_probes(&state, &monitor, regions, run_bypass).await;
+                    dispatch_probes(&state, &monitor, regions, run_bypass, false).await;
                 }
             });
         }
@@ -129,8 +129,8 @@ pub fn build_regions(state: &AppState) -> Vec<(String, String)> {
     all.into_iter().filter(|(_, url)| !url.is_empty()).collect()
 }
 
-pub async fn dispatch_probes(state: &AppState, monitor: &Monitor, regions: Vec<(String, String)>, run_bypass: bool) {
-    debug!("Dispatching probes for monitor {} ({}) | bypass={}", monitor.id, monitor.url, run_bypass);
+pub async fn dispatch_probes(state: &AppState, monitor: &Monitor, regions: Vec<(String, String)>, run_bypass: bool, is_manual: bool) {
+    debug!("Dispatching probes for monitor {} ({}) | bypass={} | manual={}", monitor.id, monitor.url, run_bypass, is_manual);
     
     let client = state.http.clone();
     let ingest_url = format!("{}/api/ingest", state.config.api_url.trim_end_matches('/'));
@@ -149,7 +149,8 @@ pub async fn dispatch_probes(state: &AppState, monitor: &Monitor, regions: Vec<(
                 "monitor_id": monitor_id,
                 "url": target_url,
                 "ingest_url": ingest_url,
-                "run_bypass": run_bypass
+                "run_bypass": run_bypass,
+                "is_manual": is_manual
             });
 
             match client.post(&worker_url)

@@ -56,6 +56,7 @@ interface LatestProbeRow {
   error: string
   max_age_s: number | null
   last_probe_at: Date | null
+  probe_version: string | null
 }
 
 interface WeekTrend {
@@ -254,6 +255,14 @@ function cacheDisplay(status: string | null, hitPct: number | null): { text: str
       text: `${formatPct(hitPct)}%`,
       tone: hitPct > 70 ? 'text-emerald-500' : hitPct >= 30 ? 'text-amber-500' : 'text-red-500',
       title: 'Calculated from observed probe responses',
+    }
+  }
+
+  if (status) {
+    return {
+      text: status,
+      tone: 'text-zinc-500 dark:text-zinc-400',
+      title: 'Observed from response headers',
     }
   }
 
@@ -491,6 +500,7 @@ export default async function MonitorDetailPage({
     FROM probe_results
     WHERE monitor_id = ${id}
       AND time > NOW() - INTERVAL '24 hours'
+      AND is_manual = FALSE
     GROUP BY region ORDER BY region
   `
 
@@ -510,9 +520,9 @@ export default async function MonitorDetailPage({
       http_version AS common_http_version,
       cache_status AS common_cache_status,
       status_code,
-      COALESCE(error, '') AS error,
       age_s AS max_age_s,
-      time AS last_probe_at
+      time AS last_probe_at,
+      probe_version
     FROM probe_results p1
     WHERE monitor_id = ${id}
     ORDER BY region, time DESC
@@ -548,6 +558,7 @@ export default async function MonitorDetailPage({
       WHERE monitor_id = ${id}
         AND time > NOW() - INTERVAL '7 days'
         AND ttfb_ms IS NOT NULL
+        AND is_manual = FALSE
       GROUP BY region
     ),
     previous_week AS (
@@ -557,6 +568,7 @@ export default async function MonitorDetailPage({
         AND time > NOW() - INTERVAL '14 days'
         AND time <= NOW() - INTERVAL '7 days'
         AND ttfb_ms IS NOT NULL
+        AND is_manual = FALSE
       GROUP BY region
     )
     SELECT
@@ -598,6 +610,7 @@ export default async function MonitorDetailPage({
         WHERE monitor_id = ${id}
           AND time > NOW() - INTERVAL '7 days'
           AND ttfb_ms IS NOT NULL
+          AND is_manual = FALSE
         GROUP BY bucket, region
         ORDER BY bucket ASC, region ASC
       `
@@ -617,6 +630,7 @@ export default async function MonitorDetailPage({
         WHERE monitor_id = ${id}
           AND time > NOW() - INTERVAL '24 hours'
           AND ttfb_ms IS NOT NULL
+          AND is_manual = FALSE
         GROUP BY bucket, region
         ORDER BY bucket ASC, region ASC
       `
@@ -977,11 +991,19 @@ export default async function MonitorDetailPage({
                               >
                                 Sync
                               </th>
+                              {process.env.NODE_ENV === 'development' && (
+                                <th
+                                  className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
+                                  title="Software version of the Lambda probe"
+                                >
+                                  v
+                                </th>
+                              )}
                             </tr>
                           </thead>
                           <tbody>
                             {latestProbes.map((s, i) => {
-                              const isError = s.error !== ''
+                              const isError = s.error && s.error !== ''
                               const cache = cacheDisplay(s.common_cache_status, null)
                               const age = Number(s.max_age_s ?? 0)
                               const ageVisual = age > 0 ? ageBadgeVisual(age) : null
@@ -1078,6 +1100,13 @@ export default async function MonitorDetailPage({
                                   <td className="px-3 py-2.5 text-right text-[10px] text-zinc-400 tabular-nums whitespace-nowrap">
                                     {s.last_probe_at ? new Date(s.last_probe_at).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'}
                                   </td>
+                                  {process.env.NODE_ENV === 'development' && (
+                                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                                      <span className="text-[9px] font-bold text-zinc-400 font-mono bg-zinc-100 dark:bg-zinc-800/50 px-1 py-0.5 rounded">
+                                        {s.probe_version || '—'}
+                                      </span>
+                                    </td>
+                                  )}
                                 </tr>
                               )
                             })}
@@ -1381,13 +1410,38 @@ export default async function MonitorDetailPage({
                                     <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[9px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-tight">Missing</span>
                                   )}
                                 </div>
-                                {present && (
-                                  <div className="rounded border border-zinc-100 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 p-2">
-                                    <code className="block text-[10px] text-zinc-600 dark:text-zinc-400 break-all font-mono leading-relaxed">
-                                      {String(value)}
-                                    </code>
-                                  </div>
-                                )}
+                                {present && (() => {
+                                  const valStr = String(value)
+                                  if (valStr.length < 160) {
+                                    return (
+                                      <div className="rounded border border-zinc-100 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 p-2 text-wrap">
+                                        <code className="block text-[10px] text-zinc-600 dark:text-zinc-400 break-all font-mono leading-relaxed">
+                                          {valStr}
+                                        </code>
+                                      </div>
+                                    )
+                                  }
+                                  return (
+                                    <details className="group">
+                                      <summary className="flex items-center gap-1.5 cursor-pointer list-none outline-none">
+                                        <div className="rounded border border-zinc-100 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 p-2 flex-1 min-w-0">
+                                          <code className="text-[10px] text-zinc-600 dark:text-zinc-400 font-mono block truncate">
+                                            {valStr.slice(0, 100)}...
+                                          </code>
+                                        </div>
+                                        <div className="flex flex-col items-center gap-0.5 px-1">
+                                          <span className="text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter group-open:hidden">Full</span>
+                                          <span className="text-[8px] font-black text-zinc-400 uppercase tracking-tighter hidden group-open:inline">Less</span>
+                                        </div>
+                                      </summary>
+                                      <div className="mt-2 rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-2 shadow-inner ring-1 ring-emerald-500/10">
+                                        <code className="block text-[10px] text-zinc-600 dark:text-zinc-400 break-all font-mono leading-relaxed">
+                                          {valStr}
+                                        </code>
+                                      </div>
+                                    </details>
+                                  )
+                                })()}
                                 <p className="text-[10px] text-zinc-400 italic">
                                   {description}
                                 </p>

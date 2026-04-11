@@ -54,12 +54,20 @@ foreach ($Region in $RegionMap.Keys) {
     $FuncName = $RegionMap[$Region]
     Write-Host "Updating region [$Region] ($FuncName)..." -ForegroundColor Yellow -NoNewline
     
-    # Executa o comando e captura a saída e erro
+    # Executa o comando e captura a saída e erro de código
     $Output = aws lambda update-function-code `
         --function-name $FuncName `
         --zip-file "fileb://$ZipFile" `
         --region $Region `
         --output json 2>&1
+
+    # Garante o timeout de 30s e memória de 128MB
+    aws lambda update-function-configuration `
+        --function-name $FuncName `
+        --region $Region `
+        --timeout 30 `
+        --memory-size 128 `
+        --output json > $null 2>&1
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host " SUCCESS" -ForegroundColor Green

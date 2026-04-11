@@ -24,9 +24,9 @@ pub async fn handler(
 
     // Trava de Segurança: Rejeitar probes antigos (ex: Cloudflare Workers fantasmas)
     let version = payload.probe_version.as_deref().unwrap_or("old");
-    if version != "1.19" {
+    if version != "1.22" {
         tracing::warn!("Ingest: rejected stale probe version '{}' from region {}", version, payload.region);
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "deprecated probe version", "required": "1.19" }))).into_response();
+        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "deprecated probe version", "required": "1.22" }))).into_response();
     }
 
     tracing::info!("Ingest: received result for monitor {} from region {} | bypass_ttfb: {:?}", payload.monitor_id, payload.region, payload.bypass_ttfb_ms);
@@ -38,14 +38,16 @@ pub async fn handler(
             status_code, cache_status, served_by, server_timing,
             http_version, redirect_count, content_length, error,
             bypass_ttfb_ms, bypass_total_ms, bypass_status_code, bypass_error,
-            age_s, security_headers, server_timing_breakdown, probe_version
+            age_s, security_headers, server_timing_breakdown, probe_version, is_manual,
+            bypass_served_by, bypass_server_timing, bypass_server_timing_breakdown, bypass_age_s
         ) VALUES (
             NOW(), $1, $2,
             $3, $4, $5, $6, $7, $8, $9, $10,
             $11, $12, $13, $14,
             $15, $16, $17, $18,
             $19, $20, $21, $22,
-            $23, $24, $25, $26
+            $23, $24, $25, $26, $27,
+            $28, $29, $30, $31
         )
         "#,
     )
@@ -75,6 +77,11 @@ pub async fn handler(
     .bind(payload.security_headers.clone())
     .bind(payload.server_timing_breakdown.clone())
     .bind(payload.probe_version.clone())
+    .bind(payload.is_manual)
+    .bind(payload.bypass_served_by.clone())
+    .bind(payload.bypass_server_timing.clone())
+    .bind(payload.bypass_server_timing_breakdown.clone())
+    .bind(payload.bypass_age_s)
     .execute(&state.db)
     .await;
 

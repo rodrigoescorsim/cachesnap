@@ -38,6 +38,7 @@ export async function GET(
     FROM probe_results
     WHERE monitor_id = ${id}
       AND time > NOW() - (${clampedHours} || ' hours')::interval
+      AND is_manual = FALSE
     GROUP BY region
     ORDER BY region
   `
