@@ -79,21 +79,28 @@ describe('breakdownColor', () => {
     expect(breakdownColor('authentication')).toBe('bg-violet-400')
   })
 
-  it('maps cache/cdn/hit to blue', () => {
-    expect(breakdownColor('cache')).toBe('bg-blue-400')
-    expect(breakdownColor('cdn')).toBe('bg-blue-400')
-    expect(breakdownColor('cache-lookup')).toBe('bg-blue-400')
+  it('maps cache/hit to violet (cache layer)', () => {
+    expect(breakdownColor('cache')).toBe('bg-violet-400')
+    expect(breakdownColor('cache-lookup')).toBe('bg-violet-400')
+    expect(breakdownColor('hit')).toBe('bg-violet-500')
   })
 
-  it('maps edge to blue-500', () => {
-    expect(breakdownColor('edge')).toBe('bg-blue-500')
-    expect(breakdownColor('cf-edge')).toBe('bg-blue-500')
+  it('maps edge/cdn/cf to Edge fill (hex arbitrary, matches timing palette)', () => {
+    expect(breakdownColor('edge')).toBe('bg-[#38bdf8]')
+    expect(breakdownColor('cf-edge')).toBe('bg-[#38bdf8]')
+    expect(breakdownColor('cdn')).toBe('bg-[#38bdf8]')
+    expect(breakdownColor('cf')).toBe('bg-[#38bdf8]')
+  })
+
+  it('maps tcp to blue', () => {
+    expect(breakdownColor('tcp')).toBe('bg-blue-500')
+    expect(breakdownColor('tcp-handshake')).toBe('bg-blue-500')
   })
 
   it('maps app/server to amber', () => {
-    expect(breakdownColor('app')).toBe('bg-amber-400')
-    expect(breakdownColor('server')).toBe('bg-amber-400')
-    expect(breakdownColor('appserver')).toBe('bg-amber-400')
+    expect(breakdownColor('app')).toBe('bg-amber-500')
+    expect(breakdownColor('server')).toBe('bg-amber-500')
+    expect(breakdownColor('appserver')).toBe('bg-amber-500')
   })
 
   it('falls back to zinc for unknown names', () => {

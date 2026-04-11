@@ -3,12 +3,14 @@
 import Link from 'next/link'
 import { useState, useRef, useMemo } from 'react'
 import { formatChartLabel, niceMax, globalBucketAverage } from './ttfb-chart.helpers'
+import { TIMING } from './timing-metrics-palette'
 
 export interface ChartPoint {
   bucket: string       // ISO string
   region: string
   ttfb_avg: number
   dns_avg: number | null
+  tcp_avg: number | null
   tls_avg: number | null
   cache_hit_pct: number | null
 }
@@ -63,7 +65,10 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
   const maxTtfb     = Math.max(...data.map(d => d.ttfb_avg), 1)
   const niceMaxTtfb = niceMax(maxTtfb, 100)
 
-  const maxNet      = Math.max(...data.map(d => (d.dns_avg ?? 0) + (d.tls_avg ?? 0)), 1)
+  const maxNet      = Math.max(
+    ...data.map(d => (d.dns_avg ?? 0) + (d.tcp_avg ?? 0) + (d.tls_avg ?? 0)),
+    1,
+  )
   const niceMaxNet  = niceMax(maxNet, 50)
 
   // ── X scale ───────────────────────────────────────────────────────────────
@@ -105,6 +110,7 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
 
   // ── Global averages ───────────────────────────────────────────────────────
   const globalDns = globalBucketAverage(allBuckets, data, p => p.dns_avg)
+  const globalTcp = globalBucketAverage(allBuckets, data, p => p.tcp_avg)
   const globalTls = globalBucketAverage(allBuckets, data, p => p.tls_avg)
   const hasCacheData = data.some(d => d.cache_hit_pct != null)
 
@@ -246,12 +252,15 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
                 ))}
                 <XAxisLabels />
                 <GuideLine projector={toYNet} />
-                <polyline points={globalDns.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')} fill="none" stroke="#a855f7" strokeWidth={2} strokeDasharray="4 2" strokeOpacity={0.4} />
-                <polyline points={globalTls.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')} fill="none" stroke="#d946ef" strokeWidth={2} strokeDasharray="4 2" strokeOpacity={0.4} />
+                <polyline points={globalDns.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')} fill="none" stroke={TIMING.dns.stroke} strokeWidth={2} strokeDasharray="4 2" strokeOpacity={0.4} />
+                <polyline points={globalTcp.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')} fill="none" stroke={TIMING.tcp.stroke} strokeWidth={2} strokeDasharray="4 2" strokeOpacity={0.4} />
+                <polyline points={globalTls.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')} fill="none" stroke={TIMING.tls.stroke} strokeWidth={2} strokeDasharray="4 2" strokeOpacity={0.4} />
                 {regions.map(region => {
                   const m = byRegion[region]
                   if (!m) return null
-                  const points = allBuckets.map((b, i) => m.has(b) ? `${toX(i)},${toYNet((m.get(b)!.dns_avg ?? 0) + (m.get(b)!.tls_avg ?? 0))}` : null).filter(Boolean).join(' ')
+                  const points = allBuckets.map((b, i) => m.has(b)
+                    ? `${toX(i)},${toYNet((m.get(b)!.dns_avg ?? 0) + (m.get(b)!.tcp_avg ?? 0) + (m.get(b)!.tls_avg ?? 0))}`
+                    : null).filter(Boolean).join(' ')
                   return <polyline key={region} points={points} fill="none" stroke={REGION_COLORS[region]} strokeWidth={1} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={0.2} />
                 })}
               </svg>
@@ -302,11 +311,15 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
         <div className="flex items-center gap-4 border-l border-zinc-200 dark:border-zinc-800 pl-4">
           <div className="flex items-center gap-1.5 group/label">
             <div className="w-3 h-0.5 border-t border-dashed border-purple-500 opacity-60" />
-            <span className="text-[9px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">DNS</span>
+            <span className={`text-[9px] font-bold uppercase tracking-wider ${TIMING.dns.text}`}>DNS</span>
+          </div>
+          <div className="flex items-center gap-1.5 group/label">
+            <div className="w-3 h-0.5 border-t border-dashed border-blue-500 opacity-60" />
+            <span className={`text-[9px] font-bold uppercase tracking-wider ${TIMING.tcp.text}`}>TCP</span>
           </div>
           <div className="flex items-center gap-1.5 group/label">
             <div className="w-3 h-0.5 border-t border-dashed border-fuchsia-500 opacity-60" />
-            <span className="text-[9px] font-bold text-fuchsia-600 dark:text-fuchsia-400 uppercase tracking-wider">TLS</span>
+            <span className={`text-[9px] font-bold uppercase tracking-wider ${TIMING.tls.text}`}>TLS</span>
           </div>
         </div>
       </div>

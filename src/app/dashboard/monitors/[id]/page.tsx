@@ -8,8 +8,9 @@ import { MonitorActions } from './monitor-actions'
 import { RealTimeHub } from '../../real-time-hub'
 import { extractPop, detectCdn, popToCity } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
+import { TIMING } from './timing-metrics-palette'
 import { VisualGlow } from '../../visual-glow'
-import { Activity, ShieldCheck, Lock, AlertCircle, History, AlertTriangle, TrendingUp, Zap } from 'lucide-react'
+import { Activity, ShieldCheck, Lock, AlertCircle, History, AlertTriangle, TrendingUp, Zap, Info } from 'lucide-react'
 
 interface RegionStat {
   region: string
@@ -21,6 +22,7 @@ interface RegionStat {
   ttfb_max_ms: number | null
   total_avg_ms: number | null
   dns_avg_ms: number | null
+  tcp_avg_ms: number | null
   tls_avg_ms: number | null
   edge_avg_ms: number | null
   origin_avg_ms: number | null
@@ -31,6 +33,27 @@ interface RegionStat {
   error_count: number
   cache_hit_pct: number | null
   uptime_pct: number | null
+  max_age_s: number | null
+  last_probe_at: Date | null
+}
+
+/** One row per region: latest probe only (real-time table). */
+interface LatestProbeRow {
+  region: string
+  ttfb_ms: number | null
+  download_ms: number | null
+  total_ms: number | null
+  dns_ms: number | null
+  tcp_ms: number | null
+  tls_ms: number | null
+  edge_ms: number | null
+  origin_ms: number | null
+  redirect_count: number | null
+  common_served_by: string | null
+  common_http_version: string | null
+  common_cache_status: string | null
+  status_code: number | null
+  error: string
   max_age_s: number | null
   last_probe_at: Date | null
 }
@@ -289,6 +312,46 @@ function formatAge(seconds: number | null): string | null {
   return `${Math.round(seconds / 86400)}d`
 }
 
+/** Compact Age header display for cache badge (e.g. 45s, 12m, 4h, 2d). */
+function formatCacheAgeShort(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`
+  return `${Math.round(seconds / 86400)}d`
+}
+
+/** `Age` header semantics: seconds in shared cache. Tiers for emphasis (zombie_cache alert: age_s > 86_400). */
+const AGE_RECENT_MAX_S = 3600 // ≤1h — still “fresh” at the edge
+const AGE_ZOMBIE_THRESHOLD_S = 86_400 // same boundary as probe-waterfall zombie detection (strictly older = red)
+
+function ageBadgeVisual(ageSeconds: number): { className: string; tierHint: string } {
+  if (ageSeconds <= AGE_RECENT_MAX_S) {
+    return {
+      className: 'bg-emerald-100/80 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+      tierHint: 'Recently cached (≤1h)',
+    }
+  }
+  if (ageSeconds <= AGE_ZOMBIE_THRESHOLD_S) {
+    return {
+      className: 'bg-amber-100/80 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
+      tierHint: 'Elevated cache age (>1h, up to 24h)',
+    }
+  }
+  return {
+    className: 'bg-red-100/80 text-red-700 dark:bg-red-950/40 dark:text-red-300',
+    tierHint: 'Long-lived in cache (>24h) — review invalidation / TTL',
+  }
+}
+
+function edgeOriginTooltip(edge: number | null, origin: number | null): string {
+  const parts: string[] = []
+  if (edge != null) parts.push(`Edge: ${Math.round(edge)}ms`)
+  if (origin != null) parts.push(`Origin: ${Math.round(origin)}ms`)
+  return parts.length
+    ? `${parts.join(' · ')} (from Server-Timing / edge headers)`
+    : ''
+}
+
 function formatPct(val: number | string | null, decimals: number = 1): string {
   if (val == null) return '—'
   const num = Number(val)
@@ -407,6 +470,7 @@ export default async function MonitorDetailPage({
       ROUND(AVG(total_ms)::numeric, 0)::int           AS total_avg_ms,
       ROUND(AVG(bypass_ttfb_ms)::numeric, 0)::int     AS bypass_ttfb_avg_ms,
       ROUND(AVG(dns_ms)::numeric, 0)::int             AS dns_avg_ms,
+      ROUND(AVG(tcp_ms)::numeric, 0)::int              AS tcp_avg_ms,
       ROUND(AVG(tls_ms)::numeric, 0)::int             AS tls_avg_ms,
       ROUND(AVG(edge_ms)::numeric, 0)::int            AS edge_avg_ms,
       ROUND(AVG(origin_ms)::numeric, 0)::int          AS origin_avg_ms,
@@ -430,26 +494,23 @@ export default async function MonitorDetailPage({
     GROUP BY region ORDER BY region
   `
 
-  const latestProbes = await sql<RegionStat[]>`
+  const latestProbes = await sql<LatestProbeRow[]>`
     SELECT DISTINCT ON (region)
       region,
-      ttfb_ms AS ttfb_avg_ms,
-      total_ms AS total_avg_ms,
-      (SELECT bypass_ttfb_ms FROM probe_results p2 
-       WHERE p2.monitor_id = p1.monitor_id AND p2.region = p1.region AND p2.bypass_ttfb_ms IS NOT NULL 
-       ORDER BY time DESC LIMIT 1) AS bypass_ttfb_avg_ms,
-      dns_ms AS dns_avg_ms,
-      tcp_ms AS tcp_avg_ms,
-      tls_ms AS tls_avg_ms,
-      edge_ms AS edge_avg_ms,
-      origin_ms AS origin_avg_ms,
-      redirect_count AS redirect_avg,
+      ttfb_ms,
+      download_ms,
+      total_ms,
+      dns_ms,
+      tcp_ms,
+      tls_ms,
+      edge_ms,
+      origin_ms,
+      redirect_count,
       served_by AS common_served_by,
       http_version AS common_http_version,
       cache_status AS common_cache_status,
-      status_code AS probe_count,
-      COALESCE(error, '') as error,
-      probe_version,
+      status_code,
+      COALESCE(error, '') AS error,
       age_s AS max_age_s,
       time AS last_probe_at
     FROM probe_results p1
@@ -521,12 +582,13 @@ export default async function MonitorDetailPage({
   const security: SecurityHeaders | null = secRow?.security_headers ?? null
 
   const chartRaw = range === '7d'
-    ? await sql<{ bucket: Date; region: string; ttfb_avg: number; dns_avg: number | null; tls_avg: number | null; cache_hit_pct: number | null }[]>`
+    ? await sql<{ bucket: Date; region: string; ttfb_avg: number; dns_avg: number | null; tcp_avg: number | null; tls_avg: number | null; cache_hit_pct: number | null }[]>`
         SELECT
           time_bucket('6 hours', time) AS bucket,
           region,
           ROUND(AVG(ttfb_ms)::numeric, 0)                                          AS ttfb_avg,
           ROUND(AVG(dns_ms)::numeric, 0)                                           AS dns_avg,
+          ROUND(AVG(tcp_ms)::numeric, 0)                                           AS tcp_avg,
           ROUND(AVG(tls_ms)::numeric, 0)                                           AS tls_avg,
           ROUND(
             100.0 * COUNT(*) FILTER (WHERE cache_status ILIKE '%HIT%')
@@ -539,12 +601,13 @@ export default async function MonitorDetailPage({
         GROUP BY bucket, region
         ORDER BY bucket ASC, region ASC
       `
-    : await sql<{ bucket: Date; region: string; ttfb_avg: number; dns_avg: number | null; tls_avg: number | null; cache_hit_pct: number | null }[]>`
+    : await sql<{ bucket: Date; region: string; ttfb_avg: number; dns_avg: number | null; tcp_avg: number | null; tls_avg: number | null; cache_hit_pct: number | null }[]>`
         SELECT
           time_bucket('30 minutes', time) AS bucket,
           region,
           ROUND(AVG(ttfb_ms)::numeric, 0)                                          AS ttfb_avg,
           ROUND(AVG(dns_ms)::numeric, 0)                                           AS dns_avg,
+          ROUND(AVG(tcp_ms)::numeric, 0)                                           AS tcp_avg,
           ROUND(AVG(tls_ms)::numeric, 0)                                           AS tls_avg,
           ROUND(
             100.0 * COUNT(*) FILTER (WHERE cache_status ILIKE '%HIT%')
@@ -675,6 +738,7 @@ export default async function MonitorDetailPage({
     region: row.region,
     ttfb_avg: Number(row.ttfb_avg),
     dns_avg: row.dns_avg != null ? Number(row.dns_avg) : null,
+    tcp_avg: row.tcp_avg != null ? Number(row.tcp_avg) : null,
     tls_avg: row.tls_avg != null ? Number(row.tls_avg) : null,
     cache_hit_pct: row.cache_hit_pct != null ? Number(row.cache_hit_pct) : null,
   }))
@@ -841,22 +905,92 @@ export default async function MonitorDetailPage({
                         <table className="w-full text-sm">
                           <thead>
                             <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
-                              <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Region</th>
-                              <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">PoP</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="DNS Lookup Time">DNS</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="TCP Connection Time">TCP</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="TLS Handshake Time">TLS</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Time to First Byte (Total)">TTFB</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Cache</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Status</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Sync</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight text-teal-500">V</th>
+                              <th
+                                className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
+                                title="Geographic region where this probe ran"
+                              >
+                                Region
+                              </th>
+                              <th
+                                className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
+                                title="Point of presence / edge node hint (from CF-Ray, X-Served-By, or similar)"
+                              >
+                                PoP
+                              </th>
+                              <th
+                                className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
+                                title="DNS lookup time — resolving the hostname to an IP"
+                              >
+                                DNS
+                              </th>
+                              <th
+                                className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
+                                title="TCP handshake time (after DNS, before TLS on HTTPS)"
+                              >
+                                TCP
+                              </th>
+                              <th
+                                className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
+                                title="TLS handshake time after the TCP connection is established"
+                              >
+                                TLS
+                              </th>
+                              <th
+                                className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
+                                title="Time to first byte — until response headers start. ℹ appears when Edge/Origin breakdown exists (Server-Timing)"
+                              >
+                                TTFB
+                              </th>
+                              <th
+                                className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
+                                title="Time to download the response body after the first byte (headers)"
+                              >
+                                Download
+                              </th>
+                              <th
+                                className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
+                                title="End-to-end wall time for the full request (connect, wait, body)"
+                              >
+                                Total
+                              </th>
+                              <th
+                                className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
+                                title="Cache status from the response (e.g. HIT, MISS, DYNAMIC, BYPASS)"
+                              >
+                                Cache
+                              </th>
+                              <th
+                                className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
+                                title="Age header — seconds this response has been in the shared cache (not browser TTL). Color: fresh ≤1h, amber >1h–24h, red >24h (same idea as zombie cache)"
+                              >
+                                Age
+                              </th>
+                              <th
+                                className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
+                                title="HTTP status code of the final response after redirects; ↷ shows redirect hop count"
+                              >
+                                Status
+                              </th>
+                              <th
+                                className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
+                                title="Local time when the latest probe for this region completed"
+                              >
+                                Sync
+                              </th>
                             </tr>
                           </thead>
                           <tbody>
                             {latestProbes.map((s, i) => {
-                              const isError = (s as any).error && (s as any).error !== ''
+                              const isError = s.error !== ''
                               const cache = cacheDisplay(s.common_cache_status, null)
+                              const age = Number(s.max_age_s ?? 0)
+                              const ageVisual = age > 0 ? ageBadgeVisual(age) : null
+                              const ageBadgeTitle
+                                = age > 0 && ageVisual
+                                  ? `Age header: ${age}s — ${ageVisual.tierHint}`
+                                  : ''
+                              const hasEdgeOrigin = s.edge_ms != null || s.origin_ms != null
+                              const eoTip = edgeOriginTooltip(s.edge_ms, s.origin_ms)
                               return (
                                 <tr key={s.region} className={i < latestProbes.length - 1 ? 'border-b border-zinc-100/50 dark:border-zinc-800/50' : ''}>
                                   <td className="px-3 py-2.5 font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
@@ -867,51 +1001,74 @@ export default async function MonitorDetailPage({
                                       {popToCity(extractPop(s.common_served_by)) ?? '—'}
                                     </span>
                                   </td>
-                                  <td className="px-3 py-2.5 text-right text-xs font-mono text-purple-600 dark:text-purple-400 tabular-nums">
-                                    <VisualGlow value={s.dns_avg_ms}>{s.dns_avg_ms != null ? `${s.dns_avg_ms}ms` : '—'}</VisualGlow>
+                                  <td className={`px-3 py-2.5 text-right text-xs font-mono tabular-nums ${TIMING.dns.text}`}>
+                                    <VisualGlow value={s.dns_ms}>{s.dns_ms != null ? `${Math.round(s.dns_ms)}ms` : '—'}</VisualGlow>
                                   </td>
-                                  <td className="px-3 py-2.5 text-right text-xs font-mono text-indigo-600 dark:text-indigo-400 tabular-nums">
-                                    <VisualGlow value={s.tcp_avg_ms}>{s.tcp_avg_ms != null ? `${s.tcp_avg_ms}ms` : '—'}</VisualGlow>
+                                  <td className={`px-3 py-2.5 text-right text-xs font-mono tabular-nums ${TIMING.tcp.text}`}>
+                                    <VisualGlow value={s.tcp_ms}>{s.tcp_ms != null ? `${Math.round(s.tcp_ms)}ms` : '—'}</VisualGlow>
                                   </td>
-                                  <td className="px-3 py-2.5 text-right text-xs font-mono text-fuchsia-600 dark:text-fuchsia-400 tabular-nums">
-                                    <VisualGlow value={s.tls_avg_ms}>{s.tls_avg_ms != null ? `${s.tls_avg_ms}ms` : '—'}</VisualGlow>
+                                  <td className={`px-3 py-2.5 text-right text-xs font-mono tabular-nums ${TIMING.tls.text}`}>
+                                    <VisualGlow value={s.tls_ms}>{s.tls_ms != null ? `${Math.round(s.tls_ms)}ms` : '—'}</VisualGlow>
                                   </td>
-                                  <td className={`px-3 py-2.5 text-right font-bold tabular-nums ${ttfbColor(s.ttfb_avg_ms)}`}>
-                                    <VisualGlow value={s.ttfb_avg_ms}>{s.ttfb_avg_ms != null ? `${s.ttfb_avg_ms}ms` : '—'}</VisualGlow>
+                                  <td className={`px-3 py-2.5 text-right font-bold tabular-nums ${ttfbColor(s.ttfb_ms)}`}>
+                                    <div className="inline-flex items-center justify-end gap-1">
+                                      <VisualGlow value={s.ttfb_ms}>{s.ttfb_ms != null ? `${Math.round(s.ttfb_ms)}ms` : '—'}</VisualGlow>
+                                      {hasEdgeOrigin && (
+                                        <span
+                                          className="inline-flex text-zinc-400 dark:text-zinc-500"
+                                          title={eoTip}
+                                          aria-label={eoTip}
+                                        >
+                                          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                        </span>
+                                      )}
+                                    </div>
                                   </td>
-                                  <td className={`px-3 py-2.5 text-right text-xs font-medium uppercase ${cache.tone}`}>
-                                    {cache.text}
+                                  <td className={`px-3 py-2.5 text-right text-xs font-mono tabular-nums ${TIMING.download.text}`}>
+                                    <VisualGlow value={s.download_ms}>{s.download_ms != null ? `${Math.round(s.download_ms)}ms` : '—'}</VisualGlow>
+                                  </td>
+                                  <td className={`px-3 py-2.5 text-right text-xs font-mono font-semibold tabular-nums ${TIMING.total.text}`}>
+                                    <VisualGlow value={s.total_ms}>{s.total_ms != null ? `${Math.round(s.total_ms)}ms` : '—'}</VisualGlow>
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right" title={cache.title}>
+                                    <span className={`text-xs font-medium uppercase ${cache.tone}`}>{cache.text}</span>
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right">
+                                    {age > 0 && ageVisual ? (
+                                      <span
+                                        className={`inline-flex items-center justify-end rounded-md px-2 py-0.5 text-[10px] font-bold tabular-nums ${ageVisual.className}`}
+                                        title={ageBadgeTitle}
+                                      >
+                                        {formatCacheAgeShort(age)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs text-zinc-400 tabular-nums">—</span>
+                                    )}
                                   </td>
                                   <td className="px-3 py-2.5 text-right">
                                     {(() => {
-                                      const status = s.probe_count
-                                      const color = status < 300 ? 'bg-emerald-100/80 text-emerald-700' : status < 400 ? 'bg-blue-100/80 text-blue-700' : 'bg-red-100/80 text-red-700'
-                                      const hops = Number(s.redirect_avg ?? 0)
-                                      const age = Number(s.max_age_s ?? 0)
-                                      
-                                      const formatAge = (s: number) => {
-                                        if (s < 60) return `${s}s`;
-                                        if (s < 3600) return `${Math.floor(s / 60)}m`;
-                                        return `${Math.floor(s / 3600)}h`;
-                                      };
-
+                                      const code = s.status_code
+                                      const color
+                                        = code != null && code < 300
+                                          ? 'bg-emerald-100/80 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                          : code != null && code < 400
+                                            ? 'bg-blue-100/80 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
+                                            : 'bg-red-100/80 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                                      const hops = Number(s.redirect_count ?? 0)
                                       return (
                                         <div className="flex items-center justify-end gap-1.5">
-                                          {age > 0 && (
-                                            <span className="inline-flex items-center rounded-md bg-amber-100/80 px-1 py-0.5 text-[9px] font-bold text-amber-700" title={`Object age in cache: ${age} seconds`}>
-                                              {formatAge(age)}
-                                            </span>
-                                          )}
                                           {hops > 0 && (
-                                            <span className="inline-flex items-center rounded-md bg-indigo-100/80 px-1 py-0.5 text-[9px] font-bold text-indigo-700" title={`${hops} redirect hops`}>
-                                              {hops} ↷
+                                            <span className="inline-flex items-center rounded-md bg-violet-100/80 px-1 py-0.5 text-[9px] font-bold text-violet-700 dark:bg-violet-950/50 dark:text-violet-300" title={`${hops} redirect hop${hops === 1 ? '' : 's'}`}>
+                                              {hops}↷
                                             </span>
                                           )}
                                           {isError ? (
-                                            <span className="inline-flex items-center rounded-md bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 uppercase" title={(s as any).error}>ERR</span>
+                                            <span className="inline-flex items-center rounded-md bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 uppercase dark:bg-red-950/50 dark:text-red-300" title={s.error}>
+                                              ERR
+                                            </span>
                                           ) : (
                                             <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${color}`}>
-                                              {status || 'OK'}
+                                              {code ?? '—'}
                                             </span>
                                           )}
                                         </div>
@@ -920,9 +1077,6 @@ export default async function MonitorDetailPage({
                                   </td>
                                   <td className="px-3 py-2.5 text-right text-[10px] text-zinc-400 tabular-nums whitespace-nowrap">
                                     {s.last_probe_at ? new Date(s.last_probe_at).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'}
-                                  </td>
-                                  <td className="px-3 py-2.5 text-right text-[10px] font-mono text-teal-600/70">
-                                    {(s as any).probe_version || 'old'}
                                   </td>
                                 </tr>
                               )
@@ -949,13 +1103,15 @@ export default async function MonitorDetailPage({
                           <thead>
                             <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
                               <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Region</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average DNS Lookup">DNS</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average TLS Handshake">TLS</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">TTFB</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">P95</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight whitespace-nowrap">Min / Max</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average DNS lookup">DNS</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average TCP connect">TCP</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average TLS handshake">TLS</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average time to first byte">TTFB</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="P95 TTFB">P95</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight whitespace-nowrap" title="Min and max TTFB">Min / Max</th>
                               <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Cache</th>
                               <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Uptime</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Most common HTTP version">HTTP</th>
                               <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Errors</th>
                             </tr>
                           </thead>
@@ -971,10 +1127,13 @@ export default async function MonitorDetailPage({
                                       {REGION_LABELS[s.region] ?? s.region}
                                     </span>
                                   </td>
-                                  <td className="px-3 py-2.5 text-right text-xs font-mono text-purple-600 dark:text-purple-400 tabular-nums">
+                                  <td className={`px-3 py-2.5 text-right text-xs font-mono tabular-nums ${TIMING.dns.text}`}>
                                     {s.dns_avg_ms != null ? `${s.dns_avg_ms}ms` : '—'}
                                   </td>
-                                  <td className="px-3 py-2.5 text-right text-xs font-mono text-fuchsia-600 dark:text-fuchsia-400 tabular-nums">
+                                  <td className={`px-3 py-2.5 text-right text-xs font-mono tabular-nums ${TIMING.tcp.text}`}>
+                                    {s.tcp_avg_ms != null ? `${s.tcp_avg_ms}ms` : '—'}
+                                  </td>
+                                  <td className={`px-3 py-2.5 text-right text-xs font-mono tabular-nums ${TIMING.tls.text}`}>
                                     {s.tls_avg_ms != null ? `${s.tls_avg_ms}ms` : '—'}
                                   </td>
                                   <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${ttfbColor(s.ttfb_avg_ms)}`}>

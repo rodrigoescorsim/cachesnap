@@ -134,7 +134,7 @@ export const handler = async (event) => {
   // 4. Report to HopLens ingest API
   const reportData = {
     ...result,
-    probe_version: "1.18"
+    probe_version: "1.19"
   };
   await sendToIngest(ingest_url, reportData, probeSecret);
 

@@ -6,6 +6,7 @@ import {
   formatAge,
   pct,
 } from './probe-waterfall.helpers'
+import { TIMING } from './timing-metrics-palette'
 
 export interface WaterfallProbe {
   region: string
@@ -35,14 +36,15 @@ const REGION_LABELS: Record<string, string> = {
   'af-south': 'Africa',
 }
 
-// ── segment palette (for legend + bars) ─────────────────────────────────────
+// ── segment palette (for legend + bars) — matches timing-metrics-palette ───
 const SEGS = {
-  dns:      { bg: 'bg-purple-500',  label: 'DNS Lookup' },
-  tls:      { bg: 'bg-fuchsia-500', label: 'TLS Handshake' },
-  edge:     { bg: 'bg-blue-500',    label: 'Edge (CDN)' },
-  origin:   { bg: 'bg-amber-400',   label: 'Origin' },
-  ttfb:     { bg: 'bg-zinc-400',    label: 'TTFB (unattributed)' },
-  download: { bg: 'bg-emerald-400', label: 'Download' },
+  dns:      { bg: TIMING.dns.bar,      label: 'DNS Lookup' },
+  tcp:      { bg: TIMING.tcp.bar,      label: 'TCP Connect' },
+  tls:      { bg: TIMING.tls.bar,      label: 'TLS Handshake' },
+  edge:     { bg: TIMING.edge.bar,     label: 'Edge (CDN)' },
+  origin:   { bg: TIMING.origin.bar,   label: 'Origin' },
+  ttfb:     { bg: TIMING.ttfb.bar,     label: 'TTFB (unattributed)' },
+  download: { bg: TIMING.download.bar, label: 'Download' },
 } as const
 
 // ── main component ───────────────────────────────────────────────────────────
@@ -70,14 +72,14 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mb-5">
+      <div className="flex flex-wrap gap-x-4 gap-y-2 mb-6">
         {Object.values(SEGS).map(seg => (
-          <span key={seg.label} className="flex items-center gap-1.5 text-[10px] text-zinc-500">
-            <span className={`h-2.5 w-2.5 rounded-sm ${seg.bg}`} />
+          <span key={seg.label} className="flex items-center gap-1.5 text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
+            <span className={`h-2.5 w-2.5 rounded shadow-sm ring-1 ring-inset ring-black/5 dark:ring-white/10 ${seg.bg}`} />
             {seg.label}
           </span>
         ))}
-        <span className="text-[10px] text-zinc-400 italic">
+        <span className="text-[10px] text-zinc-400 italic flex items-center h-2.5">
           (scale: {maxTotal}ms = 100%)
         </span>
       </div>
@@ -152,18 +154,18 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
 
                 {/* Timing summary */}
                 <div className="flex items-center gap-3 tabular-nums text-[10px] text-zinc-500 flex-wrap justify-end">
-                  {dns > 0 && <span>DNS <span className="font-medium text-purple-600 dark:text-purple-400">{Math.round(dns)}ms</span></span>}
-                  {tcp > 0 && <span>TCP <span className="font-medium text-indigo-500 dark:text-indigo-400">{Math.round(tcp)}ms</span></span>}
-                  {tls > 0 && <span>TLS <span className="font-medium text-fuchsia-600 dark:text-fuchsia-400">{Math.round(tls)}ms</span></span>}
-                  {edge > 0 && <span className="text-blue-600 font-medium">Edge {edge}ms</span>}
-                  {origin > 0 && <span className="text-amber-600 font-medium">Origin {origin}ms</span>}
+                  {dns > 0 && <span>DNS <span className={`font-medium ${TIMING.dns.text}`}>{Math.round(dns)}ms</span></span>}
+                  {tcp > 0 && <span>TCP <span className={`font-medium ${TIMING.tcp.text}`}>{Math.round(tcp)}ms</span></span>}
+                  {tls > 0 && <span>TLS <span className={`font-medium ${TIMING.tls.text}`}>{Math.round(tls)}ms</span></span>}
+                  {edge > 0 && <span className={`font-medium ${TIMING.edge.text}`}>Edge {edge}ms</span>}
+                  {origin > 0 && <span className={`font-medium ${TIMING.origin.text}`}>Origin {origin}ms</span>}
                   <span>
                     TTFB{' '}
-                    <span className="font-semibold text-zinc-700 dark:text-zinc-200">{ttfb}ms</span>
+                    <span className={`font-semibold ${TIMING.ttfb.text}`}>{ttfb}ms</span>
                   </span>
                   <span>
                     Total{' '}
-                    <span className="font-semibold text-zinc-700 dark:text-zinc-200">{total}ms</span>
+                    <span className={`font-semibold ${TIMING.total.text}`}>{total}ms</span>
                   </span>
                 </div>
               </div>
@@ -178,6 +180,13 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
                           className={`${SEGS.dns.bg} h-full shrink-0`}
                           style={{ width: pct(dns, maxTotal) }}
                           title={`DNS Lookup: ${dns}ms`}
+                        />
+                      )}
+                      {tcp > 0 && (
+                        <div
+                          className={`${SEGS.tcp.bg} h-full shrink-0`}
+                          style={{ width: pct(tcp, maxTotal) }}
+                          title={`TCP Connect: ${tcp}ms`}
                         />
                       )}
                       {tls > 0 && (
@@ -280,7 +289,7 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
                         </span>
                         <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
                           <div
-                            className="h-full rounded-full bg-purple-400 dark:bg-purple-500"
+                            className={`h-full rounded-full ${TIMING.dns.barFill}`}
                             style={{ width: pct(dns, Math.max(dns, ttfb > 0 ? ttfb : maxTotal)) }}
                           />
                         </div>
@@ -296,7 +305,7 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
                         </span>
                         <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
                           <div
-                            className="h-full rounded-full bg-indigo-400 dark:bg-indigo-500"
+                            className={`h-full rounded-full ${TIMING.tcp.barFill}`}
                             style={{ width: pct(tcp, Math.max(tcp, ttfb > 0 ? ttfb : maxTotal)) }}
                           />
                         </div>
@@ -312,7 +321,7 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
                         </span>
                         <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
                           <div
-                            className="h-full rounded-full bg-fuchsia-400 dark:bg-fuchsia-500"
+                            className={`h-full rounded-full ${TIMING.tls.barFill}`}
                             style={{ width: pct(tls, Math.max(tls, ttfb > 0 ? ttfb : maxTotal)) }}
                           />
                         </div>

@@ -25,20 +25,24 @@ export function breakdownEntries(
     .sort((a, b) => b[1] - a[1])
 }
 
-// Semantic color map: first matching substring wins
+// Semantic color map: first matching substring wins (aligned with timing-metrics-palette)
 const BREAKDOWN_COLOR_MAP: Array<[string, string]> = [
   ['db', 'bg-red-400'],
   ['database', 'bg-red-400'],
   ['sql', 'bg-red-400'],
+  ['tcp', 'bg-blue-500'],
+  // Match Edge in timing-metrics-palette
+  ['edge', 'bg-[#38bdf8]'],
+  ['cdn', 'bg-[#38bdf8]'],
+  ['cf', 'bg-[#38bdf8]'],
   ['auth', 'bg-violet-400'],
-  ['cache', 'bg-blue-400'],
-  ['cdn', 'bg-blue-400'],
-  ['hit', 'bg-blue-500'],
-  ['edge', 'bg-blue-500'],
+  ['worker', 'bg-violet-400'],
+  ['cache', 'bg-violet-400'],
+  ['hit', 'bg-violet-500'],
   ['miss', 'bg-amber-500'],
   ['origin', 'bg-amber-500'],
-  ['app', 'bg-amber-400'],
-  ['server', 'bg-amber-400'],
+  ['app', 'bg-amber-500'],
+  ['server', 'bg-amber-500'],
   ['render', 'bg-orange-400'],
   ['next', 'bg-orange-400'],
 ]

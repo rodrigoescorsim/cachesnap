@@ -27,7 +27,7 @@ export function niceMax(maxValue: number, step: number): number {
 /**
  * Computes the per-bucket cross-region average for a numeric metric.
  * NULL values are treated as 0, matching chart render semantics where
- * a missing DNS/TLS reading should not inflate the average.
+ * a missing DNS/TCP/TLS reading should not inflate the average.
  */
 export function globalBucketAverage<T extends { bucket: string }>(
   allBuckets: string[],

@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Timing palette: Edge/Download use hex arbitrary classes; page.tsx often applies them via `${TIMING.*}` so list them here too. */
+@source inline("bg-[#38bdf8] bg-[#84cc16] text-[#0369a1] dark:text-[#7dd3fc] text-[#4d7c0f] dark:text-[#bef264]");
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
