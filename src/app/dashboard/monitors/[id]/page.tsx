@@ -10,7 +10,7 @@ import { extractPop, detectCdn, popToCity } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
 import { TIMING } from './timing-metrics-palette'
 import { VisualGlow } from '../../visual-glow'
-import { Activity, ShieldCheck, Lock, AlertCircle, History, AlertTriangle, TrendingUp, Zap, Info } from 'lucide-react'
+import { Activity, ShieldCheck, Lock, AlertCircle, History, AlertTriangle, TrendingUp, Zap } from 'lucide-react'
 
 interface RegionStat {
   region: string
@@ -161,13 +161,14 @@ const TAB_GROUPS: Array<{ label: string; tabs: MonitorTab[] }> = [
   { label: 'Respond', tabs: ['incidents'] },
 ]
 
-const VALID_PERFORMANCE_VIEWS = ['real-time', 'trends', 'diagnostics'] as const
+const VALID_PERFORMANCE_VIEWS = ['real-time', 'trends', 'diagnostics', 'infrastructure'] as const
 type PerformanceView = (typeof VALID_PERFORMANCE_VIEWS)[number]
 
 const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   'real-time': 'Real-time',
   trends: 'Trends',
   diagnostics: 'Diagnostics',
+  infrastructure: 'Infrastructure',
 }
 
 const VALID_ALERT_TYPES = ['down', 'anomaly', 'anycast', 'zombie_cache'] as const
@@ -200,14 +201,7 @@ function ttfbColor(ms: number | null): string {
   return 'text-red-500'                   // High Latency (Red)
 }
 
-/** P95 thresholds are naturally higher as they represent tail latency. */
-function p95Color(ms: number | null): string {
-  if (ms == null) return 'text-zinc-400'
-  if (ms <= 400) return 'text-emerald-500'
-  if (ms <= 700) return 'text-green-500'
-  if (ms <= 1100) return 'text-amber-500'
-  return 'text-red-500'
-}
+
 
 /** Edge TTFB should be very fast (Cache HITs). */
 function edgeTtfbColor(ms: number | null): string {
@@ -665,41 +659,21 @@ export default async function MonitorDetailPage({
         ORDER BY bucket ASC, region ASC
       `
 
-  const hourlyBypass = await sql<{ hour: Date; region: string; edge_ttfb: number; origin_ttfb: number; savings: number }[]>`
-    WITH regular_probes AS (
-      SELECT
-        date_trunc('hour', time) AS hour,
-        region,
-        AVG(ttfb_ms) AS ttfb_avg
-      FROM probe_results
-      WHERE monitor_id = ${id}
-        AND bypass_ttfb_ms IS NULL
-        AND time > NOW() - INTERVAL '24 hours'
-        AND ttfb_ms IS NOT NULL
-        AND cache_status ILIKE '%HIT%'
-      GROUP BY 1, 2
-    ),
-    bypass_probes AS (
-      SELECT
-        date_trunc('hour', time) AS hour,
-        region,
-        AVG(bypass_ttfb_ms) AS bypass_avg
-      FROM probe_results
-      WHERE monitor_id = ${id}
-        AND bypass_ttfb_ms IS NOT NULL
-        AND time > NOW() - INTERVAL '24 hours'
-      GROUP BY 1, 2
-    )
-    SELECT
-      r.hour,
-      r.region,
-      ROUND(r.ttfb_avg::numeric, 1)::float AS edge_ttfb,
-      ROUND(b.bypass_avg::numeric, 1)::float AS origin_ttfb,
-      ROUND((b.bypass_avg - r.ttfb_avg)::numeric, 1)::float AS savings
-    FROM regular_probes r
-    JOIN bypass_probes b ON r.hour = b.hour AND r.region = b.region
-    ORDER BY r.hour DESC, r.region ASC
-  `
+  const hourlyBypass = (activeView === 'infrastructure' || activeView === 'diagnostics')
+    ? await sql<{ hour: Date; region: string; edge_ttfb: number; origin_ttfb: number; savings: number }[]>`
+        SELECT
+          date_trunc('hour', time) AS hour,
+          region,
+          AVG(edge_ttfb_ms) AS edge_ttfb,
+          AVG(origin_ttfb_ms) AS origin_ttfb,
+          AVG(origin_ttfb_ms - edge_ttfb_ms) AS savings
+        FROM audit_results
+        WHERE monitor_id = ${id}
+          AND time > NOW() - INTERVAL '24 hours'
+        GROUP BY 1, 2
+        ORDER BY 1 DESC, 2 ASC
+      `
+    : []
 
   const spikes = await sql<Spike[]>`
     WITH bucketed AS (
@@ -981,7 +955,7 @@ export default async function MonitorDetailPage({
                               </th>
                               <th
                                 className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
-                                title="Time to first byte — until response headers start. ℹ appears when Edge/Origin breakdown exists (Server-Timing)"
+                                title="Time to first byte — until response headers start"
                               >
                                 TTFB
                               </th>
@@ -989,7 +963,7 @@ export default async function MonitorDetailPage({
                                 className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
                                 title="Time to download the response body after the first byte (headers)"
                               >
-                                Download
+                                DL
                               </th>
                               <th
                                 className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
@@ -1071,18 +1045,7 @@ export default async function MonitorDetailPage({
                                     <VisualGlow value={s.tls_ms}>{s.tls_ms != null ? `${Math.round(s.tls_ms)}ms` : '—'}</VisualGlow>
                                   </td>
                                   <td className={`px-3 py-2.5 text-right font-bold tabular-nums ${ttfbColor(s.ttfb_ms)}`}>
-                                    <div className="inline-flex items-center justify-end gap-1">
-                                      <VisualGlow value={s.ttfb_ms}>{s.ttfb_ms != null ? `${Math.round(s.ttfb_ms)}ms` : '—'}</VisualGlow>
-                                      {hasEdgeOrigin && (
-                                        <span
-                                          className="inline-flex text-zinc-400 dark:text-zinc-500"
-                                          title={eoTip}
-                                          aria-label={eoTip}
-                                        >
-                                          <Info className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                                        </span>
-                                      )}
-                                    </div>
+                                    <VisualGlow value={s.ttfb_ms}>{s.ttfb_ms != null ? `${Math.round(s.ttfb_ms)}ms` : '—'}</VisualGlow>
                                   </td>
                                   <td className={`px-3 py-2.5 text-right text-xs font-mono tabular-nums ${TIMING.download.text}`}>
                                     <VisualGlow value={s.download_ms}>{s.download_ms != null ? `${Math.round(s.download_ms)}ms` : '—'}</VisualGlow>
@@ -1091,7 +1054,7 @@ export default async function MonitorDetailPage({
                                     <VisualGlow value={s.total_ms}>{s.total_ms != null ? `${Math.round(s.total_ms)}ms` : '—'}</VisualGlow>
                                   </td>
                                   <td className="px-3 py-2.5 text-right" title={cache.title}>
-                                    <span className={`text-xs font-medium uppercase ${cache.tone}`}>{cache.text}</span>
+                                    <span className={`${cache.text.includes('%') || cache.text === '—' ? 'text-xs' : 'text-[10px]'} font-medium uppercase ${cache.tone}`}>{cache.text}</span>
                                   </td>
                                   <td className="px-3 py-2.5 text-right">
                                     {age > 0 && ageVisual ? (
@@ -1216,14 +1179,15 @@ export default async function MonitorDetailPage({
                                 <>
                                   <th className="px-3 py-2 text-right text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tight" title="Average Time to First Byte for Cache HITs (Edge performance)">Edge TTFB</th>
                                   <th className="px-3 py-2 text-right text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-tight" title="Average Time to First Byte for Cache MISS/Bypass (Server performance)">Origin TTFB</th>
+                                  <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight border-l border-zinc-100 dark:border-zinc-800" title="The overall average Time to First Byte across all results (Hits and Misses).">Avg TTFB</th>
                                 </>
                               ) : (
                                 <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title={singleTtfbTitle}>{singleTtfbLabel}</th>
                               )}
 
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="The 95th percentile of TTFB - 95% of requests were faster than this value, representing the 'worst-case' typical experience.">P95</th>
+
                               <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight whitespace-nowrap" title="The absolute minimum and maximum TTFB values observed in this region over the last 24h.">Min / Max</th>
-                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Mean duration to download the entire response body after receiving the first byte of headers.">Download</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Mean duration to download the entire response body after receiving the first byte of headers.">DL</th>
                               <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="The cumulative end-to-end duration for the full request-response lifecycle (Total = DNS + Connect + Wait + Download).">Total</th>
                               <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average Edge Cache Hit ratio across all probes in this region.">Cache</th>
                               <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Regional availability percentage - success rate of all automated probes in the last 24h.">Uptime</th>
@@ -1233,16 +1197,17 @@ export default async function MonitorDetailPage({
                             })()}
                           </thead>
                           <tbody>
-                            {stats.map((s, i) => {
+                            {(() => {
                               const hasEdgeData = stats.some(st => st.edge_hit_avg_ms !== null);
                               const hasOriginData = stats.some(st => st.origin_miss_avg_ms !== null);
                               const showSplitTtfb = hasEdgeData && hasOriginData;
 
-                              return (
-                                <tr
-                                  key={s.region}
-                                  className={i < stats.length - 1 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}
-                                >
+                              return stats.map((s, i) => {
+                                return (
+                                  <tr
+                                    key={s.region}
+                                    className={i < stats.length - 1 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}
+                                  >
                                   <td className="px-3 py-2.5">
                                     <span className="font-semibold text-zinc-900 dark:text-zinc-100 whitespace-nowrap" title={REGION_DESCRIPTIONS[s.region] ?? s.region}>
                                       {REGION_LABELS[s.region] ?? s.region}
@@ -1266,6 +1231,9 @@ export default async function MonitorDetailPage({
                                       <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${originTtfbColor(s.origin_miss_avg_ms)}`}>
                                         {s.origin_miss_avg_ms != null ? `${s.origin_miss_avg_ms}ms` : '—'}
                                       </td>
+                                      <td className={`px-3 py-2.5 text-right font-bold tabular-nums border-l border-zinc-50 dark:border-zinc-800/50 ${ttfbColor(s.ttfb_avg_ms)}`}>
+                                        {s.ttfb_avg_ms != null ? `${s.ttfb_avg_ms}ms` : '—'}
+                                      </td>
                                     </>
                                   ) : (
                                     <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${ttfbColor(s.ttfb_avg_ms)}`}>
@@ -1273,9 +1241,7 @@ export default async function MonitorDetailPage({
                                     </td>
                                   )}
 
-                                  <td className={`px-3 py-2.5 text-right tabular-nums text-xs ${p95Color(s.ttfb_p95_ms)}`}>
-                                    {s.ttfb_p95_ms != null ? `${s.ttfb_p95_ms}ms` : '—'}
-                                  </td>
+
                                   <td className="px-3 py-2.5 text-right text-[11px] text-zinc-500 tabular-nums whitespace-nowrap">
                                     {s.ttfb_min_ms != null ? `${s.ttfb_min_ms}ms / ${s.ttfb_max_ms}ms` : '—'}
                                   </td>
@@ -1290,7 +1256,7 @@ export default async function MonitorDetailPage({
                                       const cache = cacheDisplay(s.common_cache_status, s.cache_hit_pct)
                                       return (
                                         <div className="flex flex-col items-end">
-                                          <span className={`text-xs font-bold uppercase ${cache.tone}`} title={cache.title}>
+                                          <span className={`${cache.text.includes('%') || cache.text === '—' ? 'text-xs' : 'text-[10px]'} font-bold uppercase ${cache.tone}`} title={cache.title}>
                                             {cache.text}
                                           </span>
                                         </div>
@@ -1302,7 +1268,8 @@ export default async function MonitorDetailPage({
                                   </td>
                                 </tr>
                               )
-                            })}
+                            })
+                          })()}
                           </tbody>
                         </table>
                       </div>
@@ -1378,6 +1345,12 @@ export default async function MonitorDetailPage({
                   )}
                 </div>
               )}
+
+              {activeView === 'infrastructure' && (
+                <div className="space-y-10">
+                  <BypassAudit data={hourlyBypass} regionLabels={REGION_LABELS} />
+                </div>
+              )}
             </div>
           )}
 
@@ -1401,8 +1374,6 @@ export default async function MonitorDetailPage({
                   ))}
                 </div>
               </section>
-
-              <BypassAudit data={hourlyBypass} regionLabels={REGION_LABELS} />
             </div>
           )}
 

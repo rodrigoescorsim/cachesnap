@@ -7,50 +7,55 @@ use uuid::Uuid;
 pub struct ProbeResultPayload {
     pub monitor_id: Uuid,
     pub region: String,
+    // ---- Métricas Principais / Naturais ----
     pub ttfb_ms: Option<f64>,
     pub download_ms: Option<f64>,
     pub total_ms: Option<f64>,
-    pub dns_ms: Option<f64>,    // null no Phase 1 (CF Workers), preenchido pelos Node.js probes
+    pub dns_ms: Option<f64>,
     pub tcp_ms: Option<f64>,
-    pub tls_ms: Option<f64>,    // null no Phase 1 (CF Workers), preenchido pelos Node.js probes
+    pub tls_ms: Option<f64>,
     #[serde(default)]
-    pub edge_ms: Option<f64>,   // parseado do Server-Timing pelo CF Worker
+    pub edge_ms: Option<f64>,
     #[serde(default)]
-    pub origin_ms: Option<f64>, // parseado do Server-Timing pelo CF Worker
+    pub origin_ms: Option<f64>,
     pub status_code: Option<i32>,
-    pub cache_status: Option<String>, // CF-Cache-Status, X-Vercel-Cache, etc.
-    pub served_by: Option<String>,    // CF-Ray, X-Served-By
-    pub server_timing: Option<String>, // header bruto para parsing posterior
+    pub cache_status: Option<String>,
+    pub served_by: Option<String>,
+    pub server_timing: Option<String>,
     pub http_version: Option<String>,
     pub redirect_count: Option<i32>,
     pub content_length: Option<i64>,
     pub error: Option<String>,
+    
+    // ---- Metadados de Diagnóstico ----
+    #[serde(default)]
+    pub age_s: Option<i32>,
+    #[serde(default)]
+    pub security_headers: Option<serde_json::Value>,
+    #[serde(default)]
+    pub server_timing_breakdown: Option<serde_json::Value>,
+    #[serde(default)]
+    pub probe_version: Option<String>,
+    #[serde(default)]
+    pub is_manual: bool,
+
+    // ---- Métricas de Auditoria (Bypass / Origem) ----
     #[serde(default)]
     pub bypass_ttfb_ms: Option<f64>,
     #[serde(default)]
     pub bypass_total_ms: Option<f64>,
     #[serde(default)]
+    pub bypass_dns_ms: Option<f64>,
+    #[serde(default)]
+    pub bypass_tcp_ms: Option<f64>,
+    #[serde(default)]
+    pub bypass_tls_ms: Option<f64>,
+    #[serde(default)]
     pub bypass_status_code: Option<i32>,
     #[serde(default)]
     pub bypass_error: Option<String>,
     #[serde(default)]
-    pub age_s: Option<i32>,                              // Age response header (zombie cache detection)
-    #[serde(default)]
-    pub security_headers: Option<serde_json::Value>,     // {hsts, csp, x_frame_options, x_content_type, referrer_policy, score}
-    #[serde(default)]
-    pub server_timing_breakdown: Option<serde_json::Value>, // {metric_name: dur_ms, ...}
-    #[serde(default)]
-    pub probe_version: Option<String>,
-    #[serde(default)]
-    pub is_manual: bool,
-    #[serde(default)]
     pub bypass_served_by: Option<String>,
-    #[serde(default)]
-    pub bypass_server_timing: Option<String>,
-    #[serde(default)]
-    pub bypass_server_timing_breakdown: Option<serde_json::Value>,
-    #[serde(default)]
-    pub bypass_age_s: Option<i32>,
 }
 
 /// Registro persistido no TimescaleDB
@@ -76,17 +81,9 @@ pub struct ProbeResult {
     pub redirect_count: Option<i32>,
     pub content_length: Option<i64>,
     pub error: Option<String>,
-    pub bypass_ttfb_ms: Option<f64>,
-    pub bypass_total_ms: Option<f64>,
-    pub bypass_status_code: Option<i32>,
-    pub bypass_error: Option<String>,
     pub age_s: Option<i32>,
     pub security_headers: Option<serde_json::Value>,
     pub server_timing_breakdown: Option<serde_json::Value>,
     pub probe_version: Option<String>,
     pub is_manual: bool,
-    pub bypass_served_by: Option<String>,
-    pub bypass_server_timing: Option<String>,
-    pub bypass_server_timing_breakdown: Option<serde_json::Value>,
-    pub bypass_age_s: Option<i32>,
 }

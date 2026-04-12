@@ -30,60 +30,99 @@ pub async fn handler(
     }
 
     tracing::info!("Ingest: received result for monitor {} from region {} | bypass_ttfb: {:?}", payload.monitor_id, payload.region, payload.bypass_ttfb_ms);
-    let result = sqlx::query(
-        r#"
-        INSERT INTO probe_results (
-            time, monitor_id, region,
-            ttfb_ms, download_ms, total_ms, dns_ms, tcp_ms, tls_ms, edge_ms, origin_ms,
-            status_code, cache_status, served_by, server_timing,
-            http_version, redirect_count, content_length, error,
-            bypass_ttfb_ms, bypass_total_ms, bypass_status_code, bypass_error,
-            age_s, security_headers, server_timing_breakdown, probe_version, is_manual,
-            bypass_served_by, bypass_server_timing, bypass_server_timing_breakdown, bypass_age_s
-        ) VALUES (
-            NOW(), $1, $2,
-            $3, $4, $5, $6, $7, $8, $9, $10,
-            $11, $12, $13, $14,
-            $15, $16, $17, $18,
-            $19, $20, $21, $22,
-            $23, $24, $25, $26, $27,
-            $28, $29, $30, $31
+    
+    let result = if payload.bypass_ttfb_ms.is_some() {
+        // Rota de Auditoria de Infraestrutura (Bypass)
+        sqlx::query(
+            r#"
+            INSERT INTO audit_results (
+                time, monitor_id, region,
+                origin_ttfb_ms, origin_total_ms, edge_ttfb_ms, edge_total_ms,
+                origin_dns_ms, origin_tcp_ms, origin_tls_ms,
+                edge_dns_ms, edge_tcp_ms, edge_tls_ms,
+                origin_status_code, origin_error, origin_served_by,
+                edge_status_code, edge_cache_status, edge_served_by,
+                content_length, is_manual, probe_version, server_timing_breakdown
+            ) VALUES (
+                NOW(), $1, $2,
+                $3, $4, $5, $6,
+                $7, $8, $9,
+                $10, $11, $12,
+                $13, $14, $15,
+                $16, $17, $18,
+                $19, $20, $21, $22
+            )
+            "#,
         )
-        "#,
-    )
-    .bind(payload.monitor_id)
-    .bind(payload.region.clone())
-    .bind(payload.ttfb_ms)
-    .bind(payload.download_ms)
-    .bind(payload.total_ms)
-    .bind(payload.dns_ms)
-    .bind(payload.tcp_ms)
-    .bind(payload.tls_ms)
-    .bind(payload.edge_ms)
-    .bind(payload.origin_ms)
-    .bind(payload.status_code)
-    .bind(payload.cache_status.clone())
-    .bind(payload.served_by.clone())
-    .bind(payload.server_timing.clone())
-    .bind(payload.http_version.clone())
-    .bind(payload.redirect_count)
-    .bind(payload.content_length)
-    .bind(payload.error.clone())
-    .bind(payload.bypass_ttfb_ms)
-    .bind(payload.bypass_total_ms)
-    .bind(payload.bypass_status_code)
-    .bind(payload.bypass_error.clone())
-    .bind(payload.age_s)
-    .bind(payload.security_headers.clone())
-    .bind(payload.server_timing_breakdown.clone())
-    .bind(payload.probe_version.clone())
-    .bind(payload.is_manual)
-    .bind(payload.bypass_served_by.clone())
-    .bind(payload.bypass_server_timing.clone())
-    .bind(payload.bypass_server_timing_breakdown.clone())
-    .bind(payload.bypass_age_s)
-    .execute(&state.db)
-    .await;
+        .bind(payload.monitor_id)
+        .bind(payload.region.clone())
+        .bind(payload.bypass_ttfb_ms) // origin_ttfb
+        .bind(payload.bypass_total_ms)
+        .bind(payload.ttfb_ms)        // edge_ttfb
+        .bind(payload.total_ms)
+        .bind(payload.bypass_dns_ms)
+        .bind(payload.bypass_tcp_ms)
+        .bind(payload.bypass_tls_ms)
+        .bind(payload.dns_ms)
+        .bind(payload.tcp_ms)
+        .bind(payload.tls_ms)
+        .bind(payload.bypass_status_code)
+        .bind(payload.bypass_error.clone())
+        .bind(payload.bypass_served_by.clone())
+        .bind(payload.status_code)
+        .bind(payload.cache_status.clone())
+        .bind(payload.served_by.clone())
+        .bind(payload.content_length)
+        .bind(payload.is_manual)
+        .bind(payload.probe_version.clone())
+        .bind(payload.server_timing_breakdown.clone())
+        .execute(&state.db)
+        .await
+    } else {
+        // Rota de Monitoramento Natural (Pureza estatística)
+        sqlx::query(
+            r#"
+            INSERT INTO probe_results (
+                time, monitor_id, region,
+                ttfb_ms, download_ms, total_ms, dns_ms, tcp_ms, tls_ms, edge_ms, origin_ms,
+                status_code, cache_status, served_by, server_timing,
+                http_version, redirect_count, content_length, error,
+                age_s, security_headers, server_timing_breakdown, probe_version, is_manual
+            ) VALUES (
+                NOW(), $1, $2,
+                $3, $4, $5, $6, $7, $8, $9, $10,
+                $11, $12, $13, $14,
+                $15, $16, $17, $18,
+                $19, $20, $21, $22, $23
+            )
+            "#,
+        )
+        .bind(payload.monitor_id)
+        .bind(payload.region.clone())
+        .bind(payload.ttfb_ms)
+        .bind(payload.download_ms)
+        .bind(payload.total_ms)
+        .bind(payload.dns_ms)
+        .bind(payload.tcp_ms)
+        .bind(payload.tls_ms)
+        .bind(payload.edge_ms)
+        .bind(payload.origin_ms)
+        .bind(payload.status_code)
+        .bind(payload.cache_status.clone())
+        .bind(payload.served_by.clone())
+        .bind(payload.server_timing.clone())
+        .bind(payload.http_version.clone())
+        .bind(payload.redirect_count)
+        .bind(payload.content_length)
+        .bind(payload.error.clone())
+        .bind(payload.age_s)
+        .bind(payload.security_headers.clone())
+        .bind(payload.server_timing_breakdown.clone())
+        .bind(payload.probe_version.clone())
+        .bind(payload.is_manual)
+        .execute(&state.db)
+        .await
+    };
 
     match result {
         Ok(_) => {

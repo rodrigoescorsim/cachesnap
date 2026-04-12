@@ -79,12 +79,6 @@ const POP_CITY_MAP: Record<string, string> = {
   'ATH': 'Athens',
   'OTP': 'Bucharest',
   'SOF': 'Sofia',
-  'MXP': 'Milan',
-  'ARN': 'Stockholm',
-  'WAW': 'Warsaw',
-  'PRG': 'Prague',
-  'VIE': 'Vienna',
-  'ZUR': 'Zurich',
   
   // Asia / Pacific
   'SIN': 'Singapore',

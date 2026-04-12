@@ -186,120 +186,94 @@ async function runProbe(
   };
 
   try {
-    // Seguir redirects manualmente para contar os hops
-    const { redirectCount } = await fetchWithRedirectCount(targetUrl);
-    base.redirect_count = redirectCount;
-
-    // TTFB: tempo até receber os headers de resposta
-    // O CF Worker mede com performance.now() antes e depois do await fetch()
-    // O tempo de "await fetch()" em CF Workers = tempo até os headers chegarem = TTFB
-    const fetchStart = performance.now();
-    const response = await fetch(targetUrl, {
-      redirect: "follow",
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Accept-Encoding": "gzip, deflate, br",
-      },
-    });
-    const ttfbEnd = performance.now();
-
-    // Download: consumir o body e medir
-    const bodyBytes = await response.arrayBuffer();
-    const totalEnd = performance.now();
-
-    // Log debug headers (Visivel no wrangler tail)
-    const allHeaders = [...response.headers.entries()].map(([k, v]) => `${k}:${v}`).join(' | ');
-    console.log(`[DEBUG] Monitors ${monitorId} Headers: ${allHeaders}`);
-
-    base.ttfb_ms = round(ttfbEnd - fetchStart);
-    base.download_ms = round(totalEnd - ttfbEnd);
-    base.total_ms = round(totalEnd - fetchStart);
-    base.status_code = response.status;
-    base.content_length = bodyBytes.byteLength;
-
-    // Detectar versão HTTP via headers de diagnóstico
-    base.http_version = detectHttpVersion(response.headers);
-
-    // Ler headers de diagnóstico de cache e edge
-    base.cache_status = readCacheStatus(response.headers);
-    if (base.cache_status) {
-      console.log(`[DEBUG] Found Cache Status: ${base.cache_status}`);
-    }
-
-    // Corrigido: Só confiar no CF-Ray se o destino for comprovadamente Cloudflare.
-    // Caso contrário, estaríamos lendo o raio de diagnóstico do próprio nó do Worker.
-    const isCloudflare = response.headers.get("server")?.toLowerCase().includes("cloudflare") 
-                      || response.headers.has("cf-cache-status")
-                      || response.headers.has("cf-ray");
-
-    base.served_by = null;
-    if (isCloudflare) {
-      base.served_by = response.headers.get("CF-Ray");
-    } 
-    
-    // Se não for CF ou se CF-Ray falhou, tenta outros provedores conhecidos
-    if (!base.served_by) {
-      base.served_by = response.headers.get("X-Served-By")  // Fastly / Varnish
-                    ?? response.headers.get("X-Vercel-Id")   // Vercel (contem o PoP)
-                    ?? response.headers.get("X-Amz-Cf-Id")   // CloudFront
-                    ?? response.headers.get("X-Azure-Ref")   // Azure
-                    ?? null;
-    }
-
-    // Captura o cabeçalho Server-Timing (case insensitive e tenta variação com hífen)
-    base.server_timing = response.headers.get("Server-Timing") ?? response.headers.get("server-timing");
-    const xTimer = response.headers.get("X-Timer") ?? response.headers.get("x-timer");
-
-    if (base.server_timing || xTimer) {
-      if (base.server_timing) console.log(`[DEBUG] Found Server-Timing: ${base.server_timing}`);
-      if (xTimer) console.log(`[DEBUG] Found Fastly X-Timer: ${xTimer}`);
-
-      const timing = parseServerTiming(base.server_timing, xTimer);
-      base.edge_ms = timing.edge_ms;
-      base.origin_ms = timing.origin_ms;
-      base.server_timing_breakdown = timing.breakdown;
-    } else {
-      console.log(`[DEBUG] Performance HEADERS (Server-Timing/X-Timer) ARE MISSING`);
-    }
-
-    // Age header — zombie cache detection (Age > 86400 → content older than 24h)
-    const ageHeader = response.headers.get("Age");
-    if (ageHeader) {
-      const parsed = parseInt(ageHeader, 10);
-      base.age_s = isNaN(parsed) ? null : parsed;
-    }
-
-    // Security headers audit (5-point score)
-    base.security_headers = collectSecurityHeaders(response.headers);
-
-    // Usar redirect count do rastreamento manual
-    base.redirect_count = redirectCount;
-
-    // Native bypass probe: run only if requested (default once per hour from scheduler).
     if (runBypass) {
-      const bypassMetrics = await runBypassProbe(targetUrl);
-      base.bypass_ttfb_ms = bypassMetrics.ttfb_ms;
-      base.bypass_total_ms = bypassMetrics.total_ms;
-      base.bypass_status_code = bypassMetrics.status_code;
-      base.bypass_error = bypassMetrics.error;
+      // MODO DIAGNÓSTICO: Bypass-First Sequence
+      // 1. PRIMEIRO PASSO: Bypass Probe (Sempre começamos forçando a Origem)
+      console.log(`[probe] Step 1: Bypass check for ${targetUrl}`);
+      const bypassResult = await performDetailedFetch(targetUrl, true);
+      
+      // Registramos os dados do bypass (Origin) na base
+      base.bypass_ttfb_ms = bypassResult.ttfb_ms;
+      base.bypass_total_ms = bypassResult.total_ms;
+      // Note: CF Workers fetch() does not expose DNS/TCP/TLS timings yet, but we map them if available.
+      
+      base.bypass_status_code = bypassResult.status_code;
+      base.bypass_error = bypassResult.error;
+      base.bypass_served_by = bypassResult.served_by;
+      
+      // Dados básicos e de segurança iniciais a partir da primeira resposta
+      assignMetricsToBase(base, bypassResult);
+
+      // 2. DECISAO REATIVA: Precisamos da segunda chamada?
+      // Se o status for HIT, a CDN "travou" o cache mesmo com cabeçalhos de bypass.
+      const isHit = base.cache_status === 'HIT';
+      
+      if (!isHit && !base.bypass_error) {
+         console.log(`[probe] Step 2: Immediate Normal check (Bypass was ${base.cache_status})`);
+         const normalResult = await performDetailedFetch(targetUrl, false);
+         
+         // Atualizamos as métricas de "Edge" (Cache) com os resultados da segunda chamada.
+         base.ttfb_ms = normalResult.ttfb_ms;
+         base.download_ms = normalResult.download_ms;
+         base.total_ms = normalResult.total_ms;
+         base.cache_status = normalResult.cache_status;
+         base.status_code = normalResult.status_code;
+      } else {
+         // Se foi HIT ou erro no bypass, os tempos de Borda são os mesmos do bypass.
+         base.ttfb_ms = bypassResult.ttfb_ms;
+         base.download_ms = bypassResult.download_ms;
+         base.total_ms = bypassResult.total_ms;
+      }
+    } else {
+      // MODO NATURAL: Apenas uma chamada normal para refletir a experiência orgânica
+      console.log(`[probe] Step 1: Normal natural check for ${targetUrl}`);
+      const normalResult = await performDetailedFetch(targetUrl, false);
+      
+      assignMetricsToBase(base, normalResult);
+      base.ttfb_ms = normalResult.ttfb_ms;
+      base.download_ms = normalResult.download_ms;
+      base.total_ms = normalResult.total_ms;
     }
 
   } catch (err) {
     base.error = err instanceof Error ? err.message : String(err);
   }
 
-  // If bypass was requested but failed or wasn't captured, return partial base.
-  // We no longer force collection here if runBypass is false.
-
   return base;
 }
 
-interface BypassProbeMetrics {
+/** Helper to copy metrics from a single fetch to the base result object. */
+function assignMetricsToBase(base: ProbeResult, result: FetchMetrics) {
+  base.status_code = result.status_code;
+  base.cache_status = result.cache_status;
+  base.http_version = result.http_version;
+  base.served_by = result.served_by;
+  base.content_length = result.content_length;
+  base.redirect_count = result.redirect_count;
+  base.age_s = result.age_s;
+  base.security_headers = result.security_headers;
+  base.server_timing = result.server_timing;
+  base.edge_ms = result.edge_ms;
+  base.origin_ms = result.origin_ms;
+  base.server_timing_breakdown = result.server_timing_breakdown;
+}
+
+interface FetchMetrics {
   ttfb_ms: number | null;
+  download_ms: number | null;
   total_ms: number | null;
   status_code: number | null;
+  content_length: number | null;
+  cache_status: string | null;
+  served_by: string | null;
+  http_version: string | null;
+  redirect_count: number;
+  server_timing: string | null;
+  edge_ms: number | null;
+  origin_ms: number | null;
+  server_timing_breakdown: Record<string, number> | null;
+  age_s: number | null;
+  security_headers: SecurityHeaders | null;
   error: string | null;
 }
 
@@ -316,41 +290,90 @@ function appendBypassParam(url: string): string {
   }
 }
 
-async function runBypassProbe(targetUrl: string): Promise<BypassProbeMetrics> {
-  const bypassUrl = appendBypassParam(targetUrl);
-  const result: BypassProbeMetrics = {
+async function performDetailedFetch(targetUrl: string, useBypassHeaders: boolean): Promise<FetchMetrics> {
+  const url = useBypassHeaders ? appendBypassParam(targetUrl) : targetUrl;
+  const metrics: FetchMetrics = {
     ttfb_ms: null,
+    download_ms: null,
     total_ms: null,
     status_code: null,
+    content_length: null,
+    cache_status: null,
+    served_by: null,
+    http_version: null,
+    redirect_count: 0,
+    server_timing: null,
+    edge_ms: null,
+    origin_ms: null,
+    server_timing_breakdown: null,
+    age_s: null,
+    security_headers: null,
     error: null,
   };
 
   try {
-    const start = performance.now();
-    const response = await fetch(bypassUrl, {
-      redirect: "follow",
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        "Pragma": "no-cache",
-        "Expires": "0"
-      },
-    });
-    const ttfbEnd = performance.now();
-    await response.arrayBuffer();
-    const end = performance.now();
+    const { redirectCount } = await fetchWithRedirectCount(url);
+    metrics.redirect_count = redirectCount;
 
-    result.ttfb_ms = round(ttfbEnd - start);
-    result.total_ms = round(end - start);
-    result.status_code = response.status;
+    const start = performance.now();
+    const headers: Record<string, string> = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.5",
+      "Accept-Encoding": "gzip, deflate, br",
+    };
+
+    if (useBypassHeaders) {
+      headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+      headers["Pragma"] = "no-cache";
+      headers["Expires"] = "0";
+    }
+
+    const response = await fetch(url, { redirect: "follow", headers });
+    const ttfbEnd = performance.now();
+    const body = await response.arrayBuffer();
+    const totalEnd = performance.now();
+
+    metrics.ttfb_ms = round(ttfbEnd - start);
+    metrics.download_ms = round(totalEnd - ttfbEnd);
+    metrics.total_ms = round(totalEnd - start);
+    metrics.status_code = response.status;
+    metrics.content_length = body.byteLength;
+    metrics.http_version = detectHttpVersion(response.headers);
+    metrics.cache_status = readCacheStatus(response.headers);
+    
+    // Served-By detection
+    const isCloudflare = response.headers.get("server")?.toLowerCase().includes("cloudflare") 
+                      || response.headers.has("cf-cache-status")
+                      || response.headers.has("cf-ray");
+
+    if (isCloudflare) {
+      metrics.served_by = response.headers.get("CF-Ray");
+    } else {
+      metrics.served_by = response.headers.get("X-Served-By") 
+                       ?? response.headers.get("X-Vercel-Id") 
+                       ?? response.headers.get("X-Amz-Cf-Id") 
+                       ?? null;
+    }
+
+    metrics.server_timing = response.headers.get("Server-Timing") ?? response.headers.get("server-timing");
+    const xTimer = response.headers.get("X-Timer") ?? response.headers.get("x-timer");
+    if (metrics.server_timing || xTimer) {
+      const timing = parseServerTiming(metrics.server_timing, xTimer);
+      metrics.edge_ms = timing.edge_ms;
+      metrics.origin_ms = timing.origin_ms;
+      metrics.server_timing_breakdown = timing.breakdown;
+    }
+
+    const age = response.headers.get("Age");
+    if (age) metrics.age_s = parseInt(age, 10) || null;
+    metrics.security_headers = collectSecurityHeaders(response.headers);
+
   } catch (err) {
-    result.error = err instanceof Error ? err.message : String(err);
+    metrics.error = err instanceof Error ? err.message : String(err);
   }
 
-  return result;
+  return metrics;
 }
 
 // Faz fetch seguindo redirects manualmente para contar os hops
