@@ -22,8 +22,9 @@ pub async fn handler(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(monitor_id): Path<Uuid>,
-    Json(payload): Json<DispatchRequest>,
+    payload: Option<Json<DispatchRequest>>,
 ) -> impl IntoResponse {
+    let payload = payload.map(|p| p.0).unwrap_or(DispatchRequest { bypass: None, is_manual: None });
     let secret = headers
         .get("x-probe-secret")
         .and_then(|v| v.to_str().ok())
@@ -38,6 +39,7 @@ pub async fn handler(
         r#"SELECT id as "id!", user_id as "user_id!", url as "url!", name,
                   check_interval_seconds as "check_interval_seconds!",
                   alert_threshold_ms as "alert_threshold_ms!",
+                  audit_interval_seconds,
                   is_active as "is_active!", created_at as "created_at!",
                   notify_email, notify_email_enabled as "notify_email_enabled!",
                   notify_slack_webhook, notify_slack_enabled as "notify_slack_enabled!"

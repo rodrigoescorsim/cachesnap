@@ -6,8 +6,8 @@ import sql from '@/lib/db'
 const createSchema = z.object({
   url: z.string().url('Must be a valid URL'),
   name: z.string().max(100).optional(),
-  check_interval_seconds: z.number().int().min(60).max(3600).default(300),
-  alert_threshold_ms: z.number().int().min(1000).max(30000).default(5000),
+  check_interval_seconds: z.number().int().min(1).default(60),
+  audit_interval_seconds: z.number().int().min(1).default(3600),
 })
 
 function normalizeMonitorUrl(rawUrl: string): string {
@@ -21,7 +21,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const monitors = await sql`
-    SELECT id, url, name, check_interval_seconds, alert_threshold_ms, is_active, created_at
+    SELECT id, url, name, check_interval_seconds, audit_interval_seconds, is_active, created_at
     FROM monitors
     WHERE user_id = ${user.id}
     ORDER BY created_at DESC
@@ -43,20 +43,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
   }
 
-  const { url, name, check_interval_seconds, alert_threshold_ms } = parsed.data
+  const { url, name, check_interval_seconds, audit_interval_seconds } = parsed.data
   const normalizedUrl = normalizeMonitorUrl(url)
 
   const [monitor] = await sql`
-    INSERT INTO monitors (user_id, url, name, check_interval_seconds, alert_threshold_ms)
-    VALUES (${user.id}, ${normalizedUrl}, ${name ?? null}, ${check_interval_seconds}, ${alert_threshold_ms})
-    RETURNING id, url, name, check_interval_seconds, alert_threshold_ms, is_active, created_at
+    INSERT INTO monitors (user_id, url, name, check_interval_seconds, audit_interval_seconds)
+    VALUES (${user.id}, ${normalizedUrl}, ${name ?? null}, ${check_interval_seconds}, ${audit_interval_seconds})
+    RETURNING id, url, name, check_interval_seconds, audit_interval_seconds, is_active, created_at
   `
 
   // Disparar probes imediatamente em background — não bloqueia a response
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
   fetch(`${apiUrl}/api/monitors/${monitor.id}/dispatch`, {
     method: 'POST',
-    headers: { 'x-probe-secret': process.env.PROBE_SECRET ?? '' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'x-probe-secret': process.env.PROBE_SECRET ?? '' 
+    },
+    body: JSON.stringify({}),
   }).catch(() => {}) // fire-and-forget
 
   return NextResponse.json(monitor, { status: 201 })

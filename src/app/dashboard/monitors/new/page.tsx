@@ -15,7 +15,8 @@ export default function NewMonitorPage() {
     const formData = new FormData(e.currentTarget)
     const url = formData.get('url') as string
     const name = formData.get('name') as string
-    const alert_threshold_s = Number(formData.get('alert_threshold_s'))
+    const check_interval_seconds = Number(formData.get('check_interval_seconds'))
+    const audit_interval_seconds = Number(formData.get('audit_interval_seconds'))
   
     if (!url) {
       setErrors({ url: 'URL is required' })
@@ -34,7 +35,8 @@ export default function NewMonitorPage() {
         body: JSON.stringify({
           url,
           name: name || undefined,
-          alert_threshold_ms: (alert_threshold_s || 5) * 1000,
+          check_interval_seconds: check_interval_seconds || 180,
+          audit_interval_seconds: audit_interval_seconds || 1800,
         }),
       })
   
@@ -52,7 +54,7 @@ export default function NewMonitorPage() {
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Add monitor</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          HopLens will probe your URL from 5 global regions every 5 minutes.
+          HopLens will probe your URL from multiple global regions.
         </p>
       </div>
 
@@ -88,23 +90,38 @@ export default function NewMonitorPage() {
           />
         </div>
 
-        <div>
-          <label htmlFor="alert_threshold_s" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Alert threshold (seconds)
-          </label>
-          <input
-            id="alert_threshold_s"
-            name="alert_threshold_s"
-            type="number"
-            defaultValue={5}
-            min={1}
-            max={30}
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
-          />
-          <p className="mt-1 text-xs text-zinc-400">Alert when TTFB exceeds this value</p>
-          {errors.alert_threshold_s && (
-            <p className="mt-1 text-xs text-red-500">{errors.alert_threshold_s}</p>
-          )}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="check_interval_seconds" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+              Monitoring interval
+            </label>
+            <select
+              id="check_interval_seconds"
+              name="check_interval_seconds"
+              defaultValue={180}
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+            >
+              <option value={60}>1 minute</option>
+              <option value={180}>3 minutes</option>
+              <option value={300}>5 minutes</option>
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="audit_interval_seconds" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+              Audit (Bypass) interval
+            </label>
+            <select
+              id="audit_interval_seconds"
+              name="audit_interval_seconds"
+              defaultValue={1800}
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+            >
+              <option value={900}>15 minutes</option>
+              <option value={1800}>30 minutes</option>
+              <option value={3600}>60 minutes</option>
+            </select>
+          </div>
         </div>
 
         <div className="flex gap-3 pt-2">

@@ -33,7 +33,6 @@ pub async fn run(state: AppState) {
             WHERE time > NOW() - INTERVAL '7 days'
               AND error IS NULL
               AND ttfb_ms IS NOT NULL
-              AND is_manual = FALSE
             GROUP BY monitor_id, region
             "#
         )

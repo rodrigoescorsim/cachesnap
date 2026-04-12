@@ -6,6 +6,14 @@
  *   silencing the ~7 concurrent region probes from unrelated monitors.
  */
 export function shouldRefresh(incomingId: string, watchId?: string): boolean {
-  if (!watchId) return true
-  return incomingId === watchId
+  try {
+    const data = JSON.parse(incomingId)
+    const monitorId = data.m
+    if (!watchId) return true
+    return monitorId === watchId
+  } catch (e) {
+    // Fallback para caso chegue o ID puro (legado ou simplificado)
+    if (!watchId) return true
+    return incomingId === watchId
+  }
 }

@@ -16,7 +16,7 @@ interface Props {
   debounceMs?: number
 }
 
-export function RealTimeHub({ userId, watchId, debounceMs = 2_000 }: Props) {
+export function RealTimeHub({ userId, watchId, debounceMs = 1_000 }: Props) {
   const router = useRouter()
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 

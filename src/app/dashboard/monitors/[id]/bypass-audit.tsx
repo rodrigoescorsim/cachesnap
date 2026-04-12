@@ -8,6 +8,7 @@ interface BypassPoint {
   edge_ttfb: number
   origin_ttfb: number
   savings: number
+  edge_cache_status: string | null
 }
 
 interface BypassAuditProps {
@@ -31,9 +32,13 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
   const [selectedHour, setSelectedHour] = useState<string | null>(hours[0] || null)
 
   const currentItems = selectedHour ? itemsByHour[selectedHour] : []
-  const totalEdge = currentItems.reduce((sum, item) => sum + item.edge_ttfb, 0)
-  const totalOrigin = currentItems.reduce((sum, item) => sum + item.origin_ttfb, 0)
-  const avgSavingMs = currentItems.length > 0 ? (totalOrigin - totalEdge) / currentItems.length : 0
+  
+  // Para a análise de impacto global, só consideramos o que temos certeza que foi HIT
+  const confirmedHits = currentItems.filter(item => item.edge_cache_status?.toUpperCase() === 'HIT')
+  
+  const totalEdge = confirmedHits.reduce((sum, item) => sum + item.edge_ttfb, 0)
+  const totalOrigin = confirmedHits.reduce((sum, item) => sum + item.origin_ttfb, 0)
+  const avgSavingMs = confirmedHits.length > 0 ? (totalOrigin - totalEdge) / confirmedHits.length : 0
   const avgSavingPct = totalOrigin > 0 ? ((totalOrigin - totalEdge) / totalOrigin) * 100 : 0
 
   if (hours.length === 0) {
@@ -66,11 +71,10 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
               <button
                 key={h}
                 onClick={() => setSelectedHour(h)}
-                className={`shrink-0 flex flex-col items-center justify-center min-w-[72px] py-1.5 rounded-xl border transition-all ${
-                  isActive
+                className={`shrink-0 flex flex-col items-center justify-center min-w-[72px] py-1.5 rounded-xl border transition-all ${isActive
                     ? 'bg-zinc-900 dark:bg-zinc-50 border-zinc-900 dark:border-zinc-50 text-white dark:text-zinc-950 shadow-lg shadow-zinc-200 dark:shadow-none'
                     : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-400 dark:hover:border-zinc-600'
-                }`}
+                  }`}
               >
                 <span className="text-[9px] font-bold uppercase tracking-tight opacity-50">
                   {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -87,37 +91,57 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
       {/* Impact Summary - Unified Wide Card */}
       <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/50 p-4 shadow-sm relative overflow-hidden">
         <div className="absolute top-0 right-0 p-4 pt-5 opacity-10 dark:opacity-5">
-           <svg className="w-24 h-24 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-           </svg>
+          <svg className="w-24 h-24 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
         </div>
-        
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.15em]">Global Impact Analysis</div>
             <div className="flex items-baseline gap-3">
-              <span className={`text-4xl font-black tracking-tighter ${avgSavingMs > 0 ? 'text-emerald-500' : 'text-amber-500'}`}>
-                {avgSavingMs > 0 ? '-' : '+'}{Math.abs(Math.round(avgSavingMs))}ms
-              </span>
-              <div className="flex flex-col">
-                <span className={`text-sm font-bold ${avgSavingMs > 0 ? 'text-emerald-500' : 'text-amber-500'}`}>
-                  {avgSavingMs > 0 ? '-' : '+'}{Math.abs(Math.round(avgSavingPct))}% {avgSavingMs > 0 ? 'Saved' : 'Added'}
-                </span>
-                <span className="text-[10px] font-medium text-zinc-500 uppercase">
-                  {avgSavingMs > 0 ? 'CDN Benefit' : 'Performance Penalty'}
-                </span>
-              </div>
+              {confirmedHits.length > 0 ? (
+                <>
+                  <span className={`text-4xl font-black tracking-tighter ${avgSavingMs > 0 ? 'text-emerald-500' : 'text-amber-500'}`}>
+                    {avgSavingMs > 0 ? '-' : '+'}{Math.abs(Math.round(avgSavingMs))}ms
+                  </span>
+                  <div className="flex flex-col">
+                    <span className={`text-sm font-bold ${avgSavingMs > 0 ? 'text-emerald-500' : 'text-amber-500'}`}>
+                      {avgSavingMs > 0 ? '-' : '+'}{Math.abs(Math.round(avgSavingPct))}% {avgSavingMs > 0 ? 'Saved' : 'Added'}
+                    </span>
+                    <span className="text-[10px] font-medium text-zinc-500 uppercase">
+                      {avgSavingMs > 0 ? 'CDN Benefit' : 'Performance Penalty'}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span className="text-4xl font-black tracking-tighter text-zinc-300">
+                    —ms
+                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-zinc-400">
+                      Baseline Pending
+                    </span>
+                    <span className="text-[10px] font-medium text-zinc-500 uppercase">
+                      Waiting for cache hit
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
-          
+
           <div className="flex flex-col sm:items-end gap-1 px-4 sm:border-l border-zinc-100 dark:border-zinc-800">
-             <div className="flex items-center gap-1.5 font-bold text-zinc-700 dark:text-zinc-300 text-xs">
-                <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                Edge (HIT) vs Origin (Direct)
-             </div>
-             <p className="text-[11px] text-zinc-400 max-w-[240px] sm:text-right leading-tight">
-               Aggregated metrics for {currentItems.length} regions with verified cache hits in this 60min window.
-             </p>
+            <div className="flex items-center gap-1.5 font-bold text-zinc-700 dark:text-zinc-300 text-xs">
+              <div className={`h-2 w-2 rounded-full ${confirmedHits.length > 0 ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
+              Edge (HIT) vs Origin (Direct)
+            </div>
+            <p className="text-[11px] text-zinc-400 max-w-[240px] sm:text-right leading-tight">
+              {confirmedHits.length > 0 
+                ? `Aggregated metrics for ${confirmedHits.length} regions with verified cache hits in this 60min window.`
+                : `No verified cache hits available for analysis in this window.`}
+            </p>
           </div>
         </div>
       </div>
@@ -135,9 +159,9 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {currentItems.map((row) => {
+              const isHit = row.edge_cache_status?.toUpperCase() === 'HIT'
               const itemSaving = row.origin_ttfb - row.edge_ttfb
               const isSaving = itemSaving > 0
-              const itemPct = row.origin_ttfb > 0 ? (itemSaving / row.origin_ttfb) * 100 : 0
               return (
                 <tr key={row.region} className="group hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20 transition-colors">
                   <td className="px-4 py-3.5">
@@ -146,7 +170,11 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
                     </div>
                   </td>
                   <td className="px-4 py-3.5 text-right tabular-nums font-mono text-zinc-700 dark:text-zinc-300">
-                    <span className="text-[10px] uppercase font-bold text-zinc-400 mr-2">HIT</span>
+                    {isHit ? (
+                      <span className="text-[10px] uppercase font-bold text-emerald-500 mr-2">HIT</span>
+                    ) : (
+                      <span className="text-[10px] uppercase font-bold text-zinc-400 mr-2">EDGE</span>
+                    )}
                     {Math.round(row.edge_ttfb)}ms
                   </td>
                   <td className="px-4 py-3.5 text-right tabular-nums font-mono text-zinc-400">
@@ -168,7 +196,7 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
           </tbody>
         </table>
       </div>
-      
+
       <p className="text-[10px] text-zinc-400 italic px-1 text-center font-medium">
         Historical snapshots are persisted hourly. Previous hours provide a baseline for CDN propagation stability.
       </p>

@@ -5,7 +5,8 @@ import sql from '@/lib/db'
 
 const updateSchema = z.object({
   name: z.string().max(100).optional(),
-  alert_threshold_ms: z.number().int().min(1000).max(30000).optional(),
+  check_interval_seconds: z.number().int().min(1).optional(),
+  audit_interval_seconds: z.number().int().min(1).optional(),
   is_active: z.boolean().optional(),
   notify_email: z.string().email().max(254).nullable().optional(),
   notify_email_enabled: z.boolean().optional(),
@@ -22,7 +23,7 @@ export async function GET(
 
   const { id } = await params
   const [monitor] = await sql`
-    SELECT id, url, name, check_interval_seconds, alert_threshold_ms, is_active,
+    SELECT id, url, name, check_interval_seconds, audit_interval_seconds, is_active,
            notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
            created_at
     FROM monitors WHERE id = ${id} AND user_id = ${user.id} LIMIT 1
@@ -50,14 +51,14 @@ export async function PATCH(
   }
 
   const {
-    name, alert_threshold_ms, is_active,
+    name, check_interval_seconds, audit_interval_seconds, is_active,
     notify_email, notify_email_enabled,
     notify_slack_webhook, notify_slack_enabled,
   } = parsed.data
 
   if (
-    name === undefined && alert_threshold_ms === undefined && is_active === undefined &&
-    notify_email === undefined && notify_email_enabled === undefined &&
+    name === undefined && check_interval_seconds === undefined && audit_interval_seconds === undefined && 
+    is_active === undefined && notify_email === undefined && notify_email_enabled === undefined &&
     notify_slack_webhook === undefined && notify_slack_enabled === undefined
   ) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
@@ -66,15 +67,16 @@ export async function PATCH(
   const [monitor] = await sql`
     UPDATE monitors
     SET
-      name                  = COALESCE(${name ?? null}, name),
-      alert_threshold_ms    = COALESCE(${alert_threshold_ms ?? null}, alert_threshold_ms),
-      is_active             = COALESCE(${is_active ?? null}, is_active),
-      notify_email          = CASE WHEN ${notify_email !== undefined} THEN ${notify_email ?? null} ELSE notify_email END,
-      notify_email_enabled  = COALESCE(${notify_email_enabled ?? null}, notify_email_enabled),
-      notify_slack_webhook  = CASE WHEN ${notify_slack_webhook !== undefined} THEN ${notify_slack_webhook ?? null} ELSE notify_slack_webhook END,
-      notify_slack_enabled  = COALESCE(${notify_slack_enabled ?? null}, notify_slack_enabled)
+      name                   = COALESCE(${name ?? null}, name),
+      check_interval_seconds = COALESCE(${check_interval_seconds ?? null}, check_interval_seconds),
+      audit_interval_seconds = COALESCE(${audit_interval_seconds ?? null}, audit_interval_seconds),
+      is_active              = COALESCE(${is_active ?? null}, is_active),
+      notify_email           = CASE WHEN ${notify_email !== undefined} THEN ${notify_email ?? null} ELSE notify_email END,
+      notify_email_enabled   = COALESCE(${notify_email_enabled ?? null}, notify_email_enabled),
+      notify_slack_webhook   = CASE WHEN ${notify_slack_webhook !== undefined} THEN ${notify_slack_webhook ?? null} ELSE notify_slack_webhook END,
+      notify_slack_enabled   = COALESCE(${notify_slack_enabled ?? null}, notify_slack_enabled)
     WHERE id = ${id} AND user_id = ${user.id}
-    RETURNING id, url, name, check_interval_seconds, alert_threshold_ms, is_active,
+    RETURNING id, url, name, check_interval_seconds, audit_interval_seconds, is_active,
               notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
               created_at
   `

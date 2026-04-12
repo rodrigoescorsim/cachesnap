@@ -10,6 +10,7 @@ pub struct Monitor {
     pub name: Option<String>,
     pub check_interval_seconds: i32,
     pub alert_threshold_ms: i32,
+    pub audit_interval_seconds: Option<i32>,
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub notify_email: Option<String>,

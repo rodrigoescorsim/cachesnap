@@ -31,9 +31,11 @@ pub async fn handler(
 
     tracing::info!("Ingest: received result for monitor {} from region {} | bypass_ttfb: {:?}", payload.monitor_id, payload.region, payload.bypass_ttfb_ms);
     
-    let result = if payload.bypass_ttfb_ms.is_some() {
-        // Rota de Auditoria de Infraestrutura (Bypass)
-        sqlx::query(
+    let mut final_result = Ok(());
+
+    // 1. Rota de Auditoria (Bypass / Infraestrutura)
+    if payload.bypass_ttfb_ms.is_some() {
+        let audit_res = sqlx::query(
             r#"
             INSERT INTO audit_results (
                 time, monitor_id, region,
@@ -56,9 +58,9 @@ pub async fn handler(
         )
         .bind(payload.monitor_id)
         .bind(payload.region.clone())
-        .bind(payload.bypass_ttfb_ms) // origin_ttfb
+        .bind(payload.bypass_ttfb_ms)
         .bind(payload.bypass_total_ms)
-        .bind(payload.ttfb_ms)        // edge_ttfb
+        .bind(payload.ttfb_ms)
         .bind(payload.total_ms)
         .bind(payload.bypass_dns_ms)
         .bind(payload.bypass_tcp_ms)
@@ -77,23 +79,32 @@ pub async fn handler(
         .bind(payload.probe_version.clone())
         .bind(payload.server_timing_breakdown.clone())
         .execute(&state.db)
-        .await
-    } else {
-        // Rota de Monitoramento Natural (Pureza estatística)
-        sqlx::query(
+        .await;
+
+        if let Err(e) = audit_res {
+            tracing::error!("Failed to insert audit result: {e}");
+            final_result = Err(e);
+        }
+    }
+
+    // 2. Rota de Monitoramento Natural (Pureza estatística)
+    // Se for um probe de bypass, inserimos na probe_results apenas se tivermos dados válidos de ttfb
+    // E, idealmente, se não for redundante. Mas para o primeiro dispatch, queremos tudo.
+    if payload.ttfb_ms.is_some() {
+        let probe_res = sqlx::query(
             r#"
             INSERT INTO probe_results (
                 time, monitor_id, region,
                 ttfb_ms, download_ms, total_ms, dns_ms, tcp_ms, tls_ms, edge_ms, origin_ms,
                 status_code, cache_status, served_by, server_timing,
                 http_version, redirect_count, content_length, error,
-                age_s, security_headers, server_timing_breakdown, probe_version, is_manual
+                age_s, security_headers, server_timing_breakdown, probe_version
             ) VALUES (
                 NOW(), $1, $2,
                 $3, $4, $5, $6, $7, $8, $9, $10,
                 $11, $12, $13, $14,
                 $15, $16, $17, $18,
-                $19, $20, $21, $22, $23
+                $19, $20, $21, $22
             )
             "#,
         )
@@ -119,12 +130,19 @@ pub async fn handler(
         .bind(payload.security_headers.clone())
         .bind(payload.server_timing_breakdown.clone())
         .bind(payload.probe_version.clone())
-        .bind(payload.is_manual)
         .execute(&state.db)
-        .await
-    };
+        .await;
 
-    match result {
+        if let Err(e) = probe_res {
+            // Se for erro de monitoramento natural, logamos.
+            tracing::error!("Failed to insert natural probe result: {e}");
+            if final_result.is_ok() {
+                final_result = Err(e);
+            }
+        }
+    }
+
+    match final_result {
         Ok(_) => {
             // Notificar via real-time (SSE) com isolamento por usuário
             let db = state.db.clone();

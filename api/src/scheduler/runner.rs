@@ -14,7 +14,7 @@ use tracing::{info, error, debug};
 pub async fn start(state: AppState) {
     info!("Scheduler started — probe dispatch loop initialized");
     
-    let mut ticker = interval(Duration::from_secs(10));
+    let mut ticker = interval(Duration::from_secs(1));
     
     let regions = build_regions(&state);
 
@@ -26,6 +26,7 @@ pub async fn start(state: AppState) {
             r#"SELECT id as "id!", user_id as "user_id!", url as "url!", name,
                       check_interval_seconds as "check_interval_seconds!",
                       alert_threshold_ms as "alert_threshold_ms!",
+                      audit_interval_seconds,
                       is_active as "is_active!", created_at as "created_at!",
                       notify_email, notify_email_enabled as "notify_email_enabled!",
                       notify_slack_webhook, notify_slack_enabled as "notify_slack_enabled!"
@@ -94,22 +95,23 @@ async fn should_run_now(state: &AppState, monitor: &Monitor) -> bool {
 }
 
 async fn should_run_bypass(state: &AppState, monitor: &Monitor) -> bool {
-    // 1. Verifica se já passou 1 hora desde o último bypass (via Redis)
-    let interval_passed = check_interval(state, &format!("last_bypass:{}", monitor.id), 3600).await;
+    let interval = monitor.audit_interval_seconds.unwrap_or(3600) as i64;
+    
+    // 1. Verifica se já passou o tempo (via Redis)
+    let interval_passed = check_interval(state, &format!("last_bypass:{}", monitor.id), interval).await;
     if interval_passed {
         return true;
     }
 
-    // 2. Garantia de histórico: Se Redis diz que não deu 1h, mas o banco está vazio de bypass, força agora.
-    // Isso garante que o PRIMEIRO probe de um monitor novo sempre tenha bypass.
+    // 2. Garantia de histórico
     let has_history = sqlx::query!(
-        r#"SELECT EXISTS(SELECT 1 FROM probe_results WHERE monitor_id = $1 AND bypass_ttfb_ms IS NOT NULL LIMIT 1) as "exists!""#,
+        r#"SELECT EXISTS(SELECT 1 FROM audit_results WHERE monitor_id = $1 LIMIT 1) as "exists!""#,
         monitor.id
     )
     .fetch_one(&state.db)
     .await
     .map(|r| r.exists)
-    .unwrap_or(true); // default true para evitar spam em caso de erro no DB
+    .unwrap_or(true);
 
     !has_history
 }

@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation'
 interface Props {
   id: string
   name: string | null
-  alertThresholdMs: number
+  checkIntervalSeconds: number
+  auditIntervalSeconds: number
   isActive: boolean
   notifyEmail: string | null
   notifyEmailEnabled: boolean
@@ -15,7 +16,7 @@ interface Props {
 }
 
 export function MonitorActions({
-  id, name, alertThresholdMs, isActive,
+  id, name, checkIntervalSeconds, auditIntervalSeconds, isActive,
   notifyEmail, notifyEmailEnabled, notifySlackWebhook, notifySlackEnabled,
 }: Props) {
   const router = useRouter()
@@ -96,7 +97,8 @@ export function MonitorActions({
     setPendingAction('edit')
     const formData = new FormData(e.currentTarget)
     const newName = (formData.get('name') as string).trim()
-    const newThreshold = Number(formData.get('alert_threshold_ms'))
+    const check_interval_seconds = Number(formData.get('check_interval_seconds'))
+    const audit_interval_seconds = Number(formData.get('audit_interval_seconds'))
     const emailVal = (formData.get('notify_email') as string).trim()
     const slackVal = (formData.get('notify_slack_webhook') as string).trim()
 
@@ -107,7 +109,8 @@ export function MonitorActions({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: newName || undefined,
-            alert_threshold_ms: Number(newThreshold) * 1000,
+            check_interval_seconds,
+            audit_interval_seconds,
             notify_email: emailVal || null,
             notify_email_enabled: formData.get('notify_email_enabled') === 'on',
             notify_slack_webhook: slackVal || null,
@@ -300,21 +303,38 @@ export function MonitorActions({
               />
             </div>
 
-            <div>
-              <label htmlFor="edit-threshold" className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                Alert threshold (seconds)
-              </label>
-              <input
-                id="edit-threshold"
-                name="alert_threshold_ms"
-                type="number"
-                defaultValue={Math.round(alertThresholdMs / 1000)}
-                min={1}
-                max={30}
-                required
-                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
-              />
-              <p className="mt-1 text-xs text-zinc-400">Alert when TTFB exceeds this value</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="edit-check" className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                  Monitoring interval
+                </label>
+                <select
+                  id="edit-check"
+                  name="check_interval_seconds"
+                  defaultValue={checkIntervalSeconds}
+                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+                >
+                  <option value={60}>1 minute</option>
+                  <option value={180}>3 minutes</option>
+                  <option value={300}>5 minutes</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="edit-audit" className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                  Audit (Bypass)
+                </label>
+                <select
+                  id="edit-audit"
+                  name="audit_interval_seconds"
+                  defaultValue={auditIntervalSeconds}
+                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+                >
+                  <option value={900}>15 minutes</option>
+                  <option value={1800}>30 minutes</option>
+                  <option value={3600}>60 minutes</option>
+                </select>
+              </div>
             </div>
 
             {/* Notifications */}

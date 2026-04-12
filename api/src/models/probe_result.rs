@@ -85,5 +85,4 @@ pub struct ProbeResult {
     pub security_headers: Option<serde_json::Value>,
     pub server_timing_breakdown: Option<serde_json::Value>,
     pub probe_version: Option<String>,
-    pub is_manual: bool,
 }
