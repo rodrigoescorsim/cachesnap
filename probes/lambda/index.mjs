@@ -102,52 +102,54 @@ export const handler = async (event) => {
     const { redirectCount } = await countRedirects(url);
     result.redirect_count = redirectCount;
 
-    // 2. Main probe (Edge)
-    // If it's a manual bypass request, we force bypass on the main metrics for immediate visibility.
-    // If it's an automatic/scheduled check (run_bypass without is_manual), we keep the main metrics 'clean' for stats.
-    const shouldBypassMain = !!is_manual && !!run_bypass;
-    const mainUrl = shouldBypassMain ? appendBypassParam(url) : url;
-    const metrics = await measureUrl(mainUrl, shouldBypassMain);
-    Object.assign(result, metrics);
-
-    // 3. Smart Bypass logic
+    // 2. Probing Logic (Bypass-First Sequence)
     if (run_bypass) {
-      const cacheStatus = metrics.cache_status || 'HIDDEN';
-      const isConfirmedHit = cacheStatus === 'HIT';
-      const isNaturalMiss = ['MISS', 'EXPIRED', 'BYPASS', 'DYNAMIC'].includes(cacheStatus);
+      console.log(`[probe] Step 1: Bypass-First check for ${url}`);
+      const bypassUrl = appendBypassParam(url);
+      const bypassMetrics = await measureUrl(bypassUrl, true);
+      
+      // Store Origin Measurements (Auditoria)
+      result.bypass_ttfb_ms = bypassMetrics.ttfb_ms;
+      result.bypass_total_ms = bypassMetrics.total_ms;
+      result.bypass_dns_ms = bypassMetrics.dns_ms;
+      result.bypass_tcp_ms = bypassMetrics.tcp_ms;
+      result.bypass_tls_ms = bypassMetrics.tls_ms;
+      result.bypass_status_code = bypassMetrics.status_code;
+      result.bypass_served_by = bypassMetrics.served_by;
+      result.bypass_server_timing = bypassMetrics.server_timing;
+      result.bypass_server_timing_breakdown = bypassMetrics.server_timing_breakdown;
+      result.bypass_error = bypassMetrics.error;
+      result.bypass_age_s = bypassMetrics.age_s;
 
-      if (shouldBypassMain || isNaturalMiss) {
-        // We already have a MISS (either forced or natural). Use it as the comparison point.
-        result.bypass_ttfb_ms = metrics.ttfb_ms;
-        result.bypass_total_ms = metrics.total_ms;
-        result.bypass_status_code = metrics.status_code;
-        result.bypass_served_by = metrics.served_by;
-        result.bypass_server_timing = metrics.server_timing;
-        result.bypass_server_timing_breakdown = metrics.server_timing_breakdown;
-        result.bypass_age_s = metrics.age_s;
-      } else if (isConfirmedHit && !shouldBypassMain) {
-        // We HIT cache, so we perform a second dedicated bypass probe.
-        try {
-          const bypassUrl = appendBypassParam(url);
-          const bypassMetrics = await measureUrl(bypassUrl, true);
-          
-          // Validation: Only record if the second probe actually MISSED cache.
-          // If it's still HIT, the cache-busting didn't work.
-          const isBypassSuccess = ['MISS', 'EXPIRED', 'BYPASS', 'DYNAMIC'].includes(bypassMetrics.cache_status);
-          if (isBypassSuccess) {
-            result.bypass_ttfb_ms = bypassMetrics.ttfb_ms;
-            result.bypass_total_ms = bypassMetrics.total_ms;
-            result.bypass_status_code = bypassMetrics.status_code;
-            result.bypass_served_by = bypassMetrics.served_by;
-            result.bypass_server_timing = bypassMetrics.server_timing;
-            result.bypass_server_timing_breakdown = bypassMetrics.server_timing_breakdown;
-            result.bypass_age_s = bypassMetrics.age_s;
-          }
-        } catch (err) {
-          result.bypass_error = err.message;
-        }
+      // Assinalar métricas base por padrão (Headers, Seguranças, etc)
+      Object.assign(result, bypassMetrics);
+
+      const cacheStatus = bypassMetrics.cache_status || 'HIDDEN';
+      const isConfirmedHit = cacheStatus === 'HIT';
+
+      // Reativo: se o provedor respeitou o bypass (não foi HIT cacheado) e não teve erro, medimos a Borda
+      if (!isConfirmedHit && !bypassMetrics.error) {
+         console.log(`[probe] Step 2: Immediate Normal check (Bypass was ${cacheStatus})`);
+         const normalMetrics = await measureUrl(url, false);
+         
+         // Atualiza as métricas Naturais (Edge) refletindo o tempo real do usuário
+         result.ttfb_ms = normalMetrics.ttfb_ms;
+         result.download_ms = normalMetrics.download_ms;
+         result.total_ms = normalMetrics.total_ms;
+         result.dns_ms = normalMetrics.dns_ms;
+         result.tcp_ms = normalMetrics.tcp_ms;
+         result.tls_ms = normalMetrics.tls_ms;
+         result.status_code = normalMetrics.status_code;
+         result.cache_status = normalMetrics.cache_status;
+      } else {
+         console.log(`[probe] Step 2 Skipped: Bypass resulted in HIT or Error. Falling back single measurement.`);
       }
-      // If HIDDEN, we skip bypass comparison as we lack a reliable baseline.
+
+    } else {
+      // MODO NATURAL: Única chamada orgânica
+      console.log(`[probe] Normal natural check for ${url}`);
+      const metrics = await measureUrl(url, false);
+      Object.assign(result, metrics);
     }
     
   } catch (err) {
