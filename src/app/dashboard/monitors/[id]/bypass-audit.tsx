@@ -72,7 +72,7 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
                 key={h}
                 onClick={() => setSelectedHour(h)}
                 className={`shrink-0 flex flex-col items-center justify-center min-w-[72px] py-1.5 rounded-xl border transition-all ${isActive
-                    ? 'bg-zinc-900 dark:bg-zinc-50 border-zinc-900 dark:border-zinc-50 text-white dark:text-zinc-950 shadow-lg shadow-zinc-200 dark:shadow-none'
+                    ? 'bg-zinc-900 dark:bg-zinc-800 border-zinc-900 dark:border-zinc-700 text-white shadow-lg shadow-zinc-200 dark:shadow-none'
                     : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-400 dark:hover:border-zinc-600'
                   }`}
               >

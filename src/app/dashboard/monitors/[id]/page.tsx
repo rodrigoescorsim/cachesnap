@@ -796,9 +796,9 @@ export default async function MonitorDetailPage({
               {security && (
                 <Link
                   href={buildMonitorHref('security', range)}
-                  className="flex items-center gap-1.5 px-3 py-0.5 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-0.5 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/50 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
                 >
-                  <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Security</span>
+                  <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-tight">Security</span>
                   <span className={`text-xs font-bold ${security.score >= 7 ? 'text-emerald-500' : security.score >= 4 ? 'text-amber-500' : 'text-red-500'}`}>
                     {security.score}/9
                   </span>
@@ -814,9 +814,9 @@ export default async function MonitorDetailPage({
                 </span>
                 <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Live Sync</span>
               </Link>
-              <div className="flex items-center gap-1.5 pl-3 ml-1 border-l border-zinc-200 dark:border-zinc-800 h-6">
-                <div className={`h-2 w-2 rounded-full ${monitor.is_active ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
-                <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">{monitor.is_active ? 'Active' : 'Paused'}</span>
+              <div className="flex items-center gap-1.5 pl-3 ml-1 border-l border-zinc-200 dark:border-zinc-800/50 h-6">
+                <div className={`h-2 w-2 rounded-full ${monitor.is_active ? 'bg-emerald-500' : 'bg-zinc-400 dark:bg-zinc-600'}`} />
+                <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-tight">{monitor.is_active ? 'Active' : 'Paused'}</span>
               </div>
             </div>
             <MonitorActions
@@ -863,7 +863,7 @@ export default async function MonitorDetailPage({
                           <Link
                             href={buildMonitorHref(tab, range, tab === 'incidents' ? filteredAlertType : null)}
                             className={`flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all group ${activeTab === tab
-                              ? 'bg-zinc-900 dark:bg-zinc-50 text-white dark:text-zinc-950 shadow-sm'
+                              ? 'bg-zinc-900 border border-zinc-900 dark:border-zinc-700/50 dark:bg-zinc-800 text-white shadow-sm'
                               : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100/80 dark:hover:bg-zinc-800/50'
                               }`}
                           >
@@ -1444,7 +1444,7 @@ export default async function MonitorDetailPage({
                     {/* Perfil Global / Principal */}
                     <section className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Global Security Profile</h3>
+                        <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Global Security Profile</h3>
                         <div className="flex -space-x-2">
                           {mainProfile.regions.map(r => (
                             <div key={r} title={REGION_LABELS[r]} className="w-6 h-6 rounded-full bg-emerald-500 border-2 border-white dark:border-zinc-950 flex items-center justify-center text-[8px] text-white font-bold cursor-help shadow-sm">
@@ -1466,7 +1466,7 @@ export default async function MonitorDetailPage({
                                   {present ? (
                                     <span className="inline-flex items-center rounded-md bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-400 ring-1 ring-inset ring-emerald-200/50 dark:ring-emerald-800/50 uppercase">Active</span>
                                   ) : (
-                                    <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[9px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-tight">Missing</span>
+                                    <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800/80 px-1.5 py-0.5 text-[9px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-tight ring-1 ring-inset ring-zinc-200/50 dark:ring-zinc-700/50">Missing</span>
                                   )}
                                 </div>
                                 {present && (() => {
@@ -1501,7 +1501,7 @@ export default async function MonitorDetailPage({
                                     </details>
                                   )
                                 })()}
-                                <p className="text-[10px] text-zinc-400 italic">
+                                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 italic">
                                   {description}
                                 </p>
                               </div>

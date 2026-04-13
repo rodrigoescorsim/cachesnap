@@ -59,11 +59,11 @@ export function breakdownColor(name: string): string {
 /** Returns Tailwind classes for a cache status badge. */
 export function cacheClass(status: string | null): string {
   const s = status?.toUpperCase()
-  if (s === 'HIT') return 'bg-emerald-100 text-emerald-700 border-emerald-200'
-  if (s === 'MISS') return 'bg-amber-100 text-amber-700 border-amber-200'
+  if (s === 'HIT') return 'bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20'
+  if (s === 'MISS') return 'bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/20'
   if (s === 'BYPASS' || s === 'DYNAMIC')
-    return 'bg-zinc-100 text-zinc-500 border-zinc-200'
-  return 'bg-zinc-100 text-zinc-400 border-zinc-200'
+    return 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700/50'
+  return 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 border-zinc-200 dark:border-zinc-700/50'
 }
 
 /**

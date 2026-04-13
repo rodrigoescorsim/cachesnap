@@ -128,7 +128,7 @@ export default function NewMonitorPage() {
           <button
             type="submit"
             disabled={isPending}
-            className="rounded-lg bg-zinc-900 dark:bg-zinc-50 px-4 py-2 text-sm font-medium text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-200 disabled:opacity-50 transition-colors"
+            className="rounded-lg bg-zinc-900 dark:bg-zinc-800 border dark:border-zinc-700/50 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:hover:bg-zinc-700 disabled:opacity-50 transition-colors"
           >
             {isPending ? 'Creating…' : 'Create monitor'}
           </button>

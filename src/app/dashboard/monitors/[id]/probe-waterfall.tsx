@@ -118,7 +118,7 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
                   </span>
 
                   {pop && (
-                    <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500 ring-1 ring-inset ring-zinc-200/50" title={pop}>
+                    <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500 dark:text-zinc-400 ring-1 ring-inset ring-zinc-200/50 dark:ring-zinc-700/50" title={pop}>
                       {popToCity(pop)}
                     </span>
                   )}
@@ -131,7 +131,7 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
 
                   {probe.redirect_count != null && probe.redirect_count > 0 && (
                     <span
-                      className="inline-flex items-center rounded-md border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[9px] font-medium text-purple-600"
+                      className="inline-flex items-center rounded-md border border-purple-200 dark:border-purple-500/20 bg-purple-50 dark:bg-purple-500/10 px-1.5 py-0.5 text-[9px] font-medium text-purple-600 dark:text-purple-400"
                       title="Number of HTTP redirect hops followed before the final response"
                     >
                       {probe.redirect_count} hop{probe.redirect_count !== 1 ? 's' : ''}
@@ -142,8 +142,8 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
                     <span
                       className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-medium ${
                         isZombie
-                          ? 'border-red-200 bg-red-50 text-red-600'
-                          : 'border-zinc-200 bg-zinc-50 text-zinc-500'
+                          ? 'border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400'
+                          : 'border-zinc-200 dark:border-zinc-700/50 bg-zinc-50 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
                       }`}
                       title={`Cache-Control Age: ${probe.age_s}s${isZombie ? ' — zombie cache detected' : ''}`}
                     >
