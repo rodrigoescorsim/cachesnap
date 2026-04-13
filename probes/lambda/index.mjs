@@ -94,6 +94,7 @@ export const handler = async (event) => {
     bypass_served_by: null,
     bypass_server_timing: null,
     bypass_server_timing_breakdown: null,
+    bypass_cache_status: null,
     bypass_age_s: null,
   };
 
@@ -118,6 +119,7 @@ export const handler = async (event) => {
       result.bypass_served_by = bypassMetrics.served_by;
       result.bypass_server_timing = bypassMetrics.server_timing;
       result.bypass_server_timing_breakdown = bypassMetrics.server_timing_breakdown;
+      result.bypass_cache_status = bypassMetrics.cache_status;
       result.bypass_error = bypassMetrics.error;
       result.bypass_age_s = bypassMetrics.age_s;
 

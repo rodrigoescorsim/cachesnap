@@ -62,10 +62,8 @@ if (Test-Path ".env") {
     Write-Host "[+] Arquivo .env atualizado com a nova API_URL." -ForegroundColor Green
 }
 
-# --- Sincronizar Secrets ------------------------------------------------------
-Write-Host ""
-Write-Host "[*] Sincronizando segredos no Cloudflare..." -ForegroundColor Cyan
-.\scripts\workers-secrets.ps1
+# In AWS Lambda mode, secrets are managed via AWS Console/CLI.
+# [Legacy] .\scripts\workers-secrets.ps1
 
 Write-Host ""
 Write-Host "[+] STATUS: TUDO PRONTO!" -ForegroundColor Green

@@ -9,6 +9,7 @@ interface BypassPoint {
   origin_ttfb: number
   savings: number
   edge_cache_status: string | null
+  origin_cache_status: string | null
 }
 
 interface BypassAuditProps {
@@ -169,16 +170,35 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
                       {regionLabels[row.region] ?? row.region}
                     </div>
                   </td>
-                  <td className="px-4 py-3.5 text-right tabular-nums font-mono text-zinc-700 dark:text-zinc-300">
-                    {isHit ? (
-                      <span className="text-[10px] uppercase font-bold text-emerald-500 mr-2">HIT</span>
-                    ) : (
-                      <span className="text-[10px] uppercase font-bold text-zinc-400 mr-2">EDGE</span>
-                    )}
-                    {Math.round(row.edge_ttfb)}ms
+                  <td className="px-4 py-3.5 text-right tabular-nums font-mono">
+                    <div className="flex items-center justify-end gap-2">
+                      {row.edge_cache_status?.toUpperCase() === 'HIT' ? (
+                        <span className="text-[9px] uppercase font-bold text-emerald-500">HIT</span>
+                      ) : row.edge_cache_status?.toUpperCase() === 'HIDDEN' ? (
+                        <span className="text-[9px] uppercase font-bold text-zinc-500">HIDDEN</span>
+                      ) : (
+                        <span className="text-[9px] uppercase font-bold text-zinc-400">{row.edge_cache_status?.toUpperCase() || 'EDGE'}</span>
+                      )}
+                      <span className="text-zinc-700 dark:text-zinc-300">{Math.round(row.edge_ttfb)}ms</span>
+                    </div>
                   </td>
-                  <td className="px-4 py-3.5 text-right tabular-nums font-mono text-zinc-400">
-                    {Math.round(row.origin_ttfb)}ms
+                  <td className="px-4 py-3.5 text-right tabular-nums font-mono">
+                    <div className="flex items-center justify-end gap-2">
+                        {row.origin_cache_status?.toUpperCase() === 'HIT' && (
+                          <span className="text-[9px] uppercase font-bold text-red-500 animate-pulse" title="Bypass failed! CDN served cache even for Bypass request.">
+                            HIT ⚠
+                          </span>
+                        )}
+                        {row.origin_cache_status?.toUpperCase() === 'HIDDEN' && (
+                          <span className="text-[9px] uppercase font-bold text-zinc-500" title="Status Hidden: Cannot confirm if it hit origin.">
+                            HIDDEN
+                          </span>
+                        )}
+                        {(row.origin_cache_status?.toUpperCase() === 'MISS' || row.origin_cache_status?.toUpperCase() === 'BYPASS' || row.origin_cache_status?.toUpperCase() === 'DYNAMIC') && (
+                          <span className="text-[9px] uppercase font-bold text-zinc-500/60">ORIGIN</span>
+                        )}
+                      <span className="text-zinc-400">{Math.round(row.origin_ttfb)}ms</span>
+                    </div>
                   </td>
                   <td className="px-4 py-3.5 text-right tabular-nums">
                     <div className="flex flex-col items-end">

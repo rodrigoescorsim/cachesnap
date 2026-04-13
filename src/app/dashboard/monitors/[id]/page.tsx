@@ -667,7 +667,8 @@ export default async function MonitorDetailPage({
           AVG(edge_ttfb_ms) AS edge_ttfb,
           AVG(origin_ttfb_ms) AS origin_ttfb,
           AVG(origin_ttfb_ms - edge_ttfb_ms) AS savings,
-          MODE() WITHIN GROUP (ORDER BY edge_cache_status) AS edge_cache_status
+          MODE() WITHIN GROUP (ORDER BY edge_cache_status) AS edge_cache_status,
+          MODE() WITHIN GROUP (ORDER BY origin_cache_status) AS origin_cache_status
         FROM audit_results
         WHERE monitor_id = ${id}
           AND time > NOW() - INTERVAL '24 hours'

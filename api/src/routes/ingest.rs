@@ -44,7 +44,8 @@ pub async fn handler(
                 edge_dns_ms, edge_tcp_ms, edge_tls_ms,
                 origin_status_code, origin_error, origin_served_by,
                 edge_status_code, edge_cache_status, edge_served_by,
-                content_length, is_manual, probe_version, server_timing_breakdown
+                content_length, is_manual, probe_version, server_timing_breakdown,
+                origin_cache_status, origin_age_s
             ) VALUES (
                 NOW(), $1, $2,
                 $3, $4, $5, $6,
@@ -52,7 +53,8 @@ pub async fn handler(
                 $10, $11, $12,
                 $13, $14, $15,
                 $16, $17, $18,
-                $19, $20, $21, $22
+                $19, $20, $21, $22,
+                $23, $24
             )
             "#,
         )
@@ -78,6 +80,8 @@ pub async fn handler(
         .bind(payload.is_manual)
         .bind(payload.probe_version.clone())
         .bind(payload.server_timing_breakdown.clone())
+        .bind(payload.bypass_cache_status.clone())
+        .bind(payload.bypass_age_s)
         .execute(&state.db)
         .await;
 

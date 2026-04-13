@@ -56,6 +56,10 @@ pub struct ProbeResultPayload {
     pub bypass_error: Option<String>,
     #[serde(default)]
     pub bypass_served_by: Option<String>,
+    #[serde(default)]
+    pub bypass_cache_status: Option<String>,
+    #[serde(default)]
+    pub bypass_age_s: Option<i32>,
 }
 
 /// Registro persistido no TimescaleDB
