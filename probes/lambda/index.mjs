@@ -450,9 +450,25 @@ function readCacheStatus(headers) {
     const value = headers[header];
     if (value) {
       const upper = value.toUpperCase();
-      if (upper.includes('HIT')) return 'HIT';
-      if (upper.includes('MISS')) return 'MISS';
-      return upper;
+      
+      // 1. Precise HIT detection (includes tiered/stale hits)
+      if (upper.includes('HIT') || upper.includes('STALE') || upper.includes('REVALIDATED')) {
+        return 'HIT';
+      }
+      
+      // 2. Precise MISS/BYPASS detection
+      if (upper.includes('MISS') || upper.includes('EXPIRED') || upper.includes('BYPASS') || upper.includes('DYNAMIC')) {
+        return 'MISS';
+      }
+      
+      // 3. Wikipedia PoP code detection (e.g. "CP5020 INT")
+      // These codes represent PoP identifiers without a clear HIT signal.
+      if (upper.startsWith('CP') && (upper.includes('INT') || upper.includes(' ') || upper.length < 15)) {
+        return 'MISS';
+      }
+
+      // 4. Default: return the first 10 characters for other custom headers
+      return upper.slice(0, 10).trim();
     }
   }
 

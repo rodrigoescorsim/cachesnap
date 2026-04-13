@@ -12,6 +12,8 @@ interface BypassPoint {
   origin_cache_status: string | null
 }
 
+import { AlertTriangle, Info } from 'lucide-react'
+
 interface BypassAuditProps {
   data: BypassPoint[]
   regionLabels: Record<string, string>
@@ -34,9 +36,15 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
 
   const currentItems = selectedHour ? itemsByHour[selectedHour] : []
   
-  // Para a análise de impacto global, só consideramos o que temos certeza que foi HIT
-  const confirmedHits = currentItems.filter(item => item.edge_cache_status?.toUpperCase() === 'HIT')
+  // For global impact analysis, we only consider verified Edge HITs and successful Origin MISSes
+  const confirmedHits = currentItems.filter(item => 
+    item.edge_cache_status?.toUpperCase() === 'HIT' && 
+    item.origin_cache_status?.toUpperCase() !== 'HIT' &&
+    item.origin_cache_status?.toUpperCase() !== 'HIDDEN'
+  )
   
+  const bypassFails = currentItems.filter(item => item.origin_cache_status?.toUpperCase() === 'HIT')
+
   const totalEdge = confirmedHits.reduce((sum, item) => sum + item.edge_ttfb, 0)
   const totalOrigin = confirmedHits.reduce((sum, item) => sum + item.origin_ttfb, 0)
   const avgSavingMs = confirmedHits.length > 0 ? (totalOrigin - totalEdge) / confirmedHits.length : 0
@@ -88,6 +96,21 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
           })}
         </div>
       </div>
+
+      {/* Bypass Failure Alert */}
+      {bypassFails.length > 0 && (
+        <div className="rounded-xl border border-amber-200/50 dark:border-amber-900/30 bg-amber-50/50 dark:bg-amber-950/10 p-3.5 flex gap-3 items-start">
+          <div className="mt-0.5">
+            <AlertTriangle className="w-4 h-4 text-amber-500" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-tight">Partial Signal Optimization</h3>
+            <p className="text-[11px] leading-relaxed text-amber-800/80 dark:text-amber-500/80">
+              Could not obtain Origin metrics in <span className="font-bold">{bypassFails.length} {bypassFails.length === 1 ? 'region' : 'regions'}</span> due to infrastructure optimizations that forced delivery via Edge (Cache HIT), preventing a direct server measurement for comparison.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Impact Summary - Unified Wide Card */}
       <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/50 p-4 shadow-sm relative overflow-hidden">
@@ -160,7 +183,10 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {currentItems.map((row) => {
-              const isHit = row.edge_cache_status?.toUpperCase() === 'HIT'
+              const isEdgeHit = row.edge_cache_status?.toUpperCase() === 'HIT'
+              const isOriginHit = row.origin_cache_status?.toUpperCase() === 'HIT'
+              const isValidComparison = isEdgeHit && !isOriginHit && row.origin_cache_status?.toUpperCase() !== 'HIDDEN'
+              
               const itemSaving = row.origin_ttfb - row.edge_ttfb
               const isSaving = itemSaving > 0
               return (
@@ -173,41 +199,67 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
                   <td className="px-4 py-3.5 text-right tabular-nums font-mono">
                     <div className="flex items-center justify-end gap-2">
                       {row.edge_cache_status?.toUpperCase() === 'HIT' ? (
-                        <span className="text-[9px] uppercase font-bold text-emerald-500">HIT</span>
+                        <span className="px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-800/10 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tight">HIT</span>
                       ) : row.edge_cache_status?.toUpperCase() === 'HIDDEN' ? (
-                        <span className="text-[9px] uppercase font-bold text-zinc-500">HIDDEN</span>
+                        <span className="px-1.5 py-0.5 rounded-md bg-zinc-100/50 dark:bg-zinc-800/40 border border-zinc-200/50 dark:border-zinc-700/50 text-[10px] font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-tight">HIDDEN</span>
                       ) : (
-                        <span className="text-[9px] uppercase font-bold text-zinc-400">{row.edge_cache_status?.toUpperCase() || 'EDGE'}</span>
+                        <span className="px-1.5 py-0.5 rounded-md bg-zinc-100/50 dark:bg-zinc-800/40 border border-zinc-200/50 dark:border-zinc-700/50 text-[10px] font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-tight">{row.edge_cache_status?.toUpperCase() || 'MISS'}</span>
                       )}
                       <span className="text-zinc-700 dark:text-zinc-300">{Math.round(row.edge_ttfb)}ms</span>
                     </div>
                   </td>
                   <td className="px-4 py-3.5 text-right tabular-nums font-mono">
                     <div className="flex items-center justify-end gap-2">
-                        {row.origin_cache_status?.toUpperCase() === 'HIT' && (
-                          <span className="text-[9px] uppercase font-bold text-red-500 animate-pulse" title="Bypass failed! CDN served cache even for Bypass request.">
-                            HIT ⚠
+                        {isOriginHit ? (
+                          <span className="text-[10px] font-bold text-zinc-400/50 tracking-widest px-2" title="Origin measurement unavailable (CDN served cache)">
+                            ———
                           </span>
+                        ) : (
+                          <>
+                            {row.origin_cache_status?.toUpperCase() === 'HIDDEN' ? (
+                              <span className="px-1.5 py-0.5 rounded-md bg-zinc-100/50 dark:bg-zinc-800/40 border border-zinc-200/50 dark:border-zinc-700/50 text-[10px] font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-tight" title="Status Hidden: Cannot confirm if it hit origin.">
+                                HIDDEN
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded-md bg-zinc-100/50 dark:bg-zinc-800/40 border border-zinc-200/50 dark:border-zinc-700/50 text-[10px] font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-tight">
+                                {row.origin_cache_status?.toUpperCase() || 'MISS'}
+                              </span>
+                            )}
+                            <span className="text-zinc-400">{Math.round(row.origin_ttfb)}ms</span>
+                          </>
                         )}
-                        {row.origin_cache_status?.toUpperCase() === 'HIDDEN' && (
-                          <span className="text-[9px] uppercase font-bold text-zinc-500" title="Status Hidden: Cannot confirm if it hit origin.">
-                            HIDDEN
-                          </span>
-                        )}
-                        {(row.origin_cache_status?.toUpperCase() === 'MISS' || row.origin_cache_status?.toUpperCase() === 'BYPASS' || row.origin_cache_status?.toUpperCase() === 'DYNAMIC') && (
-                          <span className="text-[9px] uppercase font-bold text-zinc-500/60">ORIGIN</span>
-                        )}
-                      <span className="text-zinc-400">{Math.round(row.origin_ttfb)}ms</span>
                     </div>
                   </td>
                   <td className="px-4 py-3.5 text-right tabular-nums">
                     <div className="flex flex-col items-end">
-                      <span className={`text-xs font-black ${isSaving ? 'text-emerald-500' : 'text-amber-500'}`}>
-                        {isSaving ? '-' : '+'}{Math.abs(Math.round(itemSaving))}ms
-                      </span>
-                      <span className={`text-[10px] font-bold opacity-80 ${isSaving ? 'text-emerald-600' : 'text-amber-600'}`}>
-                        {isSaving ? 'Faster' : 'Slower'}
-                      </span>
+                      {isOriginHit ? (
+                        <>
+                          <span className="text-xs font-bold text-zinc-400 italic">
+                            Inconclusive
+                          </span>
+                          <span className="text-[10px] font-medium text-zinc-500/70 whitespace-nowrap">
+                            Origin Forced HIT
+                          </span>
+                        </>
+                      ) : !isValidComparison ? (
+                        <>
+                          <span className="text-xs font-bold text-zinc-400 uppercase tracking-tighter">
+                            Insufficient Signal
+                          </span>
+                          <span className="text-[10px] font-medium text-zinc-500/70">
+                            Waiting for HIT/MISS pair
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className={`text-xs font-black ${isSaving ? 'text-emerald-500' : 'text-amber-500'}`}>
+                            {isSaving ? '-' : '+'}{Math.abs(Math.round(itemSaving))}ms
+                          </span>
+                          <span className={`text-[10px] font-bold opacity-80 ${isSaving ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            {isSaving ? 'Faster' : 'Slower'}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
