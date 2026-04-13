@@ -54,7 +54,7 @@ export default function NewMonitorPage() {
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Add monitor</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          HopLens will probe your URL from multiple global regions.
+          CacheSnap will probe your URL from multiple global regions.
         </p>
       </div>
 

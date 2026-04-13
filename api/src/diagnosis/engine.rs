@@ -30,7 +30,7 @@ pub struct DiagnosisInput {
     pub age_s: Option<i32>,        // Age response header — used for zombie cache detection
 }
 
-// ─── IATA → HopLens region mapping ───────────────────────────────────────────
+// ─── IATA → CacheSnap region mapping ───────────────────────────────────────────
 // Maps Cloudflare PoP IATA codes to the probe region they should ideally serve.
 // Used for anycast routing audit: if a probe from sa-east is answered by an IAD
 // PoP (us-east territory), traffic is traveling farther than necessary.

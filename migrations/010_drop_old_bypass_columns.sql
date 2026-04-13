@@ -1,4 +1,4 @@
--- HopLens -- Migration 010: Removendo colunas antigas de bypass
+-- CacheSnap -- Migration 010: Removendo colunas antigas de bypass
 -- Remove the bypass_ columns from probe_results to complete the separation
 -- of natural metrics from diagnostic audits.
 

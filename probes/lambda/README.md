@@ -1,6 +1,6 @@
-# HopLens Lambda Probes
+# CacheSnap Lambda Probes
 
-Regional probes for HopLens running on AWS Lambda (Node.js 20.x).  
+Regional probes for CacheSnap running on AWS Lambda (Node.js 20.x).  
 Replaces the Cloudflare Worker probes with region-pinned infrastructure.
 
 ## Why Lambda?
@@ -37,7 +37,7 @@ chmod +x deploy.sh
 
 ## Regions
 
-| HopLens Region | AWS Region         | City       |
+| CacheSnap Region | AWS Region         | City       |
 |:---------------|:-------------------|:-----------|
 | `sa-east`      | `sa-east-1`        | São Paulo  |
 | `us-east`      | `us-east-1`        | Virginia   |

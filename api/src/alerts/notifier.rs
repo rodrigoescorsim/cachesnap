@@ -43,7 +43,7 @@ pub async fn notify(state: AppState, notif: AlertNotification) {
         .to_string();
 
     let subject = format!(
-        "[HopLens] {} alert · {} · {}",
+        "[CacheSnap] {} alert · {} · {}",
         capitalize(&notif.alert_type), notif.region, monitor_label
     );
     let body_text = build_body_text(&notif, &monitor_label);
@@ -105,7 +105,7 @@ async fn send_email(api_key: &str, to: &str, subject: &str, html: &str) -> Resul
         .post("https://api.resend.com/emails")
         .bearer_auth(api_key)
         .json(&json!({
-            "from": "HopLens <alerts@hoplens.app>",
+            "from": "CacheSnap <alerts@CacheSnap.app>",
             "to": [to],
             "subject": subject,
             "html": html,
@@ -143,7 +143,7 @@ async fn send_slack(webhook_url: &str, text: &str) -> Result<(), String> {
 
 fn build_body_text(n: &AlertNotification, monitor_label: &str) -> String {
     let mut lines = vec![
-        format!("*[HopLens]* {} alert for *{}* ({})", capitalize(&n.alert_type), monitor_label, n.region),
+        format!("*[CacheSnap]* {} alert for *{}* ({})", capitalize(&n.alert_type), monitor_label, n.region),
     ];
     if let Some(d) = &n.diagnosis {
         lines.push(d.clone());
@@ -173,7 +173,7 @@ fn build_email_html(n: &AlertNotification, monitor_label: &str, monitor_url: &st
   {action_html}
   {perf}
   <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
-  <p style="color:#999;font-size:12px">HopLens &mdash; Edge performance monitoring</p>
+  <p style="color:#999;font-size:12px">CacheSnap &mdash; Edge performance monitoring</p>
 </div>"#,
         type_label = capitalize(&n.alert_type),
         region = n.region,

@@ -1,5 +1,5 @@
 /**
- * HopLens Lambda Probe — Local Test
+ * cachesnap Lambda Probe — Local Test
  *
  * Run with: node probes/lambda/test-local.mjs
  *
@@ -21,7 +21,7 @@ const TEST_TARGETS = [
 
 async function runTests() {
   console.log('═══════════════════════════════════════════════════════════');
-  console.log(' HopLens Lambda Probe — Local Validation Test');
+  console.log(' cachesnap Lambda Probe — Local Validation Test');
   console.log('═══════════════════════════════════════════════════════════\n');
 
   for (const target of TEST_TARGETS) {
@@ -64,7 +64,7 @@ async function runTests() {
       const timings = { start: performance.now() };
 
       const req = https.get(target.url, {
-        headers: { 'User-Agent': 'HopLens-Test/1.0' },
+        headers: { 'User-Agent': 'cachesnap-Test/1.0' },
         timeout: 15000,
       }, (res) => {
         timings.ttfb = performance.now();

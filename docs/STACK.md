@@ -1,4 +1,4 @@
-# HopLens — Referência Técnica
+# CacheSnap — Referência Técnica
 
 > Consulte este documento quando precisar entender como algo funciona,
 > como rodar localmente, ou como conectar as peças.
@@ -46,13 +46,13 @@
 
 ### 🔄 Scheduler & Probes
 
-O Scheduler ([runner.rs](file:///c:/workspace/HopLens/api/src/scheduler/runner.rs)) é o coração do sistema de monitoramento:
+O Scheduler ([runner.rs](file:///c:/workspace/CacheSnap/api/src/scheduler/runner.rs)) é o coração do sistema de monitoramento:
 - **Loop de 10s**: Verifica no PostgreSQL todos os monitores ativos.
 - **Atomicidade com Redis**: Usa um script Lua para verificar e atualizar o timestamp do último check (`last_check:ID`) de forma atômica. Isso evita que múltiplos nós de API disparem o mesmo probe simultaneamente em um ambiente escalado.
 - **Dispatch Regional**: Para cada monitor devido, dispara requisições HTTP POST para os Workers nas 5 regiões configuradas.
 - **Configuração**: As URLs dos workers são configuráveis via variáveis de ambiente `REGION_SA_EAST`, `REGION_EU_WEST`, etc.
 
-Os Probes ([index.ts](file:///c:/workspace/HopLens/workers/probe/src/index.ts)) rodam em Cloudflare Workers:
+Os Probes ([index.ts](file:///c:/workspace/CacheSnap/workers/probe/src/index.ts)) rodam em Cloudflare Workers:
 - **Modo HTTP**: Recebe `monitor_id` e `url`, executa o probe e envia o resultado de volta para o endpoint `/api/ingest`.
 - **Métricas**: TTFB, download, redirects, status de cache e headers de diagnóstico.
 
@@ -61,7 +61,7 @@ Os Probes ([index.ts](file:///c:/workspace/HopLens/workers/probe/src/index.ts)) 
 ## Estrutura de arquivos
 
 ```
-HopLens/
+CacheSnap/
 ├── src/                            ← Next.js 16 App Router
 │   ├── proxy.ts                    ← proteção de rotas /dashboard/* (Next.js 16: middleware→proxy)
 │   ├── app/

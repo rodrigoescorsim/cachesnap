@@ -28,7 +28,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <div className="mx-auto max-w-6xl px-4 sm:px-6 flex items-center justify-between h-14">
           <div className="flex items-center gap-6">
             <Link href="/dashboard" className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-              HopLens
+              CacheSnap
             </Link>
             <nav className="hidden sm:flex items-center gap-4">
               <Link

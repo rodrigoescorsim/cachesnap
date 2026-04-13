@@ -1,6 +1,6 @@
 import os
 
-path = r'c:\workspace\HopLens\src\app\dashboard\monitors\[id]\page.tsx'
+path = r'c:\workspace\CacheSnap\src\app\dashboard\monitors\[id]\page.tsx'
 with open(path, 'r', encoding='utf-8') as f:
     lines = f.readlines()
 

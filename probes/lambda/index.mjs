@@ -1,5 +1,5 @@
 /**
- * HopLens Lambda Probe — Phase 2
+ * CacheSnap Lambda Probe — Phase 2
  *
  * Drop-in replacement for the Cloudflare Worker probe.
  * Runs on AWS Lambda (Node.js 20.x runtime) in 5 fixed regions.
@@ -158,7 +158,7 @@ export const handler = async (event) => {
     result.error = err.message;
   }
 
-  // 4. Report to HopLens ingest API
+  // 4. Report to CacheSnap ingest API
   const reportData = {
     ...result,
     probe_version: "1.22"
@@ -207,32 +207,33 @@ async function measureUrl(targetUrl, isBypass = false) {
     if (isBypass) {
       requestHeaders['Cache-Control'] = 'no-cache, no-store, must-revalidate';
       requestHeaders['Pragma'] = 'no-cache';
-      requestHeaders['X-HopLens-Salt'] = nonce; // Only salt headers on bypass
+      requestHeaders['X-CacheSnap-Salt'] = nonce; // Only salt headers on bypass
     }
     
-    requestHeaders['X-Hoplens-Bypass'] = isBypass ? 'true' : 'false';
+    requestHeaders['X-CacheSnap-Bypass'] = isBypass ? 'true' : 'false';
     requestHeaders['Connection'] = 'close';
 
     const probeUrl = new URL(targetUrl);
     // Only use query params for bypass probes to force edge misses.
     // For automatic sync, we keep the URL clean to measure real cache performance.
     if (isBypass) {
-      probeUrl.searchParams.set('hl_v', '1.19');
-      probeUrl.searchParams.set('hl_s', nonce);
-      probeUrl.searchParams.set('__hoplens_bypass', '1');
+      probeUrl.searchParams.set('cs_v', '2.0.0');
+      probeUrl.searchParams.set('cs_s', nonce);
+      probeUrl.searchParams.set('__cachesnap_bypass', '1');
       probeUrl.searchParams.set('_t', Date.now().toString());
     }
     const finalUrl = probeUrl.toString();
 
     // Browser-like headers with unique UA per probe to prevent connection pooling
-    const dynamicUA = `HopLens-Probe/1.12 (Nonce:${nonce}; Region:${process.env.AWS_REGION})`;
+    const dynamicUA = `CacheSnap-Probe/2.0.0 (Nonce:${nonce}; Region:${process.env.AWS_REGION})`;
 
     const req = transport.get(
       finalUrl,
       {
         headers: {
           ...requestHeaders,
-          'X-Hoplens-Nonce': nonce,
+          'X-CacheSnap-Nonce': nonce,
+          'User-Agent': dynamicUA,
         },
         timeout: 10000,
         agent: false, // Hard disable of connection pooling
@@ -411,7 +412,7 @@ function headRequest(targetUrl) {
     const req = transport.get(
       targetUrl,
       {
-        headers: { 'User-Agent': 'HopLens-Probe/2.0 (Lambda)' },
+        headers: { 'User-Agent': 'CacheSnap-Probe/2.0.0 (Lambda)' },
         timeout: 10000,
         // We need manual control to count redirects
       },
@@ -575,17 +576,17 @@ function collectSecurityHeaders(h) {
 function appendBypassParam(url) {
   try {
     const parsed = new URL(url);
-    if (!parsed.searchParams.has('__hoplens_bypass')) {
-      parsed.searchParams.set('__hoplens_bypass', '1');
+    if (!parsed.searchParams.has('__cachesnap_bypass')) {
+      parsed.searchParams.set('__cachesnap_bypass', '1');
     }
     return parsed.toString();
   } catch {
-    if (url.includes('__hoplens_bypass=')) return url;
-    return url.includes('?') ? `${url}&__hoplens_bypass=1` : `${url}?__hoplens_bypass=1`;
+    if (url.includes('__cachesnap_bypass=')) return url;
+    return url.includes('?') ? `${url}&__cachesnap_bypass=1` : `${url}?__cachesnap_bypass=1`;
   }
 }
 
-// ─── Send to HopLens Ingest API ───────────────────────────────────────────────
+// ─── Send to CacheSnap Ingest API ───────────────────────────────────────────────
 
 async function sendToIngest(ingestUrl, data, secret) {
   const payload = JSON.stringify(data);

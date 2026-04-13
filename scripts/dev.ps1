@@ -4,7 +4,7 @@ docker-compose up -d
 Write-Host "[*] Aguardando TimescaleDB ficar pronto..." -ForegroundColor Yellow
 do {
     Start-Sleep -Seconds 1
-    docker-compose exec -T -e PGPASSWORD=changeme_local db pg_isready -U hoplens -q *>$null
+    docker-compose exec -T -e PGPASSWORD=changeme_local db pg_isready -U CacheSnap -q *>$null
     $ready = $LASTEXITCODE -eq 0
 } until ($ready)
 
@@ -17,7 +17,7 @@ Write-Host "[*] Iniciando Frontend (Next.js) em uma nova janela..." -ForegroundC
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "Write-Host '--- Iniciando Next.js ---' -ForegroundColor Blue; npm run dev"
 
 Write-Host ""
-Write-Host "[+] Tudo pronto! O HopLens esta sendo inicializado." -ForegroundColor Green
+Write-Host "[+] Tudo pronto! O CacheSnap esta sendo inicializado." -ForegroundColor Green
 Write-Host "   API:       http://localhost:3001"
 Write-Host "   Dashboard: http://localhost:3000"
-Write-Host "   DB:        postgresql://hoplens:changeme_local@localhost:5432/hoplens"
+Write-Host "   DB:        postgresql://CacheSnap:changeme_local@localhost:5432/CacheSnap"

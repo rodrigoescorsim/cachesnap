@@ -11,7 +11,7 @@ export default function SignupPage() {
     <div className="w-full max-w-sm">
       <div className="mb-8 text-center">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          HopLens
+          CacheSnap
         </h1>
         <p className="mt-1 text-sm text-zinc-500">Create your free account</p>
       </div>

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "HopLens — Edge Performance Monitoring",
+  title: "CacheSnap — Edge Performance Monitoring",
   description: "Monitor latency from 5 global regions. Detect cache misses, edge vs. origin issues, and get plain-English diagnoses — no SDK required.",
 };
 

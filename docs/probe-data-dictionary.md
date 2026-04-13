@@ -1,6 +1,6 @@
-# Dicionário de Dados do Probe (HopLens)
+# Dicionário de Dados do Probe (CacheSnap)
 
-Este documento detalha todos os pontos de dados coletados pela infraestrutura de *probes* (testadores de borda) da HopLens, explicando a origem da captura, a relevância da métrica e como ela é utilizada pelos motores de diagnóstico, alertas e pela interface do *dashboard*.
+Este documento detalha todos os pontos de dados coletados pela infraestrutura de *probes* (testadores de borda) da CacheSnap, explicando a origem da captura, a relevância da métrica e como ela é utilizada pelos motores de diagnóstico, alertas e pela interface do *dashboard*.
 
 A coleta ocorre principalmente via Cloudflare Workers (Phase 1), o que impacta as capacidades de algumas aferições de rede puras (como DNS e TLS), mas fornece excelente posicionamento global em *Points of Presence* (PoPs).
 
@@ -38,7 +38,7 @@ A coleta ocorre principalmente via Cloudflare Workers (Phase 1), o que impacta a
 
 ## ⚙️ Diagnóstico Desmembrado de Servidor (`Server-Timing`)
 
-O HopLens processa o cabeçalho moderno de performance `Server-Timing` para revelar o que a origem/borda gastou de processamento ("abrir a caixa preta").
+O CacheSnap processa o cabeçalho moderno de performance `Server-Timing` para revelar o que a origem/borda gastou de processamento ("abrir a caixa preta").
 
 ### `edge_ms`
 * **O que é:** Quanto tempo da requisição pertence exclusivamente a operações da CDN/Borda.
@@ -87,9 +87,9 @@ O HopLens processa o cabeçalho moderno de performance `Server-Timing` para reve
 
 Existem 4 campos atrelados que rodam de forma passiva dependendo do setup de scheduler (`bypass_ttfb_ms`, `bypass_total_ms`, `bypass_status_code`, `bypass_error`).
 
-* **O que é:** Trata-se de uma segunda requisição feita "invisível" que ignora deliberadamente camadas de chace usando a flag `__hoplens_bypass=1` combinada a restrições fortíssimas via `Pragma: no-cache`.
+* **O que é:** Trata-se de uma segunda requisição feita "invisível" que ignora deliberadamente camadas de chace usando a flag `__CacheSnap_bypass=1` combinada a restrições fortíssimas via `Pragma: no-cache`.
 * **Importância:** Serve para revelar o **"True Origin Latency"**. Mostra ao desenvolvedor, comparado estatisticamente com a request normal, como o banco de dados e aplicação dele teriam performanciado se os escudos do cache fossem penetrados. 
-* **Uso na plataforma:** Existe um *toggle* "Média com bypass" visual na cascata das métricas do HopLens, ajudando quem roda a aba ver o antes/depois da proteção. 
+* **Uso na plataforma:** Existe um *toggle* "Média com bypass" visual na cascata das métricas do CacheSnap, ajudando quem roda a aba ver o antes/depois da proteção. 
 
 ---
 
@@ -106,4 +106,4 @@ Existem 4 campos atrelados que rodam de forma passiva dependendo do setup de sch
 
 ### `http_version`
 * **O que é:** Detecta tráfego legímo baseano heurísticas (como flags `h3`, `Alt-Svc` e raios). 
-* **Importância / Uso:** O hoplens acusa a existência defasada do `HTTP/1.1` e sugere via diagnóstico ativar a Multiplexação `H2/H3/QUIC`.
+* **Importância / Uso:** O CacheSnap acusa a existência defasada do `HTTP/1.1` e sugere via diagnóstico ativar a Multiplexação `H2/H3/QUIC`.

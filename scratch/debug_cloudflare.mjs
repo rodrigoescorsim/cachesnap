@@ -1,6 +1,6 @@
 import postgres from 'postgres';
 
-const sql = postgres('postgresql://hoplens:changeme_local@localhost:5432/hoplens');
+const sql = postgres('postgresql://cachesnap:changeme_local@localhost:5432/cachesnap');
 
 async function run() {
   console.log('--- Checking Cloudflare Cache Status Distribution ---');

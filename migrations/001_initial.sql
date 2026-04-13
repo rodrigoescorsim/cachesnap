@@ -1,4 +1,4 @@
--- HopLens — Migration inicial
+-- CacheSnap — Migration inicial
 -- Executada automaticamente pelo sqlx na inicialização da API Rust
 
 -- ── Extensão TimescaleDB ──────────────────────────────────────────────────────

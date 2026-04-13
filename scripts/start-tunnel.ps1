@@ -1,4 +1,4 @@
-# --- HopLens - Automatiza o Cloudflare Tunnel e atualiza o .env ----------------
+# --- CacheSnap - Automatiza o Cloudflare Tunnel e atualiza o .env ----------------
 # Uso: .\scripts\start-tunnel.ps1
 
 Set-Location (Split-Path $PSScriptRoot -Parent)

@@ -1,7 +1,7 @@
 @echo off
 echo.
 echo =======================================================
-echo     HopLens - Reset Total do Banco de Dados
+echo     CacheSnap - Reset Total do Banco de Dados
 echo =======================================================
 echo.
 echo Aviso: Isso apagará TODOS os dados, usuarios, monitores e probes!

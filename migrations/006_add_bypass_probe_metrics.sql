@@ -1,4 +1,4 @@
--- HopLens -- Migration 006: Native bypass metrics per probe result
+-- CacheSnap -- Migration 006: Native bypass metrics per probe result
 -- Stores bypass request measurements in the same probe_results row
 -- so every monitor has normal + bypass comparison by default.
 

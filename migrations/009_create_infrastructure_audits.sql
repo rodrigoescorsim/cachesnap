@@ -1,4 +1,4 @@
--- HopLens -- Migration 009: Infrastructure Audit Table
+-- CacheSnap -- Migration 009: Infrastructure Audit Table
 -- Stores high-fidelity Edge vs Origin comparisons separately from natural monitoring probes.
 
 CREATE TABLE IF NOT EXISTS audit_results (

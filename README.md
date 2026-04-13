@@ -1,6 +1,6 @@
-# HopLens
+# CacheSnap
 
-HopLens is an edge performance monitoring product focused on cache behavior, latency, and plain-English diagnosis across multiple regions.
+CacheSnap is an edge performance monitoring product focused on cache behavior, latency, and plain-English diagnosis across multiple regions.
 
 ## Stack
 

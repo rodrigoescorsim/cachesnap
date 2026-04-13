@@ -14,5 +14,5 @@ echo "⏳ Aguardando saúde dos serviços..."
 sleep 5
 docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
 
-echo "✅ HopLens está rodando."
+echo "✅ CacheSnap está rodando."
 echo "   API:  http://localhost:${API_PORT:-3001}/health"

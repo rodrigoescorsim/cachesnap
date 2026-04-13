@@ -1,5 +1,5 @@
 [package]
-name = "hoplens-api"
+name = "cachesnap-api"
 version = "0.1.0"
 edition = "2021"
 

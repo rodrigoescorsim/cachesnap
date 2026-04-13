@@ -1,5 +1,5 @@
 #!/bin/bash
-# ─── HopLens — Dev local ──────────────────────────────────────────────────────
+# ─── CacheSnap — Dev local ──────────────────────────────────────────────────────
 # Sobe a infraestrutura (DB + Redis) via Docker e orienta os próximos passos.
 # Uso: ./scripts/dev.sh
 
@@ -14,7 +14,7 @@ echo "🔵 Subindo infraestrutura (TimescaleDB + Redis)..."
 docker compose up -d
 
 echo "⏳ Aguardando TimescaleDB ficar pronto..."
-until docker compose exec db pg_isready -U hoplens -q; do
+until docker compose exec db pg_isready -U CacheSnap -q; do
   sleep 1
 done
 
@@ -30,4 +30,4 @@ echo "   npm run dev"
 echo ""
 echo "   API:       http://localhost:3001"
 echo "   Dashboard: http://localhost:3000"
-echo "   DB:        postgresql://hoplens:***@localhost:5432/hoplens"
+echo "   DB:        postgresql://CacheSnap:***@localhost:5432/CacheSnap"

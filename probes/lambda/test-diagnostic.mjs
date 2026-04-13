@@ -29,7 +29,7 @@ await new Promise(resolve => server.listen(0, resolve));
 const port = server.address().port;
 
 console.log('═══════════════════════════════════════════════════');
-console.log(' HopLens Lambda Probe — Full Field Diagnostic');
+console.log(' cachesnap Lambda Probe — Full Field Diagnostic');
 console.log('═══════════════════════════════════════════════════\n');
 
 const targets = [

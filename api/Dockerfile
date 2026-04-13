@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y \
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release
-RUN rm -f target/release/deps/api* target/release/deps/hoplens*
+RUN rm -f target/release/deps/api* target/release/deps/cachesnap*
 
 # Copiar código fonte e compilar binary final
 COPY src ./src
@@ -28,11 +28,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Usuário não-root para segurança
-RUN groupadd -r hoplens && useradd -r -g hoplens hoplens
+RUN groupadd -r cachesnap && useradd -r -g cachesnap cachesnap
 
 COPY --from=builder /app/target/release/api /usr/local/bin/api
 
-USER hoplens
+USER cachesnap
 EXPOSE 3001
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 \

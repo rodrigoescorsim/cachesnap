@@ -1,4 +1,4 @@
--- HopLens - Migration para adicionar métricas de Borda e Origem
+-- CacheSnap - Migration para adicionar métricas de Borda e Origem
 -- Estas métricas são extraídas do header Server-Timing pelos Workers
 
 ALTER TABLE probe_results 

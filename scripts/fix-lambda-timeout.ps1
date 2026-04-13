@@ -1,15 +1,15 @@
-# HopLens Lambda Configuration Fix (PowerShell)
+# CacheSnap Lambda Configuration Fix (PowerShell)
 # Updates the timeout and memory settings for all 8 AWS regions.
 
 $RegionMap = @{
-    "sa-east-1"      = "hoplens-probe-sa-east"
-    "us-east-2"      = "hoplens-probe"
-    "us-west-2"      = "hoplens-probe-us-west"
-    "eu-central-1"   = "hoplens-probe-eu-west"
-    "ap-northeast-1" = "hoplens-probe-ap-east"
-    "ap-south-1"     = "hoplens-probe-ap-south"
-    "ap-southeast-2" = "hoplens-probe-oc"
-    "af-south-1"     = "hoplens-probe-af-south"
+    "sa-east-1"      = "CacheSnap-probe-sa-east"
+    "us-east-2"      = "CacheSnap-probe"
+    "us-west-2"      = "CacheSnap-probe-us-west"
+    "eu-central-1"   = "CacheSnap-probe-eu-west"
+    "ap-northeast-1" = "CacheSnap-probe-ap-east"
+    "ap-south-1"     = "CacheSnap-probe-ap-south"
+    "ap-southeast-2" = "CacheSnap-probe-oc"
+    "af-south-1"     = "CacheSnap-probe-af-south"
 }
 
 Write-Host "--- Updating Lambda Timeouts to 30 Seconds ---" -ForegroundColor Cyan

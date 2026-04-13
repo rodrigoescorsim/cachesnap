@@ -12,7 +12,7 @@ const createSchema = z.object({
 
 function normalizeMonitorUrl(rawUrl: string): string {
   const parsed = new URL(rawUrl)
-  parsed.searchParams.delete('__hoplens_bypass')
+  parsed.searchParams.delete('__CacheSnap_bypass')
   return parsed.toString()
 }
 

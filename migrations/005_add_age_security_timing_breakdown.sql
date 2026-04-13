@@ -1,4 +1,4 @@
--- HopLens — Migration 005: Age header, Security headers audit, Server-Timing full breakdown
+-- CacheSnap — Migration 005: Age header, Security headers audit, Server-Timing full breakdown
 -- Adds per-probe metadata that enables:
 --   • Zombie cache detection (age_s > 86400 → stale content)
 --   • Security headers audit with 0–5 score
