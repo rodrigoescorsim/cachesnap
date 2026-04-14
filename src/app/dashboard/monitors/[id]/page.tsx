@@ -29,6 +29,17 @@ import {
   Zap,
   Fingerprint,
 } from 'lucide-react'
+import {
+  BRAND_CARD_SURFACE_GRADIENT,
+  BRAND_TABLE_SURFACE_GRADIENT,
+  MONITOR_TABLE,
+  TH_TTFB_HEADER,
+  TH_TTFB_HEADER_ORIGIN,
+  ttfbColor,
+  ttfbMetricCellClass,
+  edgeTtfbMetricCellClass,
+  originTtfbMetricCellClass,
+} from './monitor-table-styles'
 
 interface RegionStat {
   region: string
@@ -162,29 +173,6 @@ const REGION_LABELS: Record<string, string> = {
   'af-south': 'Africa',
 }
 
-/** Subtle CacheSnap brand wash (logo cyan → blue) on security cards — single source of truth. */
-const BRAND_CARD_SURFACE_GRADIENT =
-  'pointer-events-none absolute inset-0 bg-gradient-to-bl from-[#4CC9FF]/[0.028] via-transparent to-[#0088FF]/[0.035]'
-
-/** Same gradient direction and colours as BRAND_CARD_SURFACE_GRADIENT at half opacity — better under dense table rows. */
-const BRAND_TABLE_SURFACE_GRADIENT =
-  'pointer-events-none absolute inset-0 bg-gradient-to-bl from-[#4CC9FF]/[0.010] via-transparent to-[#0088FF]/[0.012]'
-
-/**
- * Real-time TTFB column: header + body share the same “highlight stack” (dark: white 0.03 under
- * gradient 0.035→0.015). Tier rows add colour on top of the same bottom stop.
- */
-const TTFB_LAYER_NEUTRAL =
-  'bg-[linear-gradient(180deg,rgba(0,0,0,0.035),rgba(0,0,0,0.015)),rgba(0,0,0,0.03)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015)),rgba(255,255,255,0.03)]'
-const TTFB_LAYER_FAST =
-  'bg-[linear-gradient(180deg,rgba(16,185,129,0.045),rgba(0,0,0,0.015)),rgba(0,0,0,0.03)] dark:bg-[linear-gradient(180deg,rgba(16,185,129,0.09),rgba(255,255,255,0.015)),rgba(255,255,255,0.03)]'
-const TTFB_LAYER_MED =
-  'bg-[linear-gradient(180deg,rgba(245,158,11,0.045),rgba(0,0,0,0.015)),rgba(0,0,0,0.03)] dark:bg-[linear-gradient(180deg,rgba(245,158,11,0.09),rgba(255,255,255,0.015)),rgba(255,255,255,0.03)]'
-const TTFB_LAYER_SLOW =
-  'bg-[linear-gradient(180deg,rgba(239,68,68,0.045),rgba(0,0,0,0.015)),rgba(0,0,0,0.03)] dark:bg-[linear-gradient(180deg,rgba(239,68,68,0.09),rgba(255,255,255,0.015)),rgba(255,255,255,0.03)]'
-const TTFB_COL_RAIL =
-  '[box-shadow:inset_1px_0_0_rgba(0,0,0,0.05),inset_-1px_0_0_rgba(0,0,0,0.05)] dark:[box-shadow:inset_1px_0_0_rgba(255,255,255,0.03),inset_-1px_0_0_rgba(255,255,255,0.03)]'
-
 function formatCertDate(iso: string | undefined): string {
   if (!iso) return '—'
   const d = new Date(iso)
@@ -261,41 +249,6 @@ const SECURITY_HEADERS_LABELS: { key: keyof SecurityHeaders; label: string; desc
   { key: 'coep', label: 'COEP', description: 'Prevents loading cross-origin resources without permission.' },
   { key: 'corp', label: 'CORP', description: 'Defines which origins can read the resources of your site.' },
 ]
-
-/** Green → fast, amber → medium, red — slow (same scale everywhere TTFB is shown). */
-function ttfbColor(ms: number | null): string {
-  if (ms == null) return 'text-zinc-400'
-  if (ms <= 200) return 'text-emerald-600 dark:text-emerald-400'
-  if (ms <= 600) return 'text-amber-600 dark:text-amber-400'
-  return 'text-red-600 dark:text-red-400'
-}
-
-/** Real-time table: TTFB cell — tier gradients + inset rails. */
-function ttfbRealtimeCellClass(ms: number | null): string {
-  const base = `px-3 py-2.5 text-right font-bold tabular-nums ${TTFB_COL_RAIL}`
-  if (ms == null) return `${base} text-zinc-400 ${TTFB_LAYER_NEUTRAL}`
-  if (ms <= 200) return `${base} text-emerald-600 dark:text-emerald-400 ${TTFB_LAYER_FAST}`
-  if (ms <= 600) return `${base} text-amber-600 dark:text-amber-400 ${TTFB_LAYER_MED}`
-  return `${base} text-red-600 dark:text-red-400 ${TTFB_LAYER_SLOW}`
-}
-
-/** Edge TTFB should be very fast (Cache HITs). */
-function edgeTtfbColor(ms: number | null): string {
-  if (ms == null) return 'text-zinc-400'
-  if (ms <= 100) return 'text-emerald-500'
-  if (ms <= 200) return 'text-green-500'
-  if (ms <= 300) return 'text-amber-500'
-  return 'text-red-500'
-}
-
-/** Origin TTFB accounts for backend processing and network distance. */
-function originTtfbColor(ms: number | null): string {
-  if (ms == null) return 'text-zinc-400'
-  if (ms <= 300) return 'text-emerald-500'
-  if (ms <= 600) return 'text-green-500'
-  if (ms <= 900) return 'text-amber-500'
-  return 'text-red-500'
-}
 
 function uptimeColor(pct: number | null, errorCount: number = 0): string {
   if (pct == null) return 'text-zinc-400'
@@ -704,7 +657,7 @@ export default async function MonitorDetailPage({
       `
 
   const hourlyBypass = (activeView === 'infrastructure' || activeView === 'diagnostics')
-    ? await sql<{ hour: Date; region: string; edge_ttfb: number; origin_ttfb: number; savings: number; edge_cache_status: string | null }[]>`
+    ? await sql<{ hour: Date; region: string; edge_ttfb: number; origin_ttfb: number; savings: number; edge_cache_status: string | null; origin_cache_status: string | null }[]>`
         SELECT
           date_trunc('hour', time) AS hour,
           region,
@@ -921,12 +874,12 @@ export default async function MonitorDetailPage({
                     {latestProbes.length === 0 ? (
                       <p className="text-sm text-zinc-400 italic">Listening for incoming probes...</p>
                     ) : (
-                      <div className="relative overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
+                      <div className={MONITOR_TABLE.outerWrapper}>
                         <div className={BRAND_TABLE_SURFACE_GRADIENT} />
-                        <div className="relative overflow-x-auto">
-                        <table className="w-full text-sm [&_td]:transition-[background_0.2s_ease] [&_th]:transition-[background_0.2s_ease]">
+                        <div className={MONITOR_TABLE.innerScroll}>
+                        <table className={`${MONITOR_TABLE.tableBase} ${MONITOR_TABLE.transition}`}>
                           <thead>
-                            <tr className="border-b border-border bg-black/[0.02] dark:bg-white/[0.02]">
+                            <tr className={MONITOR_TABLE.theadRow}>
                               <th
                                 className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
                                 title="Geographic region where this probe ran"
@@ -958,7 +911,7 @@ export default async function MonitorDetailPage({
                                 TLS
                               </th>
                               <th
-                                className="px-3 py-2 text-right text-[10px] font-bold text-zinc-400 uppercase tracking-tight"
+                                className={`px-3 py-2 text-right text-[10px] font-bold uppercase tracking-tight ${TH_TTFB_HEADER}`}
                                 title="Time to first byte (TTFB). Colour: ≤200ms fast (green), 200–600ms medium (amber), &gt;600ms slow (red)."
                               >
                                 TTFB
@@ -1030,7 +983,7 @@ export default async function MonitorDetailPage({
                               return (
                                 <tr
                                   key={s.region}
-                                  className="border-b border-black/[0.06] transition-colors hover:bg-black/[0.03] dark:border-white/[0.04] dark:hover:bg-white/[0.03] last:border-b-0"
+                                  className={MONITOR_TABLE.tbodyRow}
                                 >
                                   <td className="px-3 py-2.5 font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
                                     <span title={REGION_DESCRIPTIONS[s.region] ?? s.region}>
@@ -1051,7 +1004,7 @@ export default async function MonitorDetailPage({
                                   <td className={`px-3 py-2.5 text-right text-xs font-mono tabular-nums ${TIMING.tls.text}`}>
                                     <VisualGlow value={s.tls_ms}>{s.tls_ms != null ? `${Math.round(s.tls_ms)}ms` : '—'}</VisualGlow>
                                   </td>
-                                  <td className={ttfbRealtimeCellClass(s.ttfb_ms)}>
+                                  <td className={ttfbMetricCellClass(s.ttfb_ms)}>
                                     <VisualGlow value={s.ttfb_ms}>{s.ttfb_ms != null ? `${Math.round(s.ttfb_ms)}ms` : '—'}</VisualGlow>
                                   </td>
                                   <td className={`px-3 py-2.5 text-right text-xs font-mono tabular-nums ${TIMING.download.text}`}>
@@ -1153,8 +1106,10 @@ export default async function MonitorDetailPage({
                     {stats.length === 0 ? (
                       <p className="text-sm text-zinc-400">Compiling historical insights...</p>
                     ) : (
-                      <div className="overflow-x-auto rounded-xl border border-border bg-surface/30">
-                        <table className="w-full text-sm">
+                      <div className={MONITOR_TABLE.outerWrapper}>
+                        <div className={BRAND_TABLE_SURFACE_GRADIENT} />
+                        <div className={MONITOR_TABLE.innerScroll}>
+                        <table className={`${MONITOR_TABLE.tableBase} ${MONITOR_TABLE.transition}`}>
                           <thead>
                             {(() => {
                               const hasEdgeData = stats.some(s => s.edge_hit_avg_ms !== null);
@@ -1169,7 +1124,7 @@ export default async function MonitorDetailPage({
 
                               return (
                                 <>
-                                  <tr className="border-b border-border bg-white/5 dark:bg-black/20">
+                                  <tr className={MONITOR_TABLE.theadRow}>
                                     <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Region</th>
                                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average duration of DNS hostname resolution (mapping domain to IP).">DNS</th>
                                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average time to establish a TCP connection with the edge server.">TCP</th>
@@ -1177,12 +1132,12 @@ export default async function MonitorDetailPage({
 
                                     {showSplitTtfb ? (
                                       <>
-                                        <th className="px-3 py-2 text-right text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tight" title="Average Time to First Byte for Cache HITs (Edge performance)">Edge TTFB</th>
-                                        <th className="px-3 py-2 text-right text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-tight" title="Average Time to First Byte for Cache MISS/Bypass (Server performance)">Origin TTFB</th>
-                                        <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight border-l border-zinc-100 dark:border-zinc-800" title="The overall average Time to First Byte across all results (Hits and Misses).">Avg TTFB</th>
+                                        <th className={`px-3 py-2 text-right text-[10px] font-bold uppercase tracking-tight ${TH_TTFB_HEADER}`} title="Average Time to First Byte for Cache HITs (Edge performance)">Edge TTFB</th>
+                                        <th className={`px-3 py-2 text-right text-[10px] font-bold uppercase tracking-tight ${TH_TTFB_HEADER_ORIGIN}`} title="Average Time to First Byte for Cache MISS/Bypass (Server performance)">Origin TTFB</th>
+                                        <th className={`px-3 py-2 text-right text-[10px] font-bold uppercase tracking-tight border-l border-zinc-100 dark:border-zinc-800 ${TH_TTFB_HEADER}`} title="The overall average Time to First Byte across all results (Hits and Misses).">Avg TTFB</th>
                                       </>
                                     ) : (
-                                      <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title={ttfbHeaderTitle}>{ttfbHeaderLabel}</th>
+                                      <th className={`px-3 py-2 text-right text-[10px] font-bold uppercase tracking-tight ${TH_TTFB_HEADER}`} title={ttfbHeaderTitle}>{ttfbHeaderLabel}</th>
                                     )}
 
 
@@ -1200,13 +1155,13 @@ export default async function MonitorDetailPage({
                             {(() => {
                               const hasEdgeData = stats.some(st => st.edge_hit_avg_ms !== null);
                               const hasOriginData = stats.some(st => st.origin_miss_avg_ms !== null);
-                              const showSplitTtfb = hasEdgeData && hasOriginData;
+                              const showSplitTtfb = hasEdgeData || hasOriginData;
 
-                              return stats.map((s, i) => {
+                              return stats.map((s) => {
                                 return (
                                   <tr
                                     key={s.region}
-                                    className={i < stats.length - 1 ? 'border-b border-zinc-100 dark:border-zinc-800' : ''}
+                                    className={MONITOR_TABLE.tbodyRow}
                                   >
                                     <td className="px-3 py-2.5">
                                       <span className="font-semibold text-zinc-900 dark:text-zinc-100 whitespace-nowrap" title={REGION_DESCRIPTIONS[s.region] ?? s.region}>
@@ -1225,18 +1180,18 @@ export default async function MonitorDetailPage({
 
                                     {showSplitTtfb ? (
                                       <>
-                                        <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${edgeTtfbColor(s.edge_hit_avg_ms)}`}>
+                                        <td className={edgeTtfbMetricCellClass(s.edge_hit_avg_ms)}>
                                           {s.edge_hit_avg_ms != null ? `${s.edge_hit_avg_ms}ms` : '—'}
                                         </td>
-                                        <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${originTtfbColor(s.origin_miss_avg_ms)}`}>
+                                        <td className={originTtfbMetricCellClass(s.origin_miss_avg_ms)}>
                                           {s.origin_miss_avg_ms != null ? `${s.origin_miss_avg_ms}ms` : '—'}
                                         </td>
-                                        <td className={`px-3 py-2.5 text-right font-bold tabular-nums border-l border-zinc-50 dark:border-zinc-800/50 ${ttfbColor(s.ttfb_avg_ms)}`}>
+                                        <td className={`${ttfbMetricCellClass(s.ttfb_avg_ms)} border-l border-zinc-100 dark:border-zinc-800`}>
                                           {s.ttfb_avg_ms != null ? `${s.ttfb_avg_ms}ms` : '—'}
                                         </td>
                                       </>
                                     ) : (
-                                      <td className={`px-3 py-2.5 text-right font-semibold tabular-nums ${ttfbColor(s.ttfb_avg_ms)}`}>
+                                      <td className={ttfbMetricCellClass(s.ttfb_avg_ms)}>
                                         {s.ttfb_avg_ms != null ? `${s.ttfb_avg_ms}ms` : '—'}
                                       </td>
                                     )}
@@ -1272,6 +1227,7 @@ export default async function MonitorDetailPage({
                             })()}
                           </tbody>
                         </table>
+                        </div>
                       </div>
                     )}
                   </section>
@@ -1815,10 +1771,12 @@ export default async function MonitorDetailPage({
                     <p className="text-xs text-zinc-500 mt-1 max-w-[240px] mx-auto">This monitor is currently healthy and performing within expected baselines.</p>
                   </div>
                 ) : (
-                  <div className="overflow-hidden rounded-xl border border-border bg-surface/50">
-                    <table className="w-full text-sm">
+                  <div className={MONITOR_TABLE.outerWrapperMuted}>
+                    <div className={BRAND_TABLE_SURFACE_GRADIENT} />
+                    <div className={MONITOR_TABLE.innerScroll}>
+                    <table className={`${MONITOR_TABLE.tableBase} ${MONITOR_TABLE.transition}`}>
                       <thead>
-                        <tr className="border-b border-border bg-white/5 dark:bg-black/20">
+                        <tr className={MONITOR_TABLE.theadRow}>
                           <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Timestamp</th>
                           <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Region</th>
                           <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Event Type</th>
@@ -1828,13 +1786,13 @@ export default async function MonitorDetailPage({
                           <th className="px-4 py-2.5 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Severity</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-border">
+                      <tbody>
                         {alerts.map((alert) => {
                           const severity = (alert.deviation_factor ?? 0) > 4 ? 'CRITICAL' : (alert.deviation_factor ?? 0) > 2 ? 'WARNING' : 'STATED';
                           const severityColor = severity === 'CRITICAL' ? 'bg-red-500 text-white' : severity === 'WARNING' ? 'bg-amber-500 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400';
 
                           return (
-                            <tr key={alert.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors">
+                            <tr key={alert.id} className={MONITOR_TABLE.tbodyRow}>
                               <td className="px-4 py-3.5">
                                 <span className="text-[11px] text-zinc-500 font-medium tabular-nums">
                                   {new Date(alert.created_at).toLocaleString('en-US', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
@@ -1878,6 +1836,7 @@ export default async function MonitorDetailPage({
                         })}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 )}
               </div>
