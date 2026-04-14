@@ -13,7 +13,14 @@ const createSchema = z.object({
 function normalizeMonitorUrl(rawUrl: string): string {
   const parsed = new URL(rawUrl)
   parsed.searchParams.delete('__CacheSnap_bypass')
-  return parsed.toString()
+  let normalized = parsed.toString()
+
+  // Remover barra final para normalização (ex: site.com/ e site.com serem iguais)
+  if (normalized.endsWith('/')) {
+    normalized = normalized.slice(0, -1)
+  }
+
+  return normalized
 }
 
 export async function GET() {
@@ -45,6 +52,19 @@ export async function POST(request: NextRequest) {
 
   const { url, name, check_interval_seconds, audit_interval_seconds } = parsed.data
   const normalizedUrl = normalizeMonitorUrl(url)
+
+  // Prevenir duplicatas para o mesmo usuário
+  const existing = await sql`
+    SELECT id FROM monitors 
+    WHERE user_id = ${user.id} AND url = ${normalizedUrl}
+    LIMIT 1
+  `
+  if (existing.length > 0) {
+    return NextResponse.json(
+      { error: 'Você já possui um monitor configurado para esta URL.' },
+      { status: 409 }
+    )
+  }
 
   const [monitor] = await sql`
     INSERT INTO monitors (user_id, url, name, check_interval_seconds, audit_interval_seconds)
