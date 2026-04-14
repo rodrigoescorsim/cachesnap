@@ -863,15 +863,15 @@ export default async function MonitorDetailPage({
                         <li key={tab}>
                           <Link
                             href={buildMonitorHref(tab, range, tab === 'incidents' ? filteredAlertType : null)}
-                            className={`flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all group ${activeTab === tab
-                              ? 'bg-zinc-900 border border-zinc-900 dark:border-zinc-700/50 dark:bg-zinc-800 text-white shadow-sm'
-                              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100/80 dark:hover:bg-zinc-800/50'
+                            className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-bold transition-all duration-300 group ${activeTab === tab
+                              ? 'bg-surface border border-white/10 text-white shadow-xl shadow-black/20'
+                              : 'text-zinc-500 hover:text-white hover:bg-white/5 border border-transparent'
                               }`}
                           >
                             <Icon
-                              className={`w-3.5 h-3.5 shrink-0 transition-colors ${activeTab === tab
+                              className={`w-3.5 h-3.5 shrink-0 transition-colors duration-300 ${activeTab === tab
                                 ? 'text-emerald-400'
-                                : 'text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-700 dark:group-hover:text-zinc-300'
+                                : 'text-zinc-500 group-hover:text-zinc-300'
                                 }`}
                             />
                             <span>{TAB_LABELS[tab]}</span>
