@@ -772,7 +772,7 @@ export default async function MonitorDetailPage({
     <div className="space-y-6">
       <RealTimeHub userId={user.id} watchId={monitor.id} />
       <AutoRefresh />
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/30 px-4 py-2.5 sm:px-4 sm:py-3">
+      <div className="rounded-xl border border-border bg-surface/50 backdrop-blur px-4 py-2.5 sm:px-4 sm:py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-[32px] leading-tight font-bold tracking-[-0.03em] text-zinc-900 dark:text-zinc-50">
@@ -922,10 +922,10 @@ export default async function MonitorDetailPage({
                     {latestProbes.length === 0 ? (
                       <p className="text-sm text-zinc-400 italic">Listening for incoming probes...</p>
                     ) : (
-                      <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/20 dark:bg-zinc-950/20 shadow-sm">
+                      <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
+                            <tr className="border-b border-border bg-white/5 dark:bg-black/20">
                               <th
                                 className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
                                 title="Geographic region where this probe ran"
@@ -1034,7 +1034,7 @@ export default async function MonitorDetailPage({
                                     </span>
                                   </td>
                                   <td className="px-3 py-2.5">
-                                    <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800/80 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500 dark:text-zinc-400 ring-1 ring-inset ring-zinc-200/50 dark:ring-zinc-700/50" title={extractPop(s.common_served_by) ?? 'Unknown'}>
+                                    <span className="inline-flex items-center rounded-md bg-white/5 dark:bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-zinc-400 dark:text-zinc-500 ring-1 ring-inset ring-white/10" title={extractPop(s.common_served_by) ?? 'Unknown'}>
                                       {popToCity(extractPop(s.common_served_by)) ?? '—'}
                                     </span>
                                   </td>
@@ -1148,7 +1148,7 @@ export default async function MonitorDetailPage({
                     {stats.length === 0 ? (
                       <p className="text-sm text-zinc-400">Compiling historical insights...</p>
                     ) : (
-                      <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-transparent">
+                      <div className="overflow-x-auto rounded-xl border border-border bg-surface/30">
                         <table className="w-full text-sm">
                           <thead>
                             {(() => {
@@ -1164,7 +1164,7 @@ export default async function MonitorDetailPage({
 
                               return (
                                 <>
-                                  <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
+                                  <tr className="border-b border-border bg-white/5 dark:bg-black/20">
                                     <th className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Region</th>
                                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average duration of DNS hostname resolution (mapping domain to IP).">DNS</th>
                                     <th className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight" title="Average time to establish a TCP connection with the edge server.">TCP</th>
@@ -1357,7 +1357,7 @@ export default async function MonitorDetailPage({
                 </h2>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                   {stats.map(s => (
-                    <div key={s.region} className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm">
+                    <div key={s.region} className="rounded-xl border border-border bg-surface p-4 shadow-sm">
                       <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-tight mb-1">{REGION_LABELS[s.region] ?? s.region}</p>
                       <div className="flex items-end justify-between">
                         <span className={`text-xl font-bold tabular-nums ${uptimeColor(s.uptime_pct)}`}>
@@ -1383,7 +1383,7 @@ export default async function MonitorDetailPage({
               )}
 
               {security && (
-                <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3">
+                <div className="rounded-xl border border-border bg-surface px-4 py-3">
                   <div className="flex items-center gap-3 mb-2">
                     <span className={`text-2xl font-bold tabular-nums ${scoreColor(security.score)}`}>
                       {security.score}<span className="text-base font-normal text-zinc-400">/9</span>
@@ -1419,14 +1419,14 @@ export default async function MonitorDetailPage({
                           <ShieldCheck className="w-4 h-4 text-emerald-500" />
                           SSL / TLS Profile
                         </h3>
-                        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-6 flex flex-wrap items-center justify-between gap-6 shadow-sm">
+                        <div className="rounded-2xl border border-border bg-surface p-6 flex flex-wrap items-center justify-between gap-6 shadow-sm">
                           <div className="space-y-1">
                             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Issuer</p>
                             <p className="font-semibold text-zinc-900 dark:text-zinc-100">{mainProfile.headers.ssl.issuer || 'Unknown CA'}</p>
                           </div>
                           <div className="space-y-1">
                             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Protocol</p>
-                            <p className="font-mono text-xs font-bold text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-900 px-2 py-0.5 rounded">{mainProfile.headers.ssl.protocol || 'TLS'}</p>
+                            <p className="font-mono text-xs font-bold text-zinc-700 dark:text-zinc-300 bg-white/5 dark:bg-white/5 px-2 py-0.5 rounded">{mainProfile.headers.ssl.protocol || 'TLS'}</p>
                           </div>
                           <div className="space-y-1 border-l border-zinc-200 dark:border-zinc-800 pl-6">
                             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Expires In</p>

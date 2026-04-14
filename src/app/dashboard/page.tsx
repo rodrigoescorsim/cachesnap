@@ -132,7 +132,7 @@ export default async function DashboardPage() {
                 </span>
                 <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Live</span>
               </div>
-              <span className="rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-2.5 py-1 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
+              <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-[11px] font-medium text-zinc-500">
                 {monitors.length} total
               </span>
             </div>
@@ -148,8 +148,8 @@ export default async function DashboardPage() {
 
       {/* Monitor cards */}
       {monitors.length === 0 ? (
-        <div id="monitors" className="rounded-xl border border-dashed border-zinc-300 dark:border-zinc-700 py-16 text-center">
-          <p className="text-sm text-zinc-500">You are not monitoring any sites yet.</p>
+        <div id="monitors" className="rounded-xl border border-dashed border-border py-16 text-center">
+          <p className="text-sm text-zinc-500 font-medium">You are not monitoring any sites yet.</p>
           <Link
             href="/dashboard/monitors/new"
             className="mt-3 inline-block text-sm font-medium text-zinc-900 dark:text-zinc-50 hover:underline"

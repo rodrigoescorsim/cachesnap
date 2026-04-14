@@ -176,9 +176,7 @@ export function MonitorActions({
 
   return (
     <>
-      {/* Action buttons */}
       <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
-        {/* Refresh with Cache */}
         <button
           type="button"
           onClick={() => handleDispatch(false)}
@@ -186,8 +184,8 @@ export function MonitorActions({
           title="Refresh measuring Edge Cache"
           className={`inline-flex h-8 items-center gap-2 rounded-lg border px-3 py-1 text-xs font-bold transition-all shadow-sm disabled:opacity-50 ${
             cooldown > 0 
-              ? 'bg-zinc-50 dark:bg-zinc-800/50 text-zinc-400 border-zinc-200 dark:border-zinc-800' 
-              : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/40'
+              ? 'bg-surface/20 text-zinc-500 border-border/50' 
+              : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20 hover:border-emerald-500/40'
           }`}
         >
           <svg viewBox="0 0 16 16" className={`h-3.5 w-3.5 ${isPending && pendingAction === 'toggle' ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -196,7 +194,6 @@ export function MonitorActions({
           {cooldown > 0 ? `Wait ${cooldown}s` : 'Refresh'}
         </button>
 
-        {/* Refresh with Bypass */}
         <button
           type="button"
           onClick={() => handleDispatch(true)}
@@ -204,8 +201,8 @@ export function MonitorActions({
           title="Refresh bypassing Edge Cache (Hit Origin)"
           className={`inline-flex h-8 items-center gap-2 rounded-lg border px-3 py-1 text-xs font-bold transition-all shadow-sm disabled:opacity-50 ${
             cooldown > 0 
-              ? 'bg-zinc-50 dark:bg-zinc-800/50 text-zinc-400 border-zinc-200 dark:border-zinc-800' 
-              : 'bg-zinc-900 dark:bg-zinc-800 text-white dark:text-zinc-100 border-transparent hover:bg-zinc-800 dark:hover:bg-zinc-700 dark:border dark:border-zinc-700/50'
+              ? 'bg-surface/20 text-zinc-500 border-border/50' 
+              : 'bg-surface text-white border-border hover:bg-surface/80 hover:border-zinc-700'
           }`}
         >
           <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -224,7 +221,7 @@ export function MonitorActions({
             aria-expanded={menuOpen}
             title="Monitor settings"
             aria-label="Monitor settings"
-            className="inline-flex h-8 items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-1 text-xs font-bold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all shadow-sm disabled:opacity-50"
+            className="inline-flex h-8 items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1 text-xs font-bold text-zinc-400 hover:text-white hover:bg-surface/80 transition-all shadow-sm disabled:opacity-50"
           >
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 opacity-60" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M1 4h2.5M12.5 4H15M1 12h8.5M12.5 12H15" />
@@ -235,7 +232,7 @@ export function MonitorActions({
           </button>
 
           {menuOpen && (
-            <div className="absolute right-0 top-[calc(100%+6px)] z-20 min-w-[148px] rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-lg p-1">
+            <div className="absolute right-0 top-[calc(100%+6px)] z-20 min-w-[148px] rounded-lg border border-border bg-surface shadow-2xl p-1 backdrop-blur-xl">
               <button
                 type="button"
                 onClick={() => {
@@ -243,15 +240,15 @@ export function MonitorActions({
                   setMenuOpen(false)
                 }}
                 disabled={pendingAction != null}
-                className={`w-full rounded-md px-2.5 py-1.5 text-left text-xs font-medium transition-colors disabled:opacity-50 ${
+                className={`w-full rounded-md px-2.5 py-1.5 text-left text-xs font-bold transition-colors disabled:opacity-50 ${
                   isActive
-                    ? 'text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/30'
-                    : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                    ? 'text-amber-500 hover:bg-amber-500/10'
+                    : 'text-emerald-400 hover:bg-emerald-500/10'
                 }`}
               >
                 {isPending && pendingAction === 'toggle'
                   ? (isActive ? 'Pausing...' : 'Resuming...')
-                  : (isActive ? 'Pause monitor' : 'Resume monitor')}
+                  : (isActive ? 'Pause' : 'Resume')}
               </button>
               <button
                 type="button"
@@ -261,7 +258,7 @@ export function MonitorActions({
                   setMenuOpen(false)
                 }}
                 disabled={pendingAction != null}
-                className="w-full rounded-md px-2.5 py-1.5 text-left text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                className="w-full rounded-md px-2.5 py-1.5 text-left text-xs font-bold text-zinc-400 hover:text-white hover:bg-white/5 transition-colors disabled:opacity-50"
               >
                 Edit
               </button>
@@ -273,7 +270,7 @@ export function MonitorActions({
                   setMenuOpen(false)
                 }}
                 disabled={pendingAction != null}
-                className="w-full rounded-md px-2.5 py-1.5 text-left text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50"
+                className="w-full rounded-md px-2.5 py-1.5 text-left text-xs font-bold text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-50"
               >
                 Delete
               </button>
@@ -282,16 +279,15 @@ export function MonitorActions({
         </div>
       </div>
 
-      {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+      {error && <p className="mt-2 text-xs text-red-500 font-medium">{error}</p>}
 
-      {/* Inline edit panel */}
       {mode === 'edit' && (
-        <div className="mt-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-4">
-          <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-4">Monitor settings</h3>
+        <div className="mt-4 rounded-xl border border-border bg-surface p-5 shadow-2xl">
+          <h3 className="text-sm font-bold text-white mb-4 uppercase tracking-widest text-[10px] opacity-60">Monitor configuration</h3>
           <form onSubmit={handleEdit} className="space-y-4 max-w-sm">
             <div>
-              <label htmlFor="edit-name" className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                Name <span className="text-zinc-400">(optional)</span>
+              <label htmlFor="edit-name" className="block text-[10px] font-bold text-zinc-500 uppercase tracking-tight mb-1">
+                Name <span className="text-zinc-600">(optional)</span>
               </label>
               <input
                 id="edit-name"
@@ -299,20 +295,20 @@ export function MonitorActions({
                 type="text"
                 defaultValue={name ?? ''}
                 placeholder="My site"
-                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+                className="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="edit-check" className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                  Monitoring interval
+                <label htmlFor="edit-check" className="block text-[10px] font-bold text-zinc-500 uppercase tracking-tight mb-1">
+                  Monitoring
                 </label>
                 <select
                   id="edit-check"
                   name="check_interval_seconds"
                   defaultValue={checkIntervalSeconds}
-                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+                  className="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 >
                   <option value={60}>1 minute</option>
                   <option value={180}>3 minutes</option>
@@ -321,14 +317,14 @@ export function MonitorActions({
               </div>
 
               <div>
-                <label htmlFor="edit-audit" className="block text-xs font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-                  Audit (Bypass)
+                <label htmlFor="edit-audit" className="block text-[10px] font-bold text-zinc-500 uppercase tracking-tight mb-1">
+                  Bypass Audit
                 </label>
                 <select
                   id="edit-audit"
                   name="audit_interval_seconds"
                   defaultValue={auditIntervalSeconds}
-                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+                  className="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 >
                   <option value={900}>15 minutes</option>
                   <option value={1800}>30 minutes</option>
@@ -337,11 +333,9 @@ export function MonitorActions({
               </div>
             </div>
 
-            {/* Notifications */}
-            <div className="pt-2 border-t border-zinc-200 dark:border-zinc-700 space-y-4">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Notifications</p>
+            <div className="pt-2 border-t border-border space-y-4">
+              <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.2em]">Notifications</p>
 
-              {/* Email */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <input
@@ -349,9 +343,9 @@ export function MonitorActions({
                     name="notify_email_enabled"
                     type="checkbox"
                     defaultChecked={notifyEmailEnabled}
-                    className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600 accent-zinc-900 dark:accent-zinc-100"
+                    className="h-4 w-4 rounded border-border bg-background accent-blue-500"
                   />
-                  <label htmlFor="notify-email-toggle" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                  <label htmlFor="notify-email-toggle" className="text-xs font-bold text-zinc-400">
                     Email alerts
                   </label>
                 </div>
@@ -360,11 +354,10 @@ export function MonitorActions({
                   type="email"
                   defaultValue={notifyEmail ?? ''}
                   placeholder="you@example.com"
-                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+                  className="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 />
               </div>
 
-              {/* Slack / Discord */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <input
@@ -372,9 +365,9 @@ export function MonitorActions({
                     name="notify_slack_enabled"
                     type="checkbox"
                     defaultChecked={notifySlackEnabled}
-                    className="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600 accent-zinc-900 dark:accent-zinc-100"
+                    className="h-4 w-4 rounded border-border bg-background accent-blue-500"
                   />
-                  <label htmlFor="notify-slack-toggle" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                  <label htmlFor="notify-slack-toggle" className="text-xs font-bold text-zinc-400">
                     Slack / Discord webhook
                   </label>
                 </div>
@@ -383,25 +376,23 @@ export function MonitorActions({
                   type="url"
                   defaultValue={notifySlackWebhook ?? ''}
                   placeholder="https://hooks.slack.com/services/..."
-                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+                  className="w-full rounded-lg border border-border bg-background/50 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                 />
               </div>
             </div>
-
-            {error && <p className="text-xs text-red-500">{error}</p>}
 
             <div className="flex gap-3">
               <button
                 type="submit"
                 disabled={isPending}
-                className="rounded-lg bg-zinc-900 dark:bg-zinc-800 border dark:border-zinc-700/50 px-4 py-2 text-sm font-medium text-white dark:text-zinc-100 hover:bg-zinc-700 dark:hover:bg-zinc-700 disabled:opacity-50 transition-colors"
+                className="rounded-lg bg-white px-5 py-2 text-sm font-bold text-zinc-900 hover:bg-zinc-200 disabled:opacity-50 transition-all active:scale-[0.98]"
               >
-                {isPending && pendingAction === 'edit' ? 'Saving...' : 'Save'}
+                {isPending && pendingAction === 'edit' ? 'Saving...' : 'Save changes'}
               </button>
               <button
                 type="button"
                 onClick={() => setMode('idle')}
-                className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800 transition-colors"
+                className="rounded-lg border border-border bg-transparent px-5 py-2 text-sm font-bold text-zinc-400 hover:text-white hover:bg-white/5 transition-all"
               >
                 Cancel
               </button>
@@ -410,24 +401,28 @@ export function MonitorActions({
         </div>
       )}
 
-      {/* Delete confirmation */}
       {mode === 'delete-confirm' && (
-        <div className="mt-4 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 px-4 py-3">
-          <p className="text-sm text-red-700 dark:text-red-400 mb-3">
-            Delete this monitor? All probe data and alerts will be permanently removed.
+        <div className="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 px-5 py-4 shadow-xl">
+          <p className="text-sm font-bold text-red-400 mb-4 flex items-center gap-2">
+            <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M8 5v3M8 11h.01M1 14l7-12 7 12H1z" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Permanent Deletion
           </p>
-          {error && <p className="text-xs text-red-500 mb-2">{error}</p>}
+          <p className="text-xs text-red-500/60 leading-relaxed mb-5 max-w-sm">
+            This action cannot be undone. All probe history, diagnostic logs, and regional alerts for this monitor will be erased forever.
+          </p>
           <div className="flex gap-3">
             <button
               onClick={handleDelete}
               disabled={isPending}
-              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+              className="rounded-lg bg-red-500 px-5 py-2 text-sm font-bold text-white hover:bg-red-600 disabled:opacity-50 transition-all active:scale-[0.98]"
             >
-              {isPending && pendingAction === 'delete' ? 'Deleting...' : 'Yes, delete'}
+              {isPending && pendingAction === 'delete' ? 'Deleting...' : 'Confirm Delete'}
             </button>
             <button
               onClick={() => setMode('idle')}
-              className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800 transition-colors"
+              className="rounded-lg border border-border bg-transparent px-5 py-2 text-sm font-bold text-zinc-400 hover:text-white hover:bg-white/5 transition-all"
             >
               Cancel
             </button>
