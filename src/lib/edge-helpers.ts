@@ -1,23 +1,19 @@
 /**
- * Extrai o código IATA do PoP a partir de um CF-Ray ou X-Served-By.
+ * Extract PoP IATA code from CF-Ray or X-Served-By.
  *
- * CF-Ray format: `{hex_id}-{COLO}` — ex: "87c1d4a2b3c4d5e6-GRU" → "GRU"
- * X-Served-By (Fastly): formato diferente — retorna null por enquanto.
+ * CF-Ray: `{hex_id}-{COLO}` — e.g. "87c1d4a2b3c4d5e6-GRU" → "GRU"
+ * X-Served-By (Fastly): different format — returns null for now.
  */
 export function extractPop(servedBy: string | null): string | null {
   if (!servedBy) return null
-  
-  // 1. Cloudflare style: hex-IATA (ex: 87c1d4a2b3c4d5e6-GRU)
+
+  // 1. Cloudflare style: hex-IATA (e.g. 87c1d4a2b3c4d5e6-GRU)
   const cfMatch = servedBy.match(/-([A-Z]{2,4})$/)
   if (cfMatch) return cfMatch[1]
 
-  // 2. Vercel style: iata1::xxxx (ex: gru1::h6r2m) ou iata1:iad1::xxxx
+  // 2. Vercel style: iata1::xxxx (e.g. gru1::h6r2m) or iata1:iad1::xxxx
   const vercelMatch = servedBy.match(/^([a-z]{3})[0-9]/)
   if (vercelMatch) return vercelMatch[1].toUpperCase()
-
-  // 3. Fastly style fallback: cache-gru1234
-  const fastlyMatch = servedBy.match(/cache-([a-z]{3})[0-9]/)
-  if (fastlyMatch) return fastlyMatch[1].toUpperCase()
 
   return null
 }
@@ -36,25 +32,27 @@ const POP_CITY_MAP: Record<string, string> = {
   'SCL': 'Santiago',
   'BOG': 'Bogotá',
   'LIM': 'Lima',
-  
+
   // North America
-  'IAD': 'Dulles/Virginia',
+  'IAD': 'Dulles, VA',
   'JFK': 'New York',
   'EWR': 'Newark',
   'LAX': 'Los Angeles',
   'SFO': 'San Francisco',
   'SJC': 'San Jose',
   'ORD': 'Chicago',
+  'CHI': 'Chicago',
   'DFW': 'Dallas',
   'MIA': 'Miami',
   'ATL': 'Atlanta',
   'CMH': 'Ohio',
   'CLE': 'Cleveland',
   'SEA': 'Seattle',
+  'BFI': 'Seattle',
   'PDX': 'Oregon',
   'YUL': 'Montreal',
   'YYZ': 'Toronto',
-  
+
   // Europe
   'LHR': 'London',
   'FRA': 'Frankfurt',
@@ -79,7 +77,7 @@ const POP_CITY_MAP: Record<string, string> = {
   'ATH': 'Athens',
   'OTP': 'Bucharest',
   'SOF': 'Sofia',
-  
+
   // Asia / Pacific
   'SIN': 'Singapore',
   'HKG': 'Hong Kong',
@@ -91,15 +89,16 @@ const POP_CITY_MAP: Record<string, string> = {
   'SYD': 'Sydney',
   'MEL': 'Melbourne',
   'AKL': 'Auckland',
-  
+  'WSI': 'Sydney',
+
   // Africa
   'CPT': 'Cape Town',
   'JNB': 'Johannesburg',
 }
 
 /**
- * Traduz um código IATA para o nome da cidade amigável.
- * Se não encontrar, retorna o código original.
+ * Map an IATA code to a short city label for the UI.
+ * If unknown, returns the code as-is.
  */
 export function popToCity(iata: string | null): string | null {
   if (!iata) return null
@@ -107,11 +106,11 @@ export function popToCity(iata: string | null): string | null {
 }
 
 /**
- * Infere o nome do CDN a partir do valor do header served_by.
+ * Infer CDN name from served_by header.
  *
  * - CF-Ray (`{lowercase_hex}-{UPPERCASE_COLO}`) → "Cloudflare"
- * - X-Served-By com prefixo "cache-" (Fastly/Varnish) → "Fastly / Varnish"
- * - Demais → null (desconhecido)
+ * - X-Served-By with "cache-" prefix (Fastly/Varnish) → "Fastly / Varnish"
+ * - Otherwise → null
  */
 export function detectCdn(servedBy: string | null): string | null {
   if (!servedBy) return null

@@ -72,7 +72,7 @@ export function MonitorNavDropdown({ monitors }: { monitors: NavMonitor[] }) {
         ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(open => !open)}
-        className="inline-flex items-center gap-1 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50 transition-colors"
+        className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-white transition-colors"
         aria-haspopup="menu"
         aria-expanded={isOpen}
       >
@@ -83,7 +83,7 @@ export function MonitorNavDropdown({ monitors }: { monitors: NavMonitor[] }) {
       {isOpen && (
         <div
           ref={panelRef}
-          className="absolute left-0 top-full z-40 mt-2 w-[22rem] rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 shadow-lg"
+          className="absolute left-0 top-full z-40 mt-2 w-[22rem] rounded-xl border border-border bg-surface shadow-2xl backdrop-blur-xl"
         >
           <div className="p-2 border-b border-zinc-200 dark:border-zinc-800">
             <label htmlFor="monitor-search" className="sr-only">
@@ -109,7 +109,7 @@ export function MonitorNavDropdown({ monitors }: { monitors: NavMonitor[] }) {
                   key={monitor.id}
                   href={`/dashboard/monitors/${monitor.id}`}
                   onClick={() => setIsOpen(false)}
-                  className="block px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-900/70 transition-colors"
+                  className="block px-3 py-2 hover:bg-white/5 transition-colors"
                 >
                   <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">
                     {monitorLabel(monitor)}
@@ -126,7 +126,7 @@ export function MonitorNavDropdown({ monitors }: { monitors: NavMonitor[] }) {
             <Link
               href="/dashboard/monitors/new"
               onClick={() => setIsOpen(false)}
-              className="block rounded-md px-2 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-900/70 transition-colors"
+              className="block rounded-md px-2 py-1.5 text-xs font-bold text-zinc-500 hover:text-white hover:bg-white/5 transition-colors"
             >
               + Create monitor
             </Link>

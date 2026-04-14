@@ -155,10 +155,10 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
       {/* Tooltip */}
       {hoveredIdx !== null && (
         <div 
-          className="fixed z-[100] pointer-events-none bg-zinc-950/90 dark:bg-zinc-900/95 backdrop-blur-md border border-zinc-800 p-3 rounded-xl shadow-2xl text-zinc-100 min-w-[180px]"
+          className="fixed z-[100] pointer-events-none bg-surface/95 backdrop-blur-xl border border-white/10 p-3 rounded-xl shadow-2xl text-white min-w-[180px]"
           style={{ left: mousePos.x + 20 + (containerRef.current?.getBoundingClientRect().left ?? 0), top: mousePos.y + 20 + (containerRef.current?.getBoundingClientRect().top ?? 0) }}
         >
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 border-b border-zinc-800 pb-1.5 px-0.5">
+          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 border-b border-white/5 pb-1.5 px-0.5">
             {formatChartLabel(allBuckets[hoveredIdx], range)} {range === '7d' ? '' : 'UTC'}
           </p>
           <div className="space-y-2">
@@ -194,15 +194,15 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
           Performance trends
         </h2>
-        <div className="flex bg-zinc-100 dark:bg-zinc-800/50 p-1 rounded-lg gap-0.5 border border-zinc-200/50 dark:border-zinc-800">
+        <div className="flex bg-surface p-1 rounded-lg gap-0.5 border border-border">
           {(['24h', '7d'] as const).map(r => (
             <Link
               key={r}
               href={`?range=${r}`}
               className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all duration-200 uppercase tracking-wider ${
                 range === r
-                  ? 'bg-white dark:bg-zinc-700 text-zinc-950 dark:text-zinc-50 shadow-sm border border-zinc-200 dark:border-zinc-600'
-                  : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+                  ? 'bg-white/10 text-white shadow-sm border border-white/10'
+                  : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
               {r}
@@ -212,14 +212,14 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
       </div>
 
       {allBuckets.length < 2 ? (
-        <div className="rounded-2xl border border-zinc-100 dark:border-zinc-800/60 bg-white dark:bg-zinc-900/20 p-12 text-center">
-          <p className="text-sm text-zinc-400 italic">Analyzing historical patterns...</p>
+        <div className="rounded-2xl border border-border bg-surface/30 p-12 text-center">
+          <p className="text-sm text-zinc-500 italic font-medium">Analyzing historical patterns...</p>
         </div>
       ) : (
         <div className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-2">
             {/* Chart 1 — TTFB */}
-            <div className="group rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-300 dark:hover:border-zinc-700">
+            <div className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700">
               <div className="absolute top-4 right-4 text-[10px] font-bold text-zinc-400 uppercase tracking-tight opacity-40">TTFB</div>
               <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
                 {/* Horizontal lines */}
@@ -241,7 +241,7 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
             </div>
 
             {/* Chart 2 — Network */}
-            <div className="group rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-300 dark:hover:border-zinc-700">
+            <div className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700">
               <div className="absolute top-4 right-4 text-[10px] font-bold text-zinc-400 uppercase tracking-tight opacity-40">Network Load</div>
               <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
                 {[0, Math.round(niceMaxNet / 2), niceMaxNet].map(v => (
@@ -269,7 +269,7 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
 
           {/* Chart 3 — Cache */}
           {hasCacheData && (
-            <div className="group rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/40 p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-300 dark:hover:border-zinc-700">
+            <div className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700">
               <div className="absolute top-4 right-4 text-[10px] font-bold text-zinc-400 uppercase tracking-tight opacity-40">Cache Stability</div>
               <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
                 {[0, 50, 100].map(v => (
@@ -300,7 +300,7 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
       <div className="flex flex-wrap gap-x-6 gap-y-2 px-1 justify-between items-center opacity-80 group-hover:opacity-100 transition-opacity">
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           {regions.map(region => (
-            <div key={region} className="flex items-center gap-1.5 border-b border-transparent hover:border-zinc-200 dark:hover:border-zinc-800 transition-colors cursor-default">
+            <div key={region} className="flex items-center gap-1.5 border-b border-transparent hover:border-border transition-colors cursor-default">
               <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: REGION_COLORS[region] }} />
               <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">
                 {REGION_LABELS[region] ?? region}

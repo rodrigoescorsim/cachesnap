@@ -10,7 +10,17 @@ import { extractPop, detectCdn, popToCity } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
 import { TIMING } from './timing-metrics-palette'
 import { VisualGlow } from '../../visual-glow'
-import { Activity, ShieldCheck, Lock, AlertCircle, History, AlertTriangle, TrendingUp, Zap } from 'lucide-react'
+import {
+  Activity,
+  ShieldCheck,
+  Lock,
+  AlertCircle,
+  History,
+  AlertTriangle,
+  TrendingUp,
+  Zap,
+  Layers,
+} from 'lucide-react'
 
 interface RegionStat {
   region: string
@@ -155,12 +165,6 @@ const TAB_ICONS: Record<MonitorTab, any> = {
   incidents: AlertCircle,
 }
 
-const TAB_GROUPS: Array<{ label: string; tabs: MonitorTab[] }> = [
-  { label: 'Measure', tabs: ['performance', 'resilience'] },
-  { label: 'Protect', tabs: ['security'] },
-  { label: 'Respond', tabs: ['incidents'] },
-]
-
 const VALID_PERFORMANCE_VIEWS = ['real-time', 'trends', 'diagnostics', 'infrastructure'] as const
 type PerformanceView = (typeof VALID_PERFORMANCE_VIEWS)[number]
 
@@ -171,11 +175,18 @@ const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   infrastructure: 'Infrastructure',
 }
 
+const PERFORMANCE_VIEW_ICONS: Record<PerformanceView, typeof Activity> = {
+  'real-time': Zap,
+  trends: TrendingUp,
+  diagnostics: Activity,
+  infrastructure: Layers,
+}
+
 const VALID_ALERT_TYPES = ['down', 'anomaly', 'anycast', 'zombie_cache'] as const
 type AlertType = (typeof VALID_ALERT_TYPES)[number]
 
 const ALERT_TYPE_LABELS: Record<AlertType, string> = {
-  down: 'Down',
+  down: 'Offline',
   anomaly: 'Anomaly',
   anycast: 'Anycast',
   zombie_cache: 'Zombie cache',
@@ -413,13 +424,19 @@ function normalizeView(value: string | undefined): PerformanceView {
   return VALID_PERFORMANCE_VIEWS.includes((value ?? '') as PerformanceView) ? (value as PerformanceView) : 'real-time'
 }
 
-function buildMonitorHref(tab: MonitorTab, range: string, alertType: AlertType | null = null): string {
+function buildMonitorHref(
+  tab: MonitorTab,
+  range: string,
+  alertType: AlertType | null = null,
+  hash: string = '',
+): string {
   const params = new URLSearchParams()
   params.set('tab', tab)
   if (range === '7d') params.set('range', '7d')
   if (tab === 'incidents' && alertType) params.set('alert_type', alertType)
   const query = params.toString()
-  return query ? `?${query}` : '?'
+  const base = query ? `?${query}` : '?'
+  return hash ? `${base}${hash.startsWith('#') ? hash : `#${hash}`}` : base
 }
 
 function buildViewHref(view: PerformanceView, range: string): string {
@@ -785,7 +802,8 @@ export default async function MonitorDetailPage({
             <div className="flex items-center gap-2">
               {alerts.length > 0 && (
                 <Link
-                  href={buildMonitorHref('incidents', range)}
+                  href={buildMonitorHref('incidents', range, null, '#incident-history')}
+                  title="Open Incidents — active alerts in the table below"
                   className="flex items-center gap-1.5 px-3 py-0.5 h-7 rounded-full bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900 transition-colors"
                 >
                   <span className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-tight">Incidents</span>
@@ -796,7 +814,8 @@ export default async function MonitorDetailPage({
               )}
               {security && (
                 <Link
-                  href={buildMonitorHref('security', range)}
+                  href={buildMonitorHref('security', range, null, '#security-score')}
+                  title={`Open Security — score ${security.score} of 9 security headers present (HSTS, CSP, framing, …)`}
                   className="flex items-center gap-1.5 px-3 py-0.5 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/50 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
                 >
                   <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-tight">Security</span>
@@ -849,64 +868,61 @@ export default async function MonitorDetailPage({
 
       <div className="grid gap-8 lg:grid-cols-[150px_minmax(0,1fr)] lg:items-start">
         <aside className="lg:sticky lg:top-6">
-          <nav aria-label="Monitor sections" className="space-y-6">
-            <div className="space-y-6">
-              {TAB_GROUPS.map(group => (
-                <div key={group.label}>
-                  <p className="px-3 pb-2 text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-400 dark:text-zinc-600">
-                    {group.label}
-                  </p>
-                  <ul className="space-y-0.5">
-                    {group.tabs.map(tab => {
-                      const Icon = TAB_ICONS[tab]
-                      return (
-                        <li key={tab}>
-                          <Link
-                            href={buildMonitorHref(tab, range, tab === 'incidents' ? filteredAlertType : null)}
-                            className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-bold transition-all duration-300 group ${activeTab === tab
-                              ? 'bg-surface border border-white/10 text-white shadow-xl shadow-black/20'
-                              : 'text-zinc-500 hover:text-white hover:bg-white/5 border border-transparent'
-                              }`}
-                          >
-                            <Icon
-                              className={`w-3.5 h-3.5 shrink-0 transition-colors duration-300 ${activeTab === tab
-                                ? 'text-emerald-400'
-                                : 'text-zinc-500 group-hover:text-zinc-300'
-                                }`}
-                            />
-                            <span>{TAB_LABELS[tab]}</span>
-                          </Link>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </div>
-              ))}
-            </div>
+          <nav aria-label="Monitor sections">
+            <ul className="space-y-0.5">
+              {VALID_PERFORMANCE_VIEWS.map(v => {
+                const Icon = PERFORMANCE_VIEW_ICONS[v]
+                const isActive = activeTab === 'performance' && activeView === v
+                return (
+                  <li key={v}>
+                    <Link
+                      href={buildViewHref(v, range)}
+                      className={`group flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-bold transition-all duration-300 ${isActive
+                        ? 'border border-white/10 bg-surface text-white shadow-xl shadow-black/20'
+                        : 'border border-transparent text-zinc-500 hover:bg-white/5 hover:text-white'
+                        }`}
+                    >
+                      <Icon
+                        className={`h-3.5 w-3.5 shrink-0 transition-colors duration-300 ${isActive
+                          ? 'text-emerald-400'
+                          : 'text-zinc-500 group-hover:text-zinc-300'
+                          }`}
+                      />
+                      <span>{PERFORMANCE_VIEW_LABELS[v]}</span>
+                    </Link>
+                  </li>
+                )
+              })}
+              {(['resilience', 'security', 'incidents'] as const).map(tab => {
+                const Icon = TAB_ICONS[tab]
+                const isActive = activeTab === tab
+                return (
+                  <li key={tab}>
+                    <Link
+                      href={buildMonitorHref(tab, range, tab === 'incidents' ? filteredAlertType : null)}
+                      className={`group flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-bold transition-all duration-300 ${isActive
+                        ? 'border border-white/10 bg-surface text-white shadow-xl shadow-black/20'
+                        : 'border border-transparent text-zinc-500 hover:bg-white/5 hover:text-white'
+                        }`}
+                    >
+                      <Icon
+                        className={`h-3.5 w-3.5 shrink-0 transition-colors duration-300 ${isActive
+                          ? 'text-emerald-400'
+                          : 'text-zinc-500 group-hover:text-zinc-300'
+                          }`}
+                      />
+                      <span>{TAB_LABELS[tab]}</span>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
           </nav>
         </aside>
 
         <div className="min-w-0 space-y-8">
           {activeTab === 'performance' && (
             <div>
-              <nav
-                className="flex items-center border-b border-zinc-200 dark:border-zinc-800 mb-8"
-                aria-label="Performance views"
-              >
-                {VALID_PERFORMANCE_VIEWS.map(v => (
-                  <Link
-                    key={v}
-                    href={buildViewHref(v, range)}
-                    className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${activeView === v
-                      ? 'border-zinc-900 dark:border-zinc-100 text-zinc-900 dark:text-zinc-100'
-                      : 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 hover:border-zinc-300 dark:hover:border-zinc-600'
-                      }`}
-                  >
-                    {PERFORMANCE_VIEW_LABELS[v]}
-                  </Link>
-                ))}
-              </nav>
-
               {activeView === 'real-time' && (
                 <div className="space-y-10">
                   <section>
@@ -1332,7 +1348,7 @@ export default async function MonitorDetailPage({
               )}
 
               {activeView === 'diagnostics' && (
-                <div className="space-y-10">
+                <div className="space-y-4">
                   {waterfallProbes.length > 0 ? (
                     <ProbeWaterfall probes={waterfallProbes} />
                   ) : (
@@ -1383,7 +1399,7 @@ export default async function MonitorDetailPage({
               )}
 
               {security && (
-                <div className="rounded-xl border border-border bg-surface px-4 py-3">
+                <div id="security-score" className="rounded-xl border border-border bg-surface px-4 py-3 scroll-mt-24">
                   <div className="flex items-center gap-3 mb-2">
                     <span className={`text-2xl font-bold tabular-nums ${scoreColor(security.score)}`}>
                       {security.score}<span className="text-base font-normal text-zinc-400">/9</span>
@@ -1396,7 +1412,7 @@ export default async function MonitorDetailPage({
               {(() => {
                 if (securityByRegion.length === 0) return null
 
-                // Agrupa regiões por "assinatura" de headers
+                // Group regions by identical security header signatures
                 const profiles = new Map<string, { headers: SecurityHeaders | null; regions: string[]; sampled_at: Date }>()
 
                 securityByRegion.forEach(row => {
@@ -1442,8 +1458,7 @@ export default async function MonitorDetailPage({
                       </section>
                     )}
 
-                    {/* Perfil Global / Principal */}
-                    <section className="space-y-4">
+                    <section id="security-header-checklist" className="space-y-4 scroll-mt-24">
                       <div className="flex items-center justify-between">
                         <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Global Security Profile</h3>
                         <div className="flex -space-x-2">
@@ -1513,7 +1528,6 @@ export default async function MonitorDetailPage({
                       <p className="text-[10px] text-zinc-400 text-right italic">Consistent across {mainProfile.regions.length} regions. Last verified: {formatDate(mainProfile.sampled_at)}</p>
                     </section>
 
-                    {/* Drifts (Se houver) */}
                     {secondaryProfiles.length > 0 && (
                       <section className="space-y-4">
                         <h3 className="text-xs font-bold text-red-500 uppercase tracking-widest flex items-center gap-2">
@@ -1641,8 +1655,7 @@ export default async function MonitorDetailPage({
                   <div className="h-24 w-full flex items-end gap-1 px-1">
                     {(() => {
                       const maxCount = Math.max(...incidentTrends.map(t => t.count), 1)
-                      // Preenche buracos se houver menos de 24 buckets (horas sem alertas)
-                      // Para simplificar, vamos apenas mostrar o que temos ou iterar 24h
+                      // Fill hourly slots so missing buckets show as zero
                       const now = new Date()
                       const last24h = Array.from({ length: 24 }, (_, i) => {
                         const d = new Date(now)
@@ -1674,7 +1687,7 @@ export default async function MonitorDetailPage({
                 </div>
               )}
 
-              <div className="space-y-4">
+              <div id="incident-history" className="space-y-4 scroll-mt-24">
                 <div className="flex flex-wrap items-center justify-between gap-3 px-1">
                   <h2 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-tight flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" />

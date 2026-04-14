@@ -33,7 +33,7 @@ describe('popToCity', () => {
   it('translates known IATA codes to city names', () => {
     expect(popToCity('GRU')).toBe('São Paulo')
     expect(popToCity('gru')).toBe('São Paulo') // handles lowercase
-    expect(popToCity('IAD')).toBe('Dulles/Virginia')
+    expect(popToCity('IAD')).toBe('Dulles, VA')
     expect(popToCity('FRA')).toBe('Frankfurt')
   })
 

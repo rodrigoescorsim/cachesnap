@@ -7,6 +7,7 @@ import {
   pct,
 } from './probe-waterfall.helpers'
 import { TIMING } from './timing-metrics-palette'
+import { TtfbLegendHelp } from './ttfb-legend-help'
 
 export interface WaterfallProbe {
   region: string
@@ -57,8 +58,8 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
           Last probe — Timing breakdown
         </h2>
         {probes[0]?.probed_at && (
@@ -72,19 +73,41 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-x-4 gap-y-2 mb-6">
-        {Object.values(SEGS).map(seg => (
-          <span key={seg.label} className="flex items-center gap-1.5 text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
-            <span className={`h-2.5 w-2.5 rounded shadow-sm ring-1 ring-inset ring-black/5 dark:ring-white/10 ${seg.bg}`} />
-            {seg.label}
+      <div className="mb-3">
+        <div className="flex flex-wrap gap-x-2 gap-y-1">
+          {Object.entries(SEGS).map(([key, seg]) => {
+            if (key === 'download') return null
+            if (key === 'ttfb') {
+              const dl = SEGS.download
+              return (
+                <span
+                  key="ttfb-download"
+                  className="flex items-center gap-1.5 text-[9px] font-medium text-zinc-500 dark:text-zinc-400"
+                >
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded shadow-sm ring-1 ring-inset ring-black/5 dark:ring-white/10 ${seg.bg}`} />
+                  <span className="inline-flex items-center gap-0">
+                    {seg.label}
+                    <TtfbLegendHelp />
+                  </span>
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded shadow-sm ring-1 ring-inset ring-black/5 dark:ring-white/10 ${dl.bg}`} />
+                  {dl.label}
+                </span>
+              )
+            }
+            return (
+              <span key={seg.label} className="flex items-center gap-1 text-[9px] font-medium text-zinc-500 dark:text-zinc-400">
+                <span className={`h-2.5 w-2.5 shrink-0 rounded shadow-sm ring-1 ring-inset ring-black/5 dark:ring-white/10 ${seg.bg}`} />
+                {seg.label}
+              </span>
+            )
+          })}
+          <span className="flex h-2.5 items-center text-[9px] italic text-zinc-400">
+            (scale: {maxTotal}ms = 100%)
           </span>
-        ))}
-        <span className="text-[10px] text-zinc-400 italic flex items-center h-2.5">
-          (scale: {maxTotal}ms = 100%)
-        </span>
+        </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="divide-y divide-zinc-200 overflow-hidden rounded-lg border border-border bg-surface dark:divide-zinc-800">
         {probes.map(probe => {
           const total   = Number(probe.total_ms ?? probe.ttfb_ms ?? 0)
           const ttfb    = Number(probe.ttfb_ms ?? 0)
@@ -108,17 +131,17 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
           return (
             <div
               key={probe.region}
-              className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/30 overflow-hidden"
+              className="relative px-2.5 py-1.5 transition-colors hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40"
             >
               {/* ── Header ── */}
-              <div className="flex items-center justify-between px-3 pt-3 pb-2 gap-2 flex-wrap">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100 whitespace-nowrap">
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <span className="whitespace-nowrap text-xs font-semibold text-foreground">
                     {regionLabel}
                   </span>
 
                   {pop && (
-                    <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500 dark:text-zinc-400 ring-1 ring-inset ring-zinc-200/50 dark:ring-zinc-700/50" title={pop}>
+                    <span className="inline-flex items-center rounded-md bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500 ring-1 ring-inset ring-white/10" title={pop}>
                       {popToCity(pop)}
                     </span>
                   )}
@@ -142,8 +165,8 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
                     <span
                       className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-medium ${
                         isZombie
-                          ? 'border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400'
-                          : 'border-zinc-200 dark:border-zinc-700/50 bg-zinc-50 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
+                          ? 'border-red-500/20 bg-red-500/5 text-red-400'
+                          : 'border-border bg-white/5 text-zinc-500'
                       }`}
                       title={`Cache-Control Age: ${probe.age_s}s${isZombie ? ' — zombie cache detected' : ''}`}
                     >
@@ -153,7 +176,7 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
                 </div>
 
                 {/* Timing summary */}
-                <div className="flex items-center gap-3 tabular-nums text-[10px] text-zinc-500 flex-wrap justify-end">
+                <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 tabular-nums text-[9px] text-zinc-500">
                   {dns > 0 && <span>DNS <span className={`font-medium ${TIMING.dns.text}`}>{Math.round(dns)}ms</span></span>}
                   {tcp > 0 && <span>TCP <span className={`font-medium ${TIMING.tcp.text}`}>{Math.round(tcp)}ms</span></span>}
                   {tls > 0 && <span>TLS <span className={`font-medium ${TIMING.tls.text}`}>{Math.round(tls)}ms</span></span>}
@@ -171,8 +194,8 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
               </div>
 
               {/* ── Main waterfall bar ── */}
-              <div className="px-3 pb-2">
-                <div className="flex h-5 w-full rounded-md overflow-hidden bg-zinc-100 dark:bg-zinc-800">
+              <div className="mt-1.5">
+                <div className="flex h-3.5 w-full overflow-hidden rounded bg-background/50">
                   {hasBreakdown ? (
                     <>
                       {dns > 0 && (
@@ -238,111 +261,132 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
                 </div>
 
                 {/* Axis ticks */}
-                <div className="flex justify-between mt-0.5">
-                  <span className="text-[9px] text-zinc-400">0</span>
-                  <span className="text-[9px] text-zinc-400">{Math.round(maxTotal / 2)}ms</span>
-                  <span className="text-[9px] text-zinc-400">{maxTotal}ms</span>
+                <div className="mt-px flex justify-between leading-none">
+                  <span className="text-[8px] text-zinc-400">0</span>
+                  <span className="text-[8px] text-zinc-400">{Math.round(maxTotal / 2)}ms</span>
+                  <span className="text-[8px] text-zinc-400">{maxTotal}ms</span>
                 </div>
               </div>
 
-              {/* ── Server-Timing breakdown ── */}
-              {hasServerTiming && (
-                <div className="border-t border-zinc-100 dark:border-zinc-800 px-3 py-2.5">
-                  <p className="text-[9px] font-semibold uppercase tracking-widest text-zinc-400 mb-2">
-                    Server-Timing breakdown
-                  </p>
-                  <div className="space-y-1.5">
-                    {breakdownEntries(probe.server_timing_breakdown).map(([name, ms]) => (
-                      <div key={name} className="flex items-center gap-2">
-                        <span
-                          className="w-[72px] shrink-0 text-[10px] font-mono text-zinc-500 truncate"
-                          title={name}
+              {(() => {
+                const showDetailBlocks =
+                  hasServerTiming ||
+                  dns > 0 ||
+                  tls > 0 ||
+                  tcp > 0 ||
+                  (!hasBreakdown && !hasServerTiming)
+                if (!showDetailBlocks) return null
+
+                return (
+                  <details className="group mt-1 border-t border-zinc-100 dark:border-zinc-800">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-1 pl-0 pr-0.5 text-[8px] font-semibold uppercase tracking-wider text-zinc-400 leading-tight hover:text-zinc-500 dark:hover:text-zinc-300 [&::-webkit-details-marker]:hidden">
+                      <span>Additional timing breakdowns</span>
+                      <span className="text-zinc-500 transition-transform group-open:rotate-180" aria-hidden>
+                        ▼
+                      </span>
+                    </summary>
+                    <div className="space-y-0 pb-1">
+                      {hasServerTiming && (
+                        <div className="py-1.5">
+                          <p className="mb-1 text-[8px] font-semibold uppercase tracking-wider text-zinc-400">
+                            Server-Timing breakdown
+                          </p>
+                          <div className="space-y-1">
+                            {breakdownEntries(probe.server_timing_breakdown).map(([name, ms]) => (
+                              <div key={name} className="flex items-center gap-2">
+                                <span
+                                  className="w-[72px] shrink-0 text-[10px] font-mono text-zinc-500 truncate"
+                                  title={name}
+                                >
+                                  {name}
+                                </span>
+                                <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${breakdownColor(name)}`}
+                                    style={{ width: pct(ms, ttfb > 0 ? ttfb : maxTotal) }}
+                                  />
+                                </div>
+                                <span className="w-[40px] shrink-0 text-right text-[10px] tabular-nums text-zinc-500">
+                                  {ms}ms
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {(dns > 0 || tls > 0 || tcp > 0) && (
+                        <div
+                          className={`bg-zinc-50/50 py-1.5 dark:bg-zinc-950/20 ${hasServerTiming ? 'border-t border-zinc-100 dark:border-zinc-800' : ''}`}
                         >
-                          {name}
-                        </span>
-                        <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${breakdownColor(name)}`}
-                            style={{ width: pct(ms, ttfb > 0 ? ttfb : maxTotal) }}
-                          />
+                          <p className="mb-1 text-[8px] font-semibold uppercase tracking-wider text-zinc-400">
+                            Network layer timing
+                          </p>
+                          <div className="space-y-1">
+                            {dns > 0 && (
+                              <div className="flex items-center gap-2">
+                                <span className="w-[72px] shrink-0 text-[10px] font-mono text-zinc-500 truncate" title="DNS Lookup">
+                                  dns
+                                </span>
+                                <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${TIMING.dns.barFill}`}
+                                    style={{ width: pct(dns, Math.max(dns, ttfb > 0 ? ttfb : maxTotal)) }}
+                                  />
+                                </div>
+                                <span className="w-[40px] shrink-0 text-right text-[10px] tabular-nums text-zinc-500">
+                                  {Math.round(dns)}ms
+                                </span>
+                              </div>
+                            )}
+                            {tcp > 0 && (
+                              <div className="flex items-center gap-2">
+                                <span className="w-[72px] shrink-0 text-[10px] font-mono text-zinc-500 truncate" title="TCP Connect">
+                                  tcp
+                                </span>
+                                <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${TIMING.tcp.barFill}`}
+                                    style={{ width: pct(tcp, Math.max(tcp, ttfb > 0 ? ttfb : maxTotal)) }}
+                                  />
+                                </div>
+                                <span className="w-[40px] shrink-0 text-right text-[10px] tabular-nums text-zinc-500">
+                                  {Math.round(tcp)}ms
+                                </span>
+                              </div>
+                            )}
+                            {tls > 0 && (
+                              <div className="flex items-center gap-2">
+                                <span className="w-[72px] shrink-0 text-[10px] font-mono text-zinc-500 truncate" title="TLS Handshake">
+                                  tls
+                                </span>
+                                <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${TIMING.tls.barFill}`}
+                                    style={{ width: pct(tls, Math.max(tls, ttfb > 0 ? ttfb : maxTotal)) }}
+                                  />
+                                </div>
+                                <span className="w-[40px] shrink-0 text-right text-[10px] tabular-nums text-zinc-500">
+                                  {Math.round(tls)}ms
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <span className="w-[40px] shrink-0 text-right text-[10px] tabular-nums text-zinc-500">
-                          {ms}ms
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                      )}
 
-              {/* ── Network Layer (DNS/TLS) ── */}
-              {(dns > 0 || tls > 0 || tcp > 0) && (
-                <div className="border-t border-zinc-100 dark:border-zinc-800 px-3 py-2.5 bg-zinc-50/50 dark:bg-zinc-950/20">
-                  <p className="text-[9px] font-semibold uppercase tracking-widest text-zinc-400 mb-2">
-                    Network Layer Timing
-                  </p>
-                  <div className="space-y-1.5">
-                    {dns > 0 && (
-                      <div className="flex items-center gap-2">
-                        <span className="w-[72px] shrink-0 text-[10px] font-mono text-zinc-500 truncate" title="DNS Lookup">
-                          dns
-                        </span>
-                        <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${TIMING.dns.barFill}`}
-                            style={{ width: pct(dns, Math.max(dns, ttfb > 0 ? ttfb : maxTotal)) }}
-                          />
+                      {!hasBreakdown && !hasServerTiming && (
+                        <div className={`py-1.5 ${hasServerTiming || dns > 0 || tls > 0 || tcp > 0 ? 'border-t border-zinc-100 dark:border-zinc-800' : ''}`}>
+                          <span className="text-[9px] text-zinc-400">
+                            No <code className="font-mono">Server-Timing</code> header —
+                            edge/origin split unavailable.
+                          </span>
                         </div>
-                        <span className="w-[40px] shrink-0 text-right text-[10px] tabular-nums text-zinc-500">
-                          {Math.round(dns)}ms
-                        </span>
-                      </div>
-                    )}
-                    {tcp > 0 && (
-                      <div className="flex items-center gap-2">
-                        <span className="w-[72px] shrink-0 text-[10px] font-mono text-zinc-500 truncate" title="TCP Connect">
-                          tcp
-                        </span>
-                        <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${TIMING.tcp.barFill}`}
-                            style={{ width: pct(tcp, Math.max(tcp, ttfb > 0 ? ttfb : maxTotal)) }}
-                          />
-                        </div>
-                        <span className="w-[40px] shrink-0 text-right text-[10px] tabular-nums text-zinc-500">
-                          {Math.round(tcp)}ms
-                        </span>
-                      </div>
-                    )}
-                    {tls > 0 && (
-                      <div className="flex items-center gap-2">
-                        <span className="w-[72px] shrink-0 text-[10px] font-mono text-zinc-500 truncate" title="TLS Handshake">
-                          tls
-                        </span>
-                        <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${TIMING.tls.barFill}`}
-                            style={{ width: pct(tls, Math.max(tls, ttfb > 0 ? ttfb : maxTotal)) }}
-                          />
-                        </div>
-                        <span className="w-[40px] shrink-0 text-right text-[10px] tabular-nums text-zinc-500">
-                          {Math.round(tls)}ms
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* ── No Server-Timing note ── */}
-              {!hasBreakdown && !hasServerTiming && (
-                <div className="border-t border-zinc-100 dark:border-zinc-800 px-3 py-2">
-                  <span className="text-[10px] text-zinc-400">
-                    No <code className="font-mono">Server-Timing</code> header —
-                    edge/origin split unavailable.
-                  </span>
-                </div>
-              )}
+                      )}
+                    </div>
+                  </details>
+                )
+              })()}
             </div>
           )
         })}

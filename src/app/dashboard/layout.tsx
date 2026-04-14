@@ -34,7 +34,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <nav className="hidden sm:flex items-center gap-4">
               <Link
                 href="/dashboard"
-                className="text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-50 transition-colors"
+                className="text-sm text-zinc-500 hover:text-white transition-colors"
               >
                 Overview
               </Link>
