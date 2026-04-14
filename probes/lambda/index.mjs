@@ -365,12 +365,20 @@ async function measureUrl(targetUrl, isBypass = false) {
         timings.tlsEnd = performance.now();
         const cert = socket.getPeerCertificate && socket.getPeerCertificate();
         if (cert && cert.valid_to) {
+          const issuerO = cert.issuer?.O || null;
+          const issuerCN = cert.issuer?.CN || null;
           timings.sslData = {
             valid_to: cert.valid_to,
             valid_from: cert.valid_from,
             days_remaining: Math.floor((new Date(cert.valid_to).getTime() - Date.now()) / 86400000),
-            issuer: cert.issuer?.O || cert.issuer?.CN,
+            issuer: issuerO || issuerCN,
+            issuer_o: issuerO,
+            issuer_cn: issuerCN,
+            subject_cn: cert.subject?.CN || null,
+            subject_o: cert.subject?.O || null,
             protocol: socket.getProtocol ? socket.getProtocol() : null,
+            fingerprint256: cert.fingerprint256 || null,
+            bits: typeof cert.bits === 'number' ? cert.bits : null,
           };
         }
       });

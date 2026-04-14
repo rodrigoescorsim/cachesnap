@@ -8,6 +8,14 @@ import { MonitorActions } from './monitor-actions'
 import { RealTimeHub } from '../../real-time-hub'
 import { extractPop, detectCdn, popToCity } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
+import { MonitorSidebarRail } from './monitor-sidebar-rail'
+import {
+  buildMonitorHref,
+  buildViewHref,
+  type AlertType,
+  type MonitorTab,
+  type PerformanceView,
+} from './monitor-href'
 import { TIMING } from './timing-metrics-palette'
 import { VisualGlow } from '../../visual-glow'
 import {
@@ -19,7 +27,7 @@ import {
   AlertTriangle,
   TrendingUp,
   Zap,
-  Layers,
+  Fingerprint,
 } from 'lucide-react'
 
 interface RegionStat {
@@ -103,7 +111,13 @@ interface SecurityHeaders {
     valid_from?: string
     days_remaining?: number
     issuer?: string
+    issuer_o?: string | null
+    issuer_cn?: string | null
+    subject_cn?: string | null
+    subject_o?: string | null
     protocol?: string
+    fingerprint256?: string | null
+    bits?: number | null
   }
 }
 
@@ -148,14 +162,67 @@ const REGION_LABELS: Record<string, string> = {
   'af-south': 'Africa',
 }
 
-const VALID_TABS = ['performance', 'resilience', 'security', 'incidents'] as const
-type MonitorTab = (typeof VALID_TABS)[number]
+/** Subtle CacheSnap brand wash (logo cyan → blue) on security cards — single source of truth. */
+const BRAND_CARD_SURFACE_GRADIENT =
+  'pointer-events-none absolute inset-0 bg-gradient-to-bl from-[#4CC9FF]/[0.028] via-transparent to-[#0088FF]/[0.035]'
+
+/** Same gradient direction and colours as BRAND_CARD_SURFACE_GRADIENT at half opacity — better under dense table rows. */
+const BRAND_TABLE_SURFACE_GRADIENT =
+  'pointer-events-none absolute inset-0 bg-gradient-to-bl from-[#4CC9FF]/[0.010] via-transparent to-[#0088FF]/[0.012]'
+
+/**
+ * Real-time TTFB column: header + body share the same “highlight stack” (dark: white 0.03 under
+ * gradient 0.035→0.015). Tier rows add colour on top of the same bottom stop.
+ */
+const TTFB_LAYER_NEUTRAL =
+  'bg-[linear-gradient(180deg,rgba(0,0,0,0.035),rgba(0,0,0,0.015)),rgba(0,0,0,0.03)] dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015)),rgba(255,255,255,0.03)]'
+const TTFB_LAYER_FAST =
+  'bg-[linear-gradient(180deg,rgba(16,185,129,0.045),rgba(0,0,0,0.015)),rgba(0,0,0,0.03)] dark:bg-[linear-gradient(180deg,rgba(16,185,129,0.09),rgba(255,255,255,0.015)),rgba(255,255,255,0.03)]'
+const TTFB_LAYER_MED =
+  'bg-[linear-gradient(180deg,rgba(245,158,11,0.045),rgba(0,0,0,0.015)),rgba(0,0,0,0.03)] dark:bg-[linear-gradient(180deg,rgba(245,158,11,0.09),rgba(255,255,255,0.015)),rgba(255,255,255,0.03)]'
+const TTFB_LAYER_SLOW =
+  'bg-[linear-gradient(180deg,rgba(239,68,68,0.045),rgba(0,0,0,0.015)),rgba(0,0,0,0.03)] dark:bg-[linear-gradient(180deg,rgba(239,68,68,0.09),rgba(255,255,255,0.015)),rgba(255,255,255,0.03)]'
+const TTFB_COL_RAIL =
+  '[box-shadow:inset_1px_0_0_rgba(0,0,0,0.05),inset_-1px_0_0_rgba(0,0,0,0.05)] dark:[box-shadow:inset_1px_0_0_rgba(255,255,255,0.03),inset_-1px_0_0_rgba(255,255,255,0.03)]'
+
+function formatCertDate(iso: string | undefined): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function certTotalDays(ssl: NonNullable<SecurityHeaders['ssl']>): number | null {
+  if (!ssl.valid_from || !ssl.valid_to) return null
+  const a = new Date(ssl.valid_from).getTime()
+  const b = new Date(ssl.valid_to).getTime()
+  if (Number.isNaN(a) || Number.isNaN(b) || b <= a) return null
+  return Math.floor((b - a) / 86400000)
+}
+
+function certRenewalPercentLeft(ssl: NonNullable<SecurityHeaders['ssl']>): number | null {
+  const total = certTotalDays(ssl)
+  const rem = ssl.days_remaining
+  if (total == null || total <= 0 || rem == null) return null
+  if (rem <= 0) return 0
+  return Math.min(100, Math.max(0, (rem / total) * 100))
+}
+
+function formatFingerprintDisplay(fp: string | undefined | null): { short: string; full: string } | null {
+  if (!fp || typeof fp !== 'string') return null
+  const full = fp.toUpperCase()
+  const hex = full.replace(/:/g, '')
+  if (hex.length < 16) return { short: full, full }
+  return { short: `${hex.slice(0, 6)}…${hex.slice(-6)}`, full }
+}
+
+const VALID_TABS = ['performance', 'resilience', 'security', 'incidents'] as const satisfies readonly MonitorTab[]
 
 const TAB_LABELS: Record<MonitorTab, string> = {
   performance: 'Performance',
   resilience: 'Resilience',
   security: 'Security',
-  incidents: 'Incidents',
+  incidents: 'Alerts',
 }
 
 const TAB_ICONS: Record<MonitorTab, any> = {
@@ -165,8 +232,7 @@ const TAB_ICONS: Record<MonitorTab, any> = {
   incidents: AlertCircle,
 }
 
-const VALID_PERFORMANCE_VIEWS = ['real-time', 'trends', 'diagnostics', 'infrastructure'] as const
-type PerformanceView = (typeof VALID_PERFORMANCE_VIEWS)[number]
+const VALID_PERFORMANCE_VIEWS = ['real-time', 'trends', 'diagnostics', 'infrastructure'] as const satisfies readonly PerformanceView[]
 
 const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   'real-time': 'Real-time',
@@ -175,15 +241,7 @@ const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   infrastructure: 'Infrastructure',
 }
 
-const PERFORMANCE_VIEW_ICONS: Record<PerformanceView, typeof Activity> = {
-  'real-time': Zap,
-  trends: TrendingUp,
-  diagnostics: Activity,
-  infrastructure: Layers,
-}
-
-const VALID_ALERT_TYPES = ['down', 'anomaly', 'anycast', 'zombie_cache'] as const
-type AlertType = (typeof VALID_ALERT_TYPES)[number]
+const VALID_ALERT_TYPES = ['down', 'anomaly', 'anycast', 'zombie_cache'] as const satisfies readonly AlertType[]
 
 const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   down: 'Offline',
@@ -204,15 +262,22 @@ const SECURITY_HEADERS_LABELS: { key: keyof SecurityHeaders; label: string; desc
   { key: 'corp', label: 'CORP', description: 'Defines which origins can read the resources of your site.' },
 ]
 
+/** Green → fast, amber → medium, red — slow (same scale everywhere TTFB is shown). */
 function ttfbColor(ms: number | null): string {
   if (ms == null) return 'text-zinc-400'
-  if (ms <= 150) return 'text-emerald-500' // Excellent (Green)
-  if (ms <= 300) return 'text-green-500'   // Good (Lime)
-  if (ms <= 600) return 'text-amber-500'   // Acceptable (Amber)
-  return 'text-red-500'                   // High Latency (Red)
+  if (ms <= 200) return 'text-emerald-600 dark:text-emerald-400'
+  if (ms <= 600) return 'text-amber-600 dark:text-amber-400'
+  return 'text-red-600 dark:text-red-400'
 }
 
-
+/** Real-time table: TTFB cell — tier gradients + inset rails. */
+function ttfbRealtimeCellClass(ms: number | null): string {
+  const base = `px-3 py-2.5 text-right font-bold tabular-nums ${TTFB_COL_RAIL}`
+  if (ms == null) return `${base} text-zinc-400 ${TTFB_LAYER_NEUTRAL}`
+  if (ms <= 200) return `${base} text-emerald-600 dark:text-emerald-400 ${TTFB_LAYER_FAST}`
+  if (ms <= 600) return `${base} text-amber-600 dark:text-amber-400 ${TTFB_LAYER_MED}`
+  return `${base} text-red-600 dark:text-red-400 ${TTFB_LAYER_SLOW}`
+}
 
 /** Edge TTFB should be very fast (Cache HITs). */
 function edgeTtfbColor(ms: number | null): string {
@@ -401,12 +466,6 @@ function formatPct(val: number | string | null, decimals: number = 1): string {
   return num.toFixed(decimals)
 }
 
-function scoreColor(score: number): string {
-  if (score >= 7) return 'text-emerald-600 dark:text-emerald-400'
-  if (score >= 4) return 'text-amber-600 dark:text-amber-400'
-  return 'text-red-600 dark:text-red-400'
-}
-
 function readFirst(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0]
   return value
@@ -424,44 +483,12 @@ function normalizeView(value: string | undefined): PerformanceView {
   return VALID_PERFORMANCE_VIEWS.includes((value ?? '') as PerformanceView) ? (value as PerformanceView) : 'real-time'
 }
 
-function buildMonitorHref(
-  tab: MonitorTab,
-  range: string,
-  alertType: AlertType | null = null,
-  hash: string = '',
-): string {
-  const params = new URLSearchParams()
-  params.set('tab', tab)
-  if (range === '7d') params.set('range', '7d')
-  if (tab === 'incidents' && alertType) params.set('alert_type', alertType)
-  const query = params.toString()
-  const base = query ? `?${query}` : '?'
-  return hash ? `${base}${hash.startsWith('#') ? hash : `#${hash}`}` : base
-}
-
-function buildViewHref(view: PerformanceView, range: string): string {
-  const params = new URLSearchParams()
-  params.set('tab', 'performance')
-  params.set('view', view)
-  if (range === '7d') params.set('range', '7d')
-  const query = params.toString()
-  return query ? `?${query}` : '?'
-}
-
 function safeHostname(url: string): string | null {
   try {
     return new URL(url).hostname
   } catch {
     return null
   }
-}
-
-function timingBreakdownEntries(raw: Record<string, number> | null): Array<[string, number]> {
-  if (!raw) return []
-  return Object.entries(raw)
-    .map(([metric, value]) => [metric, Number(value)] as [string, number])
-    .filter(([, value]) => Number.isFinite(value))
-    .sort((a, b) => b[1] - a[1])
 }
 
 function formatMs(value: number | null): string {
@@ -781,7 +808,6 @@ export default async function MonitorDetailPage({
   }))
 
   const monitorDisplayName = monitor.name ?? monitorHostname ?? monitor.url
-  const securityRowsWithTiming = securityByRegion.filter(row => timingBreakdownEntries(row.server_timing_breakdown).length > 0)
   const totalProbes = stats.reduce((sum, s) => sum + s.probe_count, 0)
   const isCollecting = totalProbes < 3
 
@@ -802,11 +828,11 @@ export default async function MonitorDetailPage({
             <div className="flex items-center gap-2">
               {alerts.length > 0 && (
                 <Link
-                  href={buildMonitorHref('incidents', range, null, '#incident-history')}
-                  title="Open Incidents — active alerts in the table below"
+                  href={buildMonitorHref('incidents', range, null, '#alert-history')}
+                  title="Open Alerts — active items in the table below"
                   className="flex items-center gap-1.5 px-3 py-0.5 h-7 rounded-full bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900 transition-colors"
                 >
-                  <span className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-tight">Incidents</span>
+                  <span className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-tight">Alerts</span>
                   <span className="text-xs font-bold text-red-600 dark:text-red-400">
                     {alerts.length}
                   </span>
@@ -815,12 +841,15 @@ export default async function MonitorDetailPage({
               {security && (
                 <Link
                   href={buildMonitorHref('security', range, null, '#security-score')}
-                  title={`Open Security — score ${security.score} of 9 security headers present (HSTS, CSP, framing, …)`}
-                  className="flex items-center gap-1.5 px-3 py-0.5 h-7 rounded-full bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/50 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                  title={`Open Security — ${security.score} of 9 security headers present (HSTS, CSP, framing, …)`}
+                  className="flex items-center gap-1.5 px-3 py-0.5 h-7 rounded-full border border-border bg-surface hover:bg-white/5 transition-colors"
                 >
-                  <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-tight">Security</span>
-                  <span className={`text-xs font-bold ${security.score >= 7 ? 'text-emerald-500' : security.score >= 4 ? 'text-amber-500' : 'text-red-500'}`}>
-                    {security.score}/9
+                  <Lock className="h-3 w-3 shrink-0 text-zinc-500" aria-hidden />
+                  <span className="text-[10px] font-bold text-zinc-300 uppercase tracking-tight">Security</span>
+                  <span className="text-xs font-bold tabular-nums text-zinc-100">
+                    {security.score}
+                    <span className="font-medium text-zinc-500">/</span>
+                    <span className="text-zinc-400">9</span>
                   </span>
                 </Link>
               )}
@@ -866,59 +895,13 @@ export default async function MonitorDetailPage({
         </div>
       )}
 
-      <div className="grid gap-8 lg:grid-cols-[150px_minmax(0,1fr)] lg:items-start">
-        <aside className="lg:sticky lg:top-6">
-          <nav aria-label="Monitor sections">
-            <ul className="space-y-0.5">
-              {VALID_PERFORMANCE_VIEWS.map(v => {
-                const Icon = PERFORMANCE_VIEW_ICONS[v]
-                const isActive = activeTab === 'performance' && activeView === v
-                return (
-                  <li key={v}>
-                    <Link
-                      href={buildViewHref(v, range)}
-                      className={`group flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-bold transition-all duration-300 ${isActive
-                        ? 'border border-white/10 bg-surface text-white shadow-xl shadow-black/20'
-                        : 'border border-transparent text-zinc-500 hover:bg-white/5 hover:text-white'
-                        }`}
-                    >
-                      <Icon
-                        className={`h-3.5 w-3.5 shrink-0 transition-colors duration-300 ${isActive
-                          ? 'text-emerald-400'
-                          : 'text-zinc-500 group-hover:text-zinc-300'
-                          }`}
-                      />
-                      <span>{PERFORMANCE_VIEW_LABELS[v]}</span>
-                    </Link>
-                  </li>
-                )
-              })}
-              {(['resilience', 'security', 'incidents'] as const).map(tab => {
-                const Icon = TAB_ICONS[tab]
-                const isActive = activeTab === tab
-                return (
-                  <li key={tab}>
-                    <Link
-                      href={buildMonitorHref(tab, range, tab === 'incidents' ? filteredAlertType : null)}
-                      className={`group flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-bold transition-all duration-300 ${isActive
-                        ? 'border border-white/10 bg-surface text-white shadow-xl shadow-black/20'
-                        : 'border border-transparent text-zinc-500 hover:bg-white/5 hover:text-white'
-                        }`}
-                    >
-                      <Icon
-                        className={`h-3.5 w-3.5 shrink-0 transition-colors duration-300 ${isActive
-                          ? 'text-emerald-400'
-                          : 'text-zinc-500 group-hover:text-zinc-300'
-                          }`}
-                      />
-                      <span>{TAB_LABELS[tab]}</span>
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
-          </nav>
-        </aside>
+      <div className="grid gap-8 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start">
+        <MonitorSidebarRail
+          range={range}
+          activeTab={activeTab}
+          activeView={activeView}
+          filteredAlertType={filteredAlertType}
+        />
 
         <div className="min-w-0 space-y-8">
           {activeTab === 'performance' && (
@@ -938,10 +921,12 @@ export default async function MonitorDetailPage({
                     {latestProbes.length === 0 ? (
                       <p className="text-sm text-zinc-400 italic">Listening for incoming probes...</p>
                     ) : (
-                      <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
-                        <table className="w-full text-sm">
+                      <div className="relative overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
+                        <div className={BRAND_TABLE_SURFACE_GRADIENT} />
+                        <div className="relative overflow-x-auto">
+                        <table className="w-full text-sm [&_td]:transition-[background_0.2s_ease] [&_th]:transition-[background_0.2s_ease]">
                           <thead>
-                            <tr className="border-b border-border bg-white/5 dark:bg-black/20">
+                            <tr className="border-b border-border bg-black/[0.02] dark:bg-white/[0.02]">
                               <th
                                 className="px-3 py-2 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
                                 title="Geographic region where this probe ran"
@@ -973,8 +958,8 @@ export default async function MonitorDetailPage({
                                 TLS
                               </th>
                               <th
-                                className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
-                                title="Time to first byte — until response headers start"
+                                className="px-3 py-2 text-right text-[10px] font-bold text-zinc-400 uppercase tracking-tight"
+                                title="Time to first byte (TTFB). Colour: ≤200ms fast (green), 200–600ms medium (amber), &gt;600ms slow (red)."
                               >
                                 TTFB
                               </th>
@@ -1031,7 +1016,7 @@ export default async function MonitorDetailPage({
                             </tr>
                           </thead>
                           <tbody>
-                            {latestProbes.map((s, i) => {
+                            {latestProbes.map((s) => {
                               const isError = s.error && s.error !== ''
                               const cache = cacheDisplay(s.common_cache_status, null)
                               const age = Number(s.max_age_s ?? 0)
@@ -1043,7 +1028,10 @@ export default async function MonitorDetailPage({
                               const hasEdgeOrigin = s.edge_ms != null || s.origin_ms != null
                               const eoTip = edgeOriginTooltip(s.edge_ms, s.origin_ms)
                               return (
-                                <tr key={s.region} className={i < latestProbes.length - 1 ? 'border-b border-zinc-100/50 dark:border-zinc-800/50' : ''}>
+                                <tr
+                                  key={s.region}
+                                  className="border-b border-black/[0.06] transition-colors hover:bg-black/[0.03] dark:border-white/[0.04] dark:hover:bg-white/[0.03] last:border-b-0"
+                                >
                                   <td className="px-3 py-2.5 font-semibold text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
                                     <span title={REGION_DESCRIPTIONS[s.region] ?? s.region}>
                                       {REGION_LABELS[s.region] ?? s.region}
@@ -1063,7 +1051,7 @@ export default async function MonitorDetailPage({
                                   <td className={`px-3 py-2.5 text-right text-xs font-mono tabular-nums ${TIMING.tls.text}`}>
                                     <VisualGlow value={s.tls_ms}>{s.tls_ms != null ? `${Math.round(s.tls_ms)}ms` : '—'}</VisualGlow>
                                   </td>
-                                  <td className={`px-3 py-2.5 text-right font-bold tabular-nums ${ttfbColor(s.ttfb_ms)}`}>
+                                  <td className={ttfbRealtimeCellClass(s.ttfb_ms)}>
                                     <VisualGlow value={s.ttfb_ms}>{s.ttfb_ms != null ? `${Math.round(s.ttfb_ms)}ms` : '—'}</VisualGlow>
                                   </td>
                                   <td className={`px-3 py-2.5 text-right text-xs font-mono tabular-nums ${TIMING.download.text}`}>
@@ -1149,6 +1137,7 @@ export default async function MonitorDetailPage({
                             })}
                           </tbody>
                         </table>
+                        </div>
                       </div>
                     )}
                   </section>
@@ -1391,20 +1380,25 @@ export default async function MonitorDetailPage({
           {activeTab === 'security' && (
             <section className="space-y-5">
               <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide">
-                Security and server timing
+                Security
               </h2>
 
               {!security && securityByRegion.length === 0 && (
-                <p className="text-sm text-zinc-400">No security or server-timing data yet.</p>
+                <p className="text-sm text-zinc-400">No security data yet.</p>
               )}
 
-              {security && (
-                <div id="security-score" className="rounded-xl border border-border bg-surface px-4 py-3 scroll-mt-24">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className={`text-2xl font-bold tabular-nums ${scoreColor(security.score)}`}>
-                      {security.score}<span className="text-base font-normal text-zinc-400">/9</span>
-                    </span>
-                    <span className="text-sm text-zinc-500">Latest observed security headers score.</span>
+              {security && securityByRegion.length === 0 && (
+                <div id="security-score" className="rounded-2xl border border-border bg-surface p-6 shadow-sm scroll-mt-24">
+                  <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div className="space-y-1">
+                      <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Security headers</h3>
+                      <p className="text-sm text-zinc-500">Latest observed score from aggregate probes. Regional checklist appears once probes include header data.</p>
+                    </div>
+                    <div className="flex items-baseline gap-1 tabular-nums">
+                      <span className="text-2xl font-bold text-zinc-100">{security.score}</span>
+                      <span className="text-lg font-medium text-zinc-500">/</span>
+                      <span className="text-xl font-semibold text-zinc-400">9</span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1429,48 +1423,172 @@ export default async function MonitorDetailPage({
 
                 return (
                   <div className="space-y-8">
-                    {mainProfile.headers?.ssl && (
-                      <section className="space-y-4">
-                        <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-                          <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                          SSL / TLS Profile
-                        </h3>
-                        <div className="rounded-2xl border border-border bg-surface p-6 flex flex-wrap items-center justify-between gap-6 shadow-sm">
-                          <div className="space-y-1">
-                            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Issuer</p>
-                            <p className="font-semibold text-zinc-900 dark:text-zinc-100">{mainProfile.headers.ssl.issuer || 'Unknown CA'}</p>
-                          </div>
-                          <div className="space-y-1">
-                            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Protocol</p>
-                            <p className="font-mono text-xs font-bold text-zinc-700 dark:text-zinc-300 bg-white/5 dark:bg-white/5 px-2 py-0.5 rounded">{mainProfile.headers.ssl.protocol || 'TLS'}</p>
-                          </div>
-                          <div className="space-y-1 border-l border-zinc-200 dark:border-zinc-800 pl-6">
-                            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Expires In</p>
-                            <p className={`font-bold tabular-nums ${(mainProfile.headers.ssl.days_remaining ?? 99) < 15 ? 'text-red-500 animate-pulse' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                              {mainProfile.headers.ssl.days_remaining} days
+                    {mainProfile.headers?.ssl &&
+                      (() => {
+                        const ssl = mainProfile.headers.ssl
+                        const renewalPct = certRenewalPercentLeft(ssl)
+                        const totalDays = certTotalDays(ssl)
+                        const fpDisp = formatFingerprintDisplay(ssl.fingerprint256)
+                        const daysRem = ssl.days_remaining ?? 0
+                        const urgent = daysRem < 15
+
+                        return (
+                          <section className="space-y-4">
+                            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                              <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                              SSL / TLS Profile
+                            </h3>
+                            <div className="relative overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
+                              <div className={BRAND_CARD_SURFACE_GRADIENT} />
+                              <div className="relative border-b border-border/80 px-6 py-5">
+                                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                  <div className="min-w-0 space-y-2">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white/5 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                                        <Lock className="h-3 w-3 shrink-0 text-emerald-500/90" aria-hidden />
+                                        Encrypted
+                                      </span>
+                                      {ssl.protocol ? (
+                                        <span className="rounded-md bg-white/5 px-2 py-0.5 font-mono text-[11px] font-semibold text-zinc-200">
+                                          {ssl.protocol.replace(/^TLS/i, 'TLS')}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <p className="max-w-xl text-xs leading-relaxed text-zinc-500">
+                                      Leaf certificate observed on the TLS handshake for this probe profile. New probes may refresh issuer
+                                      metadata.
+                                    </p>
+                                  </div>
+                                  <div
+                                    className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 ${
+                                      urgent
+                                        ? 'border-red-500/30 bg-red-500/10'
+                                        : 'border-emerald-500/25 bg-emerald-500/[0.07]'
+                                    }`}
+                                  >
+                                    <span
+                                      className={`h-2 w-2 shrink-0 rounded-full ${urgent ? 'animate-pulse bg-red-400' : 'bg-emerald-400'}`}
+                                    />
+                                    <div>
+                                      <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Renewal</p>
+                                      <p
+                                        className={`text-sm font-bold tabular-nums ${
+                                          urgent ? 'text-red-400' : 'text-emerald-600 dark:text-emerald-400'
+                                        }`}
+                                      >
+                                        {daysRem} days left
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="relative flex flex-col border-b border-border/60 px-6 py-3 sm:flex-row sm:items-start sm:py-2.5">
+                                <div className="min-w-0 flex-1 border-b border-border/50 pb-3 sm:border-b-0 sm:border-r sm:border-border/60 sm:pb-0 sm:pr-5">
+                                  <p className="text-[9px] font-bold uppercase tracking-tight text-zinc-500">Certificate identity</p>
+                                  <p className="mt-0.5 truncate text-sm font-semibold leading-snug text-zinc-50">
+                                    {ssl.subject_cn || monitorHostname || '—'}
+                                  </p>
+                                  {ssl.subject_o ? (
+                                    <p className="mt-0.5 truncate text-[11px] leading-snug text-zinc-500">{ssl.subject_o}</p>
+                                  ) : null}
+                                </div>
+                                <div className="min-w-0 flex-1 pt-3 sm:pt-0 sm:pl-5">
+                                  <p className="text-[9px] font-bold uppercase tracking-tight text-zinc-500">Issuing authority</p>
+                                  <p className="mt-0.5 truncate text-sm font-semibold leading-snug text-zinc-100">
+                                    {ssl.issuer_o || ssl.issuer_cn || ssl.issuer || 'Unknown CA'}
+                                  </p>
+                                  {ssl.issuer_o && ssl.issuer_cn && ssl.issuer_o !== ssl.issuer_cn ? (
+                                    <p className="mt-0.5 truncate text-[11px] leading-snug text-zinc-500">{ssl.issuer_cn}</p>
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              <div className="relative space-y-3 px-6 py-4">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                  <p className="text-[10px] font-bold uppercase tracking-tight text-zinc-500">Validity window</p>
+                                  {totalDays != null && renewalPct != null ? (
+                                    <span className="text-[10px] tabular-nums text-zinc-500">
+                                      {totalDays} day cert · {Math.round(renewalPct)}% of lifetime left
+                                    </span>
+                                  ) : null}
+                                </div>
+                                {renewalPct != null ? (
+                                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200/20 dark:bg-zinc-800">
+                                    <div
+                                      className={`h-full rounded-full ${urgent ? 'bg-red-500/90' : 'bg-emerald-500/90'}`}
+                                      style={{ width: `${renewalPct}%` }}
+                                    />
+                                  </div>
+                                ) : null}
+                                <div className="flex flex-wrap items-baseline justify-between gap-2 text-[11px] text-zinc-500">
+                                  <span>
+                                    <span className="text-zinc-400">From</span>{' '}
+                                    <span className="font-mono text-zinc-300">{formatCertDate(ssl.valid_from)}</span>
+                                  </span>
+                                  <span className="hidden text-zinc-600 sm:inline">→</span>
+                                  <span>
+                                    <span className="text-zinc-400">Until</span>{' '}
+                                    <span className="font-mono text-zinc-300">{formatCertDate(ssl.valid_to)}</span>
+                                  </span>
+                                </div>
+                              </div>
+
+                              {fpDisp || ssl.bits != null ? (
+                                <div className="relative grid gap-4 border-t border-border/80 px-6 py-5 md:grid-cols-2">
+                                  {fpDisp ? (
+                                    <div className="space-y-1.5">
+                                      <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight text-zinc-500">
+                                        <Fingerprint className="h-3.5 w-3.5 text-zinc-500" aria-hidden />
+                                        SHA-256 fingerprint
+                                      </p>
+                                      <p className="break-all font-mono text-[10px] leading-relaxed text-zinc-400" title={fpDisp.full}>
+                                        {fpDisp.short}
+                                      </p>
+                                    </div>
+                                  ) : null}
+                                  {ssl.bits != null ? (
+                                    <div className="space-y-1.5">
+                                      <p className="text-[10px] font-bold uppercase tracking-tight text-zinc-500">Public key</p>
+                                      <p className="font-mono text-xs text-zinc-300">{ssl.bits}-bit public key</p>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
+                          </section>
+                        )
+                      })()}
+
+                    <section id="security-score" className="scroll-mt-24 space-y-4">
+                      <div className="relative overflow-hidden rounded-2xl border border-border bg-surface p-6 shadow-sm">
+                        <div className={BRAND_CARD_SURFACE_GRADIENT} />
+                        <div className="relative">
+                        <div className="mb-6 flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0 space-y-1">
+                            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Global Security Profile</h3>
+                            <p className="text-sm text-zinc-500">
+                              Which security headers were observed on the latest probes. Score is out of nine tracked headers.
                             </p>
                           </div>
-                          <div className="space-y-1">
-                            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Valid To</p>
-                            <p className="text-[11px] font-mono text-zinc-500">{new Date(mainProfile.headers.ssl.valid_to || '').toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                          <div className="flex flex-wrap items-center gap-4 sm:justify-end">
+                            {security && (
+                              <div className="flex items-baseline gap-1 rounded-lg border border-border bg-white/5 px-3 py-2 tabular-nums" title="Headers present out of nine tracked">
+                                <span className="text-2xl font-bold text-zinc-100">{security.score}</span>
+                                <span className="text-lg font-medium text-zinc-500">/</span>
+                                <span className="text-xl font-semibold text-zinc-400">9</span>
+                              </div>
+                            )}
+                            <div className="flex -space-x-2">
+                              {mainProfile.regions.map(r => (
+                                <div key={r} title={REGION_LABELS[r]} className="flex h-6 w-6 cursor-help items-center justify-center rounded-full border-2 border-white bg-emerald-500 text-[8px] font-bold text-white shadow-sm dark:border-zinc-950">
+                                  {r.split('-').map(p => p[0].toUpperCase()).join('')}
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
-                      </section>
-                    )}
 
-                    <section id="security-header-checklist" className="space-y-4 scroll-mt-24">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">Global Security Profile</h3>
-                        <div className="flex -space-x-2">
-                          {mainProfile.regions.map(r => (
-                            <div key={r} title={REGION_LABELS[r]} className="w-6 h-6 rounded-full bg-emerald-500 border-2 border-white dark:border-zinc-950 flex items-center justify-center text-[8px] text-white font-bold cursor-help shadow-sm">
-                              {r.split('-').map(p => p[0].toUpperCase()).join('')}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="rounded-2xl border-2 border-emerald-500/20 bg-emerald-50/10 dark:bg-emerald-500/5 p-6 shadow-sm ring-1 ring-emerald-500/10 transition-all hover:ring-emerald-500/30">
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                           {SECURITY_HEADERS_LABELS.map(({ key, label, description }) => {
                             const value = mainProfile.headers?.[key] ?? null
@@ -1489,7 +1607,7 @@ export default async function MonitorDetailPage({
                                   const valStr = String(value)
                                   if (valStr.length < 160) {
                                     return (
-                                      <div className="rounded border border-zinc-100 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 p-2 text-wrap">
+                                      <div className="rounded border border-border bg-white/5 p-2 text-wrap dark:bg-zinc-900/40">
                                         <code className="block text-[10px] text-zinc-600 dark:text-zinc-400 break-all font-mono leading-relaxed">
                                           {valStr}
                                         </code>
@@ -1499,7 +1617,7 @@ export default async function MonitorDetailPage({
                                   return (
                                     <details className="group">
                                       <summary className="flex items-center gap-1.5 cursor-pointer list-none outline-none">
-                                        <div className="rounded border border-zinc-100 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 p-2 flex-1 min-w-0">
+                                        <div className="min-w-0 flex-1 rounded border border-border bg-white/5 p-2 dark:bg-zinc-900/40">
                                           <code className="text-[10px] text-zinc-600 dark:text-zinc-400 font-mono block truncate">
                                             {valStr.slice(0, 100)}...
                                           </code>
@@ -1509,7 +1627,7 @@ export default async function MonitorDetailPage({
                                           <span className="text-[8px] font-black text-zinc-400 uppercase tracking-tighter hidden group-open:inline">Less</span>
                                         </div>
                                       </summary>
-                                      <div className="mt-2 rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-2 shadow-inner ring-1 ring-emerald-500/10">
+                                      <div className="mt-2 rounded border border-border bg-surface/80 p-2 shadow-inner">
                                         <code className="block text-[10px] text-zinc-600 dark:text-zinc-400 break-all font-mono leading-relaxed">
                                           {valStr}
                                         </code>
@@ -1523,6 +1641,7 @@ export default async function MonitorDetailPage({
                               </div>
                             )
                           })}
+                        </div>
                         </div>
                       </div>
                       <p className="text-[10px] text-zinc-400 text-right italic">Consistent across {mainProfile.regions.length} regions. Last verified: {formatDate(mainProfile.sampled_at)}</p>
@@ -1571,44 +1690,13 @@ export default async function MonitorDetailPage({
                   </div>
                 )
               })()}
-
-              <div>
-                <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-2">
-                  Server-Timing breakdown by region
-                </h3>
-                {securityRowsWithTiming.length === 0 ? (
-                  <p className="text-sm text-zinc-400">No Server-Timing breakdown data yet.</p>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {securityRowsWithTiming.map(row => {
-                      const entries = timingBreakdownEntries(row.server_timing_breakdown)
-                      return (
-                        <div key={row.region} className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm group hover:border-emerald-500/30 transition-colors">
-                          <div className="flex items-center justify-between gap-3 mb-3 pb-2 border-b border-zinc-50 dark:border-zinc-800">
-                            <p className="text-xs font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-tight">{REGION_LABELS[row.region] ?? row.region}</p>
-                            <p className="text-[10px] text-zinc-400 font-mono tracking-tighter">{extractPop(row.served_by) ?? '—'}</p>
-                          </div>
-                          <div className="space-y-2">
-                            {entries.map(([metric, value]) => (
-                              <div key={metric} className="flex items-center justify-between gap-2 text-[11px] tabular-nums">
-                                <span className="font-mono text-zinc-500 dark:text-zinc-400">{metric}</span>
-                                <span className={`font-bold ${ttfbColor(value)} bg-zinc-50 dark:bg-zinc-900 px-1.5 py-0.5 rounded ring-1 ring-zinc-100 dark:ring-zinc-800`}>{value.toFixed(0)}ms</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
             </section>
           )}
 
           {activeTab === 'incidents' && (
             <section className="space-y-6">
               <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm">
+                <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <History className="w-4 h-4 text-zinc-400" />
                     <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Last 24h Volume</span>
@@ -1621,7 +1709,7 @@ export default async function MonitorDetailPage({
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm">
+                <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <TrendingUp className="w-4 h-4 text-zinc-400" />
                     <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Main Vector</span>
@@ -1633,7 +1721,7 @@ export default async function MonitorDetailPage({
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 shadow-sm">
+                <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <AlertTriangle className="w-4 h-4 text-zinc-400" />
                     <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Peak Deviation</span>
@@ -1647,7 +1735,7 @@ export default async function MonitorDetailPage({
               </div>
 
               {incidentTrends.length > 0 && (
-                <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/20 p-4">
+                <div className="rounded-xl border border-border bg-surface/50 p-4">
                   <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                     <TrendingUp className="w-3 h-3" />
                     24h Recurrence Trends
@@ -1687,11 +1775,11 @@ export default async function MonitorDetailPage({
                 </div>
               )}
 
-              <div id="incident-history" className="space-y-4 scroll-mt-24">
+              <div id="alert-history" className="space-y-4 scroll-mt-24">
                 <div className="flex flex-wrap items-center justify-between gap-3 px-1">
                   <h2 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-tight flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" />
-                    Incident History
+                    Alert history
                   </h2>
                   <div className="flex flex-wrap gap-1 bg-zinc-100 dark:bg-zinc-800/50 p-1 rounded-lg">
                     <Link
@@ -1719,18 +1807,18 @@ export default async function MonitorDetailPage({
                 </div>
 
                 {alerts.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 p-12 text-center">
+                  <div className="rounded-2xl border border-dashed border-border bg-surface/30 p-12 text-center">
                     <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-950/20 flex items-center justify-center mx-auto mb-4">
                       <ShieldCheck className="w-6 h-6 text-emerald-500" />
                     </div>
-                    <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">No Incidents Detected</h3>
+                    <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">No alerts detected</h3>
                     <p className="text-xs text-zinc-500 mt-1 max-w-[240px] mx-auto">This monitor is currently healthy and performing within expected baselines.</p>
                   </div>
                 ) : (
-                  <div className="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/20">
+                  <div className="overflow-hidden rounded-xl border border-border bg-surface/50">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
+                        <tr className="border-b border-border bg-white/5 dark:bg-black/20">
                           <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Timestamp</th>
                           <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Region</th>
                           <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Event Type</th>
@@ -1740,7 +1828,7 @@ export default async function MonitorDetailPage({
                           <th className="px-4 py-2.5 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Severity</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                      <tbody className="divide-y divide-border">
                         {alerts.map((alert) => {
                           const severity = (alert.deviation_factor ?? 0) > 4 ? 'CRITICAL' : (alert.deviation_factor ?? 0) > 2 ? 'WARNING' : 'STATED';
                           const severityColor = severity === 'CRITICAL' ? 'bg-red-500 text-white' : severity === 'WARNING' ? 'bg-amber-500 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400';
