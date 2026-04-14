@@ -4,8 +4,9 @@ import { getSession } from '@/lib/auth'
 import sql from '@/lib/db'
 import { AutoRefresh } from './auto-refresh'
 import { TtfbChart, type ChartPoint } from './ttfb-chart'
-import { MonitorActions } from './monitor-actions'
+import { MonitorHeaderToolbar } from './monitor-header-toolbar'
 import { MonitorOnDemandPanel } from './monitor-on-demand'
+import { MonitorSettingsPanel } from './monitor-settings-panel'
 import { RealTimeHub } from '../../real-time-hub'
 import { extractPop, detectCdn, popToCity } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
@@ -30,6 +31,7 @@ import {
   TrendingUp,
   Zap,
   Fingerprint,
+  Settings,
 } from 'lucide-react'
 import {
   BRAND_CARD_SURFACE_GRADIENT,
@@ -206,13 +208,14 @@ function formatFingerprintDisplay(fp: string | undefined | null): { short: strin
   return { short: `${hex.slice(0, 6)}…${hex.slice(-6)}`, full }
 }
 
-const VALID_TABS = ['performance', 'on-demand', 'resilience', 'security', 'incidents'] as const satisfies readonly MonitorTab[]
+const VALID_TABS = ['performance', 'on-demand', 'resilience', 'security', 'settings', 'incidents'] as const satisfies readonly MonitorTab[]
 
 const TAB_LABELS: Record<MonitorTab, string> = {
   performance: 'Performance',
   'on-demand': 'On-demand',
   resilience: 'Resilience',
   security: 'Security',
+  settings: 'Settings',
   incidents: 'Alerts',
 }
 
@@ -221,6 +224,7 @@ const TAB_ICONS: Record<MonitorTab, any> = {
   'on-demand': PlayCircle,
   resilience: ShieldCheck,
   security: Lock,
+  settings: Settings,
   incidents: AlertCircle,
 }
 
@@ -232,6 +236,18 @@ const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   diagnostics: 'Diagnostics',
   infrastructure: 'Infrastructure',
 }
+
+/** Monitor title card — subtle top wash + glass (Vercel-style). Densidade ~tool (menos padding vertical). */
+const MONITOR_HEADER_CARD =
+  'relative overflow-hidden rounded-xl border border-black/[0.06] bg-surface/50 bg-gradient-to-b from-black/[0.02] to-transparent px-5 py-3.5 backdrop-blur-[6px] dark:border-white/[0.06] dark:from-white/[0.02]'
+
+/** Status pills in the monitor title bar — consistent shell + interactive hover. */
+const MONITOR_HEADER_STATUS_BADGE =
+  'inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-black/[0.06] bg-black/[0.03] px-2.5 py-0 text-xs font-bold uppercase leading-none tracking-tight transition-colors hover:bg-black/[0.06] dark:border-white/[0.06] dark:bg-white/[0.04] dark:hover:bg-white/[0.06]'
+
+/** Active monitor dot — soft mint glow + pulse (“system alive”). */
+const MONITOR_HEADER_ACTIVE_DOT =
+  'bg-emerald-500 [box-shadow:0_0_6px_rgba(0,255,150,0.6)] motion-safe:animate-pulse'
 
 const VALID_ALERT_TYPES = ['down', 'anomaly', 'anycast', 'zombie_cache'] as const satisfies readonly AlertType[]
 
@@ -772,60 +788,84 @@ export default async function MonitorDetailPage({
     <div className="space-y-6">
       <RealTimeHub userId={user.id} watchId={monitor.id} />
       <AutoRefresh />
-      <div className="rounded-xl border border-border bg-surface/50 backdrop-blur px-4 py-2.5 sm:px-4 sm:py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-[32px] leading-tight font-bold tracking-[-0.03em] text-zinc-900 dark:text-zinc-50">
+      <div className={`${MONITOR_HEADER_CARD} min-w-0`}>
+        {/* Uma linha: contexto (esq.) | estado + ações (dir.) — alinhamento tipo SaaS */}
+        <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="min-w-0 max-w-full shrink sm:max-w-[min(100%,28rem)] sm:pr-2">
+            <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.5px] text-zinc-900 dark:text-zinc-50">
               {monitorDisplayName}
             </h1>
-            <p className="text-xs text-zinc-400 mt-0.5 truncate tracking-tight">{monitor.url}</p>
+            <p className="mt-0.5 truncate text-[13px] tracking-tight text-zinc-600 opacity-60 dark:text-zinc-400">
+              {monitor.url}
+            </p>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap justify-end">
-            <div className="flex items-center gap-2">
-              {alerts.length > 0 && (
-                <Link
-                  href={buildMonitorHref('incidents', range, null, '#alert-history')}
-                  title="Open Alerts — active items in the table below"
-                  className="flex items-center gap-1.5 px-3 py-0.5 h-7 rounded-full bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/30 hover:bg-red-100 dark:hover:bg-red-900 transition-colors"
-                >
-                  <span className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-tight">Alerts</span>
-                  <span className="text-xs font-bold text-red-600 dark:text-red-400">
-                    {alerts.length}
-                  </span>
-                </Link>
-              )}
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-2 sm:gap-x-3 sm:gap-y-2">
+            <div
+              className="flex flex-wrap items-center justify-end gap-2 sm:gap-3"
+              aria-label="Monitor status"
+            >
+              <div
+                className={MONITOR_HEADER_STATUS_BADGE}
+                title={monitor.is_active ? 'Monitor is collecting probes' : 'Monitoring is paused'}
+              >
+                <span
+                  className={`h-2 w-2 shrink-0 rounded-full ${monitor.is_active ? MONITOR_HEADER_ACTIVE_DOT : 'bg-zinc-400 dark:bg-zinc-500'}`}
+                  aria-hidden
+                />
+                <span className="text-zinc-600 dark:text-zinc-300">{monitor.is_active ? 'Active' : 'Paused'}</span>
+              </div>
+
+              <Link
+                href={buildMonitorHref('performance', range)}
+                title="Live data — Performance views"
+                className={MONITOR_HEADER_STATUS_BADGE}
+              >
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                <span className="text-emerald-700 dark:text-emerald-400">Live Sync</span>
+              </Link>
+
               {security && (
                 <Link
                   href={buildMonitorHref('security', range, null, '#security-score')}
                   title={`Open Security — ${security.score} of 9 security headers present (HSTS, CSP, framing, …)`}
-                  className="flex items-center gap-1.5 px-3 py-0.5 h-7 rounded-full border border-border bg-surface hover:bg-white/5 transition-colors"
+                  className={MONITOR_HEADER_STATUS_BADGE}
                 >
-                  <Lock className="h-3 w-3 shrink-0 text-zinc-500" aria-hidden />
-                  <span className="text-[10px] font-bold text-zinc-300 uppercase tracking-tight">Security</span>
-                  <span className="text-xs font-bold tabular-nums text-zinc-100">
+                  <Lock className="h-3 w-3 shrink-0 text-zinc-500 dark:text-zinc-400" aria-hidden />
+                  <span className="text-zinc-600 dark:text-zinc-300">Security</span>
+                  <span className="tabular-nums text-zinc-800 dark:text-zinc-100">
                     {security.score}
-                    <span className="font-medium text-zinc-500">/</span>
-                    <span className="text-zinc-400">9</span>
+                    <span className="font-medium text-zinc-500 dark:text-zinc-500">/</span>
+                    <span className="text-zinc-500 dark:text-zinc-400">9</span>
                   </span>
                 </Link>
               )}
-              <div className="flex items-center gap-1.5 pl-3 ml-1 border-l border-zinc-200 dark:border-zinc-800/50 h-6">
-                <div className={`h-2 w-2 rounded-full ${monitor.is_active ? 'bg-emerald-500' : 'bg-zinc-400 dark:bg-zinc-600'}`} />
-                <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-tight">{monitor.is_active ? 'Active' : 'Paused'}</span>
-              </div>
+
+              {alerts.length > 0 && (
+                <Link
+                  href={buildMonitorHref('incidents', range, null, '#alert-history')}
+                  title="Open Alerts — active items in the table below"
+                  className={MONITOR_HEADER_STATUS_BADGE}
+                >
+                  <span className="text-red-700 dark:text-red-400">Alerts</span>
+                  <span className="tabular-nums text-red-700 dark:text-red-400">{alerts.length}</span>
+                </Link>
+              )}
             </div>
-            <MonitorActions
-              id={monitor.id}
-              name={monitor.name}
-              checkIntervalSeconds={monitor.check_interval_seconds}
-              auditIntervalSeconds={monitor.audit_interval_seconds}
-              isActive={monitor.is_active}
-              notifyEmail={monitor.notify_email}
-              notifyEmailEnabled={monitor.notify_email_enabled}
-              notifySlackWebhook={monitor.notify_slack_webhook}
-              notifySlackEnabled={monitor.notify_slack_enabled}
-            />
+
+            <div
+              className="flex shrink-0 items-center gap-2 sm:gap-3"
+              aria-label="Monitor actions"
+            >
+              <div
+                className="h-6 w-px shrink-0 bg-black/[0.08] opacity-30 dark:bg-white/[0.05]"
+                aria-hidden
+              />
+              <MonitorHeaderToolbar id={monitor.id} isActive={monitor.is_active} range={range} />
+            </div>
           </div>
         </div>
       </div>
@@ -1307,6 +1347,22 @@ export default async function MonitorDetailPage({
           {activeTab === 'on-demand' && (
             <div>
               <MonitorOnDemandPanel monitorId={monitor.id} />
+            </div>
+          )}
+
+          {activeTab === 'settings' && (
+            <div>
+              <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">Monitor settings</h2>
+              <MonitorSettingsPanel
+                id={monitor.id}
+                name={monitor.name}
+                checkIntervalSeconds={monitor.check_interval_seconds}
+                auditIntervalSeconds={monitor.audit_interval_seconds}
+                notifyEmail={monitor.notify_email}
+                notifyEmailEnabled={monitor.notify_email_enabled}
+                notifySlackWebhook={monitor.notify_slack_webhook}
+                notifySlackEnabled={monitor.notify_slack_enabled}
+              />
             </div>
           )}
 

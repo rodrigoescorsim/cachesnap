@@ -1,6 +1,12 @@
 /** URL builders for monitor detail query tabs and performance views (shared by server page + client rail). */
 
-export type MonitorTab = 'performance' | 'on-demand' | 'resilience' | 'security' | 'incidents'
+export type MonitorTab =
+  | 'performance'
+  | 'on-demand'
+  | 'resilience'
+  | 'security'
+  | 'settings'
+  | 'incidents'
 
 export type PerformanceView = 'real-time' | 'trends' | 'diagnostics' | 'infrastructure'
 
