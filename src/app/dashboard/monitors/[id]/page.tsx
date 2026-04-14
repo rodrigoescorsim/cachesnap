@@ -5,6 +5,7 @@ import sql from '@/lib/db'
 import { AutoRefresh } from './auto-refresh'
 import { TtfbChart, type ChartPoint } from './ttfb-chart'
 import { MonitorActions } from './monitor-actions'
+import { MonitorOnDemandPanel } from './monitor-on-demand'
 import { RealTimeHub } from '../../real-time-hub'
 import { extractPop, detectCdn, popToCity } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
@@ -23,6 +24,7 @@ import {
   ShieldCheck,
   Lock,
   AlertCircle,
+  PlayCircle,
   History,
   AlertTriangle,
   TrendingUp,
@@ -204,10 +206,11 @@ function formatFingerprintDisplay(fp: string | undefined | null): { short: strin
   return { short: `${hex.slice(0, 6)}…${hex.slice(-6)}`, full }
 }
 
-const VALID_TABS = ['performance', 'resilience', 'security', 'incidents'] as const satisfies readonly MonitorTab[]
+const VALID_TABS = ['performance', 'on-demand', 'resilience', 'security', 'incidents'] as const satisfies readonly MonitorTab[]
 
 const TAB_LABELS: Record<MonitorTab, string> = {
   performance: 'Performance',
+  'on-demand': 'On-demand',
   resilience: 'Resilience',
   security: 'Security',
   incidents: 'Alerts',
@@ -215,6 +218,7 @@ const TAB_LABELS: Record<MonitorTab, string> = {
 
 const TAB_ICONS: Record<MonitorTab, any> = {
   performance: Activity,
+  'on-demand': PlayCircle,
   resilience: ShieldCheck,
   security: Lock,
   incidents: AlertCircle,
@@ -806,16 +810,6 @@ export default async function MonitorDetailPage({
                   </span>
                 </Link>
               )}
-              <Link
-                href={buildMonitorHref('performance', range)}
-                className="flex items-center gap-1.5 px-3 py-0.5 h-7 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-colors"
-              >
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Live Sync</span>
-              </Link>
               <div className="flex items-center gap-1.5 pl-3 ml-1 border-l border-zinc-200 dark:border-zinc-800/50 h-6">
                 <div className={`h-2 w-2 rounded-full ${monitor.is_active ? 'bg-emerald-500' : 'bg-zinc-400 dark:bg-zinc-600'}`} />
                 <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-tight">{monitor.is_active ? 'Active' : 'Paused'}</span>
@@ -1307,6 +1301,12 @@ export default async function MonitorDetailPage({
                   <BypassAudit data={hourlyBypass} regionLabels={REGION_LABELS} />
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'on-demand' && (
+            <div>
+              <MonitorOnDemandPanel monitorId={monitor.id} />
             </div>
           )}
 

@@ -9,6 +9,7 @@ import {
   ChevronsRight,
   Layers,
   Lock,
+  PlayCircle,
   ShieldCheck,
   TrendingUp,
   Zap,
@@ -39,19 +40,22 @@ const PERFORMANCE_VIEW_ICONS: Record<PerformanceView, typeof Activity> = {
   infrastructure: Layers,
 }
 
-const TAB_LABELS: Record<'resilience' | 'security' | 'incidents', string> = {
+const TAB_LABELS: Record<'on-demand' | 'resilience' | 'security' | 'incidents', string> = {
+  'on-demand': 'On-demand',
   resilience: 'Resilience',
   security: 'Security',
   incidents: 'Alerts',
 }
 
 const TAB_ICONS = {
+  'on-demand': PlayCircle,
   resilience: ShieldCheck,
   security: Lock,
   incidents: AlertCircle,
 } as const
 
-const SECONDARY_TABS = ['resilience', 'security', 'incidents'] as const
+/** After performance views; on-demand groups manual probe triggers before deeper ops tabs. */
+const SECONDARY_TABS = ['on-demand', 'resilience', 'security', 'incidents'] as const
 
 export interface MonitorSidebarRailProps {
   range: string
