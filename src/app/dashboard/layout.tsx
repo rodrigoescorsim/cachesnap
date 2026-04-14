@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth'
 import { logout } from '@/app/actions/auth'
 import sql from '@/lib/db'
 import { MonitorNavDropdown } from './monitor-nav-dropdown'
+import { Logo } from '@/components/logo'
 
 interface NavMonitor {
   id: string
@@ -24,11 +25,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="min-h-full flex flex-col">
-      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 flex items-center justify-between h-14">
-          <div className="flex items-center gap-6">
-            <Link href="/dashboard" className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
-              CacheSnap
+      <header className="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 flex items-center justify-between h-16">
+          <div className="flex items-center gap-8">
+            <Link href="/dashboard" className="transition-opacity hover:opacity-80">
+              <Logo />
             </Link>
             <nav className="hidden sm:flex items-center gap-4">
               <Link
@@ -45,7 +46,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <form action={logout}>
               <button
                 type="submit"
-                className="text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-50 transition-colors"
+                className="text-xs font-medium text-zinc-500 hover:text-white transition-colors px-3 py-1.5 rounded-md hover:bg-surface border border-transparent hover:border-border"
               >
                 Sign out
               </button>

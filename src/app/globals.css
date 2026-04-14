@@ -4,8 +4,10 @@
 @source inline("bg-[#38bdf8] bg-[#84cc16] text-[#0369a1] dark:text-[#7dd3fc] text-[#4d7c0f] dark:text-[#bef264]");
 
 :root {
-  --background: #18181b; /* zinc-900 */
-  --foreground: #fafafa; /* zinc-50 */
+  --background: #0B1220;
+  --foreground: #F8FAFC;
+  --surface: #0F172A;
+  --border: #1F2A3A;
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -13,8 +15,22 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  
   --font-sans: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  --spacing-2: 8px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
 }
 
 body {

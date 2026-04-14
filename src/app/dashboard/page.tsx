@@ -83,27 +83,27 @@ function probeFreshnessTone(lastProbeAt: Date | null): string {
 }
 
 function uptimeTone(uptimePct: number | null): string {
-  if (uptimePct == null) return 'text-zinc-500 dark:text-zinc-400'
-  if (uptimePct >= 100) return 'text-zinc-500 dark:text-zinc-400'
-  if (uptimePct >= 99.9) return 'text-emerald-500'
-  if (uptimePct >= 99) return 'text-green-500'
-  if (uptimePct >= 95) return 'text-amber-500'
-  return 'text-red-500'
+  if (uptimePct == null) return 'text-zinc-500'
+  if (uptimePct >= 100) return 'text-zinc-500'
+  if (uptimePct >= 99.9) return 'text-[#22C55E]'
+  if (uptimePct >= 99) return 'text-[#22C55E]'
+  if (uptimePct >= 95) return 'text-[#F59E0B]'
+  return 'text-[#EF4444]'
 }
 
 function redirectTone(redirectAvg: number | null): string {
-  if (redirectAvg == null) return 'text-zinc-500 dark:text-zinc-400'
-  if (redirectAvg === 0) return 'text-emerald-600 dark:text-emerald-400'
-  if (redirectAvg === 1) return 'text-amber-500'
-  if (redirectAvg === 2) return 'text-amber-500'
-  return 'text-red-500'
+  if (redirectAvg == null) return 'text-zinc-500'
+  if (redirectAvg === 0) return 'text-[#22C55E]'
+  if (redirectAvg === 1) return 'text-[#F59E0B]'
+  if (redirectAvg === 2) return 'text-[#F59E0B]'
+  return 'text-[#EF4444]'
 }
 
 function securityTone(securityScore: number | null): string {
-  if (securityScore == null) return 'text-zinc-500 dark:text-zinc-400'
-  if (securityScore >= 4) return 'text-emerald-500'
-  if (securityScore >= 2) return 'text-amber-500'
-  return 'text-red-500'
+  if (securityScore == null) return 'text-zinc-500'
+  if (securityScore >= 4) return 'text-[#22C55E]'
+  if (securityScore >= 2) return 'text-[#F59E0B]'
+  return 'text-[#EF4444]'
 }
 
 export default async function DashboardPage() {
@@ -113,16 +113,16 @@ export default async function DashboardPage() {
   const monitors = await getMonitorSummaries(user.id)
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <RealTimeHub userId={user.id} />
       <AutoRefresh intervalMs={300_000} /> {/* Fallback lento a cada 5m */}
 
       {/* Monitor list header */}
-      <section className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/40 backdrop-blur px-5 py-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <section className="rounded-2xl border border-border bg-surface/50 backdrop-blur px-8 py-6">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="text-xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
+            <div className="flex items-center gap-4 flex-wrap">
+              <h2 className="text-xl font-semibold tracking-tight text-white">
                 Active monitors
               </h2>
               <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/30">
@@ -139,7 +139,7 @@ export default async function DashboardPage() {
           </div>
           <Link
             href="/dashboard/monitors/new"
-            className="inline-flex items-center justify-center rounded-full bg-zinc-950 dark:bg-zinc-800 px-4 py-2 text-sm font-semibold text-white dark:text-zinc-50 border border-transparent dark:border-zinc-700/50 shadow-sm transition-all duration-200 hover:bg-zinc-800 dark:hover:bg-zinc-700 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950/20 dark:focus-visible:ring-zinc-50/20"
+            className="inline-flex items-center justify-center rounded-lg bg-gradient-to-br from-[#1E3A8A] to-[#0E7490] px-5 py-2.5 text-sm font-semibold text-white/90 transition-all duration-200 border border-white/5 hover:border-white/10 hover:from-[#1E40AF] hover:to-[#0891B2] hover:-translate-y-0.5"
           >
             + Create monitor
           </Link>
@@ -158,7 +158,7 @@ export default async function DashboardPage() {
           </Link>
         </div>
       ) : (
-        <div id="monitors" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
+        <div id="monitors" className="grid gap-6 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
           {monitors.map(m => {
             const speed = speedSummary(m)
             const cache = cacheSummary(m)
@@ -175,7 +175,7 @@ export default async function DashboardPage() {
             return (
               <div
                 key={m.id}
-                className="group relative block rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3.5 transition-all duration-200 hover:border-zinc-300 dark:hover:border-zinc-700 hover:shadow-md"
+                className="group relative block rounded-xl border border-border bg-surface p-4 transition-all duration-300 hover:border-zinc-700 hover:shadow-xl hover:bg-surface/80"
               >
                 <Link
                   href={`/dashboard/monitors/${m.id}`}
@@ -203,98 +203,69 @@ export default async function DashboardPage() {
                 </div>
 
                 <div className="mt-3 grid grid-cols-3 gap-2">
-                  <div className="rounded-lg border border-zinc-100 bg-zinc-50/80 px-2.5 py-1.5 dark:border-zinc-800 dark:bg-zinc-950/40">
-                    <span className="block text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                      Speed
+                  <div className="px-1 py-1">
+                    <span className="block text-[10px] font-medium uppercase tracking-widest text-zinc-500/80">
+                      SPEED
                     </span>
                     {speed.detail === '—' ? (
-                      <span className="mt-0.5 block text-[13px] font-semibold tabular-nums">
-                        <span className="inline-block w-8 h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+                      <span className="mt-1 block text-[15px] font-semibold tabular-nums">
+                        <span className="inline-block w-8 h-4 animate-pulse rounded bg-zinc-800" />
                       </span>
                     ) : (
-                      <VisualGlow value={speed.detail} className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${speed.toneClass}`}>
+                      <VisualGlow value={speed.detail} className={`mt-2 block text-[15px] font-bold tabular-nums ${speed.toneClass}`}>
                         {speed.detail}
-                        {m.dns_avg_ms != null && m.dns_avg_ms > 200 && (
-                          <span className="ml-1 text-[9px] font-medium text-purple-500 animate-pulse">! (dns)</span>
-                        )}
                       </VisualGlow>
                     )}
                   </div>
 
-                  <div className="rounded-lg border border-zinc-100 bg-zinc-50/80 px-2.5 py-1.5 dark:border-zinc-800 dark:bg-zinc-950/40">
-                    <span className="block text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                      Cache hit rate
+                  <div className="px-1 py-1">
+                    <span className="block text-[10px] font-medium uppercase tracking-widest text-zinc-500/80">
+                      CACHE HIT
                     </span>
                     {cache.detail === '—' ? (
-                      <span className="mt-0.5 block text-[13px] font-semibold tabular-nums">
-                        <span className="inline-block w-12 h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+                      <span className="mt-1 block text-[15px] font-semibold tabular-nums">
+                        <span className="inline-block w-12 h-4 animate-pulse rounded bg-zinc-800" />
                       </span>
                     ) : (
-                      <VisualGlow value={cache.detail} className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${cache.toneClass}`}>
+                      <VisualGlow value={cache.detail} className={`mt-2 block text-[15px] font-bold tabular-nums ${cache.toneClass}`}>
                         {cache.detail}
-                        {cache.helper === 'Dynamic' && (
-                          <span className="ml-2 text-[10px] font-normal tracking-wide text-zinc-400 dark:text-zinc-500">
-                            {cache.helper}
-                          </span>
-                        )}
                       </VisualGlow>
                     )}
                   </div>
 
-                  <div className="rounded-lg border border-zinc-100 bg-zinc-50/80 px-2.5 py-1.5 dark:border-zinc-800 dark:bg-zinc-950/40">
-                    <span className="block text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                      Uptime
+                  <div className="px-1 py-1">
+                    <span className="block text-[10px] font-medium uppercase tracking-widest text-zinc-500/80">
+                      UPTIME
                     </span>
-                    <VisualGlow value={m.uptime_pct} className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${uptimeTone(uptimePct)}`}>
-                      {uptimePct != null ? (
-                        `${uptimePct}%`
-                      ) : (
-                        <span className="inline-block w-10 h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-                      )}
+                    <VisualGlow value={m.uptime_pct} className={`mt-2 block text-[15px] font-bold tabular-nums ${uptimeTone(uptimePct)}`}>
+                      {uptimePct != null ? `${uptimePct}%` : '—'}
                     </VisualGlow>
                   </div>
 
-                  <div className="rounded-lg border border-zinc-100 bg-zinc-50/80 px-2.5 py-1.5 dark:border-zinc-800 dark:bg-zinc-950/40">
-                    <span className="block text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                      Redirect hops
+                  <div className="px-1 py-1">
+                    <span className="block text-[10px] font-medium uppercase tracking-widest text-zinc-500/80">
+                      REDIRECTS
                     </span>
-                    <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${redirectTone(redirectCount)}`}>
-                      {redirectCount != null ? (
-                        `${redirectCount}`
-                      ) : (
-                        <span className="inline-block w-6 h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-                      )}
+                    <span className={`mt-2 block text-[15px] font-bold tabular-nums ${redirectTone(redirectCount)}`}>
+                      {redirectCount ?? '—'}
                     </span>
                   </div>
 
-                  <div className="rounded-lg border border-zinc-100 bg-zinc-50/80 px-2.5 py-1.5 dark:border-zinc-800 dark:bg-zinc-950/40">
-                    <span className="block text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                      Issues
+                  <div className="px-1 py-1">
+                    <span className="block text-[10px] font-medium uppercase tracking-widest text-zinc-500/80">
+                      ISSUES
                     </span>
-                    <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${problems.toneClass}`}>
-                      {isCollecting ? (
-                        <span className="inline-block w-6 h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-                      ) : (
-                        `${totalProblems}`
-                      )}
-                      {!isCollecting && (
-                        <span className="ml-1 text-[10px] font-normal text-zinc-400 dark:text-zinc-500">
-                          {totalProblems === 1 ? 'incident' : 'incidents'}
-                        </span>
-                      )}
+                    <span className={`mt-2 block text-[15px] font-bold tabular-nums ${problems.toneClass}`}>
+                      {totalProblems}
                     </span>
                   </div>
 
-                  <div className="rounded-lg border border-zinc-100 bg-zinc-50/80 px-2.5 py-1.5 dark:border-zinc-800 dark:bg-zinc-950/40">
-                    <span className="block text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                      Security
+                  <div className="px-1 py-1">
+                    <span className="block text-[10px] font-medium uppercase tracking-widest text-zinc-500/80">
+                      SECURITY
                     </span>
-                    <span className={`mt-0.5 block text-[13px] font-semibold tabular-nums ${securityTone(securityScore)}`}>
-                      {securityScore != null ? (
-                        `${securityScore}/9`
-                      ) : (
-                        <span className="inline-block w-8 h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-                      )}
+                    <span className={`mt-2 block text-[15px] font-bold tabular-nums ${securityTone(securityScore)}`}>
+                      {securityScore != null ? `${securityScore}/9` : '—'}
                     </span>
                   </div>
                 </div>

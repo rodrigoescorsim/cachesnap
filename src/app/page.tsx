@@ -2,13 +2,14 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { HeroUrlForm } from './hero-url-form'
+import { Logo } from '@/components/logo'
 
 export default async function RootPage() {
   const user = await getSession()
   if (user) redirect('/dashboard')
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-hidden bg-zinc-900 text-zinc-100">
+    <div className="min-h-screen flex flex-col relative overflow-hidden bg-background text-foreground">
       {/* Background Glow */}
       <div className="absolute top-0 left-1/2 -ml-[40rem] w-[80rem] h-[40rem] opacity-30 pointer-events-none" style={{ background: 'radial-gradient(ellipse at top, #10b981 0%, transparent 70%)' }}></div>
       <div className="absolute top-0 right-0 w-[40rem] h-[40rem] opacity-20 pointer-events-none" style={{ background: 'radial-gradient(ellipse at top right, #3b82f6 0%, transparent 70%)' }}></div>
@@ -16,10 +17,9 @@ export default async function RootPage() {
       {/* Nav */}
       <header className="border-b border-zinc-800/50 backdrop-blur-md relative z-10 w-full">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 flex items-center justify-between h-14">
-          <span className="text-sm font-bold text-zinc-100 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            CacheSnap
-          </span>
+          <Link href="/" className="transition-opacity hover:opacity-80">
+            <Logo />
+          </Link>
           <div className="flex items-center gap-4">
             <Link
               href="/login"
@@ -68,7 +68,7 @@ export default async function RootPage() {
           {/* Browser chrome frame */}
           <div className="rounded-2xl border border-zinc-800 shadow-2xl shadow-black/50 overflow-hidden ring-1 ring-white/10">
             {/* Browser bar */}
-            <div className="flex items-center gap-2 border-b border-zinc-800/80 bg-zinc-900/80 backdrop-blur px-4 py-3">
+            <div className="flex items-center gap-2 border-b border-border bg-surface/80 backdrop-blur px-4 py-3">
               <span className="h-3 w-3 rounded-full bg-red-500/80" />
               <span className="h-3 w-3 rounded-full bg-amber-500/80" />
               <span className="h-3 w-3 rounded-full bg-green-500/80" />
@@ -79,7 +79,7 @@ export default async function RootPage() {
             </div>
 
             {/* Monitor detail mock */}
-            <div className="bg-zinc-900/50 p-4 sm:p-6 space-y-4">
+            <div className="bg-background/50 p-4 sm:p-6 space-y-4">
               {/* Header */}
               <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/50 backdrop-blur-sm p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-6 shadow-inner py-6">
                 <div className="space-y-2">
@@ -202,7 +202,7 @@ export default async function RootPage() {
         </section>
       </main>
 
-      <footer className="border-t border-zinc-800/50 py-8 relative z-10 bg-zinc-900/50">
+      <footer className="border-t border-border py-12 relative z-10 bg-surface/50">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 flex items-center justify-between">
           <span className="text-xs text-zinc-500 font-medium">CacheSnap — Edge Performance Monitoring</span>
           <div className="flex items-center gap-6">

@@ -3,22 +3,23 @@
 import Link from 'next/link'
 import { useActionState } from 'react'
 import { signup } from '@/app/actions/auth'
+import { Logo } from '@/components/logo'
 
 export default function SignupPage() {
   const [state, action, pending] = useActionState(signup, undefined)
 
   return (
     <div className="w-full max-w-sm">
-      <div className="mb-8 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          CacheSnap
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500">Create your free account</p>
+      <div className="mb-10 flex flex-col items-center">
+        <Link href="/" className="mb-6 hover:opacity-80 transition-opacity">
+          <Logo />
+        </Link>
+        <p className="text-sm text-zinc-500 font-medium">Create your free account</p>
       </div>
 
       <form action={action} className="space-y-4">
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+          <label htmlFor="email" className="block text-sm font-medium text-zinc-400 mb-1">
             Email
           </label>
           <input
@@ -27,7 +28,7 @@ export default function SignupPage() {
             type="email"
             autoComplete="email"
             required
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium"
           />
           {state?.errors?.email && (
             <p className="mt-1 text-xs text-red-500">{state.errors.email[0]}</p>
@@ -35,7 +36,7 @@ export default function SignupPage() {
         </div>
 
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+          <label htmlFor="password" className="block text-sm font-medium text-zinc-400 mb-1">
             Password
           </label>
           <input
@@ -44,26 +45,26 @@ export default function SignupPage() {
             type="password"
             autoComplete="new-password"
             required
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium"
           />
           {state?.errors?.password && (
             <p className="mt-1 text-xs text-red-500">{state.errors.password[0]}</p>
           )}
-          <p className="mt-1 text-xs text-zinc-400">Minimum 8 characters</p>
+          <p className="mt-1.5 text-[10px] uppercase tracking-wider font-bold text-zinc-600">Minimum 8 characters</p>
         </div>
 
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded-lg bg-zinc-900 dark:bg-zinc-50 px-4 py-2 text-sm font-medium text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-200 disabled:opacity-50 transition-colors"
+          className="w-full rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-zinc-900 hover:bg-zinc-200 disabled:opacity-50 transition-all shadow-lg shadow-white/5 active:scale-[0.98]"
         >
           {pending ? 'Creating account…' : 'Create account'}
         </button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-zinc-500">
+      <p className="mt-8 text-center text-sm text-zinc-500 font-medium">
         Already have an account?{' '}
-        <Link href="/login" className="font-medium text-zinc-900 dark:text-zinc-50 hover:underline">
+        <Link href="/login" className="text-white hover:underline">
           Sign in
         </Link>
       </p>
