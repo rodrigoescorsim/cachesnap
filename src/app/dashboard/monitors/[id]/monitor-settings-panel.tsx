@@ -59,7 +59,7 @@ export function MonitorSettingsPanel(props: {
             <button
               type="button"
               onClick={() => setRemoveOpen(true)}
-              className="inline-flex items-center rounded-lg border border-red-500/20 bg-red-500/10 px-6 h-10 text-xs font-black text-red-400 uppercase tracking-widest transition-all hover:bg-red-500/20 active:scale-[0.98]"
+              className="inline-flex items-center justify-center rounded-lg border border-red-500/25 bg-red-500/10 px-[14px] py-2 text-xs font-black text-red-500/90 uppercase tracking-widest transition-all hover:bg-red-500/15 hover:border-red-500/40 active:scale-[0.98] shadow-sm"
             >
               Remove monitor…
             </button>
