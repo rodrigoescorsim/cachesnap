@@ -33,7 +33,7 @@ export function MonitorDeleteConfirm({
   }
 
   return (
-    <div className={`rounded-xl border border-red-500/20 bg-red-500/5 p-6 shadow-2xl backdrop-blur-sm ${className}`}>
+    <div className={`rounded-xl border border-red-500/20 bg-red-600/10 p-6 shadow-2xl backdrop-blur-md ${className}`}>
       <div className="flex items-center gap-2.5 text-red-500 mb-2">
         <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5">
           <path d="M8 5v3M8 11h.01M1 14l7-12 7 12H1z" strokeLinecap="round" strokeLinejoin="round" />
@@ -58,7 +58,7 @@ export function MonitorDeleteConfirm({
           type="button"
           onClick={handleDelete}
           disabled={isPending}
-          className="h-10 rounded-lg bg-red-500 px-6 text-sm font-black text-white hover:bg-red-400 disabled:opacity-50 transition-all active:scale-[0.98] shadow-lg shadow-red-500/20"
+          className="h-10 rounded-lg bg-[#ff3b3b] px-6 text-sm font-black text-white hover:bg-[#ff5252] disabled:opacity-50 transition-all active:scale-[0.98]"
         >
           {isPending ? 'Erasing...' : 'Yes, delete now'}
         </button>
