@@ -21,11 +21,11 @@ export function MonitorSettingsPanel(props: {
     <div className="space-y-6">
       <style>{`
         .cs-danger-card {
-          background: #1a1010 !important;
-          border: 1px solid rgba(255, 0, 0, 0.08) !important;
+          background: rgba(255, 0, 0, 0.04) !important;
+          border: 1px solid rgba(255, 0, 0, 0.12) !important;
           border-radius: 12px !important;
           padding: 24px !important;
-          box-shadow: 0 4px 24px rgba(255, 0, 0, 0.05) !important;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
         }
         .cs-danger-header {
           font-size: 11px !important;
