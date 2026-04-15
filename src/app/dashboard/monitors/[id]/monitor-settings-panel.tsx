@@ -87,19 +87,19 @@ export function MonitorSettingsPanel(props: {
         </div>
 
         <div className="ml-3.5">
-          <button
-            type="button"
-            onClick={() => setRemoveOpen(true)}
-            className="cs-btn-danger"
-          >
-            Remove monitor…
-          </button>
+          {!removeOpen ? (
+            <button
+              type="button"
+              onClick={() => setRemoveOpen(true)}
+              className="cs-btn-danger"
+            >
+              Remove monitor…
+            </button>
+          ) : (
+            <MonitorDeleteConfirm monitorId={props.id} onCancel={() => setRemoveOpen(false)} className="max-w-md" />
+          )}
         </div>
       </section>
-
-      {removeOpen && (
-        <MonitorDeleteConfirm monitorId={props.id} onCancel={() => setRemoveOpen(false)} />
-      )}
     </div>
   )
 }
