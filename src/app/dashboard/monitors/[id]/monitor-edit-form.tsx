@@ -210,6 +210,14 @@ export function MonitorEditForm({
           position: relative !important;
           z-index: 1 !important;
         }
+        .cs-input::placeholder {
+          color: rgba(255, 255, 255, 0.2) !important;
+          transition: opacity 0.2s ease !important;
+          font-weight: 500 !important;
+        }
+        .cs-input:disabled::placeholder {
+          opacity: 0.3 !important;
+        }
         .cs-input:focus {
           border-color: rgba(0, 255, 150, 0.4) !important;
           box-shadow: 0 0 0 4px rgba(0, 255, 160, 0.08) !important;
@@ -429,7 +437,7 @@ export function MonitorEditForm({
           <div className="cs-card-wash" />
           <h3 className="cs-section-header">Notifications</h3>
 
-          <div className="grid grid-cols-2 gap-x-16 gap-y-6 relative z-10">
+          <div className="grid grid-cols-2 gap-x-20 gap-y-6 relative z-10">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <input
