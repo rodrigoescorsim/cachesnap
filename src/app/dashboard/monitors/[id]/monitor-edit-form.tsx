@@ -310,6 +310,7 @@ export function MonitorEditForm({
         }
         .cs-full-width {
           grid-column: span 2 !important;
+          padding: 32px !important;
         }
       `}</style>
 
@@ -393,7 +394,7 @@ export function MonitorEditForm({
           <div className="cs-card-wash" />
           <h3 className="cs-section-header">Notifications</h3>
 
-          <div className="grid grid-cols-2 gap-x-8 gap-y-6 relative z-10">
+          <div className="grid grid-cols-2 gap-x-16 gap-y-6 relative z-10">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <input
