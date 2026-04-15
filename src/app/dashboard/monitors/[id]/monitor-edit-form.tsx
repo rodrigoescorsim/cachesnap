@@ -183,6 +183,11 @@ export function MonitorEditForm({
           outline: none !important;
           background: rgba(255, 255, 255, 0.05) !important;
         }
+        select.cs-input option {
+          background-color: #0f1c2e !important;
+          color: white !important;
+          padding: 8px !important;
+        }
         .cs-input-error {
           border-color: rgba(255, 80, 80, 0.4) !important;
           box-shadow: 0 0 0 4px rgba(255, 80, 80, 0.05) !important;
