@@ -145,16 +145,19 @@ export function MonitorEditForm({
           padding: 24px !important;
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
           position: relative !important;
-          overflow: hidden !important;
-          transition: background 0.2s ease !important;
+          transition: all 0.2s ease !important;
         }
         .cs-form-card:hover {
           background: #132238 !important;
+        }
+        .cs-form-card:focus-within {
+          z-index: 60 !important;
         }
         .cs-card-wash {
           pointer-events: none !important;
           position: absolute !important;
           inset: 0 !important;
+          border-radius: 12px !important;
           background: linear-gradient(225deg, rgba(76, 201, 255, 0.028), transparent, rgba(0, 136, 255, 0.035)) !important;
         }
         .cs-section-header {
