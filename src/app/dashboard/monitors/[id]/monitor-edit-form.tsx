@@ -207,23 +207,26 @@ export function MonitorEditForm({
         }
         .status-badge {
           position: fixed;
-          top: 24px;
-          right: 24px;
+          bottom: 32px;
+          left: 50%;
+          transform: translateX(-50%);
           z-index: 9999;
           font-size: 10px;
           font-weight: 900;
           letter-spacing: 0.15em;
           text-transform: uppercase;
-          padding: 8px 16px;
+          padding: 10px 20px;
           border-radius: 99px;
-          background: rgba(15, 28, 46, 0.95);
-          backdrop-filter: blur(8px);
-          border: 1px solid rgba(255, 255, 255, 0.05);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+          background: rgba(15, 28, 46, 0.9);
+          backdrop-filter: blur(12px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 
+            0 8px 24px rgba(0, 0, 0, 0.4),
+            0 2px 6px rgba(0, 0, 0, 0.2);
+          transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
         }
         .status-badge.status-error {
-          border-color: rgba(239, 68, 68, 0.3);
+          border-color: rgba(239, 68, 68, 0.4);
           box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
         }
       `}</style>
@@ -239,9 +242,14 @@ export function MonitorEditForm({
         <div className={`status-badge ${
           status === 'saving' ? 'text-zinc-500 animate-pulse' :
           status === 'saved' ? 'text-emerald-400' :
-          status === 'error' ? 'text-red-500 status-error' : 'opacity-0 scale-95 pointer-events-none'
+          status === 'error' ? 'text-red-500 status-error' : 'opacity-0 translate-y-4 scale-95 pointer-events-none'
         }`}>
-          {status === 'saving' ? 'Saving...' : status === 'saved' ? 'Saved \u2713' : 'Error saving'}
+          <div className="flex items-center gap-2">
+            {status === 'saving' && <div className="w-1.5 h-1.5 rounded-full bg-zinc-500 animate-pulse" />}
+            {status === 'saved' && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+            {status === 'error' && <div className="w-1.5 h-1.5 rounded-full bg-red-500" />}
+            {status === 'saving' ? 'Saving changes...' : status === 'saved' ? 'All changes saved ✓' : 'Error updating settings'}
+          </div>
         </div>
       </div>
 
