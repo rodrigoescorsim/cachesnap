@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { ChevronDown } from 'lucide-react'
 
 export interface MonitorEditFormProps {
   id: string
@@ -184,9 +185,56 @@ export function MonitorEditForm({
           background: rgba(255, 255, 255, 0.05) !important;
         }
         select.cs-input option {
-          background-color: #0f1c2e !important;
+          background-color: #14263f !important;
           color: white !important;
-          padding: 8px !important;
+          padding: 12px !important;
+        }
+        .cs-custom-select {
+          position: relative !important;
+          z-index: 50 !important;
+        }
+        .cs-select-trigger {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          cursor: pointer !important;
+          user-select: none !important;
+        }
+        .cs-select-dropdown {
+          position: absolute !important;
+          top: calc(100% + 6px) !important;
+          left: 0 !important;
+          right: 0 !important;
+          background: #14263f !important;
+          border: 1px solid rgba(255, 255, 255, 0.08) !important;
+          border-radius: 12px !important;
+          backdrop-filter: blur(16px) !important;
+          box-shadow: 
+            0 12px 32px rgba(0, 0, 0, 0.4),
+            0 4px 12px rgba(0, 0, 0, 0.2) !important;
+          overflow: hidden !important;
+          z-index: 100 !important;
+          animation: cs-fade-in 0.2s ease-out !important;
+        }
+        @keyframes cs-fade-in {
+          from { opacity: 0; transform: translateY(-4px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .cs-select-option {
+          padding: 10px 14px !important;
+          font-size: 13px !important;
+          font-weight: 600 !important;
+          color: rgba(255, 255, 255, 0.7) !important;
+          cursor: pointer !important;
+          transition: all 0.2s ease !important;
+        }
+        .cs-select-option:hover {
+          background: rgba(255, 255, 255, 0.05) !important;
+          color: white !important;
+        }
+        .cs-select-option.active {
+          color: #00ffa0 !important;
+          background: rgba(0, 255, 160, 0.03) !important;
         }
         .cs-input-error {
           border-color: rgba(255, 80, 80, 0.4) !important;
@@ -284,31 +332,29 @@ export function MonitorEditForm({
           <h3 className="cs-section-header">Monitoring</h3>
           <div className="grid grid-cols-2 gap-4 relative z-10">
             <div>
-              <label htmlFor={`${p}-edit-check`} className="cs-label">Check Interval</label>
-              <select
-                id={`${p}-edit-check`}
+              <label className="cs-label">Check Interval</label>
+              <CustomSelect
                 value={values.check_interval_seconds}
-                onChange={(e) => handleInputChange('check_interval_seconds', Number(e.target.value))}
-                className="w-full h-10 rounded-lg px-3 text-sm cs-input appearance-none cursor-pointer"
-              >
-                <option value={60}>1 minute</option>
-                <option value={180}>3 minutes</option>
-                <option value={300}>5 minutes</option>
-              </select>
+                options={[
+                  { value: 60, label: '1 minute' },
+                  { value: 180, label: '3 minutes' },
+                  { value: 300, label: '5 minutes' },
+                ]}
+                onChange={(val) => handleInputChange('check_interval_seconds', val)}
+              />
             </div>
 
             <div>
-              <label htmlFor={`${p}-edit-audit`} className="cs-label">Bypass Audit</label>
-              <select
-                id={`${p}-edit-audit`}
+              <label className="cs-label">Bypass Audit</label>
+              <CustomSelect
                 value={values.audit_interval_seconds}
-                onChange={(e) => handleInputChange('audit_interval_seconds', Number(e.target.value))}
-                className="w-full h-10 rounded-lg px-3 text-sm cs-input appearance-none cursor-pointer"
-              >
-                <option value={900}>15 minutes</option>
-                <option value={1800}>30 minutes</option>
-                <option value={3600}>60 minutes</option>
-              </select>
+                options={[
+                  { value: 900, label: '15 minutes' },
+                  { value: 1800, label: '30 minutes' },
+                  { value: 3600, label: '60 minutes' },
+                ]}
+                onChange={(val) => handleInputChange('audit_interval_seconds', val)}
+              />
             </div>
           </div>
         </section>
@@ -381,6 +427,59 @@ export function MonitorEditForm({
           </div>
         </section>
       </div>
+    </div>
+  )
+}
+
+function CustomSelect({ 
+  value, 
+  options, 
+  onChange 
+}: { 
+  value: number, 
+  options: { value: number, label: string }[], 
+  onChange: (val: number) => void 
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const activeLabel = options.find(o => o.value === value)?.label || ''
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  return (
+    <div className="cs-custom-select" ref={containerRef}>
+      <div 
+        className="w-full h-10 rounded-lg px-4 text-sm cs-input cs-select-trigger"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className="font-semibold text-zinc-100">{activeLabel}</span>
+        <ChevronDown className={`w-4 h-4 text-zinc-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+      </div>
+
+      {isOpen && (
+        <div className="cs-select-dropdown">
+          {options.map(opt => (
+            <div
+              key={opt.value}
+              className={`cs-select-option ${opt.value === value ? 'active' : ''}`}
+              onClick={() => {
+                onChange(opt.value)
+                setIsOpen(false)
+              }}
+            >
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
