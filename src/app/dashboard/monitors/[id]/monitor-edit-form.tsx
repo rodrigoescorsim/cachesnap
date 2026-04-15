@@ -211,12 +211,12 @@ export function MonitorEditForm({
           z-index: 1 !important;
         }
         .cs-input::placeholder {
-          color: rgba(255, 255, 255, 0.2) !important;
+          color: rgba(255, 255, 255, 0.3) !important;
           transition: opacity 0.2s ease !important;
           font-weight: 500 !important;
         }
         .cs-input:disabled::placeholder {
-          opacity: 0.3 !important;
+          opacity: 0.6 !important;
         }
         .cs-input:focus {
           border-color: rgba(0, 255, 150, 0.4) !important;
@@ -354,7 +354,12 @@ export function MonitorEditForm({
         }
         .cs-full-width {
           grid-column: span 2 !important;
-          padding: 32px !important;
+          padding: 40px !important;
+        }
+        .cs-notifications-grid {
+          display: grid !important;
+          grid-template-columns: 1fr 1fr !important;
+          gap: 120px !important;
         }
       `}</style>
       
@@ -437,7 +442,7 @@ export function MonitorEditForm({
           <div className="cs-card-wash" />
           <h3 className="cs-section-header">Notifications</h3>
 
-          <div className="grid grid-cols-2 gap-x-20 gap-y-6 relative z-10">
+          <div className="cs-notifications-grid relative z-10">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <input
