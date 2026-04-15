@@ -354,12 +354,11 @@ export function MonitorEditForm({
         }
         .cs-full-width {
           grid-column: span 2 !important;
-          padding: 40px !important;
         }
         .cs-notifications-grid {
           display: grid !important;
           grid-template-columns: 1fr 1fr !important;
-          gap: 120px !important;
+          gap: 80px !important;
         }
       `}</style>
       
