@@ -111,7 +111,7 @@ export function MonitorEditForm({
       if (res.ok) {
         setStatus('saved')
         lastSavedValues.current = current
-        setTimeout(() => setStatus(curr => curr === 'saved' ? 'idle' : curr), 1500)
+        setTimeout(() => setStatus(curr => curr === 'saved' ? 'idle' : curr), 3000)
         router.refresh()
       } else {
         setStatus('error')
@@ -297,16 +297,30 @@ export function MonitorEditForm({
           text-transform: uppercase;
           padding: 10px 20px;
           border-radius: 99px;
-          background: rgba(15, 28, 46, 0.9);
+          background: rgba(15, 28, 46, 0.95);
           backdrop-filter: blur(12px);
           border: 1px solid rgba(255, 255, 255, 0.08);
           box-shadow: 
-            0 8px 24px rgba(0, 0, 0, 0.4),
-            0 2px 6px rgba(0, 0, 0, 0.2);
-          transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+            0 12px 32px rgba(0, 0, 0, 0.45),
+            0 4px 10px rgba(0, 0, 0, 0.25);
+          transition: all 0.6s cubic-bezier(0.19, 1, 0.22, 1);
+          opacity: 0.85;
+          color: rgba(255, 255, 255, 0.6);
+        }
+        .status-badge.saving {
+          border-color: rgba(255, 255, 255, 0.15);
+          color: rgba(255, 255, 255, 0.4);
+        }
+        .status-badge.saved {
+          background: rgba(0, 255, 160, 0.08) !important;
+          border-color: rgba(0, 255, 160, 0.15) !important;
+          color: #00ffa0 !important;
+          box-shadow: 0 0 20px rgba(0, 255, 160, 0.05);
         }
         .status-badge.status-error {
-          border-color: rgba(239, 68, 68, 0.4);
+          background: rgba(255, 0, 0, 0.05) !important;
+          border-color: rgba(239, 68, 68, 0.3) !important;
+          color: #ff5050 !important;
           box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
         }
 
@@ -330,14 +344,14 @@ export function MonitorEditForm({
         </header>
 
         <div className={`status-badge ${
-          status === 'saving' ? 'text-zinc-500 animate-pulse' :
-          status === 'saved' ? 'text-emerald-400' :
-          status === 'error' ? 'text-red-500 status-error' : 'opacity-0 translate-y-4 scale-95 pointer-events-none'
+          status === 'saving' ? 'saving' :
+          status === 'saved' ? 'saved' :
+          status === 'error' ? 'status-error' : 'opacity-0 translate-y-4 scale-95 pointer-events-none'
         }`}>
           <div className="flex items-center gap-2">
-            {status === 'saving' && <div className="w-1.5 h-1.5 rounded-full bg-zinc-500 animate-pulse" />}
-            {status === 'saved' && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
-            {status === 'error' && <div className="w-1.5 h-1.5 rounded-full bg-red-500" />}
+            {status === 'saving' && <div className="w-1.5 h-1.5 rounded-full bg-white/20 animate-pulse" />}
+            {status === 'saved' && <div className="w-1.5 h-1.5 rounded-full bg-[#00ffa0] shadow-[0_0_8px_rgba(0,255,160,0.5)]" />}
+            {status === 'error' && <div className="w-1.5 h-1.5 rounded-full bg-[#ff5050]" />}
             {status === 'saving' ? 'Saving changes...' : status === 'saved' ? 'All changes saved ✓' : 'Error updating settings'}
           </div>
         </div>
