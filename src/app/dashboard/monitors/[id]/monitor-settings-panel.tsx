@@ -28,6 +28,10 @@ export function MonitorSettingsPanel(props: {
           border-radius: 12px !important;
           padding: 24px !important;
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
+          transition: background 0.2s ease !important;
+        }
+        .cs-danger-card:hover {
+          background: rgba(255, 0, 0, 0.06) !important;
         }
         .cs-danger-header {
           font-size: 11px !important;

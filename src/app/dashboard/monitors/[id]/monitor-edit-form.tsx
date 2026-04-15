@@ -88,6 +88,10 @@ export function MonitorEditForm({
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
           position: relative !important;
           overflow: hidden !important;
+          transition: background 0.2s ease !important;
+        }
+        .cs-form-card:hover {
+          background: #132238 !important;
         }
         .cs-card-wash {
           pointer-events: none !important;
