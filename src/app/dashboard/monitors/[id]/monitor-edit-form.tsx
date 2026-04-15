@@ -56,11 +56,6 @@ export function MonitorEditForm({
   const lastSavedValues = useRef(values)
   const isInitialMount = useRef(true)
 
-  // Sync ref with state
-  useEffect(() => {
-    latestValues.current = values
-  }, [values])
-
   // VALIDATION
   const validate = useCallback((field: string, value: any, currentValues: typeof values) => {
     if (field === 'notify_email' && currentValues.notify_email_enabled && value && !value.includes('@')) {
@@ -77,7 +72,16 @@ export function MonitorEditForm({
     const current = latestValues.current
     
     // Check if anything actually changed from last saved state
-    const hasChanged = JSON.stringify(current) !== JSON.stringify(lastSavedValues.current)
+    // We compare with a direct check to avoid any stringify issues with numbers vs strings
+    const hasChanged = 
+      current.name !== lastSavedValues.current.name ||
+      current.check_interval_seconds !== lastSavedValues.current.check_interval_seconds ||
+      current.audit_interval_seconds !== lastSavedValues.current.audit_interval_seconds ||
+      current.notify_email !== lastSavedValues.current.notify_email ||
+      current.notify_email_enabled !== lastSavedValues.current.notify_email_enabled ||
+      current.notify_slack_webhook !== lastSavedValues.current.notify_slack_webhook ||
+      current.notify_slack_enabled !== lastSavedValues.current.notify_slack_enabled
+
     if (!hasChanged) return
 
     // Basic validation check before saving
@@ -139,6 +143,8 @@ export function MonitorEditForm({
   const handleInputChange = (field: keyof typeof values, value: any) => {
     setValues(prev => {
       const next = { ...prev, [field]: value }
+      latestValues.current = next // Sync ref immediately
+      
       // Clear error while typing if valid now
       const err = validate(field, value, next)
       setErrors(errs => ({ ...errs, [field]: err }))
