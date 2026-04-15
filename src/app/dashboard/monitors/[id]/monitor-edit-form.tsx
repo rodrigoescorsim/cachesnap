@@ -163,7 +163,7 @@ export function MonitorEditForm({
         <p className="text-xs text-zinc-500">Manage your monitoring intervals and notification preferences.</p>
       </header>
 
-      <form onSubmit={handleEdit} className="space-y-6 max-w-md">
+      <form onSubmit={handleEdit} className="space-y-[28px] max-w-md">
         {error && (
           <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-3">
             <p className="text-xs font-medium text-red-500">{error}</p>
