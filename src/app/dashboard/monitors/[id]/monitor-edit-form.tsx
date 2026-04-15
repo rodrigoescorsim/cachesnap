@@ -158,6 +158,15 @@ export function MonitorEditForm({
   const handleInputChange = (field: keyof typeof values, value: any) => {
     setValues(prev => {
       const next = { ...prev, [field]: value }
+      
+      // If we are disabling a channel, clear its errors as they are no longer relevant
+      if (field === 'notify_email_enabled' && !value) {
+        setErrors(errs => ({ ...errs, notify_email: null }))
+      }
+      if (field === 'notify_slack_enabled' && !value) {
+        setErrors(errs => ({ ...errs, notify_slack_webhook: null }))
+      }
+
       const err = validate(field, value, next)
       setErrors(errs => ({ ...errs, [field]: err }))
       return next
