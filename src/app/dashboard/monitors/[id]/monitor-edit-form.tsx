@@ -356,7 +356,9 @@ export function MonitorEditForm({
           {status === 'saving' && <div className="w-1.5 h-1.5 rounded-full bg-white/20 animate-pulse" />}
           {status === 'saved' && <div className="w-1.5 h-1.5 rounded-full bg-[#00ffa0] shadow-[0_0_8px_rgba(0,255,160,0.5)]" />}
           {status === 'error' && <div className="w-1.5 h-1.5 rounded-full bg-[#ff5050]" />}
-          {status === 'saving' ? 'Saving changes...' : status === 'saved' ? 'All changes saved ✓' : 'Error updating settings'}
+          {status === 'saving' ? 'Saving changes...' : 
+           status === 'saved' ? 'All changes saved ✓' : 
+           status === 'error' ? 'Error updating settings' : ''}
         </div>
       </div>
 
