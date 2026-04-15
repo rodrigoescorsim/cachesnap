@@ -20,6 +20,8 @@ export function MonitorSettingsPanel(props: {
   return (
     <div className="space-y-6">
       <style>{`
+
+      
         .cs-danger-card {
           background: rgba(255, 0, 0, 0.04) !important;
           border: 1px solid rgba(255, 0, 0, 0.12) !important;
@@ -37,6 +39,27 @@ export function MonitorSettingsPanel(props: {
           padding-left: 10px !important;
           line-height: 1 !important;
           margin-bottom: 12px !important;
+        }
+        .cs-btn-danger {
+          background: rgba(255, 0, 0, 0.1) !important;
+          border: 1px solid rgba(255, 0, 0, 0.25) !important;
+          color: rgba(255, 100, 100, 0.9) !important;
+          padding: 8px 14px !important;
+          border-radius: 8px !important;
+          font-size: 11px !important;
+          font-weight: 900 !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.1em !important;
+          transition: all 0.2s ease !important;
+        }
+        .cs-btn-danger:hover {
+          background: rgba(255, 0, 0, 0.15) !important;
+          border-color: rgba(255, 0, 0, 0.4) !important;
+          transform: translateY(-1px) !important;
+          box-shadow: 0 4px 12px rgba(255, 0, 0, 0.1) !important;
+        }
+        .cs-btn-danger:active {
+          transform: translateY(0) !important;
         }
       `}</style>
 
@@ -59,7 +82,7 @@ export function MonitorSettingsPanel(props: {
             <button
               type="button"
               onClick={() => setRemoveOpen(true)}
-              className="inline-flex items-center justify-center rounded-lg border border-red-500/25 bg-red-500/10 px-[14px] py-2 text-xs font-black text-red-500/90 uppercase tracking-widest transition-all hover:bg-red-500/15 hover:border-red-500/40 active:scale-[0.98] shadow-sm"
+              className="cs-btn-danger"
             >
               Remove monitor…
             </button>

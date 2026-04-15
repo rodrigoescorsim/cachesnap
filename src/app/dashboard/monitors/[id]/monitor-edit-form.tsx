@@ -109,17 +109,18 @@ export function MonitorEditForm({
           z-index: 1 !important;
         }
         .cs-input {
-          background: rgba(255, 255, 255, 0.03) !important;
-          border: 1px solid rgba(255, 255, 255, 0.06) !important;
+          background: rgba(255, 255, 255, 0.04) !important;
+          border: 1px solid rgba(255, 255, 255, 0.08) !important;
           color: white !important;
-          transition: all 0.2s ease !important;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
           position: relative !important;
           z-index: 1 !important;
         }
         .cs-input:focus {
-          border-color: rgba(0, 255, 160, 0.4) !important;
-          box-shadow: 0 0 0 4px rgba(0, 255, 160, 0.05) !important;
+          border-color: rgba(0, 255, 150, 0.4) !important;
+          box-shadow: 0 0 0 4px rgba(0, 255, 160, 0.08) !important;
           outline: none !important;
+          background: rgba(255, 255, 255, 0.05) !important;
         }
         .cs-btn-primary {
           background: linear-gradient(135deg, #1E3A8A, #0E7490) !important;
