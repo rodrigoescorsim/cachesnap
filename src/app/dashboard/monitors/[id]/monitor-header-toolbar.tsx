@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 
 import { buildMonitorHref } from './monitor-href'
+import { MonitorDeleteConfirm } from './monitor-delete-confirm'
 
 const PAUSE_BTN =
   'inline-flex shrink-0 items-center rounded-lg border py-1 px-2.5 text-xs font-semibold leading-none transition-all disabled:opacity-50'
@@ -27,6 +28,7 @@ export function MonitorHeaderToolbar({
   const [, startTransition] = useTransition()
   const [pendingToggle, setPendingToggle] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [removeOpen, setRemoveOpen] = useState(false)
   const [portalNode, setPortalNode] = useState<HTMLElement | null>(null)
   const [coords, setCoords] = useState({ top: 0, left: 0 })
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -167,6 +169,11 @@ export function MonitorHeaderToolbar({
                     align-items: center !important;
                     gap: 10px !important;
                     padding: 8px 10px !important;
+                    width: 100% !important;
+                    border: 0 !important;
+                    background: transparent !important;
+                    appearance: none !important;
+                    text-align: left !important;
                     border-radius: 6px !important;
                     font-size: 14px !important;
                     font-weight: 500 !important;
@@ -217,18 +224,18 @@ export function MonitorHeaderToolbar({
                   </div>
                   <div className="cs-divider" />
                   <div className="flex flex-col">
-                    <Link
+                    <button
                       role="menuitem"
-                      href={
-                        buildMonitorHref('settings', range) +
-                        '#settings-danger-heading'
-                      }
+                      type="button"
                       className="cs-item cs-item-danger"
-                      onClick={() => setMenuOpen(false)}
+                      onClick={() => {
+                        setMenuOpen(false)
+                        setRemoveOpen(true)
+                      }}
                     >
                       <Trash className="h-3.5 w-3.5 opacity-70" />
                       Remove monitor
-                    </Link>
+                    </button>
                   </div>
                 </div>
               </>,
@@ -236,6 +243,12 @@ export function MonitorHeaderToolbar({
             )
           : null}
       </div>
+      {removeOpen ? (
+        <MonitorDeleteConfirm
+          monitorId={id}
+          onClose={() => setRemoveOpen(false)}
+        />
+      ) : null}
     </div>
   )
 }

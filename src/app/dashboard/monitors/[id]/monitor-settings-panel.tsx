@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { MonitorEditForm } from './monitor-edit-form'
 import { MonitorDeleteConfirm } from './monitor-delete-confirm'
 
@@ -16,6 +16,18 @@ export function MonitorSettingsPanel(props: {
   notifySlackEnabled: boolean
 }) {
   const [removeOpen, setRemoveOpen] = useState(false)
+
+  useEffect(() => {
+    function syncModalWithHash() {
+      if (window.location.hash === '#remove-monitor') {
+        setRemoveOpen(true)
+      }
+    }
+
+    syncModalWithHash()
+    window.addEventListener('hashchange', syncModalWithHash)
+    return () => window.removeEventListener('hashchange', syncModalWithHash)
+  }, [])
 
   return (
     <div className="space-y-6 max-w-5xl">
