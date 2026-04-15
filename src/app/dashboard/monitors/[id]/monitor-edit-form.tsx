@@ -52,7 +52,6 @@ export function MonitorEditForm({
   // TRACKING STATE
   const [status, setStatus] = useState<SaveStatus>('idle')
   const [errors, setErrors] = useState<Record<string, string | null>>({})
-  const latestValues = useRef(values)
   const lastSavedValues = useRef(values)
   const isInitialMount = useRef(true)
 
@@ -68,11 +67,8 @@ export function MonitorEditForm({
   }, [])
 
   // SAVING LOGIC
-  const triggerSave = useCallback(async () => {
-    const current = latestValues.current
-    
+  const triggerSave = useCallback(async (current: typeof values) => {
     // Check if anything actually changed from last saved state
-    // We compare with a direct check to avoid any stringify issues with numbers vs strings
     const hasChanged = 
       current.name !== lastSavedValues.current.name ||
       current.check_interval_seconds !== lastSavedValues.current.check_interval_seconds ||
@@ -91,6 +87,7 @@ export function MonitorEditForm({
     if (emailErr || slackErr) {
       setErrors({ notify_email: emailErr, notify_slack_webhook: slackErr })
       setStatus('error')
+      setTimeout(() => setStatus(curr => curr === 'error' ? 'idle' : curr), 3000)
       return
     }
 
@@ -115,9 +112,11 @@ export function MonitorEditForm({
         router.refresh()
       } else {
         setStatus('error')
+        setTimeout(() => setStatus(curr => curr === 'error' ? 'idle' : curr), 3000)
       }
     } catch {
       setStatus('error')
+      setTimeout(() => setStatus(curr => curr === 'error' ? 'idle' : curr), 3000)
     }
   }, [id, router, validate])
 
@@ -135,7 +134,7 @@ export function MonitorEditForm({
       values.notify_slack_webhook !== lastSavedValues.current.notify_slack_webhook
 
     const delay = isTyping ? 800 : 0
-    const timeout = setTimeout(triggerSave, delay)
+    const timeout = setTimeout(() => triggerSave(values), delay)
 
     return () => clearTimeout(timeout)
   }, [values, triggerSave])
@@ -143,9 +142,6 @@ export function MonitorEditForm({
   const handleInputChange = (field: keyof typeof values, value: any) => {
     setValues(prev => {
       const next = { ...prev, [field]: value }
-      latestValues.current = next // Sync ref immediately
-      
-      // Clear error while typing if valid now
       const err = validate(field, value, next)
       setErrors(errs => ({ ...errs, [field]: err }))
       return next
