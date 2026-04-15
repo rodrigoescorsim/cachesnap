@@ -198,7 +198,7 @@ export function MonitorEditForm({
           border-left: 3px solid rgba(0, 255, 160, 0.4) !important;
           padding-left: 10px !important;
           line-height: 1 !important;
-          margin-bottom: 28px !important;
+          margin-bottom: 22px !important;
           position: relative !important;
           z-index: 1 !important;
         }
@@ -442,7 +442,7 @@ export function MonitorEditForm({
           <h3 className="cs-section-header">Notifications</h3>
 
           <div className="cs-notifications-grid relative z-10">
-            <div className="flex flex-col gap-[6px]">
+            <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <input
                   id={`${p}-notify-email-toggle`}
@@ -461,20 +461,18 @@ export function MonitorEditForm({
                   Email alerts
                 </label>
               </div>
-              <div className="space-y-1">
-                <input
-                  type="email"
-                  value={values.notify_email}
-                  onChange={(e) => handleInputChange('notify_email', e.target.value)}
-                  disabled={!values.notify_email_enabled}
-                  placeholder="alerts@company.com"
-                  className={`w-full h-10 rounded-lg px-4 text-sm cs-input ${errors.notify_email ? 'cs-input-error' : ''}`}
-                />
-                {errors.notify_email && <span className="cs-error-msg">{errors.notify_email}</span>}
-              </div>
+              <input
+                type="email"
+                value={values.notify_email}
+                onChange={(e) => handleInputChange('notify_email', e.target.value)}
+                disabled={!values.notify_email_enabled}
+                placeholder="alerts@company.com"
+                className={`w-full h-10 rounded-lg px-4 text-sm cs-input ${errors.notify_email ? 'cs-input-error' : ''}`}
+              />
+              {errors.notify_email && <span className="cs-error-msg">{errors.notify_email}</span>}
             </div>
 
-            <div className="flex flex-col gap-[6px]">
+            <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <input
                   id={`${p}-notify-slack-toggle`}
@@ -493,17 +491,15 @@ export function MonitorEditForm({
                   Slack / Discord Webhook
                 </label>
               </div>
-              <div className="space-y-1">
-                <input
-                  type="url"
-                  value={values.notify_slack_webhook}
-                  onChange={(e) => handleInputChange('notify_slack_webhook', e.target.value)}
-                  disabled={!values.notify_slack_enabled}
-                  placeholder="https://hooks.slack.com/services/..."
-                  className={`w-full h-10 rounded-lg px-4 text-sm cs-input ${errors.notify_slack_webhook ? 'cs-input-error' : ''}`}
-                />
-                {errors.notify_slack_webhook && <span className="cs-error-msg">{errors.notify_slack_webhook}</span>}
-              </div>
+              <input
+                type="url"
+                value={values.notify_slack_webhook}
+                onChange={(e) => handleInputChange('notify_slack_webhook', e.target.value)}
+                disabled={!values.notify_slack_enabled}
+                placeholder="https://hooks.slack.com/services/..."
+                className={`w-full h-10 rounded-lg px-4 text-sm cs-input ${errors.notify_slack_webhook ? 'cs-input-error' : ''}`}
+              />
+              {errors.notify_slack_webhook && <span className="cs-error-msg">{errors.notify_slack_webhook}</span>}
             </div>
           </div>
         </section>

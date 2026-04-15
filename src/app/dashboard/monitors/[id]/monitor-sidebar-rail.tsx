@@ -151,7 +151,7 @@ export function MonitorSidebarRail({
                     title={narrow ? label : undefined}
                     className={`group flex items-center rounded-lg py-2 text-xs font-bold transition-all duration-300 ${linkPad} ${
                       isActive
-                        ? 'border border-white/10 bg-surface text-white shadow-xl shadow-black/20'
+                        ? 'border border-emerald-500/20 bg-emerald-500/10 text-white shadow-xl shadow-black/20'
                         : 'border border-transparent text-zinc-500 hover:bg-white/5 hover:text-white'
                     }`}
                   >
@@ -181,13 +181,13 @@ export function MonitorSidebarRail({
                     title={narrow ? label : undefined}
                     className={`group flex items-center rounded-lg py-2 text-xs font-bold transition-all duration-300 ${linkPad} ${
                       isActive
-                        ? 'border border-white/10 bg-surface text-white shadow-xl shadow-black/20'
+                        ? 'border border-emerald-500/20 bg-emerald-500/10 text-white shadow-xl shadow-black/20'
                         : 'border border-transparent text-zinc-500 hover:bg-white/5 hover:text-white'
                     }`}
                   >
                     <Icon
                       className={`${iconClass} shrink-0 transition-colors duration-300 ${
-                        isActive ? 'text-emerald-400' : 'text-zinc-500 group-hover:text-zinc-300'
+                        isActive ? 'text-emerald-400' : 'text-zinc-400 group-hover:text-zinc-300'
                       }`}
                       aria-hidden
                     />
