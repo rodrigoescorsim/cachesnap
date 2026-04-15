@@ -163,6 +163,9 @@ export function MonitorEditForm({
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
           position: relative !important;
           transition: all 0.2s ease !important;
+          display: flex !important;
+          flex-direction: column !important;
+          height: 100% !important;
         }
         .cs-form-card:hover {
           background: #132238 !important;
