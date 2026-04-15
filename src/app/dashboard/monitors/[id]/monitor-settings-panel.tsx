@@ -18,7 +18,7 @@ export function MonitorSettingsPanel(props: {
   const [removeOpen, setRemoveOpen] = useState(false)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl">
       <style>{`
 
       

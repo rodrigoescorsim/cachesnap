@@ -299,6 +299,15 @@ export function MonitorEditForm({
           border-color: rgba(239, 68, 68, 0.4);
           box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
         }
+
+        .cs-settings-grid {
+          display: grid !important;
+          grid-template-columns: repeat(2, 1fr) !important;
+          gap: 28px !important;
+        }
+        .cs-full-width {
+          grid-column: span 2 !important;
+        }
       `}</style>
 
       <div className="flex items-start justify-between">
@@ -323,7 +332,7 @@ export function MonitorEditForm({
         </div>
       </div>
 
-      <div className="space-y-6 max-w-md">
+      <div className="cs-settings-grid max-w-5xl">
         {/* GENERAL SECTION */}
         <section className="cs-form-card">
           <div className="cs-card-wash" />
@@ -377,11 +386,11 @@ export function MonitorEditForm({
         </section>
 
         {/* NOTIFICATIONS SECTION */}
-        <section className="cs-form-card">
+        <section className="cs-form-card cs-full-width">
           <div className="cs-card-wash" />
           <h3 className="cs-section-header">Notifications</h3>
 
-          <div className="space-y-4 relative z-10">
+          <div className="grid grid-cols-2 gap-x-8 gap-y-6 relative z-10">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <input
