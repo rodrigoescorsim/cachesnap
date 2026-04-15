@@ -460,6 +460,7 @@ function CustomSelect({
   const [isOpen, setIsOpen] = useState(false)
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
   const activeLabel = options.find(o => o.value === value)?.label || ''
 
   const updateCoords = useCallback(() => {
@@ -487,7 +488,10 @@ function CustomSelect({
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const isInsideTrigger = containerRef.current?.contains(e.target as Node)
+      const isInsideDropdown = dropdownRef.current?.contains(e.target as Node)
+      
+      if (!isInsideTrigger && !isInsideDropdown) {
         setIsOpen(false)
       }
     }
@@ -497,6 +501,7 @@ function CustomSelect({
 
   const dropdownContent = isOpen && (
     <div 
+      ref={dropdownRef}
       className="cs-select-dropdown"
       style={{
         top: coords.top,
@@ -509,7 +514,8 @@ function CustomSelect({
         <div
           key={opt.value}
           className={`cs-select-option ${opt.value === value ? 'active' : ''}`}
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation()
             onChange(opt.value)
             setIsOpen(false)
           }}
