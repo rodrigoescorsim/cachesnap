@@ -294,7 +294,7 @@ export function MonitorEditForm({
           margin-top: 6px !important;
           display: block !important;
         }
-        .status-badge {
+        .cs-status-pill {
           position: fixed;
           bottom: 32px;
           left: 50%;
@@ -313,22 +313,28 @@ export function MonitorEditForm({
             0 12px 32px rgba(0, 0, 0, 0.45),
             0 4px 10px rgba(0, 0, 0, 0.25);
           transition: all 0.6s cubic-bezier(0.19, 1, 0.22, 1);
-          opacity: 0.85;
+          opacity: 0;
+          pointer-events: none;
+          transform: translate(-50%, 16px) scale(0.95);
           color: rgba(255, 255, 255, 0.6);
         }
-        .status-badge.saving {
-          border-color: rgba(255, 255, 255, 0.15);
-          color: rgba(255, 255, 255, 0.4);
+        .cs-status-pill.visible {
+          opacity: 0.85;
+          pointer-events: auto;
+          transform: translate(-50%, 0) scale(1);
         }
-        .status-badge.saved {
+        .cs-status-pill.saving {
+          border-color: rgba(255, 255, 255, 0.15);
+        }
+        .cs-status-pill.saved {
           background: rgba(0, 255, 160, 0.08) !important;
           border-color: rgba(0, 255, 160, 0.15) !important;
           color: #00ffa0 !important;
           box-shadow: 0 0 20px rgba(0, 255, 160, 0.05);
         }
-        .status-badge.status-error {
+        .cs-status-pill.error {
           background: rgba(255, 0, 0, 0.05) !important;
-          border-color: rgba(239, 68, 68, 0.3) !important;
+          border: 1px solid rgba(239, 68, 68, 0.3) !important;
           color: #ff5050 !important;
           box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
         }
@@ -343,6 +349,16 @@ export function MonitorEditForm({
           padding: 32px !important;
         }
       `}</style>
+      
+      {/* STATUS BADGE */}
+      <div className={`cs-status-pill ${status !== 'idle' ? 'visible' : ''} ${status}`}>
+        <div className="flex items-center gap-2">
+          {status === 'saving' && <div className="w-1.5 h-1.5 rounded-full bg-white/20 animate-pulse" />}
+          {status === 'saved' && <div className="w-1.5 h-1.5 rounded-full bg-[#00ffa0] shadow-[0_0_8px_rgba(0,255,160,0.5)]" />}
+          {status === 'error' && <div className="w-1.5 h-1.5 rounded-full bg-[#ff5050]" />}
+          {status === 'saving' ? 'Saving changes...' : status === 'saved' ? 'All changes saved ✓' : 'Error updating settings'}
+        </div>
+      </div>
 
       <div className="flex items-start justify-between">
         <header className="mb-2">
@@ -351,19 +367,6 @@ export function MonitorEditForm({
           </h2>
           <p className="text-xs text-zinc-500">Changes are saved automatically as you work.</p>
         </header>
-
-        <div className={`status-badge ${
-          status === 'saving' ? 'saving' :
-          status === 'saved' ? 'saved' :
-          status === 'error' ? 'status-error' : 'opacity-0 translate-y-4 scale-95 pointer-events-none'
-        }`}>
-          <div className="flex items-center gap-2">
-            {status === 'saving' && <div className="w-1.5 h-1.5 rounded-full bg-white/20 animate-pulse" />}
-            {status === 'saved' && <div className="w-1.5 h-1.5 rounded-full bg-[#00ffa0] shadow-[0_0_8px_rgba(0,255,160,0.5)]" />}
-            {status === 'error' && <div className="w-1.5 h-1.5 rounded-full bg-[#ff5050]" />}
-            {status === 'saving' ? 'Saving changes...' : status === 'saved' ? 'All changes saved ✓' : 'Error updating settings'}
-          </div>
-        </div>
       </div>
 
       <div className="cs-settings-grid max-w-5xl">
