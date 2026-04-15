@@ -52,39 +52,50 @@ export function MonitorEditForm({
   // TRACKING STATE
   const [status, setStatus] = useState<SaveStatus>('idle')
   const [errors, setErrors] = useState<Record<string, string | null>>({})
+  const latestValues = useRef(values)
   const lastSavedValues = useRef(values)
   const isInitialMount = useRef(true)
 
+  // Sync ref with state
+  useEffect(() => {
+    latestValues.current = values
+  }, [values])
+
   // VALIDATION
-  const validate = useCallback((field: string, value: any) => {
-    if (field === 'notify_email' && values.notify_email_enabled && value && !value.includes('@')) {
+  const validate = useCallback((field: string, value: any, currentValues: typeof values) => {
+    if (field === 'notify_email' && currentValues.notify_email_enabled && value && !value.includes('@')) {
       return 'Please enter a valid email'
     }
-    if (field === 'notify_slack_webhook' && values.notify_slack_enabled && value && !value.startsWith('http')) {
+    if (field === 'notify_slack_webhook' && currentValues.notify_slack_enabled && value && !value.startsWith('http')) {
       return 'Invalid webhook URL'
     }
     return null
-  }, [values.notify_email_enabled, values.notify_slack_enabled])
+  }, [])
 
   // SAVING LOGIC
-  const triggerSave = useCallback(async (currentValues: typeof values) => {
+  const triggerSave = useCallback(async () => {
+    const current = latestValues.current
+    
+    // Check if anything actually changed from last saved state
+    const hasChanged = JSON.stringify(current) !== JSON.stringify(lastSavedValues.current)
+    if (!hasChanged) return
+
     // Basic validation check before saving
-    const emailErr = validate('notify_email', currentValues.notify_email)
-    const slackErr = validate('notify_slack_webhook', currentValues.notify_slack_webhook)
+    const emailErr = validate('notify_email', current.notify_email, current)
+    const slackErr = validate('notify_slack_webhook', current.notify_slack_webhook, current)
     
     if (emailErr || slackErr) {
-      setErrors(prev => ({ ...prev, notify_email: emailErr, notify_slack_webhook: slackErr }))
+      setErrors({ notify_email: emailErr, notify_slack_webhook: slackErr })
       setStatus('error')
       return
     }
 
     setStatus('saving')
     try {
-      // Map empty strings to null for the API
       const payload = {
-        ...currentValues,
-        notify_email: currentValues.notify_email.trim() || null,
-        notify_slack_webhook: currentValues.notify_slack_webhook.trim() || null,
+        ...current,
+        notify_email: current.notify_email.trim() || null,
+        notify_slack_webhook: current.notify_slack_webhook.trim() || null,
       }
 
       const res = await fetch(`/api/monitors/${id}`, {
@@ -95,8 +106,8 @@ export function MonitorEditForm({
       
       if (res.ok) {
         setStatus('saved')
-        lastSavedValues.current = currentValues
-        setTimeout(() => setStatus(curr => curr === 'saved' ? 'idle' : curr), 2000)
+        lastSavedValues.current = current
+        setTimeout(() => setStatus(curr => curr === 'saved' ? 'idle' : curr), 1500)
         router.refresh()
       } else {
         setStatus('error')
@@ -106,34 +117,33 @@ export function MonitorEditForm({
     }
   }, [id, router, validate])
 
-  // EFFECT: Auto-save logic
+  // EFFECT: Auto-save entry point
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false
       return
     }
 
-    // Check if anything actually changed from last saved state
-    const hasChanged = JSON.stringify(values) !== JSON.stringify(lastSavedValues.current)
-    if (!hasChanged) return
-
-    // Debounce duration: fast for toggles/selects, slower for typing
+    // Determine if we should debounce
     const isTyping = 
       values.name !== lastSavedValues.current.name || 
       values.notify_email !== lastSavedValues.current.notify_email ||
       values.notify_slack_webhook !== lastSavedValues.current.notify_slack_webhook
 
     const delay = isTyping ? 800 : 0
-    const timeout = setTimeout(() => triggerSave(values), delay)
+    const timeout = setTimeout(triggerSave, delay)
 
     return () => clearTimeout(timeout)
   }, [values, triggerSave])
 
   const handleInputChange = (field: keyof typeof values, value: any) => {
-    setValues(prev => ({ ...prev, [field]: value }))
-    // Clear error while typing if valid now
-    const err = validate(field, value)
-    setErrors(prev => ({ ...prev, [field]: err }))
+    setValues(prev => {
+      const next = { ...prev, [field]: value }
+      // Clear error while typing if valid now
+      const err = validate(field, value, next)
+      setErrors(errs => ({ ...errs, [field]: err }))
+      return next
+    })
   }
 
   return (
