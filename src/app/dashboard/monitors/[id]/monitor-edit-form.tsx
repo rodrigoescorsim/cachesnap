@@ -78,10 +78,17 @@ export function MonitorEditForm({
 
     setStatus('saving')
     try {
+      // Map empty strings to null for the API
+      const payload = {
+        ...currentValues,
+        notify_email: currentValues.notify_email.trim() || null,
+        notify_slack_webhook: currentValues.notify_slack_webhook.trim() || null,
+      }
+
       const res = await fetch(`/api/monitors/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(currentValues),
+        body: JSON.stringify(payload),
       })
       
       if (res.ok) {
@@ -199,11 +206,25 @@ export function MonitorEditForm({
           display: block !important;
         }
         .status-badge {
+          position: fixed;
+          top: 24px;
+          right: 24px;
+          z-index: 9999;
           font-size: 10px;
           font-weight: 900;
           letter-spacing: 0.15em;
           text-transform: uppercase;
-          transition: all 0.3s ease;
+          padding: 8px 16px;
+          border-radius: 99px;
+          background: rgba(15, 28, 46, 0.95);
+          backdrop-filter: blur(8px);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .status-badge.status-error {
+          border-color: rgba(239, 68, 68, 0.3);
+          box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
         }
       `}</style>
 
@@ -215,14 +236,12 @@ export function MonitorEditForm({
           <p className="text-xs text-zinc-500">Changes are saved automatically as you work.</p>
         </header>
 
-        <div className="pt-2">
-          <span className={`status-badge ${
-            status === 'saving' ? 'text-zinc-500 animate-pulse' :
-            status === 'saved' ? 'text-emerald-400' :
-            status === 'error' ? 'text-red-500' : 'opacity-0'
-          }`}>
-            {status === 'saving' ? 'Saving...' : status === 'saved' ? 'Saved \u2713' : 'Error saving'}
-          </span>
+        <div className={`status-badge ${
+          status === 'saving' ? 'text-zinc-500 animate-pulse' :
+          status === 'saved' ? 'text-emerald-400' :
+          status === 'error' ? 'text-red-500 status-error' : 'opacity-0 scale-95 pointer-events-none'
+        }`}>
+          {status === 'saving' ? 'Saving...' : status === 'saved' ? 'Saved \u2713' : 'Error saving'}
         </div>
       </div>
 
