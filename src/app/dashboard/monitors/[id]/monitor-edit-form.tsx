@@ -450,8 +450,8 @@ function CustomSelect({
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect()
       setCoords({
-        top: rect.bottom + window.scrollY + 6,
-        left: rect.left + window.scrollX,
+        top: rect.bottom + 6,
+        left: rect.left,
         width: rect.width
       })
     }
@@ -460,11 +460,11 @@ function CustomSelect({
   useEffect(() => {
     if (isOpen) {
       updateCoords()
-      window.addEventListener('scroll', updateCoords)
+      window.addEventListener('scroll', updateCoords, true)
       window.addEventListener('resize', updateCoords)
     }
     return () => {
-      window.removeEventListener('scroll', updateCoords)
+      window.removeEventListener('scroll', updateCoords, true)
       window.removeEventListener('resize', updateCoords)
     }
   }, [isOpen, updateCoords])
@@ -486,7 +486,7 @@ function CustomSelect({
         top: coords.top,
         left: coords.left,
         width: coords.width,
-        position: 'absolute' // Re-switching to absolute for the portal container
+        position: 'fixed'
       }}
     >
       {options.map(opt => (
