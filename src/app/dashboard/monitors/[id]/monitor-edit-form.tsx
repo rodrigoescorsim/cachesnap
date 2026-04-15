@@ -209,12 +209,11 @@ export function MonitorEditForm({
           left: 0 !important;
           right: 0 !important;
           background: #14263f !important;
-          border: 1px solid rgba(255, 255, 255, 0.08) !important;
+          border: 1px solid rgba(255, 255, 255, 0.12) !important;
           border-radius: 12px !important;
-          backdrop-filter: blur(16px) !important;
           box-shadow: 
-            0 12px 32px rgba(0, 0, 0, 0.4),
-            0 4px 12px rgba(0, 0, 0, 0.2) !important;
+            0 16px 40px rgba(0, 0, 0, 0.6),
+            0 4px 12px rgba(0, 0, 0, 0.4) !important;
           overflow: hidden !important;
           z-index: 100 !important;
           animation: cs-fade-in 0.2s ease-out !important;
