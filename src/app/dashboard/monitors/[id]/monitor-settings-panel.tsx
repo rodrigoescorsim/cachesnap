@@ -23,8 +23,8 @@ export function MonitorSettingsPanel(props: {
 
       
         .cs-danger-card {
-          background: rgba(255, 0, 0, 0.04) !important;
-          border: 1px solid rgba(255, 0, 0, 0.12) !important;
+          background: rgba(255, 0, 0, 0.03) !important;
+          border: 1px solid rgba(255, 0, 0, 0.1) !important;
           border-radius: 12px !important;
           padding: 24px !important;
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;

@@ -313,7 +313,7 @@ export function MonitorEditForm({
         .cs-settings-grid {
           display: grid !important;
           grid-template-columns: repeat(2, 1fr) !important;
-          gap: 28px !important;
+          gap: 32px !important;
         }
         .cs-full-width {
           grid-column: span 2 !important;
