@@ -122,10 +122,23 @@ export function MonitorEditForm({
 
   // EFFECT: Auto-save entry point
   useEffect(() => {
+    // Strict mount protection
     if (isInitialMount.current) {
       isInitialMount.current = false
       return
     }
+
+    // Check if anything actually changed from last saved state
+    const hasChangedCheck = 
+      values.name !== lastSavedValues.current.name ||
+      values.check_interval_seconds !== lastSavedValues.current.check_interval_seconds ||
+      values.audit_interval_seconds !== lastSavedValues.current.audit_interval_seconds ||
+      values.notify_email !== lastSavedValues.current.notify_email ||
+      values.notify_email_enabled !== lastSavedValues.current.notify_email_enabled ||
+      values.notify_slack_webhook !== lastSavedValues.current.notify_slack_webhook ||
+      values.notify_slack_enabled !== lastSavedValues.current.notify_slack_enabled
+
+    if (!hasChangedCheck) return
 
     // Determine if we should debounce
     const isTyping = 
