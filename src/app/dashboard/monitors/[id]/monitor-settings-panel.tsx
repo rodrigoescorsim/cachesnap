@@ -23,15 +23,20 @@ export function MonitorSettingsPanel(props: {
 
       
         .cs-danger-card {
-          background: rgba(255, 0, 0, 0.03) !important;
-          border: 1px solid rgba(255, 0, 0, 0.1) !important;
+          background: linear-gradient(135deg, #0f1c2e, #140808) !important;
+          border: 1px solid rgba(255, 50, 50, 0.15) !important;
           border-radius: 12px !important;
           padding: 24px !important;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
-          transition: background 0.2s ease !important;
+          box-shadow: 
+            0 4px 20px rgba(0, 0, 0, 0.2),
+            inset 0 0 40px rgba(255, 0, 0, 0.02) !important;
+          transition: all 0.2s ease !important;
+          position: relative !important;
+          overflow: hidden !important;
         }
         .cs-danger-card:hover {
-          background: rgba(255, 0, 0, 0.06) !important;
+          border-color: rgba(255, 50, 50, 0.25) !important;
+          background: linear-gradient(135deg, #132238, #180a0a) !important;
         }
         .cs-danger-header {
           font-size: 11px !important;
