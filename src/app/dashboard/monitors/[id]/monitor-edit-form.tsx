@@ -207,6 +207,13 @@ export function MonitorEditForm({
           outline: none !important;
           background: rgba(255, 255, 255, 0.05) !important;
         }
+        .cs-input:disabled {
+          opacity: 0.5 !important;
+          background: rgba(255, 255, 255, 0.02) !important;
+          cursor: not-allowed !important;
+          border-color: rgba(255, 255, 255, 0.05) !important;
+          pointer-events: none !important;
+        }
         select.cs-input option {
           background-color: #14263f !important;
           color: white !important;
@@ -420,7 +427,7 @@ export function MonitorEditForm({
                 onChange={(e) => handleInputChange('notify_email', e.target.value)}
                 disabled={!values.notify_email_enabled}
                 placeholder="alerts@company.com"
-                className={`w-full h-10 rounded-lg px-4 text-sm cs-input ${!values.notify_email_enabled ? 'opacity-20 pointer-events-none' : ''} ${errors.notify_email ? 'cs-input-error' : ''}`}
+                className={`w-full h-10 rounded-lg px-4 text-sm cs-input ${errors.notify_email ? 'cs-input-error' : ''}`}
               />
               {errors.notify_email && <span className="cs-error-msg">{errors.notify_email}</span>}
             </div>
@@ -450,7 +457,7 @@ export function MonitorEditForm({
                 onChange={(e) => handleInputChange('notify_slack_webhook', e.target.value)}
                 disabled={!values.notify_slack_enabled}
                 placeholder="https://hooks.slack.com/services/..."
-                className={`w-full h-10 rounded-lg px-4 text-sm cs-input ${!values.notify_slack_enabled ? 'opacity-20 pointer-events-none' : ''} ${errors.notify_slack_webhook ? 'cs-input-error' : ''}`}
+                className={`w-full h-10 rounded-lg px-4 text-sm cs-input ${errors.notify_slack_webhook ? 'cs-input-error' : ''}`}
               />
               {errors.notify_slack_webhook && <span className="cs-error-msg">{errors.notify_slack_webhook}</span>}
             </div>
