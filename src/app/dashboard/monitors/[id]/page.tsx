@@ -1355,6 +1355,7 @@ export default async function MonitorDetailPage({
               <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">Monitor settings</h2>
               <MonitorSettingsPanel
                 id={monitor.id}
+                url={monitor.url}
                 name={monitor.name}
                 checkIntervalSeconds={monitor.check_interval_seconds}
                 auditIntervalSeconds={monitor.audit_interval_seconds}

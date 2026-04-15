@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 
 export interface MonitorEditFormProps {
   id: string
+  url: string
   name: string | null
   checkIntervalSeconds: number
   auditIntervalSeconds: number
@@ -18,6 +19,7 @@ export interface MonitorEditFormProps {
 
 export function MonitorEditForm({
   id,
+  url,
   name,
   checkIntervalSeconds,
   auditIntervalSeconds,
@@ -175,7 +177,13 @@ export function MonitorEditForm({
               id={`${p}-edit-name`}
               name="name"
               type="text"
-              defaultValue={name ?? ''}
+              defaultValue={name ?? (() => {
+                try {
+                  return new URL(url).hostname
+                } catch {
+                  return url
+                }
+              })()}
               placeholder="e.g. Production API"
               className="w-full h-11 rounded-lg px-4 text-sm cs-input"
             />

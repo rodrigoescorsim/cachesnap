@@ -6,6 +6,7 @@ import { MonitorDeleteConfirm } from './monitor-delete-confirm'
 
 export function MonitorSettingsPanel(props: {
   id: string
+  url: string
   name: string | null
   checkIntervalSeconds: number
   auditIntervalSeconds: number
