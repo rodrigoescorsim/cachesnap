@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { MoreVertical } from 'lucide-react'
+import { MoreVertical, Settings as SettingsIcon, Trash } from 'lucide-react'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { createPortal } from 'react-dom'
 
 import { buildMonitorHref } from './monitor-href'
 
@@ -26,17 +27,47 @@ export function MonitorHeaderToolbar({
   const [, startTransition] = useTransition()
   const [pendingToggle, setPendingToggle] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const wrapRef = useRef<HTMLDivElement>(null)
+  const [portalNode, setPortalNode] = useState<HTMLElement | null>(null)
+  const [coords, setCoords] = useState({ top: 0, left: 0 })
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setPortalNode(document.body)
+  }, [])
 
   useEffect(() => {
     if (!menuOpen) return
+
+    function updateCoords() {
+      if (triggerRef.current) {
+        const rect = triggerRef.current.getBoundingClientRect()
+        setCoords({
+          top: rect.bottom + window.scrollY + 8,
+          left: rect.right + window.scrollX,
+        })
+      }
+    }
+
+    updateCoords()
+    window.addEventListener('resize', updateCoords)
+    window.addEventListener('scroll', updateCoords, true)
+
     function handlePointerDown(e: PointerEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+      ) {
         setMenuOpen(false)
       }
     }
+
     document.addEventListener('pointerdown', handlePointerDown)
-    return () => document.removeEventListener('pointerdown', handlePointerDown)
+    return () => {
+      window.removeEventListener('resize', updateCoords)
+      window.removeEventListener('scroll', updateCoords, true)
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
   }, [menuOpen])
 
   function handleToggleActive() {
@@ -57,7 +88,7 @@ export function MonitorHeaderToolbar({
   }
 
   return (
-    <div ref={wrapRef} className="flex items-center gap-2">
+    <div className="flex items-center gap-2">
       <button
         type="button"
         onClick={handleToggleActive}
@@ -70,12 +101,17 @@ export function MonitorHeaderToolbar({
         }`}
       >
         {pendingToggle
-          ? (isActive ? 'Pausing…' : 'Resuming…')
-          : (isActive ? 'Pause' : 'Resume')}
+          ? isActive
+            ? 'Pausing…'
+            : 'Resuming…'
+          : isActive
+          ? 'Pause'
+          : 'Resume'}
       </button>
 
       <div className="relative flex items-center">
         <button
+          ref={triggerRef}
           type="button"
           aria-expanded={menuOpen}
           aria-haspopup="menu"
@@ -92,21 +128,113 @@ export function MonitorHeaderToolbar({
           />
         </button>
 
-        {menuOpen ? (
-          <div
-            role="menu"
-            className="absolute right-0 top-[calc(100%+4px)] z-50 min-w-[10rem] rounded-lg border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-800 dark:bg-zinc-950"
-          >
-            <Link
-              role="menuitem"
-              href={buildMonitorHref('settings', range)}
-              className="block px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
-              onClick={() => setMenuOpen(false)}
-            >
-              Settings
-            </Link>
-          </div>
-        ) : null}
+        {menuOpen && portalNode
+          ? createPortal(
+              <>
+                <style>{`
+                  @keyframes menuFadeIn {
+                    from { opacity: 0; transform: translateY(-2px) translateX(-100%); }
+                    to { opacity: 1; transform: translateY(2px) translateX(-100%); }
+                  }
+                  .cs-dropdown {
+                    background: rgba(17, 29, 50, 0.98) !important;
+                    backdrop-filter: blur(10px) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+                    border-radius: 12px !important;
+                    padding: 6px !important;
+                    min-width: 180px !important;
+                    box-shadow: 
+                      0 8px 24px rgba(0, 0, 0, 0.35),
+                      0 2px 8px rgba(0, 0, 0, 0.25) !important;
+                    animation: menuFadeIn 0.15s ease-out forwards !important;
+                    z-index: 9999 !important;
+                  }
+                  .cs-dropdown::before {
+                    content: "";
+                    position: absolute;
+                    top: -4px;
+                    right: 12px;
+                    width: 8px;
+                    height: 8px;
+                    background: inherit;
+                    transform: rotate(45deg);
+                    border-left: 1px solid rgba(255, 255, 255, 0.08);
+                    border-top: 1px solid rgba(255, 255, 255, 0.08);
+                    z-index: -1;
+                  }
+                  .cs-item {
+                    display: flex !important;
+                    align-items: center !important;
+                    gap: 10px !important;
+                    padding: 8px 10px !important;
+                    border-radius: 6px !important;
+                    font-size: 14px !important;
+                    font-weight: 500 !important;
+                    transition: all 0.15s ease-out !important;
+                    cursor: pointer !important;
+                    color: #cbd5e1 !important;
+                    line-height: 1 !important;
+                    text-decoration: none !important;
+                  }
+                  .cs-item:hover {
+                    background: rgba(255, 255, 255, 0.06) !important;
+                    color: #fff !important;
+                  }
+                  .cs-item-danger {
+                    color: #ff6b6b !important;
+                  }
+                  .cs-item-danger:hover {
+                    background: rgba(255, 0, 0, 0.12) !important;
+                    box-shadow: inset 0 0 0 1px rgba(255, 0, 0, 0.15) !important;
+                    color: #ff8787 !important;
+                  }
+                  .cs-divider {
+                    margin: 6px 0 !important;
+                    height: 1px !important;
+                    background: rgba(255, 255, 255, 0.06) !important;
+                  }
+                `}</style>
+                <div
+                  ref={menuRef}
+                  role="menu"
+                  className="cs-dropdown"
+                  style={{
+                    position: 'absolute',
+                    top: coords.top,
+                    left: coords.left,
+                  }}
+                >
+                  <div className="flex flex-col">
+                    <Link
+                      role="menuitem"
+                      href={buildMonitorHref('settings', range)}
+                      className="cs-item"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <SettingsIcon className="h-3.5 w-3.5 opacity-70" />
+                      Settings
+                    </Link>
+                  </div>
+                  <div className="cs-divider" />
+                  <div className="flex flex-col">
+                    <Link
+                      role="menuitem"
+                      href={
+                        buildMonitorHref('settings', range) +
+                        '#settings-danger-heading'
+                      }
+                      className="cs-item cs-item-danger"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <Trash className="h-3.5 w-3.5 opacity-70" />
+                      Remove monitor
+                    </Link>
+                  </div>
+                </div>
+              </>,
+              portalNode
+            )
+          : null}
       </div>
     </div>
   )
