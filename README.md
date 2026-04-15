@@ -17,6 +17,7 @@ CacheSnap is an edge performance monitoring product focused on cache behavior, l
 - `workers/probe/` — legacy Cloudflare Worker probe (deprecated, kept for reference)
 - `migrations/` — database schema and follow-up migrations
 - `docs/` — product, stack, worker, and status documentation
+- `docs/FEATURES.md` — full product feature catalog (alerts, capabilities, differentiators)
 
 ## Running locally
 

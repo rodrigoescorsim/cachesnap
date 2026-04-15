@@ -18,7 +18,8 @@
   --color-surface: var(--surface);
   --color-border: var(--border);
   
-  --font-sans: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  /* --font-inter vem de next/font/google em layout.tsx; fallback se a variável não existir */
+  --font-sans: var(--font-inter), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 
   --font-weight-medium: 500;

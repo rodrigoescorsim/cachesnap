@@ -1,5 +1,13 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+  weight: ["400", "500", "600", "700", "800", "900"],
+});
 
 export const metadata: Metadata = {
   title: "CacheSnap — Edge Performance Monitoring",
@@ -12,7 +20,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark h-full antialiased bg-background text-foreground">
+    <html
+      lang="en"
+      className={`${inter.variable} dark h-full antialiased bg-background text-foreground`}
+    >
       <body className="min-h-full flex flex-col selection:bg-cyan-500/30">{children}</body>
     </html>
   );
