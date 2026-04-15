@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { ChevronDown } from 'lucide-react'
 
@@ -204,18 +205,16 @@ export function MonitorEditForm({
           user-select: none !important;
         }
         .cs-select-dropdown {
-          position: absolute !important;
-          top: calc(100% + 6px) !important;
-          left: 0 !important;
-          right: 0 !important;
+          position: fixed !important;
           background: #14263f !important;
-          border: 1px solid rgba(255, 255, 255, 0.12) !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
           border-radius: 12px !important;
+          backdrop-filter: blur(12px) !important;
           box-shadow: 
-            0 16px 40px rgba(0, 0, 0, 0.6),
-            0 4px 12px rgba(0, 0, 0, 0.4) !important;
+            0 16px 48px rgba(0, 0, 0, 0.5),
+            0 4px 12px rgba(0, 0, 0, 0.3) !important;
           overflow: hidden !important;
-          z-index: 100 !important;
+          z-index: 99999 !important;
           animation: cs-fade-in 0.2s ease-out !important;
         }
         @keyframes cs-fade-in {
@@ -443,8 +442,32 @@ function CustomSelect({
   onChange: (val: number) => void 
 }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
   const activeLabel = options.find(o => o.value === value)?.label || ''
+
+  const updateCoords = useCallback(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      setCoords({
+        top: rect.bottom + window.scrollY + 6,
+        left: rect.left + window.scrollX,
+        width: rect.width
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isOpen) {
+      updateCoords()
+      window.addEventListener('scroll', updateCoords)
+      window.addEventListener('resize', updateCoords)
+    }
+    return () => {
+      window.removeEventListener('scroll', updateCoords)
+      window.removeEventListener('resize', updateCoords)
+    }
+  }, [isOpen, updateCoords])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -456,6 +479,31 @@ function CustomSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  const dropdownContent = isOpen && (
+    <div 
+      className="cs-select-dropdown"
+      style={{
+        top: coords.top,
+        left: coords.left,
+        width: coords.width,
+        position: 'absolute' // Re-switching to absolute for the portal container
+      }}
+    >
+      {options.map(opt => (
+        <div
+          key={opt.value}
+          className={`cs-select-option ${opt.value === value ? 'active' : ''}`}
+          onClick={() => {
+            onChange(opt.value)
+            setIsOpen(false)
+          }}
+        >
+          {opt.label}
+        </div>
+      ))}
+    </div>
+  )
+
   return (
     <div className="cs-custom-select" ref={containerRef}>
       <div 
@@ -466,22 +514,7 @@ function CustomSelect({
         <ChevronDown className={`w-4 h-4 text-zinc-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
       </div>
 
-      {isOpen && (
-        <div className="cs-select-dropdown">
-          {options.map(opt => (
-            <div
-              key={opt.value}
-              className={`cs-select-option ${opt.value === value ? 'active' : ''}`}
-              onClick={() => {
-                onChange(opt.value)
-                setIsOpen(false)
-              }}
-            >
-              {opt.label}
-            </div>
-          ))}
-        </div>
-      )}
+      {isOpen && typeof document !== 'undefined' && createPortal(dropdownContent, document.body)}
     </div>
   )
 }
