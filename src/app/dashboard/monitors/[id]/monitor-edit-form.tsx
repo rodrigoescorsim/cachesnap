@@ -57,18 +57,31 @@ export function MonitorEditForm({
 
   // VALIDATION
   const validate = useCallback((field: string, value: any, currentValues: typeof values) => {
-    if (field === 'notify_email' && currentValues.notify_email_enabled && value && !value.includes('@')) {
-      return 'Please enter a valid email'
+    // Basic required check if enabled
+    if (field === 'notify_email' && currentValues.notify_email_enabled) {
+      if (!value) return 'Email is required'
+      if (!value.includes('@')) return 'Invalid email address'
     }
-    if (field === 'notify_slack_webhook' && currentValues.notify_slack_enabled && value && !value.startsWith('http')) {
-      return 'Invalid webhook URL'
+    if (field === 'notify_slack_webhook' && currentValues.notify_slack_enabled) {
+      if (!value) return 'Webhook URL is required'
+      if (!value.startsWith('http')) return 'Invalid webhook URL'
     }
     return null
   }, [])
 
   // SAVING LOGIC
   const triggerSave = useCallback(async (current: typeof values) => {
-    // Check if anything actually changed from last saved state
+    // 1. Validation check - if invalid, we don't even TRY to save
+    const emailErr = validate('notify_email', current.notify_email, current)
+    const slackErr = validate('notify_slack_webhook', current.notify_slack_webhook, current)
+    
+    if (emailErr || slackErr) {
+      setErrors({ notify_email: emailErr, notify_slack_webhook: slackErr })
+      // We don't set status to 'error' here because it's an inline validation, not a system error
+      return
+    }
+
+    // 2. Check if anything actually changed from last saved state
     const hasChanged = 
       current.name !== lastSavedValues.current.name ||
       current.check_interval_seconds !== lastSavedValues.current.check_interval_seconds ||
@@ -80,21 +93,11 @@ export function MonitorEditForm({
 
     if (!hasChanged) return
 
-    // Basic validation check before saving
-    const emailErr = validate('notify_email', current.notify_email, current)
-    const slackErr = validate('notify_slack_webhook', current.notify_slack_webhook, current)
-    
-    if (emailErr || slackErr) {
-      setErrors({ notify_email: emailErr, notify_slack_webhook: slackErr })
-      setStatus('error')
-      setTimeout(() => setStatus(curr => curr === 'error' ? 'idle' : curr), 3000)
-      return
-    }
-
     setStatus('saving')
     try {
       const payload = {
         ...current,
+        name: current.name.trim(),
         notify_email: current.notify_email.trim() || null,
         notify_slack_webhook: current.notify_slack_webhook.trim() || null,
       }
