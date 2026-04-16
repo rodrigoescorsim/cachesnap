@@ -91,15 +91,15 @@ export function MonitorHeaderToolbar({
 
   return (
     <div className="flex items-center gap-2">
-      <button
+        <button
         type="button"
         onClick={handleToggleActive}
         disabled={pendingToggle}
         title={isActive ? 'Pause monitoring' : 'Resume monitoring'}
         className={`${PAUSE_BTN} ${
           isActive
-            ? 'border-[rgba(255,180,0,0.2)] bg-[rgba(255,180,0,0.08)] text-[#ffcc66] hover:bg-[rgba(255,180,0,0.12)]'
-            : 'border-[rgba(16,185,129,0.22)] bg-[rgba(16,185,129,0.1)] text-emerald-800 hover:bg-[rgba(16,185,129,0.16)] dark:text-emerald-300 dark:hover:bg-[rgba(16,185,129,0.14)]'
+            ? 'cs-tint-warning'
+            : 'cs-tint-success'
         }`}
       >
         {pendingToggle
@@ -120,7 +120,7 @@ export function MonitorHeaderToolbar({
           title="More actions"
           onClick={() => setMenuOpen((v) => !v)}
           className={`${MENU_TRIGGER} ${
-            menuOpen ? 'bg-black/[0.06] dark:bg-[rgba(255,255,255,0.06)]' : ''
+            menuOpen ? 'bg-white/5' : ''
           }`}
         >
           <MoreVertical
@@ -132,113 +132,43 @@ export function MonitorHeaderToolbar({
 
         {menuOpen && portalNode
           ? createPortal(
-              <>
-                <style>{`
-                  @keyframes menuFadeIn {
-                    from { opacity: 0; transform: translateY(-2px) translateX(-100%); }
-                    to { opacity: 1; transform: translateY(2px) translateX(-100%); }
-                  }
-                  .cs-dropdown {
-                    background: rgba(17, 29, 50, 0.98) !important;
-                    backdrop-filter: blur(10px) !important;
-                    border: 1px solid rgba(255, 255, 255, 0.08) !important;
-                    border-radius: 12px !important;
-                    padding: 6px !important;
-                    min-width: 180px !important;
-                    box-shadow: 
-                      0 8px 24px rgba(0, 0, 0, 0.35),
-                      0 2px 8px rgba(0, 0, 0, 0.25) !important;
-                    animation: menuFadeIn 0.15s ease-out forwards !important;
-                    z-index: 9999 !important;
-                  }
-                  .cs-dropdown::before {
-                    content: "";
-                    position: absolute;
-                    top: -4px;
-                    right: 12px;
-                    width: 8px;
-                    height: 8px;
-                    background: inherit;
-                    transform: rotate(45deg);
-                    border-left: 1px solid rgba(255, 255, 255, 0.08);
-                    border-top: 1px solid rgba(255, 255, 255, 0.08);
-                    z-index: -1;
-                  }
-                  .cs-item {
-                    display: flex !important;
-                    align-items: center !important;
-                    gap: 10px !important;
-                    padding: 8px 10px !important;
-                    width: 100% !important;
-                    border: 0 !important;
-                    background: transparent !important;
-                    appearance: none !important;
-                    text-align: left !important;
-                    border-radius: 6px !important;
-                    font-size: 14px !important;
-                    font-weight: 500 !important;
-                    transition: all 0.15s ease-out !important;
-                    cursor: pointer !important;
-                    color: #cbd5e1 !important;
-                    line-height: 1 !important;
-                    text-decoration: none !important;
-                  }
-                  .cs-item:hover {
-                    background: rgba(255, 255, 255, 0.06) !important;
-                    color: #fff !important;
-                  }
-                  .cs-item-danger {
-                    color: #ff6b6b !important;
-                  }
-                  .cs-item-danger:hover {
-                    background: rgba(255, 0, 0, 0.12) !important;
-                    box-shadow: inset 0 0 0 1px rgba(255, 0, 0, 0.15) !important;
-                    color: #ff8787 !important;
-                  }
-                  .cs-divider {
-                    margin: 6px 0 !important;
-                    height: 1px !important;
-                    background: rgba(255, 255, 255, 0.06) !important;
-                  }
-                `}</style>
-                <div
-                  ref={menuRef}
-                  role="menu"
-                  className="cs-dropdown"
-                  style={{
-                    position: 'absolute',
-                    top: coords.top,
-                    left: coords.left,
-                  }}
-                >
-                  <div className="flex flex-col">
-                    <Link
-                      role="menuitem"
-                      href={buildMonitorHref('settings', range)}
-                      className="cs-item"
-                      onClick={() => setMenuOpen(false)}
-                    >
-                      <SettingsIcon className="h-3.5 w-3.5 opacity-70" />
-                      Settings
-                    </Link>
-                  </div>
-                  <div className="cs-divider" />
-                  <div className="flex flex-col">
-                    <button
-                      role="menuitem"
-                      type="button"
-                      className="cs-item cs-item-danger"
-                      onClick={() => {
-                        setMenuOpen(false)
-                        setRemoveOpen(true)
-                      }}
-                    >
-                      <Trash className="h-3.5 w-3.5 opacity-70" />
-                      Remove monitor
-                    </button>
-                  </div>
+              <div
+                ref={menuRef}
+                role="menu"
+                className="cs-dropdown"
+                style={{
+                  position: 'absolute',
+                  top: coords.top,
+                  left: coords.left - 180, // Adjust to open from right
+                }}
+              >
+                <div className="flex flex-col">
+                  <Link
+                    role="menuitem"
+                    href={buildMonitorHref('settings', range)}
+                    className="cs-item"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <SettingsIcon className="h-3.5 w-3.5 opacity-70" />
+                    Settings
+                  </Link>
                 </div>
-              </>,
+                <div className="cs-divider" />
+                <div className="flex flex-col">
+                  <button
+                    role="menuitem"
+                    type="button"
+                    className="cs-item cs-item-danger"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      setRemoveOpen(true)
+                    }}
+                  >
+                    <Trash className="h-3.5 w-3.5 opacity-70" />
+                    Remove monitor
+                  </button>
+                </div>
+              </div>,
               portalNode
             )
           : null}

@@ -18,7 +18,7 @@ export default async function RootPage() {
       <header className="border-b border-zinc-800/50 backdrop-blur-md relative z-10 w-full">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 flex items-center justify-between h-14">
           <Link href="/" className="transition-opacity hover:opacity-80">
-            <Logo />
+            <Logo className="h-11" />
           </Link>
           <div className="flex items-center gap-4">
             <Link

@@ -12,7 +12,7 @@ export default function LoginPage() {
     <div className="w-full max-w-sm">
       <div className="mb-10 flex flex-col items-center">
         <Link href="/" className="mb-6 hover:opacity-80 transition-opacity">
-          <Logo />
+          <Logo className="h-16" />
         </Link>
         <p className="text-sm text-zinc-500 font-medium">Sign in to your account</p>
       </div>

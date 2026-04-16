@@ -29,7 +29,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <div className="mx-auto max-w-6xl px-4 sm:px-6 flex items-center justify-between h-16">
           <div className="flex items-center gap-8">
             <Link href="/dashboard" className="transition-opacity hover:opacity-80">
-              <Logo />
+              <Logo className="h-11" />
             </Link>
             <nav className="hidden sm:flex items-center gap-4">
               <Link

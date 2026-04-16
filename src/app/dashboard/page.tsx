@@ -101,9 +101,9 @@ function redirectTone(redirectAvg: number | null): string {
 
 function securityTone(securityScore: number | null): string {
   if (securityScore == null) return 'text-zinc-500'
-  if (securityScore >= 4) return 'text-[#22C55E]'
-  if (securityScore >= 2) return 'text-[#F59E0B]'
-  return 'text-[#EF4444]'
+  if (securityScore >= 4) return 'text-emerald-500'
+  if (securityScore >= 2) return 'text-amber-500'
+  return 'text-red-500'
 }
 
 export default async function DashboardPage() {
@@ -118,19 +118,19 @@ export default async function DashboardPage() {
       <AutoRefresh intervalMs={300_000} /> {/* Fallback lento a cada 5m */}
 
       {/* Monitor list header */}
-      <section className="rounded-2xl border border-border bg-surface/50 backdrop-blur px-8 py-6">
+      <section className="cs-card cs-card-glass px-8 py-6">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-4 flex-wrap">
               <h2 className="text-xl font-semibold tracking-tight text-white">
                 Active monitors
               </h2>
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/30">
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Live</span>
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Live</span>
               </div>
               <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-[11px] font-medium text-zinc-500">
                 {monitors.length} total
@@ -175,8 +175,9 @@ export default async function DashboardPage() {
             return (
               <div
                 key={m.id}
-                className="group relative block rounded-xl border border-border bg-surface p-4 transition-all duration-300 hover:border-zinc-700 hover:shadow-xl hover:bg-surface/80"
+                className="cs-card group relative p-4 transition-all duration-300 hover:border-zinc-700 hover:shadow-xl hover:bg-surface/80"
               >
+                <div className="cs-card-wash" />
                 <Link
                   href={`/dashboard/monitors/${m.id}`}
                   aria-label={`Open monitor ${m.name ?? new URL(m.url).hostname}`}

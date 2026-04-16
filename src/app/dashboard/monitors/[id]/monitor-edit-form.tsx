@@ -71,17 +71,14 @@ export function MonitorEditForm({
 
   // SAVING LOGIC
   const triggerSave = useCallback(async (current: typeof values) => {
-    // 1. Validation check - if invalid, we don't even TRY to save
     const emailErr = validate('notify_email', current.notify_email, current)
     const slackErr = validate('notify_slack_webhook', current.notify_slack_webhook, current)
     
     if (emailErr || slackErr) {
       setErrors({ notify_email: emailErr, notify_slack_webhook: slackErr })
-      // We don't set status to 'error' here because it's an inline validation, not a system error
       return
     }
 
-    // 2. Check if anything actually changed from last saved state
     const hasChanged = 
       current.name !== lastSavedValues.current.name ||
       current.check_interval_seconds !== lastSavedValues.current.check_interval_seconds ||
@@ -125,13 +122,11 @@ export function MonitorEditForm({
 
   // EFFECT: Auto-save entry point
   useEffect(() => {
-    // Strict mount protection
     if (isInitialMount.current) {
       isInitialMount.current = false
       return
     }
 
-    // Check if anything actually changed from last saved state
     const hasChangedCheck = 
       values.name !== lastSavedValues.current.name ||
       values.check_interval_seconds !== lastSavedValues.current.check_interval_seconds ||
@@ -143,7 +138,6 @@ export function MonitorEditForm({
 
     if (!hasChangedCheck) return
 
-    // Determine if we should debounce
     const isTyping = 
       values.name !== lastSavedValues.current.name || 
       values.notify_email !== lastSavedValues.current.notify_email ||
@@ -158,15 +152,12 @@ export function MonitorEditForm({
   const handleInputChange = (field: keyof typeof values, value: any) => {
     setValues(prev => {
       const next = { ...prev, [field]: value }
-      
-      // If we are disabling a channel, clear its errors as they are no longer relevant
       if (field === 'notify_email_enabled' && !value) {
         setErrors(errs => ({ ...errs, notify_email: null }))
       }
       if (field === 'notify_slack_enabled' && !value) {
         setErrors(errs => ({ ...errs, notify_slack_webhook: null }))
       }
-
       const err = validate(field, value, next)
       setErrors(errs => ({ ...errs, [field]: err }))
       return next
@@ -175,211 +166,12 @@ export function MonitorEditForm({
 
   return (
     <div className="space-y-6">
-      <style>{`
-        .cs-form-card {
-          background: #0f1c2e !important;
-          border: 1px solid rgba(255, 255, 255, 0.03) !important;
-          border-radius: 12px !important;
-          padding: 24px !important;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
-          position: relative !important;
-          transition: all 0.2s ease !important;
-          display: flex !important;
-          flex-direction: column !important;
-          height: 100% !important;
-        }
-        .cs-form-card:hover {
-          background: #132238 !important;
-        }
-        .cs-form-card:focus-within {
-          z-index: 60 !important;
-        }
-        .cs-card-wash {
-          pointer-events: none !important;
-          position: absolute !important;
-          inset: 0 !important;
-          border-radius: 12px !important;
-          background: linear-gradient(225deg, rgba(76, 201, 255, 0.028), transparent, rgba(0, 136, 255, 0.035)) !important;
-        }
-        .cs-section-header {
-          font-size: 11px !important;
-          font-weight: 900 !important;
-          color: rgba(255, 255, 255, 0.5) !important;
-          text-transform: uppercase !important;
-          letter-spacing: 0.12em !important;
-          border-left: 3px solid rgba(0, 255, 160, 0.4) !important;
-          padding-left: 10px !important;
-          line-height: 1 !important;
-          margin-bottom: 22px !important;
-          position: relative !important;
-          z-index: 1 !important;
-        }
-        .cs-input {
-          background: rgba(255, 255, 255, 0.04) !important;
-          border: 1px solid rgba(255, 255, 255, 0.08) !important;
-          color: white !important;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-          position: relative !important;
-          z-index: 1 !important;
-        }
-        .cs-input::placeholder {
-          color: rgba(255, 255, 255, 0.3) !important;
-          transition: opacity 0.2s ease !important;
-          font-weight: 500 !important;
-        }
-        .cs-input:disabled::placeholder {
-          opacity: 0.6 !important;
-        }
-        .cs-input:focus {
-          border-color: rgba(0, 255, 150, 0.4) !important;
-          box-shadow: 0 0 0 4px rgba(0, 255, 160, 0.08) !important;
-          outline: none !important;
-          background: rgba(255, 255, 255, 0.05) !important;
-        }
-        .cs-input:disabled {
-          opacity: 0.5 !important;
-          background: rgba(255, 255, 255, 0.02) !important;
-          cursor: not-allowed !important;
-          border-color: rgba(255, 255, 255, 0.05) !important;
-          pointer-events: none !important;
-        }
-        select.cs-input option {
-          background-color: #14263f !important;
-          color: white !important;
-          padding: 12px !important;
-        }
-        .cs-custom-select {
-          position: relative !important;
-          z-index: 50 !important;
-        }
-        .cs-select-trigger {
-          display: flex !important;
-          align-items: center !important;
-          justify-content: space-between !important;
-          cursor: pointer !important;
-          user-select: none !important;
-        }
-        .cs-select-dropdown {
-          position: fixed !important;
-          background: #14263f !important;
-          border: 1px solid rgba(255, 255, 255, 0.1) !important;
-          border-radius: 12px !important;
-          backdrop-filter: blur(12px) !important;
-          box-shadow: 
-            0 16px 48px rgba(0, 0, 0, 0.5),
-            0 4px 12px rgba(0, 0, 0, 0.3) !important;
-          overflow: hidden !important;
-          z-index: 99999 !important;
-          animation: cs-fade-in 0.2s ease-out !important;
-        }
-        @keyframes cs-fade-in {
-          from { opacity: 0; transform: translateY(-4px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .cs-select-option {
-          padding: 10px 14px !important;
-          font-size: 13px !important;
-          font-weight: 600 !important;
-          color: rgba(255, 255, 255, 0.7) !important;
-          cursor: pointer !important;
-          transition: all 0.2s ease !important;
-        }
-        .cs-select-option:hover {
-          background: rgba(255, 255, 255, 0.05) !important;
-          color: white !important;
-        }
-        .cs-select-option.active {
-          color: #00ffa0 !important;
-          background: rgba(0, 255, 160, 0.03) !important;
-        }
-        .cs-input-error {
-          border-color: rgba(255, 80, 80, 0.4) !important;
-          box-shadow: 0 0 0 4px rgba(255, 80, 80, 0.05) !important;
-        }
-        .cs-label {
-          font-size: 11px !important;
-          font-weight: 700 !important;
-          color: rgba(255, 255, 255, 0.45) !important;
-          margin-bottom: 10px !important;
-          display: block !important;
-          position: relative !important;
-          z-index: 1 !important;
-        }
-        .cs-error-msg {
-          color: #ff6b6b !important;
-          font-size: 10px !important;
-          font-weight: 700 !important;
-          text-transform: uppercase !important;
-          letter-spacing: 0.05em !important;
-          margin-top: 6px !important;
-          display: block !important;
-        }
-        .cs-status-pill {
-          position: fixed;
-          bottom: 32px;
-          left: 50%;
-          transform: translateX(-50%);
-          z-index: 9999;
-          font-size: 10px;
-          font-weight: 900;
-          letter-spacing: 0.15em;
-          text-transform: uppercase;
-          padding: 10px 20px;
-          border-radius: 99px;
-          background: rgba(15, 28, 46, 0.95);
-          backdrop-filter: blur(12px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          box-shadow: 
-            0 12px 32px rgba(0, 0, 0, 0.45),
-            0 4px 10px rgba(0, 0, 0, 0.25);
-          transition: all 0.6s cubic-bezier(0.19, 1, 0.22, 1);
-          opacity: 0;
-          pointer-events: none;
-          transform: translate(-50%, 16px) scale(0.95);
-          color: rgba(255, 255, 255, 0.6);
-        }
-        .cs-status-pill.visible {
-          opacity: 0.85;
-          pointer-events: auto;
-          transform: translate(-50%, 0) scale(1);
-        }
-        .cs-status-pill.saving {
-          border-color: rgba(255, 255, 255, 0.15);
-        }
-        .cs-status-pill.saved {
-          background: rgba(0, 255, 160, 0.08) !important;
-          border-color: rgba(0, 255, 160, 0.15) !important;
-          color: #00ffa0 !important;
-          box-shadow: 0 0 20px rgba(0, 255, 160, 0.05);
-        }
-        .cs-status-pill.error {
-          background: rgba(255, 0, 0, 0.05) !important;
-          border: 1px solid rgba(239, 68, 68, 0.3) !important;
-          color: #ff5050 !important;
-          box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
-        }
-
-        .cs-settings-grid {
-          display: grid !important;
-          grid-template-columns: repeat(2, 1fr) !important;
-          gap: 32px !important;
-        }
-        .cs-full-width {
-          grid-column: span 2 !important;
-        }
-        .cs-notifications-grid {
-          display: grid !important;
-          grid-template-columns: 1fr 1fr !important;
-          gap: 80px !important;
-        }
-      `}</style>
-      
       {/* STATUS BADGE */}
       <div className={`cs-status-pill ${status !== 'idle' ? 'visible' : ''} ${status}`}>
         <div className="flex items-center gap-2">
           {status === 'saving' && <div className="w-1.5 h-1.5 rounded-full bg-white/20 animate-pulse" />}
-          {status === 'saved' && <div className="w-1.5 h-1.5 rounded-full bg-[#00ffa0] shadow-[0_0_8px_rgba(0,255,160,0.5)]" />}
-          {status === 'error' && <div className="w-1.5 h-1.5 rounded-full bg-[#ff5050]" />}
+          {status === 'saved' && <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />}
+          {status === 'error' && <div className="w-1.5 h-1.5 rounded-full bg-red-400" />}
           {status === 'saving' ? 'Saving changes...' : 
            status === 'saved' ? 'All changes saved ✓' : 
            status === 'error' ? 'Error updating settings' : ''}
@@ -395,12 +187,12 @@ export function MonitorEditForm({
         </header>
       </div>
 
-      <div className="cs-settings-grid max-w-5xl">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl">
         {/* GENERAL SECTION */}
-        <section className="cs-form-card">
+        <section className="cs-card cs-card-focus p-6 flex flex-col h-full">
           <div className="cs-card-wash" />
           <h3 className="cs-section-header">General</h3>
-          <div className="relative z-10">
+          <div className="relative z-10 flex-1">
             <label htmlFor={`${p}-edit-name`} className="cs-label">
               Display Name <span className="opacity-50 ml-1">— internal identification</span>
             </label>
@@ -410,16 +202,16 @@ export function MonitorEditForm({
               value={values.name}
               onChange={(e) => handleInputChange('name', e.target.value)}
               placeholder="e.g. Production API"
-              className={`w-full h-11 rounded-lg px-4 text-sm cs-input ${status === 'saving' ? 'opacity-80' : ''}`}
+              className={`w-full h-11 cs-input ${status === 'saving' ? 'opacity-80' : ''}`}
             />
           </div>
         </section>
 
         {/* MONITORING SECTION */}
-        <section className="cs-form-card">
+        <section className="cs-card cs-card-focus p-6 flex flex-col h-full">
           <div className="cs-card-wash" />
           <h3 className="cs-section-header">Monitoring</h3>
-          <div className="grid grid-cols-2 gap-4 relative z-10">
+          <div className="grid grid-cols-2 gap-4 relative z-10 flex-1">
             <div>
               <label className="cs-label">Check Interval</label>
               <CustomSelect
@@ -449,24 +241,22 @@ export function MonitorEditForm({
         </section>
 
         {/* NOTIFICATIONS SECTION */}
-        <section className="cs-form-card cs-full-width">
+        <section className="cs-card cs-card-focus p-6 md:col-span-2">
           <div className="cs-card-wash" />
           <h3 className="cs-section-header">Notifications</h3>
 
-          <div className="cs-notifications-grid relative z-10">
-            <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
+            <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <input
                   id={`${p}-notify-email-toggle`}
                   type="checkbox"
                   checked={values.notify_email_enabled}
                   onChange={(e) => handleInputChange('notify_email_enabled', e.target.checked)}
-                  className="h-[18px] w-[18px] rounded border-white/10 bg-white/[0.03] cursor-pointer appearance-none border transition-all checked:bg-[#00ffa0] checked:border-[#00ffa0] checked:shadow-[0_0_10px_rgba(0,255,160,0.3)]"
+                  className="h-[18px] w-[18px] rounded border-white/10 bg-white/[0.03] cursor-pointer appearance-none border transition-all checked:bg-emerald-500 checked:border-emerald-500 checked:shadow-[0_0_10px_rgba(16,185,129,0.3)]"
                   style={{
                     backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='black' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3E%3C/svg%3E")`,
-                    backgroundSize: '100% 100%',
-                    backgroundPosition: 'center',
-                    backgroundRepeat: 'no-repeat',
+                    backgroundSize: '100% 100%', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
                   }}
                 />
                 <label htmlFor={`${p}-notify-email-toggle`} className="text-xs font-bold text-zinc-300 cursor-pointer select-none">
@@ -479,24 +269,22 @@ export function MonitorEditForm({
                 onChange={(e) => handleInputChange('notify_email', e.target.value)}
                 disabled={!values.notify_email_enabled}
                 placeholder="alerts@company.com"
-                className={`w-full h-10 rounded-lg px-4 text-sm cs-input ${errors.notify_email ? 'cs-input-error' : ''}`}
+                className={`w-full h-11 cs-input ${errors.notify_email ? 'cs-input-error' : ''}`}
               />
               {errors.notify_email && <span className="cs-error-msg">{errors.notify_email}</span>}
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <input
                   id={`${p}-notify-slack-toggle`}
                   type="checkbox"
                   checked={values.notify_slack_enabled}
                   onChange={(e) => handleInputChange('notify_slack_enabled', e.target.checked)}
-                  className="h-[18px] w-[18px] rounded border-white/10 bg-white/[0.03] cursor-pointer appearance-none border transition-all checked:bg-[#00ffa0] checked:border-[#00ffa0] checked:shadow-[0_0_10px_rgba(0,255,160,0.3)]"
+                  className="h-[18px] w-[18px] rounded border-white/10 bg-white/[0.03] cursor-pointer appearance-none border transition-all checked:bg-emerald-500 checked:border-emerald-500 checked:shadow-[0_0_10px_rgba(16,185,129,0.3)]"
                   style={{
                     backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='black' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3E%3C/svg%3E")`,
-                    backgroundSize: '100% 100%',
-                    backgroundPosition: 'center',
-                    backgroundRepeat: 'no-repeat',
+                    backgroundSize: '100% 100%', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
                   }}
                 />
                 <label htmlFor={`${p}-notify-slack-toggle`} className="text-xs font-bold text-zinc-300 cursor-pointer select-none">
@@ -509,7 +297,7 @@ export function MonitorEditForm({
                 onChange={(e) => handleInputChange('notify_slack_webhook', e.target.value)}
                 disabled={!values.notify_slack_enabled}
                 placeholder="https://hooks.slack.com/services/..."
-                className={`w-full h-10 rounded-lg px-4 text-sm cs-input ${errors.notify_slack_webhook ? 'cs-input-error' : ''}`}
+                className={`w-full h-11 cs-input ${errors.notify_slack_webhook ? 'cs-input-error' : ''}`}
               />
               {errors.notify_slack_webhook && <span className="cs-error-msg">{errors.notify_slack_webhook}</span>}
             </div>
@@ -562,10 +350,7 @@ function CustomSelect({
     const handleClickOutside = (e: MouseEvent) => {
       const isInsideTrigger = containerRef.current?.contains(e.target as Node)
       const isInsideDropdown = dropdownRef.current?.contains(e.target as Node)
-      
-      if (!isInsideTrigger && !isInsideDropdown) {
-        setIsOpen(false)
-      }
+      if (!isInsideTrigger && !isInsideDropdown) setIsOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -599,17 +384,15 @@ function CustomSelect({
   )
 
   return (
-    <div className="cs-custom-select" ref={containerRef}>
+    <div className="relative" ref={containerRef}>
       <div 
-        className="w-full h-10 rounded-lg px-4 text-sm cs-input cs-select-trigger"
+        className="w-full h-11 cs-input flex items-center justify-between cursor-pointer select-none"
         onClick={() => setIsOpen(!isOpen)}
       >
         <span className="font-semibold text-zinc-100">{activeLabel}</span>
         <ChevronDown className={`w-4 h-4 text-zinc-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
       </div>
-
       {isOpen && typeof document !== 'undefined' && createPortal(dropdownContent, document.body)}
     </div>
   )
 }
-

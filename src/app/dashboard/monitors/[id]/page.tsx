@@ -239,15 +239,15 @@ const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
 
 /** Monitor title card — subtle top wash + glass (Vercel-style). Densidade ~tool (menos padding vertical). */
 const MONITOR_HEADER_CARD =
-  'relative rounded-xl border border-black/[0.06] bg-surface/50 bg-gradient-to-b from-black/[0.02] to-transparent px-5 py-3.5 backdrop-blur-[6px] dark:border-white/[0.06] dark:from-white/[0.02]'
+  'cs-card cs-card-glass px-5 py-3.5 relative overflow-hidden'
 
 /** Status pills in the monitor title bar — consistent shell + interactive hover. */
 const MONITOR_HEADER_STATUS_BADGE =
-  'inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-black/[0.06] bg-black/[0.03] px-2.5 py-0 text-xs font-bold uppercase leading-none tracking-tight transition-colors hover:bg-black/[0.06] dark:border-white/[0.06] dark:bg-white/[0.04] dark:hover:bg-white/[0.06]'
+  'inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-border bg-white/5 px-2.5 py-0 text-[10px] font-bold uppercase tracking-tight transition-colors hover:bg-white/10 text-zinc-300'
 
 /** Active monitor dot — soft mint glow + pulse (“system alive”). */
 const MONITOR_HEADER_ACTIVE_DOT =
-  'bg-emerald-500 [box-shadow:0_0_6px_rgba(0,255,150,0.6)] motion-safe:animate-pulse'
+  'bg-emerald-500 [box-shadow:0_0_8px_rgba(16,185,129,0.5)]'
 
 const VALID_ALERT_TYPES = ['down', 'anomaly', 'anycast', 'zombie_cache'] as const satisfies readonly AlertType[]
 
@@ -871,11 +871,12 @@ export default async function MonitorDetailPage({
       </div>
 
       {isCollecting && (
-        <div className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 flex items-start gap-3">
-          <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-amber-400 animate-pulse" />
+        <div className="cs-tint-warning p-4 flex items-start gap-4">
+          <div className="cs-card-wash" />
+          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-400 animate-pulse" />
           <div>
-            <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Collecting data</p>
-            <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+            <p className="text-xs font-black uppercase tracking-widest text-amber-300/80">Collecting data</p>
+            <p className="text-sm text-amber-200/60 mt-1 leading-relaxed">
               We&apos;re running the first probes. Results will appear within 5 minutes. Stats below may not be representative yet.
             </p>
           </div>
