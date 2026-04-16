@@ -246,8 +246,8 @@ body {
   .cs-badge-flat-success {
     @apply bg-emerald-500/10 text-emerald-500/80 ring-emerald-500/20;
   }
-  .cs-badge-flat-error {
-    @apply bg-red-500/10 text-red-400/80 ring-red-500/20;
+  .cs-badge-flat-danger {
+    @apply bg-red-500/15 text-red-500 ring-red-500/30;
   }
   .cs-badge-flat-warning {
     @apply bg-amber-500/10 text-amber-500/80 ring-amber-500/20;

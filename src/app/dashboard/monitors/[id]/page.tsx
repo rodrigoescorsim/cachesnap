@@ -580,6 +580,17 @@ export default async function MonitorDetailPage({
     GROUP BY region ORDER BY region
   `
 
+  const prevStats = await sql<{ ttfb_avg_ms: number; cache_hit_pct: number; uptime_pct: number }[]>`
+    SELECT
+      ROUND(AVG(ttfb_ms)::numeric, 0)::int            AS ttfb_avg_ms,
+      ROUND(100.0 * COUNT(*) FILTER (WHERE cache_status ILIKE '%HIT%') / NULLIF(COUNT(*), 0), 1) AS cache_hit_pct,
+      ROUND(100.0 * COUNT(*) FILTER (WHERE error IS NULL AND status_code < 500) / NULLIF(COUNT(*), 0), 1) AS uptime_pct
+    FROM probe_results
+    WHERE monitor_id = ${id}
+      AND time > NOW() - (2 * CAST(${dbInterval} AS interval))
+      AND time <= NOW() - CAST(${dbInterval} AS interval)
+  `
+
   const latestProbes = await sql<LatestProbeRow[]>`
     SELECT DISTINCT ON (region)
       region,
@@ -813,6 +824,20 @@ export default async function MonitorDetailPage({
   const ttfbPenalty = Math.max(0, (avgTtfb - 300) / 10);
   const healthScore = Math.max(0, Math.min(100, Math.round(globalUptime - ttfbPenalty)));
 
+  // PREVIOUS PERIOD TOTALS FOR TRENDS
+  const hasHistory = prevStats.length > 0 && prevStats[0].ttfb_avg_ms !== null;
+  const prevData = hasHistory ? prevStats[0] : null;
+  
+  const prevAvgTtfb = prevData ? Number(prevData.ttfb_avg_ms || 0) : 0;
+  const prevGlobalHitRate = prevData ? Math.round(Number(prevData.cache_hit_pct || 0)) : 0;
+  const prevGlobalUptime = prevData ? Number(prevData.uptime_pct || 100) : 100;
+  const prevTtfbPenalty = Math.max(0, (prevAvgTtfb - 300) / 10);
+  const prevHealthScore = Math.max(0, Math.min(100, Math.round(prevGlobalUptime - prevTtfbPenalty)));
+
+  const healthDelta = hasHistory ? healthScore - prevHealthScore : 0;
+  const ttfbDelta = hasHistory ? avgTtfb - prevAvgTtfb : 0;
+  const cacheDelta = hasHistory ? globalHitRate - prevGlobalHitRate : 0;
+
   return (
     <div className="space-y-6">
       <RealTimeHub userId={user.id} watchId={monitor.id} />
@@ -893,7 +918,13 @@ export default async function MonitorDetailPage({
               </div>
               <div className="flex items-baseline gap-2 mt-2">
                 <span className="text-3xl font-bold text-white tracking-tight">{healthScore}/<span className="text-zinc-600">100</span></span>
-                <span className="text-[11px] font-bold text-emerald-400">↑ 1.2%</span>
+                {hasHistory && healthDelta !== 0 && (
+                  <PremiumTooltip content={`${healthDelta > 0 ? '+' : ''}${healthDelta}% compared to the previous ${range}`} position="top-center" direction="top">
+                    <span className={`text-[11px] font-bold cursor-help ${healthDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {healthDelta > 0 ? '↑' : '↓'} {Math.abs(healthDelta)}%
+                    </span>
+                  </PremiumTooltip>
+                )}
               </div>
               <p className="text-[11px] text-zinc-500 mt-2 font-medium">Global infrastructure stability</p>
             </div>
@@ -911,7 +942,13 @@ export default async function MonitorDetailPage({
               </div>
               <div className="flex items-baseline gap-2 mt-2">
                 <span className="text-3xl font-bold text-white tracking-tight">{avgTtfb}<span className="text-lg ml-0.5 text-zinc-500">ms</span></span>
-                <span className="text-[11px] font-bold text-amber-500">↓ 14ms</span>
+                {hasHistory && ttfbDelta !== 0 && (
+                  <PremiumTooltip content={`${ttfbDelta > 0 ? '+' : '-'}${Math.abs(ttfbDelta)}ms compared to the previous ${range}`} position="top-center" direction="top">
+                    <span className={`text-[11px] font-bold cursor-help ${ttfbDelta <= 0 ? 'text-emerald-400' : 'text-amber-500'}`}>
+                      {ttfbDelta <= 0 ? '↓' : '↑'} {Math.abs(ttfbDelta)}ms
+                    </span>
+                  </PremiumTooltip>
+                )}
               </div>
               <p className="text-[11px] text-zinc-500 mt-2 font-medium">Network latency across {stats.length} regions</p>
             </div>
@@ -929,7 +966,13 @@ export default async function MonitorDetailPage({
               </div>
               <div className="flex items-baseline gap-2 mt-2">
                 <span className="text-3xl font-bold text-white tracking-tight">{globalHitRate}<span className="text-lg ml-0.5 text-zinc-500">%</span></span>
-                <span className="text-[11px] font-bold text-emerald-400">↑ 4.1%</span>
+                {hasHistory && cacheDelta !== 0 && (
+                  <PremiumTooltip content={`${cacheDelta > 0 ? '+' : ''}${cacheDelta}% compared to the previous ${range}`} position="top-center" direction="top">
+                    <span className={`text-[11px] font-bold cursor-help ${cacheDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {cacheDelta >= 0 ? '↑' : '↓'} {Math.abs(cacheDelta)}%
+                    </span>
+                  </PremiumTooltip>
+                )}
               </div>
               <p className="text-[11px] text-zinc-500 mt-2 font-medium">Total edge delivery efficiency</p>
             </div>
@@ -949,7 +992,11 @@ export default async function MonitorDetailPage({
                 <span className={`text-3xl font-bold tracking-tight ${alerts.length > 0 ? 'text-red-400' : 'text-white'}`}>
                   {alerts.length === 0 ? 'Clean' : alerts.length}
                 </span>
-                {alerts.length > 0 && <span className="text-[11px] font-bold text-zinc-500">Last {range}</span>}
+                {alerts.length > 0 && (
+                  <PremiumTooltip content={`Total alerts detected during the last ${range}`} position="top-center" direction="top">
+                    <span className="text-[11px] font-bold text-zinc-500 cursor-help underline decoration-zinc-700 decoration-dashed underline-offset-2">Last {range}</span>
+                  </PremiumTooltip>
+                )}
               </div>
               <p className="text-[11px] text-zinc-500 mt-2 font-medium">Real-time anomaly detection</p>
             </div>
@@ -1066,19 +1113,19 @@ export default async function MonitorDetailPage({
                                   <td className="cs-table-compact-td text-center">
                                     <PremiumTooltip content={cache.title} position="top-center" direction="top">
                                       {cache.text === 'HIT' ? (
-                                        <span className="cs-badge cs-badge-success text-[11px] px-2.5 py-1">
+                                        <span className="cs-badge cs-badge-success text-[11px] px-2.5 py-1 min-w-[62px] justify-center">
                                           <Zap className="w-[11px] h-[11px] fill-current" />
                                           {cache.text}
                                         </span>
                                       ) : (
-                                        <span className="cs-badge-flat cs-badge-flat-warning text-[11px] px-2.5 py-1">
+                                        <span className="cs-badge-flat cs-badge-flat-warning text-[11px] px-2.5 py-1 min-w-[62px] justify-center font-bold">
                                           {cache.text}
                                         </span>
                                       )}
                                     </PremiumTooltip>
                                   </td>
                                   <td className={`${ttfbMetricCellClass(s.ttfb_ms)} !px-3 !py-2 text-[13px]`}>
-                                    <VisualGlow value={s.ttfb_ms}>{s.ttfb_ms != null ? `${Math.round(s.ttfb_ms)}ms` : '—'}</VisualGlow>
+                                    <PremiumTooltip content="Response time for this specific probe" position="top-right" direction="top"><VisualGlow value={s.ttfb_ms}>{s.ttfb_ms != null ? `${Math.round(s.ttfb_ms)}ms` : '—'}</VisualGlow></PremiumTooltip>
                                   </td>
                                   <td className="cs-table-compact-td-mono text-right relative group/net">
                                     <span className="text-zinc-400 cursor-help border-b border-dashed border-zinc-700/50 hover:border-zinc-500 transition-colors pb-0.5">
@@ -1113,9 +1160,11 @@ export default async function MonitorDetailPage({
                                   </td>
                                   <td className="cs-table-compact-td text-right">
                                     {age > 0 && ageVisual ? (
-                                      <span className={`cs-badge-flat ${ageVisual.className}`} title={ageBadgeTitle}>
-                                        {formatCacheAgeShort(age)}
-                                      </span>
+                                      <PremiumTooltip content={ageBadgeTitle} position="top-right" direction="top">
+                                        <span className={`cs-badge-flat ${ageVisual.className}`}>
+                                          {formatCacheAgeShort(age)}
+                                        </span>
+                                      </PremiumTooltip>
                                     ) : (
                                       <span className="text-[10px] text-zinc-500 tabular-nums">—</span>
                                     )}
@@ -1124,7 +1173,7 @@ export default async function MonitorDetailPage({
                                     {(() => {
                                       const code = s.status_code
                                       const isErr = isError || (code != null && code >= 400)
-                                      const colorClass = code != null && code < 400 ? 'cs-badge-flat-success' : 'cs-badge-flat-error';
+                                      const colorClass = code != null && code < 400 ? 'cs-badge-flat-success' : 'cs-badge-flat-danger';
                                       const hops = Number(s.redirect_count ?? 0)
                                       return (
                                         <div className="flex items-center justify-end gap-1">
@@ -1134,18 +1183,22 @@ export default async function MonitorDetailPage({
                                             </PremiumTooltip>
                                           )}
                                           {isErr ? (
-                                            <PremiumTooltip content={s.error || 'The edge server returned an error status or connection failed.'} position="top-right">
-                                              <span className="cs-badge-flat cs-badge-flat-error">ERR</span>
+                                            <PremiumTooltip content={s.error || 'The edge server returned an error status or connection failed.'} position="top-right" direction="top">
+                                              <span className="cs-badge-flat cs-badge-flat-danger">ERR</span>
                                             </PremiumTooltip>
                                           ) : (
-                                            <span className={`cs-badge-flat ${colorClass}`}>{code || '200'}</span>
+                                            <PremiumTooltip content="Request completed successfully (200 OK)" position="top-right" direction="top"><span className={`cs-badge-flat ${colorClass}`}>{code || '200'}</span></PremiumTooltip>
                                           )}
                                         </div>
                                       )
                                     })()}
                                   </td>
                                   <td className="cs-table-compact-td text-right !text-zinc-600 !text-[10px] tabular-nums">
-                                    {s.last_probe_at ? new Date(s.last_probe_at).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'}
+                                    {s.last_probe_at ? (
+                                       <PremiumTooltip content={`Probe synchronized at ${new Date(s.last_probe_at).toLocaleString()}`} position="top-right" direction="top">
+                                         {new Date(s.last_probe_at).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                       </PremiumTooltip>
+                                     ) : '—'}
                                   </td>
                                   {process.env.NODE_ENV === 'development' && (
                                     <td className="px-3 py-2 text-right whitespace-nowrap">
@@ -1171,7 +1224,7 @@ export default async function MonitorDetailPage({
                   <section>
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
                       <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
-                        Insights — {range.toUpperCase()} Performance Averages
+                        Global Performance • Last {range.toUpperCase()}
                       </h2>
                       <div className="flex items-center gap-1.5 rounded-lg bg-zinc-100 dark:bg-white/5 p-1 border border-zinc-200 dark:border-white/10">
                         {['24h', '7d', '30d'].map((r) => (
@@ -1276,20 +1329,20 @@ export default async function MonitorDetailPage({
                                       {s.cache_hit_pct != null ? (
                                         <PremiumTooltip content={`${s.cache_hit_pct}% of requests were served from edge cache`} position="top-center" direction="top">
                                           {Math.round(s.cache_hit_pct) >= 95 ? (
-                                            <span className="cs-badge cs-badge-success text-[11px] px-2.5 py-1">
+                                            <span className="cs-badge cs-badge-success text-[11px] px-2.5 py-1 min-w-[62px] justify-center">
                                               <Zap className="w-[11px] h-[11px] fill-current" />
                                               {Math.round(s.cache_hit_pct)}%
                                             </span>
                                           ) : Math.round(s.cache_hit_pct) >= 90 ? (
-                                            <span className="cs-badge-flat cs-badge-flat-success text-[11px] px-2.5 py-1">
+                                            <span className="cs-badge-flat cs-badge-flat-success text-[11px] px-2.5 py-1 min-w-[62px] justify-center font-bold">
                                               {Math.round(s.cache_hit_pct)}%
                                             </span>
                                           ) : Math.round(s.cache_hit_pct) >= 50 ? (
-                                            <span className="cs-badge-flat cs-badge-flat-warning text-[11px] px-2.5 py-1">
+                                            <span className="cs-badge-flat cs-badge-flat-warning text-[11px] px-2.5 py-1 min-w-[62px] justify-center font-bold">
                                               {Math.round(s.cache_hit_pct)}%
                                             </span>
                                           ) : (
-                                            <span className="cs-badge-flat cs-badge-flat-danger text-[11px] px-2.5 py-1">
+                                            <span className="cs-badge-flat cs-badge-flat-danger text-[11px] px-2.5 py-1 min-w-[62px] justify-center font-bold">
                                               {Math.round(s.cache_hit_pct)}%
                                             </span>
                                           )}
@@ -1300,13 +1353,13 @@ export default async function MonitorDetailPage({
                                     {showSplitTtfb ? (
                                       <>
                                         <td className={`${edgeTtfbMetricCellClass(s.edge_hit_avg_ms)} !text-[13px] !py-2`}>
-                                          {s.edge_hit_avg_ms != null ? `${Math.round(s.edge_hit_avg_ms)}ms` : '—'}
+                                          <PremiumTooltip content="Avg response time served from CDN Cache" position="top-right" direction="top">{s.edge_hit_avg_ms != null ? `${Math.round(s.edge_hit_avg_ms)}ms` : '—'}</PremiumTooltip>
                                         </td>
                                         <td className={`${originTtfbMetricCellClass(s.origin_miss_avg_ms)} !text-[13px] !py-2`}>
-                                          {s.origin_miss_avg_ms != null ? `${Math.round(s.origin_miss_avg_ms)}ms` : '—'}
+                                          <PremiumTooltip content="Avg response time bypassing cache (Direct from Origin)" position="top-right" direction="top">{s.origin_miss_avg_ms != null ? `${Math.round(s.origin_miss_avg_ms)}ms` : '—'}</PremiumTooltip>
                                         </td>
                                         <td className={`${ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2 border-l border-white/5`}>
-                                          {s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}
+                                          <PremiumTooltip content="Overall weighted average response time for this region" position="top-right" direction="top">{s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}</PremiumTooltip>
                                         </td>
                                       </>
                                     ) : (
@@ -1358,8 +1411,8 @@ export default async function MonitorDetailPage({
                                     </td>
                                     <td className="cs-table-compact-td text-right">
                                       {s.uptime_pct != null ? (
-                                        <PremiumTooltip content={`Uptime: ${Math.round(s.uptime_pct)}% of successful probes`} position="top-right">
-                                          <span className={`cs-badge-flat ${s.uptime_pct >= 99 ? 'cs-badge-flat-success' : 'cs-badge-flat-error'}`}>
+                                        <PremiumTooltip content={`Uptime: ${Math.round(s.uptime_pct)}% of successful probes`} position="top-right" direction="top">
+                                          <span className={`cs-badge-flat ${s.uptime_pct >= 99 ? 'cs-badge-flat-success' : s.uptime_pct >= 95 ? 'cs-badge-flat-warning' : 'cs-badge-flat-danger'} font-bold`}>
                                             {Math.round(s.uptime_pct)}%
                                           </span>
                                         </PremiumTooltip>
