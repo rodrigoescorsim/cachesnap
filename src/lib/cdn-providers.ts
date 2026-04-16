@@ -18,6 +18,7 @@ export type CdnProviderSignals = {
   xNfRequestId?: string | null
   xBunnycdnCache?: string | null
   xSucuriCache?: string | null
+  xSucuriId?: string | null
   xAkamaiRequestId?: string | null
   xAzureRef?: string | null
   xKeycdn?: string | null
@@ -58,6 +59,7 @@ export function cdnSignalsFromHeaderMap(
     xNfRequestId: firstHeader(h, 'x-nf-request-id'),
     xBunnycdnCache: firstHeader(h, 'x-bunnycdn-cache'),
     xSucuriCache: firstHeader(h, 'x-sucuri-cache'),
+    xSucuriId: firstHeader(h, 'x-sucuri-id'),
     xAkamaiRequestId:
       firstHeader(h, 'x-akamai-request-id') ?? firstHeader(h, 'akamai-origin-hop'),
     xAzureRef: firstHeader(h, 'x-azure-ref'),
@@ -88,7 +90,7 @@ export function detectCdnProvider(s: CdnProviderSignals): string | null {
 
   if (s.xBunnycdnCache || server.includes('bunnycdn') || server.includes('bunny')) return 'BunnyCDN'
 
-  if (s.xSucuriCache || server.includes('sucuri')) return 'Sucuri'
+  if (s.xSucuriCache || s.xSucuriId || server.includes('sucuri')) return 'Sucuri'
 
   if (s.xLiteSpeedCache || s.xLiteSpeedTag) return 'QUIC.cloud / LiteSpeed'
 
@@ -97,7 +99,7 @@ export function detectCdnProvider(s: CdnProviderSignals): string | null {
 
   if (s.xAkamaiRequestId || server.includes('akamai')) return 'Akamai'
 
-  if (s.xAzureRef || server.includes('azure')) return 'Azure CDN'
+  if (s.xAzureRef) return 'Azure CDN'
 
   if (s.xKeycdn || server.includes('keycdn')) return 'KeyCDN'
 
@@ -108,7 +110,7 @@ export function detectCdnProvider(s: CdnProviderSignals): string | null {
   if (server.includes('cloudflare')) return 'Cloudflare'
   if (server.includes('cloudfront')) return 'AWS CloudFront'
 
-  if (server.includes('gfe') || server.includes('google')) return 'Google'
+  if (server.includes('gfe')) return 'Google'
 
   // served_by-only fallbacks (when headers were not stored)
   if (/^[a-f0-9]+-[A-Z]{2,4}$/.test(servedBy)) return 'Cloudflare'

@@ -36,7 +36,7 @@ export function detectCdnProviderFromHeaders(h, servedBy) {
 
   if (header(h, 'x-bunnycdn-cache') || server.includes('bunnycdn') || server.includes('bunny')) return 'BunnyCDN';
 
-  if (header(h, 'x-sucuri-cache') || server.includes('sucuri')) return 'Sucuri';
+  if (header(h, 'x-sucuri-cache') || header(h, 'x-sucuri-id') || server.includes('sucuri')) return 'Sucuri';
 
   if (header(h, 'x-litespeed-cache') || header(h, 'x-litespeed-tag')) return 'QUIC.cloud / LiteSpeed';
 
@@ -45,7 +45,7 @@ export function detectCdnProviderFromHeaders(h, servedBy) {
 
   if (header(h, 'x-akamai-request-id') || header(h, 'akamai-origin-hop') || server.includes('akamai')) return 'Akamai';
 
-  if (header(h, 'x-azure-ref') || server.includes('azure')) return 'Azure CDN';
+  if (header(h, 'x-azure-ref')) return 'Azure CDN';
 
   if (header(h, 'x-keycdn-cache') || server.includes('keycdn')) return 'KeyCDN';
 
@@ -56,7 +56,7 @@ export function detectCdnProviderFromHeaders(h, servedBy) {
   if (server.includes('cloudflare')) return 'Cloudflare';
   if (server.includes('cloudfront')) return 'AWS CloudFront';
 
-  if (server.includes('gfe') || server.includes('google')) return 'Google';
+  if (server.includes('gfe')) return 'Google';
 
   if (/^[a-f0-9]+-[A-Z]{2,4}$/.test(sb)) return 'Cloudflare';
   if (/^([a-z]{3})[0-9]+::/i.test(sb)) return 'Vercel';

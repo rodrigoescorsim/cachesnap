@@ -273,6 +273,6 @@ body {
   }
   
   .cs-pop-tag {
-    @apply inline-flex items-center rounded bg-white/5 px-1.5 py-0.5 text-[9px] font-bold text-zinc-500 ring-1 ring-inset ring-white/10 uppercase tracking-wide;
+    @apply inline-flex items-center rounded bg-white/5 px-1.5 py-0.5 text-[9px] font-bold text-zinc-400 ring-1 ring-inset ring-white/10 tracking-wide;
   }
 }

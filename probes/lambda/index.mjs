@@ -13,6 +13,7 @@
  *   ✅ ttfb_ms, download_ms, total_ms
  *   ✅ cache_status (CF-Cache-Status, X-Vercel-Cache, X-Cache, X-Cache-Status, Cache-Status)
  *   ✅ served_by (CF-Ray, X-Served-By, X-Vercel-Id, X-Amz-Cf-Id, X-Azure-Ref)
+ *   ✅ cdn_provider (stable label from response headers + served_by heuristics)
  *   ✅ server_timing + server_timing_breakdown (parsed)
  *   ✅ edge_ms / origin_ms (from Server-Timing + X-Timer)
  *   ✅ security_headers (9-point audit: HSTS, CSP, X-Frame, X-Content-Type,
@@ -39,6 +40,7 @@ import http from 'node:http';
 import dns from 'node:dns';
 import { performance } from 'node:perf_hooks';
 import { URL } from 'node:url';
+import { detectCdnProviderFromHeaders } from './cdn-providers.mjs';
 
 // ─── Lambda Handler ───────────────────────────────────────────────────────────
 
@@ -96,6 +98,7 @@ export const handler = async (event) => {
     bypass_server_timing_breakdown: null,
     bypass_cache_status: null,
     bypass_age_s: null,
+    cdn_provider: null,
   };
 
   try {
@@ -143,6 +146,8 @@ export const handler = async (event) => {
          result.tls_ms = normalMetrics.tls_ms;
          result.status_code = normalMetrics.status_code;
          result.cache_status = normalMetrics.cache_status;
+         result.served_by = normalMetrics.served_by;
+         result.cdn_provider = normalMetrics.cdn_provider;
       } else {
          console.log(`[probe] Step 2 Skipped: Bypass resulted in HIT or Error. Falling back single measurement.`);
       }
@@ -346,6 +351,7 @@ async function measureUrl(targetUrl, isBypass = false) {
             age_s: ageS,
             security_headers: securityHeaders,
             server_timing_breakdown: breakdown,
+            cdn_provider: detectCdnProviderFromHeaders(h, servedBy),
           });
         });
 

@@ -1,4 +1,4 @@
-import { extractPop, popToCity } from '@/lib/edge-helpers'
+import { extractPop, popToCity, resolveCdnLabel } from '@/lib/edge-helpers'
 import {
   breakdownColor,
   breakdownEntries,
@@ -21,6 +21,7 @@ export interface WaterfallProbe {
   redirect_count: number | null
   cache_status: string | null
   served_by: string | null
+  cdn_provider: string | null
   age_s: number | null
   server_timing_breakdown: Record<string, number> | null
   probed_at: Date | null
@@ -124,6 +125,7 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
           const hasServerTiming = breakdownEntries(probe.server_timing_breakdown).length > 0
 
           const pop = extractPop(probe.served_by)
+          const cdnLabel = resolveCdnLabel(probe.cdn_provider, probe.served_by)
           const regionLabel = REGION_LABELS[probe.region] ?? probe.region
           const age = formatAge(probe.age_s)
           const isZombie = probe.age_s != null && probe.age_s > 86_400
@@ -143,6 +145,15 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
                   {pop && (
                     <span className="inline-flex items-center rounded-md bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500 ring-1 ring-inset ring-white/10" title={pop}>
                       {popToCity(pop)}
+                    </span>
+                  )}
+
+                  {cdnLabel && (
+                    <span
+                      className="inline-flex max-w-[8rem] items-center truncate rounded-md bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-medium text-violet-300/90 ring-1 ring-inset ring-violet-500/20"
+                      title={probe.served_by ? `served_by: ${probe.served_by}` : 'Edge provider'}
+                    >
+                      {cdnLabel}
                     </span>
                   )}
 

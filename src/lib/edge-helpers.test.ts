@@ -23,9 +23,17 @@ describe('extractPop', () => {
     expect(extractPop('')).toBeNull()
   })
 
-  it('returns null for X-Served-By Fastly format (lowercase colo)', () => {
-    // Fastly X-Served-By: "cache-lax8632-LAX" would match, but "cache-gru1234" would not
+  it('extracts colo from Fastly cache-<node>-<COLO> format', () => {
+    expect(extractPop('cache-lax8632-LAX')).toBe('LAX')
     expect(extractPop('cache-gru1234')).toBeNull()
+  })
+
+  it('extracts airport code from CloudFront POP token', () => {
+    expect(extractPop('IAD89-P1')).toBe('IAD')
+  })
+
+  it('extracts Vercel region prefix from x-vercel-id style value', () => {
+    expect(extractPop('gru1::h6r2m')).toBe('GRU')
   })
 })
 
@@ -53,9 +61,9 @@ describe('detectCdn', () => {
     expect(detectCdn('abc123def456789a-IAD')).toBe('Cloudflare')
   })
 
-  it('identifies Fastly / Varnish from cache- prefix', () => {
-    expect(detectCdn('cache-lax8632-LAX')).toBe('Fastly / Varnish')
-    expect(detectCdn('cache-gru1-GRU')).toBe('Fastly / Varnish')
+  it('identifies Fastly from cache- prefix', () => {
+    expect(detectCdn('cache-lax8632-LAX')).toBe('Fastly')
+    expect(detectCdn('cache-gru1-GRU')).toBe('Fastly')
   })
 
   it('returns null for null input', () => {

@@ -59,7 +59,7 @@ for (const t of targets) {
     'ttfb_ms', 'download_ms', 'total_ms',
     'dns_ms', 'tls_ms',
     'edge_ms', 'origin_ms',
-    'status_code', 'cache_status', 'served_by',
+    'status_code', 'cache_status', 'served_by', 'cdn_provider',
     'server_timing', 'http_version',
     'redirect_count', 'content_length', 'error',
     'bypass_ttfb_ms', 'bypass_total_ms', 'bypass_status_code', 'bypass_error',

@@ -8,7 +8,7 @@ import { MonitorHeaderToolbar } from './monitor-header-toolbar'
 import { MonitorOnDemandPanel } from './monitor-on-demand'
 import { MonitorSettingsPanel } from './monitor-settings-panel'
 import { RealTimeHub } from '../../real-time-hub'
-import { extractPop, detectCdn, popToCity } from '@/lib/edge-helpers'
+import { extractPop, popToCity, resolveCdnLabel } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
 import { MonitorSidebarRail } from './monitor-sidebar-rail'
 import {
@@ -64,6 +64,7 @@ interface RegionStat {
   origin_avg_ms: number | null
   redirect_avg: number | null
   common_served_by: string | null
+  common_cdn_provider: string | null
   common_http_version: string | null
   common_cache_status: string | null
   error_count: number
@@ -86,6 +87,7 @@ interface LatestProbeRow {
   origin_ms: number | null
   redirect_count: number | null
   common_served_by: string | null
+  common_cdn_provider: string | null
   common_http_version: string | null
   common_cache_status: string | null
   status_code: number | null
@@ -152,6 +154,7 @@ interface SecurityByRegion {
   security_headers: SecurityHeaders | null
   server_timing_breakdown: Record<string, number> | null
   served_by: string | null
+  cdn_provider: string | null
   sampled_at: Date
 }
 
@@ -562,6 +565,7 @@ export default async function MonitorDetailPage({
       ROUND(AVG(origin_ms)::numeric, 0)::int            AS origin_avg_ms,
       ROUND(AVG(redirect_count)::numeric, 0)     AS redirect_avg,
       MODE() WITHIN GROUP (ORDER BY served_by)    AS common_served_by,
+      MODE() WITHIN GROUP (ORDER BY cdn_provider) AS common_cdn_provider,
       MODE() WITHIN GROUP (ORDER BY http_version) AS common_http_version,
       MODE() WITHIN GROUP (ORDER BY cache_status) AS common_cache_status,
       COUNT(*) FILTER (WHERE error IS NOT NULL)::int AS error_count,
@@ -604,6 +608,7 @@ export default async function MonitorDetailPage({
       origin_ms,
       redirect_count,
       served_by AS common_served_by,
+      cdn_provider AS common_cdn_provider,
       http_version AS common_http_version,
       cache_status AS common_cache_status,
       status_code,
@@ -756,6 +761,7 @@ export default async function MonitorDetailPage({
       security_headers,
       server_timing_breakdown,
       served_by,
+      cdn_provider,
       time AS sampled_at
     FROM probe_results
     WHERE monitor_id = ${id}
@@ -777,6 +783,7 @@ export default async function MonitorDetailPage({
       redirect_count,
       cache_status,
       served_by,
+      cdn_provider,
       age_s,
       server_timing_breakdown,
       time AS probed_at
@@ -1053,7 +1060,10 @@ export default async function MonitorDetailPage({
                                 <PremiumTooltip content="Region where the probe was executed" position="top-center" direction="top">Region</PremiumTooltip>
                               </th>
                               <th className="cs-table-compact-th !text-center">
-                                <PremiumTooltip content="Point of presence / edge node hint" position="top-center" direction="top">PoP</PremiumTooltip>
+                                <PremiumTooltip content="Point of presence (PoP) inferred from response headers" position="top-center" direction="top">Served from</PremiumTooltip>
+                              </th>
+                              <th className="cs-table-compact-th !text-center">
+                                <PremiumTooltip content="Edge provider identity (explicit header or inferred from response)" position="top-center" direction="top">Served by</PremiumTooltip>
                               </th>
                               <th className="cs-table-compact-th !text-center">
                                 <PremiumTooltip content="Cache status from headers" position="top-center" direction="top">Cache</PremiumTooltip>
@@ -1103,10 +1113,21 @@ export default async function MonitorDetailPage({
                                       {REGION_LABELS[s.region] ?? s.region}
                                     </PremiumTooltip>
                                   </td>
-                                  <td className="cs-table-compact-td">
+                                  <td className="cs-table-compact-td text-center">
                                     <PremiumTooltip content={extractPop(s.common_served_by) || 'Unknown Point of Presence'} position="top-left">
-                                      <span className="cs-pop-tag">
+                                      <span className="cs-pop-tag uppercase">
                                         {s.common_served_by ? (popToCity(extractPop(s.common_served_by) || '') || extractPop(s.common_served_by)) : '—'}
+                                      </span>
+                                    </PremiumTooltip>
+                                  </td>
+                                  <td className="cs-table-compact-td text-center">
+                                    <PremiumTooltip
+                                      content={s.common_served_by ? `Raw served_by: ${s.common_served_by}` : 'No edge hint'}
+                                      position="top-center"
+                                      direction="top"
+                                    >
+                                      <span className="cs-pop-tag max-w-[9rem] truncate">
+                                        {resolveCdnLabel(s.common_cdn_provider, s.common_served_by) ?? '—'}
                                       </span>
                                     </PremiumTooltip>
                                   </td>
@@ -1262,7 +1283,10 @@ export default async function MonitorDetailPage({
                                       <PremiumTooltip content="Geographic region" position="top-center" direction="top">Region</PremiumTooltip>
                                     </th>
                                     <th className="cs-table-compact-th !text-center">
-                                      <PremiumTooltip content="PoP hint" position="top-center" direction="top">PoP</PremiumTooltip>
+                                      <PremiumTooltip content="Point of presence (PoP) inferred from response headers" position="top-center" direction="top">Served from</PremiumTooltip>
+                                    </th>
+                                    <th className="cs-table-compact-th !text-center">
+                                      <PremiumTooltip content="Edge provider identity (explicit header or inferred from response)" position="top-center" direction="top">Served by</PremiumTooltip>
                                     </th>
                                     <th className="cs-table-compact-th !text-center">
                                       <PremiumTooltip content="Cache effectiveness percentage" position="top-center" direction="top">Cache</PremiumTooltip>
@@ -1319,9 +1343,16 @@ export default async function MonitorDetailPage({
                                       </PremiumTooltip>
                                     </td>
                                     <td className="cs-table-compact-td text-center">
-                                      <PremiumTooltip content={extractPop(s.common_served_by) || 'Common PoP for this region'} position="top-left">
-                                        <span className="cs-pop-tag whitespace-nowrap">
+                                      <PremiumTooltip content={extractPop(s.common_served_by) ? `PoP code detected: ${extractPop(s.common_served_by)}` : 'Location inferred from monitoring region'} position="top-left">
+                                        <span className="cs-pop-tag whitespace-nowrap uppercase">
                                           {s.common_served_by ? (popToCity(extractPop(s.common_served_by) || '') || extractPop(s.common_served_by)) : '—'}
+                                        </span>
+                                      </PremiumTooltip>
+                                    </td>
+                                    <td className="cs-table-compact-td text-center">
+                                      <PremiumTooltip content={s.common_served_by ? `served_by: ${s.common_served_by}` : 'No edge hint'} position="top-center" direction="top">
+                                        <span className="cs-pop-tag max-w-[9rem] truncate">
+                                          {resolveCdnLabel(s.common_cdn_provider, s.common_served_by) ?? '—'}
                                         </span>
                                       </PremiumTooltip>
                                     </td>
