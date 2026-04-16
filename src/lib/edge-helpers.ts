@@ -1,19 +1,32 @@
+import { detectCdnProvider } from './cdn-providers'
+
 /**
- * Extract PoP IATA code from CF-Ray or X-Served-By.
+ * Extract PoP IATA code from CF-Ray, X-Served-By (Fastly), or CloudFront POP tokens.
  *
  * CF-Ray: `{hex_id}-{COLO}` — e.g. "87c1d4a2b3c4d5e6-GRU" → "GRU"
- * X-Served-By (Fastly): different format — returns null for now.
+ * Fastly: `cache-lax8632-LAX` → "LAX"
+ * CloudFront POP: `IAD89-P1` → "IAD"
  */
 export function extractPop(servedBy: string | null): string | null {
   if (!servedBy) return null
 
   // 1. Cloudflare style: hex-IATA (e.g. 87c1d4a2b3c4d5e6-GRU)
-  const cfMatch = servedBy.match(/-([A-Z]{2,4})$/)
-  if (cfMatch) return cfMatch[1]
+  if (/^[a-f0-9]+-[A-Z]{2,4}$/.test(servedBy)) {
+    const cfMatch = servedBy.match(/-([A-Z]{2,4})$/)
+    if (cfMatch) return cfMatch[1]
+  }
 
   // 2. Vercel style: iata1::xxxx (e.g. gru1::h6r2m) or iata1:iad1::xxxx
-  const vercelMatch = servedBy.match(/^([a-z]{3})[0-9]/)
+  const vercelMatch = servedBy.match(/^([a-z]{3})[0-9]+::/i)
   if (vercelMatch) return vercelMatch[1].toUpperCase()
+
+  // 3. Fastly / Varnish: cache-<node>-<COLO>
+  const fastlyMatch = servedBy.match(/cache-[a-z0-9]+-([A-Z]{2,4})$/i)
+  if (fastlyMatch) return fastlyMatch[1]
+
+  // 4. AWS CloudFront POP token (leading airport code)
+  const cfPop = servedBy.match(/^([A-Z]{3})\d+-[A-Z]\d+$/i)
+  if (cfPop) return cfPop[1].toUpperCase()
 
   return null
 }
@@ -105,16 +118,9 @@ export function popToCity(iata: string | null): string | null {
   return POP_CITY_MAP[iata.toUpperCase()] || iata
 }
 
-/**
- * Infer CDN name from served_by header.
- *
- * - CF-Ray (`{lowercase_hex}-{UPPERCASE_COLO}`) → "Cloudflare"
- * - X-Served-By with "cache-" prefix (Fastly/Varnish) → "Fastly / Varnish"
- * - Otherwise → null
- */
+/** @deprecated Prefer `detectCdnProvider` with full header signals when available. */
 export function detectCdn(servedBy: string | null): string | null {
-  if (!servedBy) return null
-  if (/^[a-f0-9]+-[A-Z]{2,4}$/.test(servedBy)) return 'Cloudflare'
-  if (/cache-[a-z]/i.test(servedBy)) return 'Fastly / Varnish'
-  return null
+  return detectCdnProvider({ servedBy })
 }
+
+export { detectCdnProvider, resolveCdnLabel } from './cdn-providers'

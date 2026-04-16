@@ -12,8 +12,8 @@ import {
 import { MonitorCardActions } from './monitor-card-actions'
 import { VisualGlow } from './visual-glow'
 
-async function getMonitorSummaries(userId: string): Promise<MonitorSummary[]> {
-  return sql<MonitorSummary[]>`
+async function getMonitorSummaries(userId: string) {
+  return await sql<MonitorSummary[]>`
     WITH alert_counts AS (
       SELECT monitor_id, COUNT(*)::int AS cnt
       FROM alerts
@@ -34,32 +34,37 @@ async function getMonitorSummaries(userId: string): Promise<MonitorSummary[]> {
       m.url,
       m.name,
       m.is_active,
-      ROUND(AVG(pr.ttfb_ms)::numeric, 0)                          AS ttfb_avg_ms,
-      ROUND(MAX(pr.ttfb_ms)::numeric, 0)                          AS ttfb_worst_ms,
-      ROUND(AVG(pr.dns_ms)::numeric, 0)                           AS dns_avg_ms,
-      ROUND(AVG(pr.tls_ms)::numeric, 0)                           AS tls_avg_ms,
-      COUNT(*) FILTER (WHERE pr.error IS NOT NULL)::int            AS error_count,
-      ROUND(
-        100.0 * COUNT(*) FILTER (WHERE pr.cache_status = 'HIT')
-               / NULLIF(COUNT(pr.time), 0),
-        0
-      )                                                            AS cache_hit_pct,
-      MODE() WITHIN GROUP (ORDER BY pr.cache_status)               AS cache_status,
-      ROUND(
-        100.0 * COUNT(*) FILTER (WHERE pr.error IS NULL AND pr.status_code < 500)
-               / NULLIF(COUNT(pr.time), 0),
-        1
-      )                                                            AS uptime_pct,
-      ROUND(AVG(pr.redirect_count)::numeric, 0)                    AS redirect_avg,
-      MAX(pr.time)                                                 AS last_probe_at,
+      m.created_at,
       COALESCE(ac.cnt, 0)                                          AS alert_count,
-      ls.security_score                                            AS security_score
+      ls.security_score,
+      stats.ttfb_avg_ms,
+      stats.cache_hit_pct,
+      stats.uptime_pct,
+      stats.last_probe_at,
+      stats.error_count
     FROM monitors m
-    LEFT JOIN probe_results pr ON pr.monitor_id = m.id
     LEFT JOIN alert_counts ac ON ac.monitor_id = m.id
     LEFT JOIN latest_security ls ON ls.monitor_id = m.id
+    LEFT JOIN LATERAL (
+      SELECT
+        ROUND(AVG(pr.ttfb_ms)::numeric, 0)::int                      AS ttfb_avg_ms,
+        ROUND(
+          100.0 * COUNT(pr.time) FILTER (WHERE pr.cache_status ILIKE '%HIT%')
+                 / NULLIF(COUNT(pr.time), 0),
+          1
+        )                                                            AS cache_hit_pct,
+        ROUND(
+          100.0 * COUNT(pr.time) FILTER (WHERE pr.error IS NULL AND pr.status_code < 500)
+                 / NULLIF(COUNT(pr.time), 0),
+          1
+        )                                                            AS uptime_pct,
+        MAX(pr.time)                                                 AS last_probe_at,
+        COUNT(pr.time) FILTER (WHERE pr.error IS NOT NULL)::int      AS error_count
+      FROM probe_results pr
+      WHERE pr.monitor_id = m.id
+        AND pr.time > NOW() - INTERVAL '24 hours'
+    ) stats ON TRUE
     WHERE m.user_id = ${userId}
-    GROUP BY m.id, ac.cnt, ls.security_score
     ORDER BY alert_count DESC, m.created_at DESC
   `
 }
@@ -111,6 +116,10 @@ export default async function DashboardPage() {
   if (!user) return null
 
   const monitors = await getMonitorSummaries(user.id)
+  console.log(`[DASHBOARD DEBUG] User ${user.id} fetching monitors. Found ${monitors.length}.`)
+  monitors.forEach(m => {
+    console.log(`[DASHBOARD DEBUG] Monitor: ${m.id} | URL: ${m.url} | Active: ${m.is_active}`)
+  })
 
   return (
     <div className="space-y-10">

@@ -100,15 +100,15 @@ pub async fn handler(
             INSERT INTO probe_results (
                 time, monitor_id, region,
                 ttfb_ms, download_ms, total_ms, dns_ms, tcp_ms, tls_ms, edge_ms, origin_ms,
-                status_code, cache_status, served_by, server_timing,
+                status_code, cache_status, served_by, cdn_provider, server_timing,
                 http_version, redirect_count, content_length, error,
                 age_s, security_headers, server_timing_breakdown, probe_version
             ) VALUES (
                 NOW(), $1, $2,
                 $3, $4, $5, $6, $7, $8, $9, $10,
-                $11, $12, $13, $14,
-                $15, $16, $17, $18,
-                $19, $20, $21, $22
+                $11, $12, $13, $14, $15,
+                $16, $17, $18, $19,
+                $20, $21, $22, $23
             )
             "#,
         )
@@ -125,6 +125,7 @@ pub async fn handler(
         .bind(payload.status_code)
         .bind(payload.cache_status.clone())
         .bind(payload.served_by.clone())
+        .bind(payload.cdn_provider.clone())
         .bind(payload.server_timing.clone())
         .bind(payload.http_version.clone())
         .bind(payload.redirect_count)

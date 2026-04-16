@@ -41,6 +41,7 @@ export default function NewMonitorPage() {
       })
   
       if (res.ok) {
+        router.refresh()
         router.push('/dashboard')
       } else {
         const json = await res.json()

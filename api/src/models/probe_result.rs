@@ -21,6 +21,8 @@ pub struct ProbeResultPayload {
     pub status_code: Option<i32>,
     pub cache_status: Option<String>,
     pub served_by: Option<String>,
+    #[serde(default)]
+    pub cdn_provider: Option<String>,
     pub server_timing: Option<String>,
     pub http_version: Option<String>,
     pub redirect_count: Option<i32>,
@@ -80,6 +82,7 @@ pub struct ProbeResult {
     pub status_code: Option<i32>,
     pub cache_status: Option<String>,
     pub served_by: Option<String>,
+    pub cdn_provider: Option<String>,
     pub server_timing: Option<String>,
     pub http_version: Option<String>,
     pub redirect_count: Option<i32>,
