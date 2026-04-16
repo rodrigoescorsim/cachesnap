@@ -242,7 +242,7 @@ const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
 
 /** Monitor title card — subtle top wash + glass (Vercel-style). Densidade ~tool (menos padding vertical). */
 const MONITOR_HEADER_CARD =
-  'cs-card cs-card-glass px-5 py-3.5 relative overflow-hidden'
+  'cs-card cs-card-glass px-5 py-3.5 relative'
 
 /** Status pills in the monitor title bar — consistent shell + interactive hover. */
 const MONITOR_HEADER_STATUS_BADGE =
