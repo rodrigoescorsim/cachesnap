@@ -214,4 +214,44 @@ body {
     from { opacity: 0; transform: translateY(-4px); }
     to { opacity: 1; transform: translateY(0); }
   }
+
+  /* Badges & Status */
+  .cs-badge {
+    @apply inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest ring-1 ring-inset transition-all;
+  }
+  .cs-badge-success {
+    @apply bg-emerald-500/10 text-emerald-400 ring-emerald-500/20;
+  }
+  .cs-badge-warning {
+    @apply bg-amber-500/10 text-amber-400 ring-amber-500/20;
+  }
+  .cs-badge-error {
+    @apply bg-red-500/10 text-red-400 ring-red-500/20;
+  }
+  .cs-badge-info {
+    @apply bg-indigo-500/10 text-indigo-400 ring-indigo-500/20;
+  }
+  .cs-badge-muted {
+    @apply bg-white/5 text-zinc-500 ring-white/10;
+  }
+
+  /* Table Patterns */
+  .cs-table-compact-th {
+    @apply px-3 py-2 text-[10px] font-black text-zinc-500 uppercase tracking-[0.1em];
+  }
+  .cs-table-compact-td {
+    @apply px-3 py-2 text-[13px] text-zinc-300;
+  }
+  .cs-table-compact-td-mono {
+    @apply px-3 py-2 text-[11px] font-mono tabular-nums;
+  }
+
+  /* Specific Components */
+  .cs-status-badge {
+    @apply inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold ring-1 ring-inset;
+  }
+  
+  .cs-pop-tag {
+    @apply inline-flex items-center rounded bg-white/5 px-1.5 py-0.5 text-[9px] font-bold text-zinc-500 ring-1 ring-inset ring-white/10 uppercase tracking-wide;
+  }
 }

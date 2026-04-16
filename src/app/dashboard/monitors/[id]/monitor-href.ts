@@ -31,7 +31,7 @@ export function buildViewHref(view: PerformanceView, range: string): string {
   const params = new URLSearchParams()
   params.set('tab', 'performance')
   params.set('view', view)
-  if (range === '7d') params.set('range', '7d')
+  if (range && range !== '24h') params.set('range', range)
   const query = params.toString()
   return query ? `?${query}` : '?'
 }

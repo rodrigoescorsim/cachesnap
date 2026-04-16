@@ -188,28 +188,6 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
         </div>
       )}
 
-      {/* Header row */}
-      <div className="flex items-center justify-between px-1">
-        <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          Performance trends
-        </h2>
-        <div className="flex bg-surface p-1 rounded-lg gap-0.5 border border-border">
-          {(['24h', '7d'] as const).map(r => (
-            <Link
-              key={r}
-              href={`?range=${r}`}
-              className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all duration-200 uppercase tracking-wider ${
-                range === r
-                  ? 'bg-white/10 text-white shadow-sm border border-white/10'
-                  : 'text-zinc-500 hover:text-zinc-300'
-              }`}
-            >
-              {r}
-            </Link>
-          ))}
-        </div>
-      </div>
 
       {allBuckets.length < 2 ? (
         <div className="rounded-2xl border border-border bg-surface/30 p-12 text-center">
