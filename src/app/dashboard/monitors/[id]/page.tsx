@@ -406,18 +406,18 @@ const AGE_ZOMBIE_THRESHOLD_S = 86_400 // same boundary as probe-waterfall zombie
 function ageBadgeVisual(ageSeconds: number): { className: string; tierHint: string } {
   if (ageSeconds <= AGE_RECENT_MAX_S) {
     return {
-      className: 'bg-emerald-500/5 text-emerald-500/80 ring-emerald-500/10',
+      className: 'cs-badge-flat-success',
       tierHint: 'Recently cached (≤1h)',
     }
   }
   if (ageSeconds <= AGE_ZOMBIE_THRESHOLD_S) {
     return {
-      className: 'bg-amber-500/5 text-amber-500/80 ring-amber-500/10',
+      className: 'cs-badge-flat-warning',
       tierHint: 'Elevated cache age (>1h, up to 24h)',
     }
   }
   return {
-    className: 'bg-red-500/5 text-red-500/80 ring-red-500/10',
+    className: 'cs-badge-flat-error',
     tierHint: 'Long-lived in cache (>24h) — review invalidation / TTL',
   }
 }
@@ -470,6 +470,31 @@ function formatMs(value: number | null): string {
 }
 
 import { BypassAudit } from './bypass-audit'
+
+/** High-fidelity glassmorphism tooltip to replace native browser 'title' attributes. */
+function PremiumTooltip({ children, content, position = 'top-center', direction = 'top' }: { children: React.ReactNode, content: React.ReactNode, position?: 'top-center' | 'top-right' | 'top-left' | 'bottom-center' | 'bottom-right' | 'bottom-left', direction?: 'top' | 'bottom' }) {
+  const isBottom = direction === 'bottom'
+  
+  const posClasses = {
+    'top-center': 'bottom-full left-1/2 -translate-x-1/2 mb-2',
+    'top-right': 'bottom-full right-0 mb-2',
+    'top-left': 'bottom-full left-0 mb-2',
+    'bottom-center': 'top-full left-1/2 -translate-x-1/2 mt-2',
+    'bottom-right': 'top-full right-0 mt-2',
+    'bottom-left': 'top-full left-0 mt-2',
+  }[position]
+
+  return (
+    <div className="relative group/tooltip inline-flex items-center">
+      {children}
+      <div className={`absolute ${posClasses} invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 ${isBottom ? '-translate-y-1 group-hover/tooltip:translate-y-0' : 'translate-y-1 group-hover/tooltip:translate-y-0'} z-[100] pointer-events-none`}>
+        <div className="bg-[#111d32]/98 backdrop-blur-xl border border-white/10 rounded-xl p-3.5 shadow-2xl text-[11px] font-medium text-zinc-200 whitespace-nowrap ring-1 ring-white/5">
+          {content}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default async function MonitorDetailPage({
   params,
@@ -805,33 +830,35 @@ export default async function MonitorDetailPage({
               className="flex flex-wrap items-center justify-end gap-2 sm:gap-3"
               aria-label="Monitor status"
             >
-              <div
-                className={MONITOR_HEADER_STATUS_BADGE}
-                title={monitor.is_active ? 'Monitor is collecting probes' : 'Monitoring is paused'}
-              >
-                <span
-                  className={`h-2 w-2 shrink-0 rounded-full ${monitor.is_active ? MONITOR_HEADER_ACTIVE_DOT : 'bg-zinc-400 dark:bg-zinc-500'}`}
-                  aria-hidden
-                />
-                <span className="text-zinc-600 dark:text-zinc-300">{monitor.is_active ? 'Active' : 'Paused'}</span>
-              </div>
+              <PremiumTooltip content={monitor.is_active ? 'Monitor is collecting probes and heartbeats' : 'Monitoring is currently paused'} position="top-left">
+                <div className={MONITOR_HEADER_STATUS_BADGE}>
+                  <span
+                    className={`h-2 w-2 shrink-0 rounded-full ${monitor.is_active ? MONITOR_HEADER_ACTIVE_DOT : 'bg-zinc-400 dark:bg-zinc-500'}`}
+                    aria-hidden
+                  />
+                  <span className="text-zinc-600 dark:text-zinc-300">{monitor.is_active ? 'Active' : 'Paused'}</span>
+                </div>
+              </PremiumTooltip>
 
-              <div className={MONITOR_HEADER_STATUS_BADGE} title="Time elapsed since last probe batch">
-                <History className="h-3 w-3 text-zinc-500" />
-                <span className="text-zinc-500 dark:text-zinc-400">Last check: 42s ago</span>
-              </div>
+              <PremiumTooltip content="Time elapsed since the last probe batch was received from our edge nodes" position="top-left">
+                <div className={MONITOR_HEADER_STATUS_BADGE}>
+                  <History className="h-3 w-3 text-zinc-500" />
+                  <span className="text-zinc-500 dark:text-zinc-400">Last check: 42s ago</span>
+                </div>
+              </PremiumTooltip>
 
-              <Link
-                href={buildMonitorHref('performance', range)}
-                title="Live data — Performance views"
-                className={MONITOR_HEADER_STATUS_BADGE}
-              >
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                </span>
-                <span className="text-emerald-700 dark:text-emerald-400">Live Sync</span>
-              </Link>
+              <PremiumTooltip content="Real-time data stream — Live Performance updates" position="top-left">
+                <Link
+                  href={buildMonitorHref('performance', range)}
+                  className={MONITOR_HEADER_STATUS_BADGE}
+                >
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                  </span>
+                  <span className="text-emerald-700 dark:text-emerald-400">Live Sync</span>
+                </Link>
+              </PremiumTooltip>
             </div>
 
             <div
@@ -855,7 +882,9 @@ export default async function MonitorDetailPage({
             <div className="cs-card-wash opacity-40" />
             <div className="relative z-10">
               <div className="flex items-start justify-between">
-                <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1">Health Score</p>
+                <PremiumTooltip content="Weighted performance score based on availability and network latency thresholds">
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 hover:border-zinc-500 cursor-help transition-colors">Health Score</p>
+                </PremiumTooltip>
                 <Activity className={`h-4 w-4 ${healthScore > 90 ? 'text-emerald-400' : 'text-amber-400'}`} />
               </div>
               <div className="flex items-baseline gap-2 mt-2">
@@ -871,7 +900,9 @@ export default async function MonitorDetailPage({
             <div className="cs-card-wash opacity-40" />
             <div className="relative z-10">
               <div className="flex items-start justify-between">
-                <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1">Global TTFB</p>
+                <PremiumTooltip content="Global average Time to First Byte across all monitored regions">
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 hover:border-zinc-500 cursor-help transition-colors">Global TTFB</p>
+                </PremiumTooltip>
                 <Zap className={`h-4 w-4 ${avgTtfb < 200 ? 'text-emerald-400' : avgTtfb < 500 ? 'text-amber-400' : 'text-red-400'}`} />
               </div>
               <div className="flex items-baseline gap-2 mt-2">
@@ -887,7 +918,9 @@ export default async function MonitorDetailPage({
             <div className="cs-card-wash opacity-60 bg-gradient-to-br from-emerald-500/5 to-transparent" />
             <div className="relative z-10">
               <div className="flex items-start justify-between">
-                <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1">Cache Hit Rate</p>
+                <PremiumTooltip content="Overall percentage of requests successfully served from CDN edge cache">
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 hover:border-zinc-500 cursor-help transition-colors">Cache Hit Rate</p>
+                </PremiumTooltip>
                 <ShieldCheck className="h-4 w-4 text-emerald-400" />
               </div>
               <div className="flex items-baseline gap-2 mt-2">
@@ -903,7 +936,9 @@ export default async function MonitorDetailPage({
             <div className={`cs-card-wash ${alerts.length > 0 ? 'opacity-40 bg-gradient-to-br from-red-500/10 to-transparent' : 'opacity-40'}`} />
             <div className="relative z-10">
               <div className="flex items-start justify-between">
-                <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1">Active Alerts</p>
+                <PremiumTooltip content="Count of anomalous events or performance degradations detected in the last specified period">
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 hover:border-zinc-500 cursor-help transition-colors">Active Alerts</p>
+                </PremiumTooltip>
                 <AlertTriangle className={`h-4 w-4 ${alerts.length > 0 ? 'text-red-400' : 'text-emerald-400'}`} />
               </div>
               <div className="flex items-baseline gap-2 mt-2">
@@ -963,19 +998,33 @@ export default async function MonitorDetailPage({
                         <table className={`${MONITOR_TABLE.tableBase} ${MONITOR_TABLE.transition}`}>
                           <thead>
                             <tr className={MONITOR_TABLE.theadRow}>
-                              <th className="cs-table-compact-th text-left" title="Geographic region where this probe ran">Region</th>
-                              <th className="cs-table-compact-th text-left" title="Point of presence / edge node hint">PoP</th>
-                              <th className="cs-table-compact-th text-left" title="Cache status">Cache</th>
-                              <th className={`cs-table-compact-th text-right ${TH_TTFB_HEADER}`} title="Time to first byte">TTFB</th>
-                              <th className="cs-table-compact-th text-right" title="DNS lookup time">DNS</th>
-                              <th className="cs-table-compact-th text-right" title="TCP handshake time">TCP</th>
-                              <th className="cs-table-compact-th text-right" title="TLS handshake time">TLS</th>
-                              <th className="cs-table-compact-th text-right" title="Response download">DL</th>
-                              <th className="cs-table-compact-th text-right" title="End-to-end wall time">Total</th>
-                              <th className="cs-table-compact-th text-right" title="Age header">Age</th>
-                              <th className="cs-table-compact-th text-right" title="HTTP version">HTTP</th>
-                              <th className="cs-table-compact-th text-right" title="HTTP status code">Status</th>
-                              <th className="cs-table-compact-th text-right" title="Last sync time">Sync</th>
+                              <th className="cs-table-compact-th !text-center">
+                                <PremiumTooltip content="Region where the probe was executed" position="top-center" direction="top">Region</PremiumTooltip>
+                              </th>
+                              <th className="cs-table-compact-th !text-center">
+                                <PremiumTooltip content="Point of presence / edge node hint" position="top-center" direction="top">PoP</PremiumTooltip>
+                              </th>
+                              <th className="cs-table-compact-th !text-center">
+                                <PremiumTooltip content="Cache status from headers" position="top-center" direction="top">Cache</PremiumTooltip>
+                              </th>
+                              <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER}`}>
+                                <PremiumTooltip content="Time to first byte" position="top-center" direction="top">TTFB</PremiumTooltip>
+                              </th>
+                              <th className="cs-table-compact-th !text-center">
+                                <PremiumTooltip content="Network Handshake (DNS + TCP + TLS)" position="top-center" direction="top">Net</PremiumTooltip>
+                              </th>
+                              <th className="cs-table-compact-th !text-center">
+                                <PremiumTooltip content="Age header (shared cache)" position="top-center" direction="top">Age</PremiumTooltip>
+                              </th>
+                              <th className="cs-table-compact-th !text-center">
+                                <PremiumTooltip content="HTTP Protocol version" position="top-center" direction="top">HTTP</PremiumTooltip>
+                              </th>
+                              <th className="cs-table-compact-th !text-center">
+                                <PremiumTooltip content="HTTP status code" position="top-center" direction="top">Status</PremiumTooltip>
+                              </th>
+                              <th className="cs-table-compact-th !text-center">
+                                <PremiumTooltip content="Last synchronization time" position="top-center" direction="top">Sync</PremiumTooltip>
+                              </th>
                               {process.env.NODE_ENV === 'development' && (
                                 <th
                                   className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
@@ -1002,61 +1051,74 @@ export default async function MonitorDetailPage({
                                   className={MONITOR_TABLE.tbodyRow}
                                 >
                                   <td className="cs-table-compact-td font-bold text-zinc-200">
-                                    <span title={REGION_DESCRIPTIONS[s.region] ?? s.region}>
+                                    <PremiumTooltip content={REGION_DESCRIPTIONS[s.region] ?? s.region} position="top-left">
                                       {REGION_LABELS[s.region] ?? s.region}
-                                    </span>
+                                    </PremiumTooltip>
                                   </td>
                                   <td className="cs-table-compact-td">
-                                    <span className="cs-pop-tag" title={extractPop(s.common_served_by) ?? 'Unknown'}>
-                                      {s.common_served_by ? (popToCity(extractPop(s.common_served_by) || '') || extractPop(s.common_served_by)) : '—'}
-                                    </span>
+                                    <PremiumTooltip content={extractPop(s.common_served_by) || 'Unknown Point of Presence'} position="top-left">
+                                      <span className="cs-pop-tag">
+                                        {s.common_served_by ? (popToCity(extractPop(s.common_served_by) || '') || extractPop(s.common_served_by)) : '—'}
+                                      </span>
+                                    </PremiumTooltip>
                                   </td>
-                                  <td className="cs-table-compact-td" title={cache.title}>
-                                    <span className={`cs-badge text-[11px] font-black px-2.5 py-1 ${
-                                      cache.text === 'HIT' ? 'cs-badge-success' : cache.text === 'MISS' || cache.text === 'EXPIRED' ? 'cs-badge-warning' : 'cs-badge-info'
-                                    }`}>
-                                      {cache.text}
-                                    </span>
+                                  <td className="cs-table-compact-td text-center">
+                                    <PremiumTooltip content={cache.title} position="top-left">
+                                      <span className={`cs-badge text-[11px] px-2.5 py-1 ${
+                                        cache.text === 'HIT' ? 'cs-badge-success' : cache.text === 'MISS' || cache.text === 'EXPIRED' ? 'cs-badge-warning' : 'cs-badge-info'
+                                      }`}>
+                                        {cache.text === 'HIT' && <Zap className="w-[11px] h-[11px] fill-current" />}
+                                        {cache.text}
+                                      </span>
+                                    </PremiumTooltip>
                                   </td>
                                   <td className={`${ttfbMetricCellClass(s.ttfb_ms)} !px-3 !py-2 text-[13px]`}>
                                     <VisualGlow value={s.ttfb_ms}>{s.ttfb_ms != null ? `${Math.round(s.ttfb_ms)}ms` : '—'}</VisualGlow>
                                   </td>
-                                  <td className={`cs-table-compact-td-mono text-right ${TIMING.dns.text}`}>
-                                    <VisualGlow value={s.dns_ms}>{s.dns_ms != null ? `${Math.round(s.dns_ms)}ms` : '—'}</VisualGlow>
-                                  </td>
-                                  <td className={`cs-table-compact-td-mono text-right ${TIMING.tcp.text}`}>
-                                    <VisualGlow value={s.tcp_ms}>{s.tcp_ms != null ? `${Math.round(s.tcp_ms)}ms` : '—'}</VisualGlow>
-                                  </td>
-                                  <td className={`cs-table-compact-td-mono text-right ${TIMING.tls.text}`}>
-                                    <VisualGlow value={s.tls_ms}>{s.tls_ms != null ? `${Math.round(s.tls_ms)}ms` : '—'}</VisualGlow>
-                                  </td>
-                                  <td className={`cs-table-compact-td-mono text-right ${TIMING.download.text}`}>
-                                    <VisualGlow value={s.download_ms}>{s.download_ms != null ? `${Math.round(s.download_ms)}ms` : '—'}</VisualGlow>
-                                  </td>
-                                  <td className={`cs-table-compact-td-mono text-right font-bold ${TIMING.total.text}`}>
-                                    <VisualGlow value={s.total_ms}>{s.total_ms != null ? `${Math.round(s.total_ms)}ms` : '—'}</VisualGlow>
+                                  <td className="cs-table-compact-td-mono text-right relative group/net">
+                                    <span className="text-zinc-400 cursor-help border-b border-dashed border-zinc-700/50 hover:border-zinc-500 transition-colors pb-0.5">
+                                      {Math.round((s.dns_ms || 0) + (s.tcp_ms || 0) + (s.tls_ms || 0))}<span className="text-[9px] ml-0.5 opacity-50 font-sans">ms</span>
+                                    </span>
+                                    {/* Glass Tooltip */}
+                                    <div className="absolute bottom-full right-0 mb-2 invisible group-hover/net:visible opacity-0 group-hover/net:opacity-100 transition-all duration-200 translate-y-2 group-hover/net:translate-y-0 z-50">
+                                      <div className="bg-[#111d32]/95 backdrop-blur-xl border border-white/10 rounded-lg p-2.5 shadow-2xl min-w-[140px] text-left">
+                                        <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-2 border-b border-white/5 pb-1">Network Breakdown</p>
+                                        <div className="space-y-1.5">
+                                          <div className="flex justify-between items-center gap-4">
+                                            <span className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-medium">
+                                              <div className="w-1 h-1 rounded-full bg-purple-500" /> DNS
+                                            </span>
+                                            <span className="text-[10px] font-mono font-bold text-zinc-300">{Math.round(s.dns_ms || 0)}ms</span>
+                                          </div>
+                                          <div className="flex justify-between items-center gap-4">
+                                            <span className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-medium">
+                                              <div className="w-1 h-1 rounded-full bg-blue-500" /> TCP
+                                            </span>
+                                            <span className="text-[10px] font-mono font-bold text-zinc-300">{Math.round(s.tcp_ms || 0)}ms</span>
+                                          </div>
+                                          <div className="flex justify-between items-center gap-4">
+                                            <span className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-medium">
+                                              <div className="w-1 h-1 rounded-full bg-fuchsia-500" /> TLS
+                                            </span>
+                                            <span className="text-[10px] font-mono font-bold text-zinc-300">{Math.round(s.tls_ms || 0)}ms</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
                                   </td>
                                   <td className="cs-table-compact-td text-right">
                                     {age > 0 && ageVisual ? (
-                                      <span className={`cs-badge font-mono ${ageVisual.className}`} title={ageBadgeTitle}>
+                                      <span className={`cs-badge-flat ${ageVisual.className}`} title={ageBadgeTitle}>
                                         {formatCacheAgeShort(age)}
                                       </span>
                                     ) : (
-                                      <span className="text-[11px] text-zinc-500 tabular-nums">—</span>
+                                      <span className="text-[10px] text-zinc-500 tabular-nums">—</span>
                                     )}
                                   </td>
                                   <td className="cs-table-compact-td text-right">
                                     {s.common_http_version ? (
-                                      <span
-                                        className={`cs-status-badge font-mono ${s.common_http_version === 'HTTP/1.1'
-                                          ? 'bg-amber-100/50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 ring-amber-200/50 dark:ring-amber-800/50'
-                                          : s.common_http_version === 'HTTP/3'
-                                            ? 'bg-emerald-100/50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 ring-emerald-200/50 dark:ring-emerald-800/50'
-                                            : 'bg-zinc-100/50 dark:bg-zinc-800/50 text-zinc-700 dark:text-zinc-400 ring-zinc-200/50 dark:ring-zinc-700/50'
-                                          }`}
-                                        title={`Protocol: ${s.common_http_version}`}
-                                      >
-                                        {s.common_http_version === 'HTTP/1.1' ? '1.1' : s.common_http_version === 'HTTP/3' ? 'H3' : 'H2'}
+                                      <span className="cs-badge-flat cs-badge-flat-muted px-1.5 min-w-[32px] justify-center">
+                                        {s.common_http_version}
                                       </span>
                                     ) : (
                                       <span className="text-zinc-400 text-[11px]">—</span>
@@ -1065,15 +1127,22 @@ export default async function MonitorDetailPage({
                                   <td className="cs-table-compact-td text-right">
                                     {(() => {
                                       const code = s.status_code
-                                      const colorClass = code != null && code < 300 ? 'cs-badge-success' : code != null && code < 400 ? 'cs-badge-info' : 'cs-badge-error';
+                                      const isErr = isError || (code != null && code >= 400)
+                                      const colorClass = code != null && code < 400 ? 'cs-badge-flat-success' : 'cs-badge-flat-error';
                                       const hops = Number(s.redirect_count ?? 0)
                                       return (
                                         <div className="flex items-center justify-end gap-1">
-                                          {hops > 0 && <span className="cs-badge cs-badge-info !text-[8px]" title={`${hops} hops`}>{hops}↷</span>}
-                                          {isError ? (
-                                            <span className="cs-badge cs-badge-error" title={s.error}>ERR</span>
+                                          {hops > 0 && (
+                                            <PremiumTooltip content={`This request was redirected ${hops} times.`} position="top-right">
+                                              <span className="cs-badge-flat cs-badge-flat-muted" style={{ fontSize: '8px' }}>{hops}↷</span>
+                                            </PremiumTooltip>
+                                          )}
+                                          {isErr ? (
+                                            <PremiumTooltip content={s.error || 'The edge server returned an error status or connection failed.'} position="top-right">
+                                              <span className="cs-badge-flat cs-badge-flat-error">ERR</span>
+                                            </PremiumTooltip>
                                           ) : (
-                                            <span className={`cs-badge ${colorClass}`}>{code}</span>
+                                            <span className={`cs-badge-flat ${colorClass}`}>{code || '200'}</span>
                                           )}
                                         </div>
                                       )
@@ -1115,7 +1184,7 @@ export default async function MonitorDetailPage({
                              href={buildViewHref(activeView, r)}
                              className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${
                                range === r 
-                               ? 'bg-white dark:bg-emerald-500 text-emerald-600 dark:text-white shadow-sm ring-1 ring-zinc-200 dark:ring-emerald-400/50' 
+                               ? 'bg-zinc-100 text-zinc-900 shadow-lg shadow-white/5 ring-1 ring-white/10' 
                                : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
                              }`}
                            >
@@ -1137,36 +1206,45 @@ export default async function MonitorDetailPage({
                               const hasOriginData = stats.some(s => s.origin_miss_avg_ms !== null);
                               const showSplitTtfb = hasEdgeData || hasOriginData;
 
-                              // Contextual labels for the main TTFB column(s)
-                              const ttfbHeaderLabel = showSplitTtfb ? "Avg TTFB" : "TTFB";
-                              const ttfbHeaderTitle = showSplitTtfb
-                                ? "The overall average Time to First Byte across all results (Hits and Misses)."
-                                : "Average Time to First Byte (Total processing and travel time)";
-
                               return (
                                 <>
                                   <tr className={MONITOR_HEADER_CARD.replace('px-5 py-3.5', 'px-3 py-2') + ' bg-zinc-900/50 border-white/5 border-b'}>
-                                    <th className="cs-table-compact-th text-left">Region</th>
-                                    <th className="cs-table-compact-th text-center">PoP</th>
-                                    <th className="cs-table-compact-th text-center">Cache</th>
-
+                                    <th className="cs-table-compact-th !text-center">
+                                      <PremiumTooltip content="Geographic region" position="top-center" direction="top">Region</PremiumTooltip>
+                                    </th>
+                                    <th className="cs-table-compact-th !text-center">
+                                      <PremiumTooltip content="PoP hint" position="top-center" direction="top">PoP</PremiumTooltip>
+                                    </th>
+                                    <th className="cs-table-compact-th !text-center">
+                                      <PremiumTooltip content="Cache effectiveness percentage" position="top-center" direction="top">Cache</PremiumTooltip>
+                                    </th>
                                     {showSplitTtfb ? (
                                       <>
-                                        <th className={`cs-table-compact-th text-right ${TH_TTFB_HEADER}`} title="Edge performance">Edge TTFB</th>
-                                        <th className={`cs-table-compact-th text-right ${TH_TTFB_HEADER_ORIGIN}`} title="Server performance">Origin TTFB</th>
-                                        <th className={`cs-table-compact-th text-right border-l border-white/5 ${TH_TTFB_HEADER}`} title="Combined average">Avg TTFB</th>
+                                        <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER}`}>
+                                          <PremiumTooltip content="Time to First Byte served from Edge" position="top-center" direction="top">Edge TTFB</PremiumTooltip>
+                                        </th>
+                                        <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER_ORIGIN}`}>
+                                          <PremiumTooltip content="Time to First Byte served from Origin (Bypass)" position="top-center" direction="top">Origin TTFB</PremiumTooltip>
+                                        </th>
+                                        <th className={`cs-table-compact-th !text-center border-l border-white/5 ${TH_TTFB_HEADER}`}>
+                                          <PremiumTooltip content="Overall weighted average TTFB" position="top-center" direction="top">Avg TTFB</PremiumTooltip>
+                                        </th>
                                       </>
                                     ) : (
-                                      <th className={`cs-table-compact-th text-right ${TH_TTFB_HEADER}`} title={ttfbHeaderTitle}>{ttfbHeaderLabel}</th>
+                                      <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER}`}>
+                                        <PremiumTooltip content="Average TTFB" position="top-center" direction="top">Avg TTFB</PremiumTooltip>
+                                      </th>
                                     )}
 
-                                    <th className="cs-table-compact-th text-right" title="Hostname resolution">DNS</th>
-                                    <th className="cs-table-compact-th text-right" title="Connect time">TCP</th>
-                                    <th className="cs-table-compact-th text-right" title="Encryption handshake">TLS</th>
-                                    <th className="cs-table-compact-th text-right whitespace-nowrap" title="24h Min/Max observed">Min / Max</th>
-                                    <th className="cs-table-compact-th text-right" title="Response download">DL</th>
-                                    <th className="cs-table-compact-th text-right" title="Total duration">Total</th>
-                                    <th className="cs-table-compact-th text-right">Uptime</th>
+                                    <th className="cs-table-compact-th !text-center">
+                                      <PremiumTooltip content="Average Network Handshake duration" position="top-center" direction="top">Net</PremiumTooltip>
+                                    </th>
+                                    <th className="cs-table-compact-th !text-center whitespace-nowrap">
+                                      <PremiumTooltip content="Min and Max TTFB observed over period" position="top-center" direction="top">Min / Max</PremiumTooltip>
+                                    </th>
+                                    <th className="cs-table-compact-th !text-center">
+                                      <PremiumTooltip content="Percentage of successful probes" position="top-center" direction="top">Uptime</PremiumTooltip>
+                                    </th>
                                   </tr>
                                 </>
                               )
@@ -1184,21 +1262,28 @@ export default async function MonitorDetailPage({
                                     key={s.region}
                                     className={MONITOR_TABLE.tbodyRow}
                                   >
-                                    <td className="cs-table-compact-td font-bold text-zinc-200">
-                                      <span title={REGION_DESCRIPTIONS[s.region] ?? s.region}>
-                                        {REGION_LABELS[s.region] ?? s.region}
-                                      </span>
+                                    <td className="cs-table-compact-td">
+                                      <PremiumTooltip content={REGION_DESCRIPTIONS[s.region] ?? s.region} position="top-left">
+                                        <span className="font-bold text-zinc-200">
+                                          {REGION_LABELS[s.region] ?? s.region}
+                                        </span>
+                                      </PremiumTooltip>
                                     </td>
                                     <td className="cs-table-compact-td text-center">
-                                      <span className="cs-pop-tag whitespace-nowrap">
-                                        {s.common_served_by ? (popToCity(extractPop(s.common_served_by) || '') || extractPop(s.common_served_by)) : '—'}
-                                      </span>
+                                      <PremiumTooltip content={extractPop(s.common_served_by) || 'Common PoP for this region'} position="top-left">
+                                        <span className="cs-pop-tag whitespace-nowrap">
+                                          {s.common_served_by ? (popToCity(extractPop(s.common_served_by) || '') || extractPop(s.common_served_by)) : '—'}
+                                        </span>
+                                      </PremiumTooltip>
                                     </td>
                                     <td className="cs-table-compact-td text-center">
                                       {s.cache_hit_pct != null ? (
-                                        <span className={`cs-badge text-[11px] font-black px-2.5 py-1 ${s.cache_hit_pct >= 80 ? 'cs-badge-success' : 'cs-badge-warning'}`}>
-                                          {Math.round(s.cache_hit_pct)}%
-                                        </span>
+                                        <PremiumTooltip content={`${s.cache_hit_pct}% of requests were served from edge cache`} position="top-left">
+                                          <span className={`cs-badge text-[11px] px-2.5 py-1 ${s.cache_hit_pct >= 80 ? 'cs-badge-success' : 'cs-badge-warning'}`}>
+                                            {s.cache_hit_pct >= 80 && <Zap className="w-[11px] h-[11px] fill-current" />}
+                                            {Math.round(s.cache_hit_pct)}%
+                                          </span>
+                                        </PremiumTooltip>
                                       ) : '—'}
                                     </td>
 
@@ -1220,35 +1305,54 @@ export default async function MonitorDetailPage({
                                       </td>
                                     )}
 
-                                    <td className={`cs-table-compact-td-mono text-right ${TIMING.dns.text}`}>
-                                      {s.dns_avg_ms != null ? `${Math.round(s.dns_avg_ms)}ms` : '—'}
-                                    </td>
-                                    <td className={`cs-table-compact-td-mono text-right ${TIMING.tcp.text}`}>
-                                      {s.tcp_avg_ms != null ? `${Math.round(s.tcp_avg_ms)}ms` : '—'}
-                                    </td>
-                                    <td className={`cs-table-compact-td-mono text-right ${TIMING.tls.text}`}>
-                                      {s.tls_avg_ms != null ? `${Math.round(s.tls_avg_ms)}ms` : '—'}
+                                    <td className="cs-table-compact-td-mono text-right relative group/net">
+                                      <span className="text-zinc-400 cursor-help border-b border-dashed border-zinc-700/50 hover:border-zinc-500 transition-colors pb-0.5">
+                                        {Math.round((s.dns_avg_ms || 0) + (s.tcp_avg_ms || 0) + (s.tls_avg_ms || 0))}<span className="text-[9px] ml-0.5 opacity-50 font-sans">ms</span>
+                                      </span>
+                                      {/* Glass Tooltip */}
+                                      <div className="absolute bottom-full right-0 mb-2 invisible group-hover/net:visible opacity-0 group-hover/net:opacity-100 transition-all duration-200 translate-y-2 group-hover/net:translate-y-0 z-50">
+                                        <div className="bg-[#111d32]/95 backdrop-blur-xl border border-white/10 rounded-lg p-2.5 shadow-2xl min-w-[140px] text-left">
+                                          <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-2 border-b border-white/5 pb-1">Average Breakdown</p>
+                                          <div className="space-y-1.5">
+                                            <div className="flex justify-between items-center gap-4">
+                                              <span className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-medium">
+                                                <div className="w-1 h-1 rounded-full bg-purple-500" /> DNS
+                                              </span>
+                                              <span className="text-[10px] font-mono font-bold text-zinc-300">{Math.round(s.dns_avg_ms || 0)}ms</span>
+                                            </div>
+                                            <div className="flex justify-between items-center gap-4">
+                                              <span className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-medium">
+                                                <div className="w-1 h-1 rounded-full bg-blue-500" /> TCP
+                                              </span>
+                                              <span className="text-[10px] font-mono font-bold text-zinc-300">{Math.round(s.tcp_avg_ms || 0)}ms</span>
+                                            </div>
+                                            <div className="flex justify-between items-center gap-4">
+                                              <span className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-medium">
+                                                <div className="w-1 h-1 rounded-full bg-fuchsia-500" /> TLS
+                                              </span>
+                                              <span className="text-[10px] font-mono font-bold text-zinc-300">{Math.round(s.tls_avg_ms || 0)}ms</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
                                     </td>
 
-                                    <td className="cs-table-compact-td-mono text-right text-zinc-500">
+                                    <td className="cs-table-compact-td-mono text-right text-zinc-400">
                                       {s.ttfb_min_ms != null ? (
-                                        <span className="flex flex-col leading-none">
-                                          <span className="opacity-40">{Math.round(s.ttfb_min_ms)}ms</span>
-                                          <span className="opacity-20">{Math.round(s.ttfb_max_ms || 0)}ms</span>
-                                        </span>
+                                        <PremiumTooltip content={`Min: ${Math.round(s.ttfb_min_ms)}ms / Max: ${Math.round(s.ttfb_max_ms || 0)}ms recorded`} position="top-right">
+                                          <span className="whitespace-nowrap border-b border-dashed border-zinc-800 hover:border-zinc-600 transition-colors pb-0.5 cursor-help">
+                                            {Math.round(s.ttfb_min_ms)}<span className="opacity-30 mx-1">/</span>{Math.round(s.ttfb_max_ms || 0)}<span className="text-[9px] ml-0.5 opacity-50 font-sans">ms</span>
+                                          </span>
+                                        </PremiumTooltip>
                                       ) : '—'}
-                                    </td>
-                                    <td className={`cs-table-compact-td-mono text-right ${TIMING.download.text}`}>
-                                      {s.download_avg_ms != null ? `${Math.round(s.download_avg_ms)}ms` : '—'}
-                                    </td>
-                                    <td className={`cs-table-compact-td-mono text-right font-bold ${TIMING.total.text}`}>
-                                      {s.total_avg_ms != null ? `${Math.round(s.total_avg_ms)}ms` : '—'}
                                     </td>
                                     <td className="cs-table-compact-td text-right">
                                       {s.uptime_pct != null ? (
-                                        <span className={`cs-badge ${s.uptime_pct >= 99 ? 'cs-badge-success' : 'cs-badge-error'}`}>
-                                          {Math.round(s.uptime_pct)}%
-                                        </span>
+                                        <PremiumTooltip content={`Uptime: ${Math.round(s.uptime_pct)}% of successful probes`} position="top-right">
+                                          <span className={`cs-badge-flat ${s.uptime_pct >= 99 ? 'cs-badge-flat-success' : 'cs-badge-flat-error'}`}>
+                                            {Math.round(s.uptime_pct)}%
+                                          </span>
+                                        </PremiumTooltip>
                                       ) : '—'}
                                     </td>
                                   </tr>

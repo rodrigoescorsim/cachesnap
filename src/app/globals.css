@@ -20,6 +20,11 @@
   --surface-muted: #132238;
   --surface-danger: #120d0a;
   --surface-dropdown: rgba(17, 29, 50, 0.98);
+
+  /* Metric Status Colors (Refined) */
+  --metric-fast: #34d399; /* emerald-400 */
+  --metric-med: #f59e0b; /* amber-500 */
+  --metric-slow: #fb7185; /* rose-400 */
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -67,7 +72,6 @@ body {
   .cs-card {
     @apply rounded-xl border border-border bg-surface transition-all duration-300 hover:border-zinc-700 hover:shadow-xl hover:bg-surface/80;
     position: relative;
-    overflow: hidden;
   }
 
   /** Glass surface: use with `.cs-card` (overrides solid fill). */
@@ -215,35 +219,52 @@ body {
     to { opacity: 1; transform: translateY(0); }
   }
 
-  /* Badges & Status */
+  /* Badges & Status - Neon & Saturated */
   .cs-badge {
-    @apply inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest ring-1 ring-inset transition-all;
+    @apply inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ring-inset transition-all duration-300;
   }
   .cs-badge-success {
-    @apply bg-emerald-500/10 text-emerald-400 ring-emerald-500/20;
+    @apply bg-emerald-500/20 text-emerald-300 ring-emerald-400/30 border-emerald-400/20 shadow-[0_0_12px_-3px_rgba(16,185,129,0.3)];
   }
   .cs-badge-warning {
-    @apply bg-amber-500/10 text-amber-400 ring-amber-500/20;
+    @apply bg-amber-500/20 text-amber-400 ring-amber-400/30 border-amber-400/20 shadow-[0_0_12px_-3px_rgba(245,158,11,0.2)];
   }
   .cs-badge-error {
-    @apply bg-red-500/10 text-red-400 ring-red-500/20;
+    @apply bg-red-500/20 text-red-100 ring-red-400/30 border-red-400/20 shadow-[0_0_12px_-3px_rgba(239,68,68,0.2)];
   }
   .cs-badge-info {
-    @apply bg-indigo-500/10 text-indigo-400 ring-indigo-500/20;
+    @apply bg-indigo-500/20 text-indigo-400 ring-indigo-400/30 border-indigo-400/20;
   }
   .cs-badge-muted {
     @apply bg-white/5 text-zinc-500 ring-white/10;
   }
 
+  /* Flat Badges - For secondary info (Status, Age, HTTP) */
+  .cs-badge-flat {
+    @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset transition-all;
+  }
+  .cs-badge-flat-success {
+    @apply bg-emerald-500/10 text-emerald-500/80 ring-emerald-500/20;
+  }
+  .cs-badge-flat-error {
+    @apply bg-red-500/10 text-red-400/80 ring-red-500/20;
+  }
+  .cs-badge-flat-warning {
+    @apply bg-amber-500/10 text-amber-500/80 ring-amber-500/20;
+  }
+  .cs-badge-flat-muted {
+    @apply bg-white/5 text-zinc-500 ring-white/10;
+  }
+
   /* Table Patterns */
   .cs-table-compact-th {
-    @apply px-3 py-2 text-[10px] font-black text-zinc-500 uppercase tracking-[0.1em];
+    @apply px-3 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-wider;
   }
   .cs-table-compact-td {
-    @apply px-3 py-2 text-[13px] text-zinc-300;
+    @apply px-3 py-2.5 text-[11px] font-medium text-zinc-300;
   }
   .cs-table-compact-td-mono {
-    @apply px-3 py-2 text-[11px] font-mono tabular-nums;
+    @apply px-3 py-2.5 font-mono text-[11px];
   }
 
   /* Specific Components */

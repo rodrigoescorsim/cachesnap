@@ -37,62 +37,54 @@ export const MONITOR_TABLE = {
   theadRow: 'border-b border-border bg-white/[0.02]',
   tbodyRow:
     'border-b border-border/40 transition-colors hover:bg-white/[0.02] last:border-b-0',
-  outerWrapper: 'cs-card overflow-hidden',
+  outerWrapper: 'cs-card',
   /** Softer surface (e.g. alerts list). */
-  outerWrapperMuted: 'cs-card cs-card-glass overflow-hidden',
-  innerScroll: 'relative overflow-x-auto',
+  outerWrapperMuted: 'cs-card cs-card-glass',
+  innerScroll: 'relative overflow-x-auto md:overflow-visible',
   tableBase: 'w-full text-sm',
 } as const
 
-/** Green → fast, amber → medium, red — slow (aggregate TTFB). */
+/** Green — fast, amber — medium, red — slow (aggregate TTFB). */
 export function ttfbColor(ms: number | null): string {
   if (ms == null) return 'text-zinc-400'
-  if (ms <= 200) return 'text-emerald-400'
-  if (ms <= 600) return 'text-amber-400'
-  return 'text-red-400'
+  if (ms <= 150) return 'text-emerald-400'
+  if (ms <= 250) return 'text-amber-500/90'
+  return 'text-rose-400/90'
 }
 
-/** Edge TTFB — cache hit path. */
+/** Edge TTFB — cache hit path. Same scale as core TTFB for consistency. */
 export function edgeTtfbColor(ms: number | null): string {
-  if (ms == null) return 'text-zinc-400'
-  if (ms <= 100) return 'text-emerald-400'
-  if (ms <= 200) return 'text-emerald-500'
-  if (ms <= 300) return 'text-amber-400'
-  return 'text-red-400'
+  return ttfbColor(ms)
 }
 
-/** Origin TTFB — miss / origin path. */
+/** Origin TTFB — naturally slower, but we still flag above 250ms as a slowdown. */
 export function originTtfbColor(ms: number | null): string {
-  if (ms == null) return 'text-zinc-400'
-  if (ms <= 300) return 'text-emerald-400'
-  if (ms <= 600) return 'text-emerald-500'
-  if (ms <= 900) return 'text-amber-400'
-  return 'text-red-400'
+  return ttfbColor(ms)
 }
 
 /** Real-time & Trends “Avg TTFB” — same tiers as ttfbColor(). */
 export function ttfbMetricCellClass(ms: number | null): string {
   const base = `px-3 py-2.5 text-right font-bold tabular-nums ${TTFB_COL_RAIL}`
   if (ms == null) return `${base} text-zinc-400 ${TTFB_LAYER_NEUTRAL}`
-  if (ms <= 200) return `${base} text-emerald-400 ${TTFB_LAYER_FAST}`
-  if (ms <= 600) return `${base} text-amber-400 ${TTFB_LAYER_MED}`
-  return `${base} text-red-400 ${TTFB_LAYER_SLOW}`
+  if (ms <= 150) return `${base} text-emerald-400 ${TTFB_LAYER_FAST}`
+  if (ms <= 250) return `${base} text-amber-500/90 ${TTFB_LAYER_MED}`
+  return `${base} text-rose-400/90 ${TTFB_LAYER_SLOW}`
 }
 
 /** Trends Edge TTFB column — edge tier thresholds. */
 export function edgeTtfbMetricCellClass(ms: number | null): string {
   const base = `px-3 py-2.5 text-right font-semibold tabular-nums ${TTFB_COL_RAIL}`
   if (ms == null) return `${base} text-zinc-400 ${TTFB_LAYER_NEUTRAL}`
-  if (ms <= 200) return `${base} ${edgeTtfbColor(ms)} ${TTFB_LAYER_FAST}`
-  if (ms <= 300) return `${base} ${edgeTtfbColor(ms)} ${TTFB_LAYER_MED}`
-  return `${base} ${edgeTtfbColor(ms)} ${TTFB_LAYER_SLOW}`
+  const color = ttfbColor(ms)
+  const layer = ms <= 150 ? TTFB_LAYER_FAST : ms <= 250 ? TTFB_LAYER_MED : TTFB_LAYER_SLOW
+  return `${base} ${color} ${layer}`
 }
 
 /** Trends Origin TTFB column — origin tier thresholds. */
 export function originTtfbMetricCellClass(ms: number | null): string {
   const base = `px-3 py-2.5 text-right font-semibold tabular-nums ${TTFB_COL_RAIL}`
   if (ms == null) return `${base} text-zinc-400 ${TTFB_LAYER_NEUTRAL}`
-  if (ms <= 600) return `${base} ${originTtfbColor(ms)} ${TTFB_LAYER_FAST}`
-  if (ms <= 900) return `${base} ${originTtfbColor(ms)} ${TTFB_LAYER_MED}`
-  return `${base} ${originTtfbColor(ms)} ${TTFB_LAYER_SLOW}`
+  const color = ttfbColor(ms)
+  const layer = ms <= 150 ? TTFB_LAYER_FAST : ms <= 250 ? TTFB_LAYER_MED : TTFB_LAYER_SLOW
+  return `${base} ${color} ${layer}`
 }
