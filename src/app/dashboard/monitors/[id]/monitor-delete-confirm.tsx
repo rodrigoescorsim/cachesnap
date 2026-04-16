@@ -72,7 +72,7 @@ export function MonitorDeleteConfirm({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px]"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !isPending) {
           onClose()
@@ -84,28 +84,42 @@ export function MonitorDeleteConfirm({
         aria-modal="true"
         aria-labelledby="monitor-delete-title"
         aria-describedby="monitor-delete-description"
-        className="cs-card w-full max-w-md p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+        className="cs-card w-full max-w-[420px] p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200 border-white/10"
       >
-        <div className="cs-card-wash opacity-40 bg-gradient-to-br from-red-500/10 to-transparent" />
+        <div className="cs-card-wash opacity-20 bg-gradient-to-br from-red-500/10 to-transparent" />
         
-        <form onSubmit={handleSubmit} className="relative z-10 space-y-6">
+        <form onSubmit={handleSubmit} className="relative z-10 space-y-7">
           <div className="flex items-start gap-4">
-            <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10 border border-red-500/20 text-red-400">
+            <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/10 border border-red-500/20 text-red-400">
               <Trash2 className="h-5 w-5" />
             </div>
             <div>
-              <h2 id="monitor-delete-title" className="text-lg font-bold text-white leading-tight">
+              <h2 id="monitor-delete-title" className="text-xl font-bold text-white leading-tight">
                 Remove monitor?
               </h2>
-              <p id="monitor-delete-description" className="mt-1 text-sm text-zinc-400 leading-relaxed">
-                This will permanently delete all logs, alerts, and performance data. This action cannot be undone.
+              <p id="monitor-delete-description" className="mt-2 text-sm text-zinc-400 leading-relaxed">
+                This will permanently delete all logs, alerts, and performance data for this instance.
               </p>
             </div>
           </div>
 
+          <div className="space-y-4">
+            <ul className="flex flex-wrap gap-2">
+              {['probes', 'logs', 'alerts', 'history'].map(item => (
+                <li key={item} className="rounded-md bg-white/5 border border-white/5 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                  {item}
+                </li>
+              ))}
+            </ul>
+
+            <p className="text-sm font-bold text-red-400/90">
+              This action cannot be undone.
+            </p>
+          </div>
+
           <div className="space-y-3">
-            <label htmlFor="delete-confirm-input" className="cs-label block">
-              Type <span className="text-red-400 font-black">DELETE</span> to confirm
+            <label htmlFor="delete-confirm-input" className="cs-label block opacity-60">
+              Type <span className="text-white font-black">DELETE</span> to confirm
             </label>
             <input
               id="delete-confirm-input"
@@ -116,7 +130,7 @@ export function MonitorDeleteConfirm({
               spellCheck={false}
               maxLength={6}
               placeholder="DELETE"
-              className="w-full h-11 cs-input text-center text-sm font-black tracking-widest uppercase placeholder:opacity-20 focus:border-red-500/40 focus:ring-red-500/10"
+              className="w-full h-12 cs-input text-center text-sm font-black tracking-[0.2em] uppercase placeholder:opacity-10 focus:border-red-500/40 focus:ring-red-500/10"
             />
           </div>
 
@@ -131,17 +145,17 @@ export function MonitorDeleteConfirm({
               type="button"
               onClick={onClose}
               disabled={isPending}
-              className="cs-btn bg-white/5 border-white/10 text-zinc-400 hover:bg-white/10 hover:text-white"
+              className="h-11 px-6 rounded-xl text-sm font-bold text-zinc-500 hover:text-white hover:bg-white/5 transition-all"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!canDelete || isPending}
-              className={`cs-btn px-6 font-black uppercase tracking-widest ${
+              className={`h-11 px-8 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
                 canDelete && !isPending
-                  ? 'bg-red-500 text-white border-red-600 shadow-lg shadow-red-500/20 hover:bg-red-600'
-                  : 'bg-zinc-800 text-zinc-500 border-zinc-700 cursor-not-allowed'
+                  ? 'bg-red-500 text-white border-b-2 border-red-700 shadow-xl shadow-red-500/20 hover:bg-red-600 hover:-translate-y-0.5 active:translate-y-0 active:border-b-0'
+                  : 'bg-white/5 text-zinc-600 border border-white/5 cursor-not-allowed'
               }`}
             >
               {isPending ? 'Deleting...' : 'Remove permanently'}
