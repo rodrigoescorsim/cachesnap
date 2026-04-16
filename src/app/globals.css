@@ -241,7 +241,7 @@ body {
 
   /* Flat Badges - For secondary info (Status, Age, HTTP) */
   .cs-badge-flat {
-    @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset transition-all;
+    @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold tracking-wide ring-1 ring-inset transition-all;
   }
   .cs-badge-flat-success {
     @apply bg-emerald-500/10 text-emerald-500/80 ring-emerald-500/20;

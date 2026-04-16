@@ -47,8 +47,8 @@ export const MONITOR_TABLE = {
 /** Green — fast, amber — medium, red — slow (aggregate TTFB). */
 export function ttfbColor(ms: number | null): string {
   if (ms == null) return 'text-zinc-400'
-  if (ms <= 150) return 'text-emerald-400'
-  if (ms <= 250) return 'text-amber-500/90'
+  if (ms <= 200) return 'text-emerald-400'
+  if (ms <= 350) return 'text-amber-500/90'
   return 'text-rose-400/90'
 }
 
@@ -66,8 +66,8 @@ export function originTtfbColor(ms: number | null): string {
 export function ttfbMetricCellClass(ms: number | null): string {
   const base = `px-3 py-2.5 text-right font-bold tabular-nums ${TTFB_COL_RAIL}`
   if (ms == null) return `${base} text-zinc-400 ${TTFB_LAYER_NEUTRAL}`
-  if (ms <= 150) return `${base} text-emerald-400 ${TTFB_LAYER_FAST}`
-  if (ms <= 250) return `${base} text-amber-500/90 ${TTFB_LAYER_MED}`
+  if (ms <= 200) return `${base} text-emerald-400 ${TTFB_LAYER_FAST}`
+  if (ms <= 350) return `${base} text-amber-500/90 ${TTFB_LAYER_MED}`
   return `${base} text-rose-400/90 ${TTFB_LAYER_SLOW}`
 }
 
@@ -76,7 +76,7 @@ export function edgeTtfbMetricCellClass(ms: number | null): string {
   const base = `px-3 py-2.5 text-right font-semibold tabular-nums ${TTFB_COL_RAIL}`
   if (ms == null) return `${base} text-zinc-400 ${TTFB_LAYER_NEUTRAL}`
   const color = ttfbColor(ms)
-  const layer = ms <= 150 ? TTFB_LAYER_FAST : ms <= 250 ? TTFB_LAYER_MED : TTFB_LAYER_SLOW
+  const layer = ms <= 200 ? TTFB_LAYER_FAST : ms <= 350 ? TTFB_LAYER_MED : TTFB_LAYER_SLOW
   return `${base} ${color} ${layer}`
 }
 
@@ -85,6 +85,6 @@ export function originTtfbMetricCellClass(ms: number | null): string {
   const base = `px-3 py-2.5 text-right font-semibold tabular-nums ${TTFB_COL_RAIL}`
   if (ms == null) return `${base} text-zinc-400 ${TTFB_LAYER_NEUTRAL}`
   const color = ttfbColor(ms)
-  const layer = ms <= 150 ? TTFB_LAYER_FAST : ms <= 250 ? TTFB_LAYER_MED : TTFB_LAYER_SLOW
+  const layer = ms <= 200 ? TTFB_LAYER_FAST : ms <= 350 ? TTFB_LAYER_MED : TTFB_LAYER_SLOW
   return `${base} ${color} ${layer}`
 }

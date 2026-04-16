@@ -392,11 +392,15 @@ function formatAge(seconds: number | null): string | null {
 }
 
 /** Compact Age header display for cache badge (e.g. 45s, 12m, 4h, 2d). */
-function formatCacheAgeShort(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`
-  return `${Math.round(seconds / 86400)}d`
+function formatCacheAgeShort(seconds: number): React.ReactNode {
+  const unitStyle = "text-[9px] opacity-70 ml-0.5 font-medium"
+  if (seconds < 60) return <>{seconds}<span className={unitStyle}>s</span></>
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return <>{minutes}<span className={unitStyle}>m</span></>
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return <>{hours}<span className={unitStyle}>h</span></>
+  const days = Math.floor(hours / 24)
+  return <>{days}<span className={unitStyle}>d</span></>
 }
 
 /** `Age` header semantics: seconds in shared cache. Tiers for emphasis (zombie_cache alert: age_s > 86_400). */
@@ -1017,9 +1021,6 @@ export default async function MonitorDetailPage({
                                 <PremiumTooltip content="Age header (shared cache)" position="top-center" direction="top">Age</PremiumTooltip>
                               </th>
                               <th className="cs-table-compact-th !text-center">
-                                <PremiumTooltip content="HTTP Protocol version" position="top-center" direction="top">HTTP</PremiumTooltip>
-                              </th>
-                              <th className="cs-table-compact-th !text-center">
                                 <PremiumTooltip content="HTTP status code" position="top-center" direction="top">Status</PremiumTooltip>
                               </th>
                               <th className="cs-table-compact-th !text-center">
@@ -1063,13 +1064,17 @@ export default async function MonitorDetailPage({
                                     </PremiumTooltip>
                                   </td>
                                   <td className="cs-table-compact-td text-center">
-                                    <PremiumTooltip content={cache.title} position="top-left">
-                                      <span className={`cs-badge text-[11px] px-2.5 py-1 ${
-                                        cache.text === 'HIT' ? 'cs-badge-success' : cache.text === 'MISS' || cache.text === 'EXPIRED' ? 'cs-badge-warning' : 'cs-badge-info'
-                                      }`}>
-                                        {cache.text === 'HIT' && <Zap className="w-[11px] h-[11px] fill-current" />}
-                                        {cache.text}
-                                      </span>
+                                    <PremiumTooltip content={cache.title} position="top-center" direction="top">
+                                      {cache.text === 'HIT' ? (
+                                        <span className="cs-badge cs-badge-success text-[11px] px-2.5 py-1">
+                                          <Zap className="w-[11px] h-[11px] fill-current" />
+                                          {cache.text}
+                                        </span>
+                                      ) : (
+                                        <span className="cs-badge-flat cs-badge-flat-warning text-[11px] px-2.5 py-1">
+                                          {cache.text}
+                                        </span>
+                                      )}
                                     </PremiumTooltip>
                                   </td>
                                   <td className={`${ttfbMetricCellClass(s.ttfb_ms)} !px-3 !py-2 text-[13px]`}>
@@ -1113,15 +1118,6 @@ export default async function MonitorDetailPage({
                                       </span>
                                     ) : (
                                       <span className="text-[10px] text-zinc-500 tabular-nums">—</span>
-                                    )}
-                                  </td>
-                                  <td className="cs-table-compact-td text-right">
-                                    {s.common_http_version ? (
-                                      <span className="cs-badge-flat cs-badge-flat-muted px-1.5 min-w-[32px] justify-center">
-                                        {s.common_http_version}
-                                      </span>
-                                    ) : (
-                                      <span className="text-zinc-400 text-[11px]">—</span>
                                     )}
                                   </td>
                                   <td className="cs-table-compact-td text-right">
@@ -1278,11 +1274,25 @@ export default async function MonitorDetailPage({
                                     </td>
                                     <td className="cs-table-compact-td text-center">
                                       {s.cache_hit_pct != null ? (
-                                        <PremiumTooltip content={`${s.cache_hit_pct}% of requests were served from edge cache`} position="top-left">
-                                          <span className={`cs-badge text-[11px] px-2.5 py-1 ${s.cache_hit_pct >= 80 ? 'cs-badge-success' : 'cs-badge-warning'}`}>
-                                            {s.cache_hit_pct >= 80 && <Zap className="w-[11px] h-[11px] fill-current" />}
-                                            {Math.round(s.cache_hit_pct)}%
-                                          </span>
+                                        <PremiumTooltip content={`${s.cache_hit_pct}% of requests were served from edge cache`} position="top-center" direction="top">
+                                          {Math.round(s.cache_hit_pct) >= 95 ? (
+                                            <span className="cs-badge cs-badge-success text-[11px] px-2.5 py-1">
+                                              <Zap className="w-[11px] h-[11px] fill-current" />
+                                              {Math.round(s.cache_hit_pct)}%
+                                            </span>
+                                          ) : Math.round(s.cache_hit_pct) >= 90 ? (
+                                            <span className="cs-badge-flat cs-badge-flat-success text-[11px] px-2.5 py-1">
+                                              {Math.round(s.cache_hit_pct)}%
+                                            </span>
+                                          ) : Math.round(s.cache_hit_pct) >= 50 ? (
+                                            <span className="cs-badge-flat cs-badge-flat-warning text-[11px] px-2.5 py-1">
+                                              {Math.round(s.cache_hit_pct)}%
+                                            </span>
+                                          ) : (
+                                            <span className="cs-badge-flat cs-badge-flat-danger text-[11px] px-2.5 py-1">
+                                              {Math.round(s.cache_hit_pct)}%
+                                            </span>
+                                          )}
                                         </PremiumTooltip>
                                       ) : '—'}
                                     </td>
