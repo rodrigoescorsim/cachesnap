@@ -3,7 +3,6 @@
 export type MonitorTab =
   | 'performance'
   | 'on-demand'
-  | 'resilience'
   | 'security'
   | 'settings'
   | 'incidents'

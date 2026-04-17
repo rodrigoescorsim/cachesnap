@@ -41,9 +41,8 @@ const PERFORMANCE_VIEW_ICONS: Record<PerformanceView, typeof Activity> = {
   infrastructure: Layers,
 }
 
-const TAB_LABELS: Record<'on-demand' | 'resilience' | 'security' | 'settings' | 'incidents', string> = {
+const TAB_LABELS: Record<'on-demand' | 'security' | 'settings' | 'incidents', string> = {
   'on-demand': 'On-demand',
-  resilience: 'Resilience',
   security: 'Security',
   settings: 'Settings',
   incidents: 'Alerts',
@@ -51,14 +50,13 @@ const TAB_LABELS: Record<'on-demand' | 'resilience' | 'security' | 'settings' | 
 
 const TAB_ICONS = {
   'on-demand': PlayCircle,
-  resilience: ShieldCheck,
   security: Lock,
   settings: Settings,
   incidents: AlertCircle,
 } as const
 
 /** After performance views; settings before alerts. */
-const SECONDARY_TABS = ['on-demand', 'resilience', 'security', 'settings', 'incidents'] as const
+const SECONDARY_TABS = ['on-demand', 'security', 'settings', 'incidents'] as const
 
 export interface MonitorSidebarRailProps {
   monitorId: string

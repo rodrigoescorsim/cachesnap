@@ -252,14 +252,6 @@ const SECURITY_HEADERS_LABELS: { key: keyof SecurityHeaders; label: string; desc
   { key: 'corp', label: 'CORP', description: 'Defines which origins can read the resources of your site.' },
 ]
 
-function uptimeColor(pct: number | null, errorCount: number = 0): string {
-  if (pct == null) return 'text-zinc-400'
-  if (errorCount > 5) return 'text-red-500 font-bold'
-  if (errorCount > 0) return 'text-amber-500 font-semibold'
-  if (pct >= 99.9) return 'text-emerald-500'
-  if (pct >= 99.0) return 'text-green-500'
-  return 'text-amber-500'
-}
 
 function redirectDisplay(redirectAvg: number | string | null): { text: string; tone: string } {
   if (redirectAvg == null) {
@@ -1569,28 +1561,6 @@ export default async function MonitorDetailPage({
             </div>
           )}
 
-          {activeTab === 'resilience' && (
-            <div className="space-y-8">
-              <section>
-                <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-4">
-                  Uptime Resilience
-                </h2>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                  {stats.map(s => (
-                    <div key={s.region} className="rounded-xl border border-border bg-surface p-4 shadow-sm">
-                      <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-tight mb-1">{regionLabels[s.region] ?? s.region}</p>
-                      <div className="flex items-end justify-between">
-                        <span className={`text-xl font-bold tabular-nums ${uptimeColor(s.uptime_pct)}`}>
-                          {s.uptime_pct != null ? `${s.uptime_pct}%` : '—'}
-                        </span>
-                        <span className="text-[10px] text-zinc-500 italic pb-1">24h availability</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            </div>
-          )}
 
           {activeTab === 'security' && (
             <section className="space-y-5">
