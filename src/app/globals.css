@@ -291,6 +291,64 @@ body {
     }
   }
 
+  /** Dropdowns header: 95% → 100% scale + opacity (0.2s ease); origem no canto do trigger. */
+  @keyframes cs-monitors-dropdown-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.95);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes cs-user-dropdown-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.95);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .cs-monitors-dropdown-panel {
+    animation: cs-monitors-dropdown-in 0.2s ease forwards;
+    transform-origin: top left;
+  }
+
+  .cs-user-dropdown-panel {
+    animation: cs-user-dropdown-in 0.2s ease forwards;
+    transform-origin: top right;
+  }
+
+  /** Scroll fino nos painéis de lista (Monitors, etc.) — não compete com o conteúdo. */
+  .cs-dropdown-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.25) transparent;
+  }
+
+  .cs-dropdown-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .cs-dropdown-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .cs-dropdown-scroll::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.22);
+    border-radius: 9999px;
+  }
+
+  .cs-dropdown-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.35);
+  }
+
   /* Badges & Status - Neon & Saturated */
   .cs-badge {
     @apply inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ring-inset transition-all duration-300;

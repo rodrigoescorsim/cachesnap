@@ -1,4 +1,11 @@
-export function Logo({ className = 'h-10' }: { className?: string }) {
+type LogoProps = {
+  className?: string
+  /** Wordmark ligeiramente mais forte e tracking refinado — uso típico na header. */
+  variant?: 'default' | 'header'
+}
+
+export function Logo({ className = 'h-10', variant = 'default' }: LogoProps) {
+  const header = variant === 'header'
   return (
     <div className="flex items-center">
       <svg
@@ -24,7 +31,7 @@ export function Logo({ className = 'h-10' }: { className?: string }) {
             y2="22.5"
             stroke="currentColor"
             strokeWidth="2.8"
-            strokeLinecap="miter"
+            strokeLinecap="butt"
             className="text-white"
           />
         </g>
@@ -33,9 +40,9 @@ export function Logo({ className = 'h-10' }: { className?: string }) {
           x="125"
           y="75"
           fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-          fontSize="49"
-          fontWeight="500"
-          letterSpacing="-0.6"
+          fontSize={header ? '50' : '49'}
+          fontWeight={header ? '600' : '500'}
+          letterSpacing={header ? '-0.52' : '-0.6'}
           fill="currentColor"
           className="text-white"
         >
