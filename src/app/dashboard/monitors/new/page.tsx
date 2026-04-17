@@ -51,7 +51,7 @@ export default function NewMonitorPage() {
 
   return (
     <div className="max-w-[460px] mx-auto pt-0 pb-24">
-      {/* HEADER SECTION - Sharp & Sophisticated */}
+      {/* HEADER SECTION */}
       <div className="text-center mb-6">
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-[9px] font-bold text-cyan-400 uppercase tracking-widest mb-4">
           <Zap className="h-3 w-3 fill-cyan-400" />
@@ -65,9 +65,8 @@ export default function NewMonitorPage() {
         </p>
       </div>
 
-      {/* REFINED CARD - Boutique SaaS Proportions */}
+      {/* REFINED CARD */}
       <form onSubmit={handleSubmit} className="cs-card cs-card-focus relative p-7 sm:p-9 shadow-2xl border-white/[0.08]">
-        {/* Discreet Teal Ambience */}
         <div className="absolute inset-x-0 -top-10 h-20 bg-cyan-500/5 blur-[80px] opacity-20 -z-10 pointer-events-none" />
         <div className="cs-card-wash opacity-40 bg-gradient-to-br from-cyan-500/10 via-transparent to-transparent" />
         
@@ -113,20 +112,20 @@ export default function NewMonitorPage() {
             </p>
           </div>
 
-          {/* ACTIONS - Refined Casing and Height */}
+          {/* ACTIONS - Standardized Fonts */}
           <div className="flex flex-col sm:flex-row gap-3 pt-3">
             <button
               type="submit"
               disabled={isPending}
-              className="cs-btn-action flex-[2.5] h-10"
+              className="cs-btn-action flex-[2.5] h-10 px-0 text-xs font-bold leading-none"
             >
               <div className="cs-card-wash opacity-20" />
               <div className="relative z-10 flex items-center justify-center gap-1.5">
                 {isPending ? (
-                  <span className="animate-pulse text-xs font-bold">Creating...</span>
+                  <span className="animate-pulse">Creating...</span>
                 ) : (
                   <>
-                    <span className="text-xs font-bold">Create Monitor</span>
+                    <span>Create Monitor</span>
                     <ChevronRight className="h-3.5 w-3.5" />
                   </>
                 )}
@@ -135,13 +134,13 @@ export default function NewMonitorPage() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="cs-btn-outline flex-1 h-10 border-white/5 bg-white/[0.02] text-zinc-400 text-xs font-bold"
+              className="cs-btn-outline flex-1 h-10 px-0 text-xs font-bold border-white/5 bg-white/[0.02] text-zinc-400 leading-none"
             >
               Cancel
             </button>
           </div>
 
-          <p className="text-center text-[10px] text-zinc-500 font-medium px-4 leading-relaxed italic opacity-80">
+          <p className="text-center text-[10px] text-zinc-500 font-medium px-4 leading-normal italic opacity-60">
             After creation you’ll instantly get a global performance map, cache breakdown, and smart recommendations.
           </p>
         </div>
