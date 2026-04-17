@@ -42,7 +42,7 @@ const PERFORMANCE_VIEW_ICONS: Record<PerformanceView, typeof Activity> = {
 }
 
 const TAB_LABELS: Record<'on-demand' | 'security' | 'settings' | 'incidents', string> = {
-  'on-demand': 'On-demand',
+  'on-demand': 'Instant Test',
   security: 'Security',
   settings: 'Settings',
   incidents: 'Alerts',

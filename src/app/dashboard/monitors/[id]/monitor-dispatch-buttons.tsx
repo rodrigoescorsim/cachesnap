@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
-/** Refresh (edge) + Bypass (origin) dispatch — shared by On-demand view. */
+/** Refresh (edge) + Bypass (origin) dispatch — shared by Instant Test view. */
 export function MonitorDispatchButtons({ monitorId }: { monitorId: string }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
