@@ -50,8 +50,8 @@ export default function NewMonitorPage() {
   }
 
   return (
-    <div className="max-w-[460px] mx-auto pt-6 pb-24">
-      {/* HEADER - Sharp & Minimalist */}
+    <div className="max-w-[460px] mx-auto pt-0 pb-24">
+      {/* HEADER SECTION - Sharp & Sophisticated */}
       <div className="text-center mb-6">
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-[9px] font-bold text-cyan-400 uppercase tracking-widest mb-4">
           <Zap className="h-3 w-3 fill-cyan-400" />
@@ -65,14 +65,14 @@ export default function NewMonitorPage() {
         </p>
       </div>
 
-      {/* REFINED COMPACT CARD */}
-      <form onSubmit={handleSubmit} className="cs-card cs-card-focus relative p-7 sm:p-8 shadow-2xl overflow-hidden border-white/[0.08]">
+      {/* REFINED CARD - Boutique SaaS Proportions */}
+      <form onSubmit={handleSubmit} className="cs-card cs-card-focus relative p-7 sm:p-9 shadow-2xl border-white/[0.08]">
         {/* Discreet Teal Ambience */}
         <div className="absolute inset-x-0 -top-10 h-20 bg-cyan-500/5 blur-[80px] opacity-20 -z-10 pointer-events-none" />
         <div className="cs-card-wash opacity-40 bg-gradient-to-br from-cyan-500/10 via-transparent to-transparent" />
         
         <div className="relative z-10 space-y-6">
-          {/* MONITOR URL - Precise Proportion */}
+          {/* MONITOR URL */}
           <div className="space-y-2.5">
             <label htmlFor="url" className="text-[10px] font-black tracking-widest text-zinc-500 uppercase">
               Monitor URL <span className="text-cyan-500">*</span>
@@ -90,7 +90,7 @@ export default function NewMonitorPage() {
                 className={`w-full h-10 !pl-[40px] pr-4 cs-input text-sm font-medium tracking-tight border-white/[0.08] focus:border-cyan-500/40 focus:ring-4 focus:ring-cyan-500/10 ${errors.url ? 'border-red-500/40 bg-red-500/5' : ''}`}
               />
             </div>
-            <p className="text-[10px] text-zinc-500 px-1 font-medium leading-normal opacity-60">
+            <p className="text-[10px] text-zinc-500 px-1 font-medium leading-normal opacity-70">
               CacheSnap will probe this URL from multiple global regions. Bypass checks are automatic.
             </p>
             {errors.url && <p className="mt-1.5 cs-error-msg">{errors.url}</p>}
@@ -108,25 +108,25 @@ export default function NewMonitorPage() {
               placeholder="e.g. Production Frontend • API Health"
               className="w-full h-10 cs-input text-sm border-white/[0.08] focus:border-cyan-500/40"
             />
-            <p className="text-[10px] text-zinc-500 px-1 font-medium leading-normal opacity-60">
-              A nice name to identify this monitor in your list.
+            <p className="text-[10px] text-zinc-500 px-1 font-medium opacity-70">
+              Helpful name to identify this monitor in your list.
             </p>
           </div>
 
-          {/* FINAL ACTIONS - Compact Sharp Design */}
+          {/* ACTIONS - Refined Casing and Height */}
           <div className="flex flex-col sm:flex-row gap-3 pt-3">
             <button
               type="submit"
               disabled={isPending}
-              className="cs-btn-action flex-[2.5] h-10 text-[11px] font-black tracking-wide uppercase"
+              className="cs-btn-action flex-[2.5] h-10"
             >
               <div className="cs-card-wash opacity-20" />
               <div className="relative z-10 flex items-center justify-center gap-1.5">
                 {isPending ? (
-                  <span className="animate-pulse">Initializing...</span>
+                  <span className="animate-pulse text-xs font-bold">Creating...</span>
                 ) : (
                   <>
-                    <span>Create Monitor</span>
+                    <span className="text-xs font-bold">Create Monitor</span>
                     <ChevronRight className="h-3.5 w-3.5" />
                   </>
                 )}
@@ -135,13 +135,13 @@ export default function NewMonitorPage() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="cs-btn-outline flex-1 h-10 text-[11px] font-black tracking-wide uppercase border-white/5 bg-white/[0.02] text-zinc-400"
+              className="cs-btn-outline flex-1 h-10 border-white/5 bg-white/[0.02] text-zinc-400 text-xs font-bold"
             >
               Cancel
             </button>
           </div>
 
-          <p className="text-center text-[10px] text-zinc-500 font-medium px-4 leading-normal italic opacity-60">
+          <p className="text-center text-[10px] text-zinc-500 font-medium px-4 leading-relaxed italic opacity-80">
             After creation you’ll instantly get a global performance map, cache breakdown, and smart recommendations.
           </p>
         </div>
