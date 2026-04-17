@@ -32,6 +32,7 @@ import {
   TrendingUp,
   Zap,
   Fingerprint,
+  Lightbulb,
   Settings,
 } from 'lucide-react'
 import {
@@ -204,18 +205,18 @@ const TAB_LABELS: Record<MonitorTab, string> = {
 const TAB_ICONS: Record<MonitorTab, any> = {
   performance: Activity,
   'on-demand': PlayCircle,
+  insights: Lightbulb,
   security: Lock,
   settings: Settings,
   incidents: AlertCircle,
 }
 
-const VALID_PERFORMANCE_VIEWS = ['real-time', 'trends', 'diagnostics', 'infrastructure'] as const satisfies readonly PerformanceView[]
+const VALID_PERFORMANCE_VIEWS = ['real-time', 'trends', 'edge-audit'] as const satisfies readonly PerformanceView[]
 
 const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   'real-time': 'Live',
   trends: 'Trends',
-  diagnostics: 'Diagnostics',
-  infrastructure: 'Infrastructure',
+  'edge-audit': 'Edge Audit',
 }
 
 /** Monitor title card — subtle top wash + glass (Vercel-style). Densidade ~tool (menos padding vertical). */
@@ -678,7 +679,7 @@ export default async function MonitorDetailPage({
     ORDER BY bucket ASC, region ASC
   `
 
-  const hourlyBypass = (activeView === 'infrastructure' || activeView === 'diagnostics')
+  const hourlyBypass = (activeView === 'edge-audit')
     ? await sql<{ hour: Date; region: string; edge_ttfb: number; origin_ttfb: number; savings: number; edge_cache_status: string | null; origin_cache_status: string | null }[]>`
         SELECT
           date_trunc('hour', time) AS hour,
@@ -953,7 +954,7 @@ export default async function MonitorDetailPage({
 
           {/* CACHE HIT RATE CARD */}
           <Link
-            href={buildViewHref('infrastructure', range, monitor.id)}
+            href={buildViewHref('edge-audit', range, monitor.id)}
             scroll={false}
             className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
           >
@@ -1519,17 +1520,7 @@ export default async function MonitorDetailPage({
                 </div>
               )}
 
-              {activeView === 'diagnostics' && (
-                <div className="space-y-4">
-                  {waterfallProbes.length > 0 ? (
-                    <ProbeWaterfall probes={waterfallProbes} regionLabels={regionLabels} />
-                  ) : (
-                    <p className="text-sm text-zinc-400 italic">No diagnostic data available yet.</p>
-                  )}
-                </div>
-              )}
-
-              {activeView === 'infrastructure' && (
+              {activeView === 'edge-audit' && (
                 <div className="space-y-10">
                   <BypassAudit data={hourlyBypass} regionLabels={regionLabels} />
                 </div>
@@ -1542,6 +1533,25 @@ export default async function MonitorDetailPage({
               <MonitorOnDemandPanel monitorId={monitor.id} />
             </div>
           )}
+
+          {/* Insights — reserved for AI-powered actionable recommendations */}
+          {activeTab === 'insights' && (
+            <div className="flex flex-col items-center justify-center gap-6 py-20 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-500/20 bg-cyan-500/5 shadow-lg shadow-cyan-500/10">
+                <Lightbulb className="h-6 w-6 text-cyan-400" />
+              </div>
+              <div className="space-y-2 max-w-xs">
+                <h3 className="text-sm font-bold text-zinc-200">Insights coming soon</h3>
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  AI-powered analysis of your cache strategy, latency patterns and actionable recommendations — in plain language.
+                </p>
+              </div>
+              <span className="rounded-full border border-cyan-500/20 bg-cyan-500/5 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-cyan-500/60">
+                In development
+              </span>
+            </div>
+          )}
+
 
           {activeTab === 'settings' && (
             <div>
