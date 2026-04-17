@@ -16,6 +16,7 @@ use axum::{
 use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::sync::broadcast;
+use axum::http::{HeaderValue, Method, header};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -62,14 +63,25 @@ async fn main() -> Result<()> {
     tokio::spawn(scheduler::runner::start(state.clone()));
     tokio::spawn(baseline::calculator::run(state.clone()));
 
+    let allowed_origin: HeaderValue = config
+        .app_url
+        .parse()
+        .expect("APP_URL is not a valid HTTP origin");
+
+    let cors = CorsLayer::new()
+        .allow_origin(allowed_origin)
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
+        .allow_credentials(true);
+
     // Router
     let app = Router::new()
         .route("/health", get(routes::health::handler))
-        .route("/api/events", get(routes::events::handler)) // Nova rota SSE!
+        .route("/api/events", get(routes::events::handler))
         .route("/api/ingest", post(routes::ingest::handler))
         .route("/api/monitors/active", get(routes::monitors::list_active))
         .route("/api/monitors/:id/dispatch", post(routes::dispatch::handler))
-        .layer(CorsLayer::permissive())
+        .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { extractPop, detectCdn, popToCity } from './edge-helpers'
+import { extractPop, popToCity, detectCdnProvider } from './edge-helpers'
 
 describe('extractPop', () => {
   it('extracts IATA code from a standard CF-Ray', () => {
@@ -55,24 +55,24 @@ describe('popToCity', () => {
   })
 })
 
-describe('detectCdn', () => {
+describe('detectCdnProvider', () => {
   it('identifies Cloudflare from CF-Ray format', () => {
-    expect(detectCdn('87c1d4a2b3c4d5e6-GRU')).toBe('Cloudflare')
-    expect(detectCdn('abc123def456789a-IAD')).toBe('Cloudflare')
+    expect(detectCdnProvider({ servedBy: '87c1d4a2b3c4d5e6-GRU' })).toBe('Cloudflare')
+    expect(detectCdnProvider({ servedBy: 'abc123def456789a-IAD' })).toBe('Cloudflare')
   })
 
   it('identifies Fastly from cache- prefix', () => {
-    expect(detectCdn('cache-lax8632-LAX')).toBe('Fastly')
-    expect(detectCdn('cache-gru1-GRU')).toBe('Fastly')
+    expect(detectCdnProvider({ servedBy: 'cache-lax8632-LAX' })).toBe('Fastly')
+    expect(detectCdnProvider({ servedBy: 'cache-gru1-GRU' })).toBe('Fastly')
   })
 
   it('returns null for null input', () => {
-    expect(detectCdn(null)).toBeNull()
+    expect(detectCdnProvider({ servedBy: null })).toBeNull()
   })
 
   it('returns null for unrecognized formats', () => {
-    expect(detectCdn('some-random-value')).toBeNull()
-    expect(detectCdn('nginx/1.21')).toBeNull()
-    expect(detectCdn('')).toBeNull()
+    expect(detectCdnProvider({ servedBy: 'some-random-value' })).toBeNull()
+    expect(detectCdnProvider({ servedBy: 'nginx/1.21' })).toBeNull()
+    expect(detectCdnProvider({ servedBy: '' })).toBeNull()
   })
 })

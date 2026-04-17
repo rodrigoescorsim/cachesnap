@@ -5,21 +5,15 @@ use axum::{
 };
 use serde_json::json;
 
-use crate::{models::probe_result::ProbeResultPayload, AppState};
+use crate::{models::probe_result::ProbeResultPayload, routes::auth, AppState};
 
 pub async fn handler(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(payload): Json<ProbeResultPayload>,
 ) -> impl IntoResponse {
-    // Validar probe secret
-    let secret = headers
-        .get("x-probe-secret")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    if secret != state.config.probe_secret {
-        return (StatusCode::UNAUTHORIZED, Json(json!({ "error": "unauthorized" }))).into_response();
+    if let Err(e) = auth::require_probe_secret(&headers, &state.config) {
+        return e;
     }
 
     // Trava de Segurança: Rejeitar probes antigos (ex: Cloudflare Workers fantasmas)

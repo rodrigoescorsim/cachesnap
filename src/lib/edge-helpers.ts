@@ -118,9 +118,4 @@ export function popToCity(iata: string | null): string | null {
   return POP_CITY_MAP[iata.toUpperCase()] || iata
 }
 
-/** @deprecated Prefer `detectCdnProvider` with full header signals when available. */
-export function detectCdn(servedBy: string | null): string | null {
-  return detectCdnProvider({ servedBy })
-}
-
 export { detectCdnProvider, resolveCdnLabel } from './cdn-providers'

@@ -52,16 +52,6 @@ export function ttfbColor(ms: number | null): string {
   return 'text-rose-400/90'
 }
 
-/** Edge TTFB — cache hit path. Same scale as core TTFB for consistency. */
-export function edgeTtfbColor(ms: number | null): string {
-  return ttfbColor(ms)
-}
-
-/** Origin TTFB — naturally slower, but we still flag above 250ms as a slowdown. */
-export function originTtfbColor(ms: number | null): string {
-  return ttfbColor(ms)
-}
-
 /** Real-time & Trends “Avg TTFB” — same tiers as ttfbColor(). */
 export function ttfbMetricCellClass(ms: number | null): string {
   const base = `px-3 py-2.5 text-right font-bold tabular-nums ${TTFB_COL_RAIL}`
@@ -71,20 +61,12 @@ export function ttfbMetricCellClass(ms: number | null): string {
   return `${base} text-rose-400/90 ${TTFB_LAYER_SLOW}`
 }
 
-/** Trends Edge TTFB column — edge tier thresholds. */
+/** Trends Edge/Origin TTFB columns — same tiers as ttfbColor(), semibold weight. */
 export function edgeTtfbMetricCellClass(ms: number | null): string {
   const base = `px-3 py-2.5 text-right font-semibold tabular-nums ${TTFB_COL_RAIL}`
   if (ms == null) return `${base} text-zinc-400 ${TTFB_LAYER_NEUTRAL}`
-  const color = ttfbColor(ms)
   const layer = ms <= 200 ? TTFB_LAYER_FAST : ms <= 350 ? TTFB_LAYER_MED : TTFB_LAYER_SLOW
-  return `${base} ${color} ${layer}`
+  return `${base} ${ttfbColor(ms)} ${layer}`
 }
 
-/** Trends Origin TTFB column — origin tier thresholds. */
-export function originTtfbMetricCellClass(ms: number | null): string {
-  const base = `px-3 py-2.5 text-right font-semibold tabular-nums ${TTFB_COL_RAIL}`
-  if (ms == null) return `${base} text-zinc-400 ${TTFB_LAYER_NEUTRAL}`
-  const color = ttfbColor(ms)
-  const layer = ms <= 200 ? TTFB_LAYER_FAST : ms <= 350 ? TTFB_LAYER_MED : TTFB_LAYER_SLOW
-  return `${base} ${color} ${layer}`
-}
+export const originTtfbMetricCellClass = edgeTtfbMetricCellClass

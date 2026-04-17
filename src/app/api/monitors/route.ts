@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { unauthorized } from '@/lib/api-auth'
 import sql from '@/lib/db'
 
 const createSchema = z.object({
@@ -25,7 +26,7 @@ function normalizeMonitorUrl(rawUrl: string): string {
 
 export async function GET() {
   const user = await getSession()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!user) return unauthorized()
 
   const monitors = await sql`
     SELECT id, url, name, check_interval_seconds, audit_interval_seconds, is_active, created_at
@@ -39,7 +40,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const user = await getSession()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!user) return unauthorized()
 
   let body: unknown
   try { body = await request.json() } catch {

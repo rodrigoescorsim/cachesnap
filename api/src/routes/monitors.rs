@@ -8,7 +8,7 @@ use serde::Serialize;
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::AppState;
+use crate::{routes::auth, AppState};
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct ActiveMonitor {
@@ -23,13 +23,8 @@ pub async fn list_active(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    let secret = headers
-        .get("x-probe-secret")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    if secret != state.config.probe_secret {
-        return (StatusCode::UNAUTHORIZED, Json(json!({ "error": "unauthorized" }))).into_response();
+    if let Err(e) = auth::require_probe_secret(&headers, &state.config) {
+        return e;
     }
 
     let result = sqlx::query_as!(

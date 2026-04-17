@@ -187,7 +187,4 @@ export function problemsSummary(monitor: MonitorSummary): MetricSummary {
   }
 }
 
-function getHostname(monitor: MonitorSummary): string {
-  return monitor.name ?? new URL(monitor.url).hostname
-}
 
