@@ -15,16 +15,19 @@
   --brand-error: #EF4444;
   --brand-warning: #F59E0B;
   --brand-info: #0EA5E9;
-  
+
   /* Specialized Surfaces */
   --surface-muted: #132238;
   --surface-danger: #120d0a;
   --surface-dropdown: rgba(17, 29, 50, 0.98);
 
   /* Metric Status Colors (Refined) */
-  --metric-fast: #34d399; /* emerald-400 */
-  --metric-med: #f59e0b; /* amber-500 */
-  --metric-slow: #fb7185; /* rose-400 */
+  --metric-fast: #34d399;
+  /* emerald-400 */
+  --metric-med: #f59e0b;
+  /* amber-500 */
+  --metric-slow: #fb7185;
+  /* rose-400 */
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -34,7 +37,7 @@
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-border: var(--border);
-  
+
   /* --font-inter vem de next/font/google em layout.tsx; fallback se a variável não existir */
   --font-sans: var(--font-inter), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
@@ -49,6 +52,10 @@
   --spacing-8: 32px;
   --spacing-10: 40px;
   --spacing-12: 48px;
+  --spacing-14: 56px;
+  --spacing-16: 64px;
+  --spacing-9: 36px;
+  --spacing-11: 44px;
 }
 
 body {
@@ -59,8 +66,13 @@ body {
 
 @layer utilities {
   @keyframes flash-highlight {
-    0% { background-color: rgba(16, 185, 129, 0.25); }
-    100% { background-color: transparent; }
+    0% {
+      background-color: rgba(16, 185, 129, 0.25);
+    }
+
+    100% {
+      background-color: transparent;
+    }
   }
 
   .animate-flash-highlight {
@@ -123,6 +135,26 @@ body {
     @apply opacity-50 bg-white/[0.02] cursor-not-allowed border-white/5 pointer-events-none;
   }
 
+  .cs-btn-primary {
+    @apply relative overflow-hidden inline-flex items-center justify-center rounded-lg px-5 py-2 text-sm font-bold text-white transition-all duration-300 border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 hover:border-emerald-500/50 hover:shadow-[0_0_30px_-5px_rgba(16,185,129,0.25)] active:scale-[0.98] cursor-pointer;
+  }
+
+  .cs-btn-action {
+    @apply relative overflow-hidden inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 px-8 py-4 text-base font-bold text-white transition-all duration-300 hover:from-cyan-500 hover:to-teal-500 hover:shadow-[0_0_40px_-5px_rgba(34,211,238,0.3)] active:scale-[0.98] cursor-pointer ring-1 ring-white/10;
+  }
+
+  .cs-btn-outline {
+    @apply relative overflow-hidden inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-8 py-4 text-base font-bold text-zinc-300 transition-all duration-200 hover:bg-white/10 hover:border-white/20 active:scale-[0.98] cursor-pointer;
+  }
+
+  .cs-input-premium {
+    @apply bg-white/[0.03] border border-white/10 text-white transition-all duration-300 relative z-10 rounded-xl px-4 text-base focus:outline-none focus:border-cyan-500/50 focus:ring-4 focus:ring-cyan-500/10 focus:scale-[1.01] placeholder:text-zinc-600;
+  }
+
+  .cs-info-box {
+    @apply flex gap-3 p-4 rounded-xl border border-white/[0.05] bg-white/[0.02] items-start;
+  }
+
   .cs-btn-danger {
     @apply bg-red-500/10 border border-red-500/25 text-red-400/90 px-3.5 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-all duration-200 hover:bg-red-500/15 hover:border-red-500/40 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(255,0,0,0.1)] active:translate-y-0;
   }
@@ -167,24 +199,29 @@ body {
     background-color: color-mix(in srgb, var(--brand-success) 12%, transparent);
     color: color-mix(in srgb, var(--brand-success) 58%, #f8fafc);
   }
+
   .cs-tint-success:hover {
     background-color: color-mix(in srgb, var(--brand-success) 18%, transparent);
   }
+
   .cs-tint-warning {
     @apply rounded-lg border;
     border-color: color-mix(in srgb, var(--brand-warning) 22%, transparent);
     background-color: color-mix(in srgb, var(--brand-warning) 12%, transparent);
     color: color-mix(in srgb, var(--brand-warning) 55%, #f8fafc);
   }
+
   .cs-tint-warning:hover {
     background-color: color-mix(in srgb, var(--brand-warning) 18%, transparent);
   }
+
   .cs-tint-error {
     @apply rounded-lg border;
     border-color: color-mix(in srgb, var(--brand-error) 22%, transparent);
     background-color: color-mix(in srgb, var(--brand-error) 12%, transparent);
     color: color-mix(in srgb, var(--brand-error) 52%, #f8fafc);
   }
+
   .cs-tint-error:hover {
     background-color: color-mix(in srgb, var(--brand-error) 18%, transparent);
   }
@@ -215,26 +252,38 @@ body {
   }
 
   @keyframes cs-fade-in {
-    from { opacity: 0; transform: translateY(-4px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   /* Badges & Status - Neon & Saturated */
   .cs-badge {
     @apply inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ring-inset transition-all duration-300;
   }
+
   .cs-badge-success {
     @apply bg-emerald-500/20 text-emerald-300 ring-emerald-400/30 border-emerald-400/20 shadow-[0_0_12px_-3px_rgba(16,185,129,0.3)];
   }
+
   .cs-badge-warning {
     @apply bg-amber-500/20 text-amber-400 ring-amber-400/30 border-amber-400/20 shadow-[0_0_12px_-3px_rgba(245,158,11,0.2)];
   }
+
   .cs-badge-error {
     @apply bg-red-500/20 text-red-100 ring-red-400/30 border-red-400/20 shadow-[0_0_12px_-3px_rgba(239,68,68,0.2)];
   }
+
   .cs-badge-info {
     @apply bg-indigo-500/20 text-indigo-400 ring-indigo-400/30 border-indigo-400/20;
   }
+
   .cs-badge-muted {
     @apply bg-white/5 text-zinc-500 ring-white/10;
   }
@@ -243,15 +292,19 @@ body {
   .cs-badge-flat {
     @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold tracking-wide ring-1 ring-inset transition-all;
   }
+
   .cs-badge-flat-success {
     @apply bg-emerald-500/10 text-emerald-500/80 ring-emerald-500/20;
   }
+
   .cs-badge-flat-danger {
     @apply bg-red-500/15 text-red-500 ring-red-500/30;
   }
+
   .cs-badge-flat-warning {
     @apply bg-amber-500/10 text-amber-500/80 ring-amber-500/20;
   }
+
   .cs-badge-flat-muted {
     @apply bg-white/5 text-zinc-500 ring-white/10;
   }
@@ -260,9 +313,11 @@ body {
   .cs-table-compact-th {
     @apply px-3 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-wider;
   }
+
   .cs-table-compact-td {
     @apply px-3 py-2.5 text-[11px] font-medium text-zinc-300;
   }
+
   .cs-table-compact-td-mono {
     @apply px-3 py-2.5 font-mono text-[11px];
   }
@@ -271,7 +326,7 @@ body {
   .cs-status-badge {
     @apply inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold ring-1 ring-inset;
   }
-  
+
   .cs-pop-tag {
     @apply inline-flex items-center rounded bg-white/5 px-1.5 py-0.5 text-[9px] font-bold text-zinc-400 ring-1 ring-inset ring-white/10 tracking-wide;
   }

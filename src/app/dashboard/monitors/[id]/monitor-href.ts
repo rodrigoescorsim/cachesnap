@@ -17,21 +17,25 @@ export function buildMonitorHref(
   range: string,
   alertType: AlertType | null = null,
   hash: string = '',
+  monitorId: string | null = null,
 ): string {
   const params = new URLSearchParams()
   params.set('tab', tab)
-  if (range === '7d') params.set('range', '7d')
+  if (range && range !== '24h') params.set('range', range)
   if (tab === 'incidents' && alertType) params.set('alert_type', alertType)
   const query = params.toString()
-  const base = query ? `?${query}` : '?'
-  return hash ? `${base}${hash.startsWith('#') ? hash : `#${hash}`}` : base
+  const base = query ? `?${query}` : ''
+  const path = monitorId ? `/dashboard/monitors/${monitorId}` : ''
+  const full = `${path}${base}`
+  return hash ? `${full}${hash.startsWith('#') ? hash : `#${hash}`}` : full
 }
 
-export function buildViewHref(view: PerformanceView, range: string): string {
+export function buildViewHref(view: PerformanceView, range: string, monitorId: string | null = null): string {
   const params = new URLSearchParams()
   params.set('tab', 'performance')
   params.set('view', view)
   if (range && range !== '24h') params.set('range', range)
   const query = params.toString()
-  return query ? `?${query}` : '?'
+  const path = monitorId ? `/dashboard/monitors/${monitorId}` : ''
+  return `${path}?${query}`
 }

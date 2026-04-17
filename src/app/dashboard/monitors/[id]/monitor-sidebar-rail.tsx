@@ -61,6 +61,7 @@ const TAB_ICONS = {
 const SECONDARY_TABS = ['on-demand', 'resilience', 'security', 'settings', 'incidents'] as const
 
 export interface MonitorSidebarRailProps {
+  monitorId: string
   range: string
   activeTab: MonitorTab
   activeView: PerformanceView
@@ -68,6 +69,7 @@ export interface MonitorSidebarRailProps {
 }
 
 export function MonitorSidebarRail({
+  monitorId,
   range,
   activeTab,
   activeView,
@@ -147,7 +149,7 @@ export function MonitorSidebarRail({
               return (
                 <li key={v}>
                   <Link
-                    href={buildViewHref(v, range)}
+                    href={buildViewHref(v, range, monitorId)}
                     title={narrow ? label : undefined}
                     className={`group flex items-center rounded-lg py-2 text-xs font-bold transition-all duration-300 ${linkPad} ${
                       isActive
@@ -177,7 +179,7 @@ export function MonitorSidebarRail({
               return (
                 <li key={tab}>
                   <Link
-                    href={buildMonitorHref(tab, range, tab === 'incidents' ? filteredAlertType : null)}
+                    href={buildMonitorHref(tab, range, tab === 'incidents' ? filteredAlertType : null, '', monitorId)}
                     title={narrow ? label : undefined}
                     className={`group flex items-center rounded-lg py-2 text-xs font-bold transition-all duration-300 ${linkPad} ${
                       isActive

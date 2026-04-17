@@ -26,10 +26,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="min-h-full flex flex-col">
       <header className="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 flex items-center justify-between h-16">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 flex items-center justify-between h-12">
           <div className="flex items-center gap-8">
             <Link href="/dashboard" className="transition-opacity hover:opacity-80">
-              <Logo className="h-11" />
+              <Logo className="h-9" />
             </Link>
             <nav className="hidden sm:flex items-center gap-4">
               <Link
@@ -55,7 +55,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
       </header>
 
-      <main className="flex-1 mx-auto w-full max-w-6xl px-4 sm:px-6 py-8">
+      <main className="flex-1 mx-auto w-full max-w-6xl px-4 sm:px-6 pt-[26px] pb-8">
         {children}
       </main>
     </div>

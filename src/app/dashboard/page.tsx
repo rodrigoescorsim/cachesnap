@@ -122,7 +122,7 @@ export default async function DashboardPage() {
   })
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <RealTimeHub userId={user.id} />
       <AutoRefresh intervalMs={300_000} /> {/* Fallback lento a cada 5m */}
 
@@ -148,9 +148,10 @@ export default async function DashboardPage() {
           </div>
           <Link
             href="/dashboard/monitors/new"
-            className="inline-flex items-center justify-center rounded-lg bg-gradient-to-br from-[#1E3A8A] to-[#0E7490] px-5 py-2.5 text-sm font-semibold text-white/90 transition-all duration-200 border border-white/5 hover:border-white/10 hover:from-[#1E40AF] hover:to-[#0891B2] hover:-translate-y-0.5"
+            className="cs-btn-primary"
           >
-            + Create monitor
+            <div className="cs-card-wash opacity-20" />
+            <span className="relative z-10">+ Create monitor</span>
           </Link>
         </div>
       </section>

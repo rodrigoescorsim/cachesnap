@@ -221,7 +221,7 @@ const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
 
 /** Monitor title card — subtle top wash + glass (Vercel-style). Densidade ~tool (menos padding vertical). */
 const MONITOR_HEADER_CARD =
-  'cs-card cs-card-glass px-5 py-3.5 relative'
+  'cs-card cs-card-glass px-5 py-2.5 relative'
 
 /** Status pills in the monitor title bar — consistent shell + interactive hover. */
 const MONITOR_HEADER_STATUS_BADGE =
@@ -830,14 +830,14 @@ export default async function MonitorDetailPage({
   const cacheDelta = hasHistory ? globalHitRate - prevGlobalHitRate : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <RealTimeHub userId={user.id} watchId={monitor.id} />
       <AutoRefresh />
       <div className={`${MONITOR_HEADER_CARD} min-w-0`}>
         {/* Uma linha: contexto (esq.) | estado + ações (dir.) — alinhamento tipo SaaS */}
         <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="min-w-0 max-w-full shrink sm:max-w-[min(100%,28rem)] sm:pr-2">
-            <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.5px] text-zinc-900 dark:text-zinc-50">
+            <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.5px] text-zinc-900 dark:text-zinc-50">
               {monitorDisplayName}
             </h1>
             <p className="mt-0.5 truncate text-[13px] tracking-tight text-zinc-600 opacity-60 dark:text-zinc-400">
@@ -896,103 +896,122 @@ export default async function MonitorDetailPage({
       </div>
 
       {!isCollecting && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* HEALTH SCORE CARD */}
-          <div className="cs-card p-5 group">
-            <div className="cs-card-wash opacity-40" />
-            <div className="relative z-10">
-              <div className="flex items-start justify-between">
-                <PremiumTooltip content="Weighted performance score based on availability and network latency thresholds">
-                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 hover:border-zinc-500 cursor-help transition-colors">Health Score</p>
-                </PremiumTooltip>
-                <Activity className={`h-4 w-4 ${healthScore > 90 ? 'text-emerald-400' : 'text-amber-400'}`} />
-              </div>
-              <div className="flex items-baseline gap-2 mt-2">
-                <span className="text-3xl font-bold text-white tracking-tight">{healthScore}/<span className="text-zinc-600">100</span></span>
-                {hasHistory && healthDelta !== 0 && (
-                  <PremiumTooltip content={`${healthDelta > 0 ? '+' : ''}${healthDelta}% compared to the previous ${range}`} position="top-center" direction="top">
-                    <span className={`text-[11px] font-bold cursor-help ${healthDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {healthDelta > 0 ? '↑' : '↓'} {Math.abs(healthDelta)}%
-                    </span>
-                  </PremiumTooltip>
-                )}
-              </div>
-              <p className="text-[11px] text-zinc-500 mt-2 font-medium">Global infrastructure stability</p>
-            </div>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] flex items-center gap-2">
+              <History className="h-3 w-3" />
+              Monitor Overview • Last {range}
+            </h2>
           </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* HEALTH SCORE CARD */}
+            <Link
+              href={buildMonitorHref('performance', range, null, '', monitor.id)}
+              scroll={false}
+              className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
+            >
+              <div className="cs-card-wash opacity-40" />
+              <div className="relative z-10">
+                <div className="flex items-start justify-between">
+                  <PremiumTooltip content={`Weighted performance score based on availability and latency during the last ${range}`}>
+                    <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 group-hover:border-zinc-500 cursor-help transition-colors">Health Score</p>
+                  </PremiumTooltip>
+                  <Activity className={`h-4 w-4 ${healthScore > 90 ? 'text-emerald-400' : 'text-amber-400'}`} />
+                </div>
+                <div className="flex items-baseline gap-2 mt-1.5">
+                  <span className="text-[26px] font-bold text-white tracking-tight">{healthScore}/<span className="text-zinc-600">100</span></span>
+                  {hasHistory && healthDelta !== 0 && (
+                    <PremiumTooltip content={`${healthDelta > 0 ? '+' : ''}${healthDelta}% compared to the prior period`} position="top-center" direction="top">
+                      <span className={`text-[11px] font-bold cursor-help ${healthDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {healthDelta > 0 ? '↑' : '↓'} {Math.abs(healthDelta)}%
+                      </span>
+                    </PremiumTooltip>
+                  )}
+                </div>
+                <p className="text-[11px] text-zinc-500 mt-1 font-medium">Global infrastructure stability</p>
+              </div>
+            </Link>
 
           {/* GLOBAL TTFB CARD */}
-          <div className="cs-card p-5 group">
+          <Link 
+            href={buildViewHref('trends', range, monitor.id)}
+            scroll={false}
+            className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
+          >
             <div className="cs-card-wash opacity-40" />
             <div className="relative z-10">
               <div className="flex items-start justify-between">
-                <PremiumTooltip content="Global average Time to First Byte across all monitored regions">
-                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 hover:border-zinc-500 cursor-help transition-colors">Global TTFB</p>
+                <PremiumTooltip content={`Global average Time to First Byte during the last ${range}`}>
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 group-hover:border-zinc-500 cursor-help transition-colors">Global TTFB</p>
                 </PremiumTooltip>
                 <Zap className={`h-4 w-4 ${avgTtfb < 200 ? 'text-emerald-400' : avgTtfb < 500 ? 'text-amber-400' : 'text-red-400'}`} />
               </div>
-              <div className="flex items-baseline gap-2 mt-2">
-                <span className="text-3xl font-bold text-white tracking-tight">{avgTtfb}<span className="text-lg ml-0.5 text-zinc-500">ms</span></span>
+              <div className="flex items-baseline gap-2 mt-1.5">
+                <span className="text-[26px] font-bold text-white tracking-tight">{avgTtfb}<span className="text-lg ml-0.5 text-zinc-500">ms</span></span>
                 {hasHistory && ttfbDelta !== 0 && (
-                  <PremiumTooltip content={`${ttfbDelta > 0 ? '+' : '-'}${Math.abs(ttfbDelta)}ms compared to the previous ${range}`} position="top-center" direction="top">
+                  <PremiumTooltip content={`${ttfbDelta > 0 ? '+' : '-'}${Math.abs(ttfbDelta)}ms compared to the prior period`} position="top-center" direction="top">
                     <span className={`text-[11px] font-bold cursor-help ${ttfbDelta <= 0 ? 'text-emerald-400' : 'text-amber-500'}`}>
                       {ttfbDelta <= 0 ? '↓' : '↑'} {Math.abs(ttfbDelta)}ms
                     </span>
                   </PremiumTooltip>
                 )}
               </div>
-              <p className="text-[11px] text-zinc-500 mt-2 font-medium">Network latency across {stats.length} regions</p>
+              <p className="text-[11px] text-zinc-500 mt-1 font-medium">Latency across {stats.length} regions</p>
             </div>
-          </div>
+          </Link>
 
           {/* CACHE HIT RATE CARD */}
-          <div className="cs-card p-5 group">
+          <Link
+            href={buildViewHref('infrastructure', range, monitor.id)}
+            scroll={false}
+            className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
+          >
             <div className="cs-card-wash opacity-60 bg-gradient-to-br from-emerald-500/5 to-transparent" />
             <div className="relative z-10">
               <div className="flex items-start justify-between">
-                <PremiumTooltip content="Overall percentage of requests successfully served from CDN edge cache">
-                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 hover:border-zinc-500 cursor-help transition-colors">Cache Hit Rate</p>
+                <PremiumTooltip content={`Percentage of requests successfully served from CDN edge cache during the last ${range}`}>
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 group-hover:border-zinc-500 cursor-help transition-colors">Cache Hit Rate</p>
                 </PremiumTooltip>
                 <ShieldCheck className="h-4 w-4 text-emerald-400" />
               </div>
-              <div className="flex items-baseline gap-2 mt-2">
-                <span className="text-3xl font-bold text-white tracking-tight">{globalHitRate}<span className="text-lg ml-0.5 text-zinc-500">%</span></span>
+              <div className="flex items-baseline gap-2 mt-1.5">
+                <span className="text-[26px] font-bold text-white tracking-tight">{globalHitRate}<span className="text-lg ml-0.5 text-zinc-500">%</span></span>
                 {hasHistory && cacheDelta !== 0 && (
-                  <PremiumTooltip content={`${cacheDelta > 0 ? '+' : ''}${cacheDelta}% compared to the previous ${range}`} position="top-center" direction="top">
+                  <PremiumTooltip content={`${cacheDelta > 0 ? '+' : ''}${cacheDelta}% compared to the prior period`} position="top-center" direction="top">
                     <span className={`text-[11px] font-bold cursor-help ${cacheDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                       {cacheDelta >= 0 ? '↑' : '↓'} {Math.abs(cacheDelta)}%
                     </span>
                   </PremiumTooltip>
                 )}
               </div>
-              <p className="text-[11px] text-zinc-500 mt-2 font-medium">Total edge delivery efficiency</p>
+              <p className="text-[11px] text-zinc-500 mt-1 font-medium">Total edge delivery efficiency</p>
             </div>
-          </div>
+          </Link>
 
           {/* ACTIVE ALERTS CARD */}
-          <div className="cs-card p-5 group">
+          <Link
+            href={buildMonitorHref('incidents', range, null, '', monitor.id)}
+            scroll={false}
+            className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
+          >
             <div className={`cs-card-wash ${alerts.length > 0 ? 'opacity-40 bg-gradient-to-br from-red-500/10 to-transparent' : 'opacity-40'}`} />
             <div className="relative z-10">
               <div className="flex items-start justify-between">
-                <PremiumTooltip content="Count of anomalous events or performance degradations detected in the last specified period">
-                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 hover:border-zinc-500 cursor-help transition-colors">Active Alerts</p>
+                <PremiumTooltip content={`Count of anomalous events or failures detected during the last ${range}`}>
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 group-hover:border-zinc-500 cursor-help transition-colors">Active Alerts</p>
                 </PremiumTooltip>
                 <AlertTriangle className={`h-4 w-4 ${alerts.length > 0 ? 'text-red-400' : 'text-emerald-400'}`} />
               </div>
-              <div className="flex items-baseline gap-2 mt-2">
-                <span className={`text-3xl font-bold tracking-tight ${alerts.length > 0 ? 'text-red-400' : 'text-white'}`}>
+              <div className="flex items-baseline gap-2 mt-1.5">
+                <span className={`text-[26px] font-bold tracking-tight ${alerts.length > 0 ? 'text-red-400' : 'text-white'}`}>
                   {alerts.length === 0 ? 'Clean' : alerts.length}
                 </span>
-                {alerts.length > 0 && (
-                  <PremiumTooltip content={`Total alerts detected during the last ${range}`} position="top-center" direction="top">
-                    <span className="text-[11px] font-bold text-zinc-500 cursor-help underline decoration-zinc-700 decoration-dashed underline-offset-2">Last {range}</span>
-                  </PremiumTooltip>
-                )}
               </div>
-              <p className="text-[11px] text-zinc-500 mt-2 font-medium">Real-time anomaly detection</p>
+              <p className="text-[11px] text-zinc-500 mt-1 font-medium">Real-time anomaly detection</p>
             </div>
-          </div>
+          </Link>
         </div>
+      </div>
       )}
 
       {isCollecting && (
@@ -1010,6 +1029,7 @@ export default async function MonitorDetailPage({
 
       <div className="grid gap-8 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start">
         <MonitorSidebarRail
+          monitorId={monitor.id}
           range={range}
           activeTab={activeTab}
           activeView={activeView}

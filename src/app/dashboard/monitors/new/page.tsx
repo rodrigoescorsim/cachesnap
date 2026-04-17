@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
+import { Globe, Zap, ChevronRight } from 'lucide-react'
 
 export default function NewMonitorPage() {
   const router = useRouter()
@@ -15,8 +16,6 @@ export default function NewMonitorPage() {
     const formData = new FormData(e.currentTarget)
     const url = formData.get('url') as string
     const name = formData.get('name') as string
-    const check_interval_seconds = Number(formData.get('check_interval_seconds'))
-    const audit_interval_seconds = Number(formData.get('audit_interval_seconds'))
   
     if (!url) {
       setErrors({ url: 'URL is required' })
@@ -35,8 +34,8 @@ export default function NewMonitorPage() {
         body: JSON.stringify({
           url,
           name: name || undefined,
-          check_interval_seconds: check_interval_seconds || 180,
-          audit_interval_seconds: audit_interval_seconds || 1800,
+          check_interval_seconds: 180,
+          audit_interval_seconds: 1800,
         }),
       })
   
@@ -51,95 +50,100 @@ export default function NewMonitorPage() {
   }
 
   return (
-    <div className="max-w-lg">
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">Add monitor</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          CacheSnap will probe your URL from multiple global regions.
+    <div className="max-w-[460px] mx-auto pt-6 pb-24">
+      {/* HEADER - Sharp & Minimalist */}
+      <div className="text-center mb-6">
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-[9px] font-bold text-cyan-400 uppercase tracking-widest mb-4">
+          <Zap className="h-3 w-3 fill-cyan-400" />
+          Lightning Fast Setup
+        </div>
+        <h1 className="text-2xl font-black text-white tracking-tight mb-2">
+          Add New Monitor
+        </h1>
+        <p className="text-[13px] text-zinc-400 leading-relaxed px-4 opacity-70">
+          Paste your URL and in less than <span className="text-white font-semibold">60 seconds</span> see latency by region, cache status (HIT/MISS), and actionable insights.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div>
-          <label htmlFor="url" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            URL <span className="text-red-500">*</span>
-          </label>
-          <input
-            id="url"
-            name="url"
-            type="url"
-            placeholder="https://example.com"
-            required
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
-          />
-          <p className="mt-1 text-xs text-zinc-400">
-            Bypass checks are automatic. Use the normal URL only.
+      {/* REFINED COMPACT CARD */}
+      <form onSubmit={handleSubmit} className="cs-card cs-card-focus relative p-7 sm:p-8 shadow-2xl overflow-hidden border-white/[0.08]">
+        {/* Discreet Teal Ambience */}
+        <div className="absolute inset-x-0 -top-10 h-20 bg-cyan-500/5 blur-[80px] opacity-20 -z-10 pointer-events-none" />
+        <div className="cs-card-wash opacity-40 bg-gradient-to-br from-cyan-500/10 via-transparent to-transparent" />
+        
+        <div className="relative z-10 space-y-6">
+          {/* MONITOR URL - Precise Proportion */}
+          <div className="space-y-2.5">
+            <label htmlFor="url" className="text-[10px] font-black tracking-widest text-zinc-500 uppercase">
+              Monitor URL <span className="text-cyan-500">*</span>
+            </label>
+            <div className="group relative">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-cyan-400 transition-colors z-20">
+                <Globe className="h-4 w-4" />
+              </div>
+              <input
+                id="url"
+                name="url"
+                type="url"
+                placeholder="https://api.yourbase.com/v1/health"
+                required
+                className={`w-full h-10 !pl-[40px] pr-4 cs-input text-sm font-medium tracking-tight border-white/[0.08] focus:border-cyan-500/40 focus:ring-4 focus:ring-cyan-500/10 ${errors.url ? 'border-red-500/40 bg-red-500/5' : ''}`}
+              />
+            </div>
+            <p className="text-[10px] text-zinc-500 px-1 font-medium leading-normal opacity-60">
+              CacheSnap will probe this URL from multiple global regions. Bypass checks are automatic.
+            </p>
+            {errors.url && <p className="mt-1.5 cs-error-msg">{errors.url}</p>}
+          </div>
+
+          {/* FRIENDLY NAME */}
+          <div className="space-y-2.5">
+            <label htmlFor="name" className="text-[10px] font-black tracking-widest text-zinc-500 uppercase">
+              Friendly Name <span className="opacity-40 ml-1">(optional)</span>
+            </label>
+            <input
+              id="name"
+              name="name"
+              type="text"
+              placeholder="e.g. Production Frontend • API Health"
+              className="w-full h-10 cs-input text-sm border-white/[0.08] focus:border-cyan-500/40"
+            />
+            <p className="text-[10px] text-zinc-500 px-1 font-medium leading-normal opacity-60">
+              A nice name to identify this monitor in your list.
+            </p>
+          </div>
+
+          {/* FINAL ACTIONS - Compact Sharp Design */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-3">
+            <button
+              type="submit"
+              disabled={isPending}
+              className="cs-btn-action flex-[2.5] h-10 text-[11px] font-black tracking-wide uppercase"
+            >
+              <div className="cs-card-wash opacity-20" />
+              <div className="relative z-10 flex items-center justify-center gap-1.5">
+                {isPending ? (
+                  <span className="animate-pulse">Initializing...</span>
+                ) : (
+                  <>
+                    <span>Create Monitor</span>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </>
+                )}
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="cs-btn-outline flex-1 h-10 text-[11px] font-black tracking-wide uppercase border-white/5 bg-white/[0.02] text-zinc-400"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <p className="text-center text-[10px] text-zinc-500 font-medium px-4 leading-normal italic opacity-60">
+            After creation you’ll instantly get a global performance map, cache breakdown, and smart recommendations.
           </p>
-          {errors.url && <p className="mt-1 text-xs text-red-500">{errors.url}</p>}
-        </div>
-
-        <div>
-          <label htmlFor="name" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-            Name <span className="text-zinc-400">(optional)</span>
-          </label>
-          <input
-            id="name"
-            name="name"
-            type="text"
-            placeholder="My API"
-            className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="check_interval_seconds" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Monitoring interval
-            </label>
-            <select
-              id="check_interval_seconds"
-              name="check_interval_seconds"
-              defaultValue={180}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
-            >
-              <option value={60}>1 minute</option>
-              <option value={180}>3 minutes</option>
-              <option value={300}>5 minutes</option>
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="audit_interval_seconds" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-              Audit (Bypass) interval
-            </label>
-            <select
-              id="audit_interval_seconds"
-              name="audit_interval_seconds"
-              defaultValue={1800}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
-            >
-              <option value={900}>15 minutes</option>
-              <option value={1800}>30 minutes</option>
-              <option value={3600}>60 minutes</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="flex gap-3 pt-2">
-          <button
-            type="submit"
-            disabled={isPending}
-            className="rounded-lg bg-zinc-900 dark:bg-zinc-800 border dark:border-zinc-700/50 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:hover:bg-zinc-700 disabled:opacity-50 transition-colors"
-          >
-            {isPending ? 'Creating…' : 'Create monitor'}
-          </button>
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-          >
-            Cancel
-          </button>
         </div>
       </form>
     </div>
