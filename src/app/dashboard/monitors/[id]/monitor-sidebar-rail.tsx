@@ -28,7 +28,7 @@ const STORAGE_KEY = 'cachesnap.monitor-sidebar-rail'
 const VALID_PERFORMANCE_VIEWS = ['real-time', 'trends', 'diagnostics', 'infrastructure'] as const
 
 const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
-  'real-time': 'Real-time',
+  'real-time': 'Live',
   trends: 'Trends',
   diagnostics: 'Diagnostics',
   infrastructure: 'Infrastructure',

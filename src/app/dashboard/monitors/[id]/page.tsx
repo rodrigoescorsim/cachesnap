@@ -204,7 +204,6 @@ const TAB_LABELS: Record<MonitorTab, string> = {
 const TAB_ICONS: Record<MonitorTab, any> = {
   performance: Activity,
   'on-demand': PlayCircle,
-  resilience: ShieldCheck,
   security: Lock,
   settings: Settings,
   incidents: AlertCircle,
@@ -213,7 +212,7 @@ const TAB_ICONS: Record<MonitorTab, any> = {
 const VALID_PERFORMANCE_VIEWS = ['real-time', 'trends', 'diagnostics', 'infrastructure'] as const satisfies readonly PerformanceView[]
 
 const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
-  'real-time': 'Real-time',
+  'real-time': 'Live',
   trends: 'Trends',
   diagnostics: 'Diagnostics',
   infrastructure: 'Infrastructure',
@@ -859,7 +858,7 @@ export default async function MonitorDetailPage({
                 </div>
               </PremiumTooltip>
 
-              <PremiumTooltip content="Real-time data stream — Live Performance updates" position="top-left">
+              <PremiumTooltip content="Live data stream — Instant Performance updates" position="top-left">
                 <Link
                   href={buildMonitorHref('performance', range)}
                   className={MONITOR_HEADER_STATUS_BADGE}
@@ -999,7 +998,7 @@ export default async function MonitorDetailPage({
                   {alerts.length === 0 ? 'Clean' : alerts.length}
                 </span>
               </div>
-              <p className="text-[11px] text-zinc-500 mt-1 font-medium">Real-time anomaly detection</p>
+              <p className="text-[11px] text-zinc-500 mt-1 font-medium">Live anomaly detection</p>
             </div>
           </Link>
         </div>
