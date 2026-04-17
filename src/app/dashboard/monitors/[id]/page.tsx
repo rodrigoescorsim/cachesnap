@@ -19,6 +19,7 @@ import {
   type PerformanceView,
 } from './monitor-href'
 import { TIMING } from './timing-metrics-palette'
+import { getRegions } from '@/lib/regions'
 import { VisualGlow } from '../../visual-glow'
 import {
   Activity,
@@ -156,28 +157,6 @@ interface SecurityByRegion {
   served_by: string | null
   cdn_provider: string | null
   sampled_at: Date
-}
-
-const REGION_DESCRIPTIONS: Record<string, string> = {
-  'sa-east': 'South America — AWS sa-east-1 (São Paulo, BR)',
-  'us-east': 'US East — AWS us-east-2 (Ohio, US)',
-  'us-west': 'US West — AWS us-west-2 (Oregon, US)',
-  'eu-west': 'Europe — AWS eu-central-1 (Frankfurt, DE)',
-  'ap-south': 'India — AWS ap-south-1 (Mumbai, IN)',
-  'ap-east': 'Asia Pacific — AWS ap-northeast-1 (Tokyo, JP)',
-  'oc': 'Oceania — AWS ap-southeast-2 (Sydney, AU)',
-  'af-south': 'Africa — AWS af-south-1 (Cape Town, ZA)',
-}
-
-const REGION_LABELS: Record<string, string> = {
-  'sa-east': 'São Paulo',
-  'eu-west': 'Frankfurt',
-  'us-east': 'Ohio',
-  'us-west': 'Oregon',
-  'ap-east': 'Tokyo',
-  'ap-south': 'Mumbai',
-  'oc': 'Sydney',
-  'af-south': 'Cape Town',
 }
 
 function formatCertDate(iso: string | undefined): string {
@@ -537,6 +516,11 @@ export default async function MonitorDetailPage({
     FROM monitors WHERE id = ${id} AND user_id = ${user.id} LIMIT 1
   `
   if (!monitor) notFound()
+
+  const regionRows = await getRegions()
+  const regionLabels = Object.fromEntries(regionRows.map(r => [r.id, r.label]))
+  const regionDescriptions = Object.fromEntries(regionRows.map(r => [r.id, r.description]))
+  const regionMeta = Object.fromEntries(regionRows.map(r => [r.id, { label: r.label, color: r.color }]))
 
   const stats = await sql<RegionStat[]>`
     SELECT
@@ -1109,8 +1093,8 @@ export default async function MonitorDetailPage({
                                   className={MONITOR_TABLE.tbodyRow}
                                 >
                                   <td className="cs-table-compact-td font-bold text-zinc-200">
-                                    <PremiumTooltip content={REGION_DESCRIPTIONS[s.region] ?? s.region} position="top-left">
-                                      {REGION_LABELS[s.region] ?? s.region}
+                                    <PremiumTooltip content={regionDescriptions[s.region] ?? s.region} position="top-left">
+                                      {regionLabels[s.region] ?? s.region}
                                     </PremiumTooltip>
                                   </td>
                                   <td className="cs-table-compact-td text-center">
@@ -1336,9 +1320,9 @@ export default async function MonitorDetailPage({
                                     className={MONITOR_TABLE.tbodyRow}
                                   >
                                     <td className="cs-table-compact-td">
-                                      <PremiumTooltip content={REGION_DESCRIPTIONS[s.region] ?? s.region} position="top-left">
+                                      <PremiumTooltip content={regionDescriptions[s.region] ?? s.region} position="top-left">
                                         <span className="font-bold text-zinc-200">
-                                          {REGION_LABELS[s.region] ?? s.region}
+                                          {regionLabels[s.region] ?? s.region}
                                         </span>
                                       </PremiumTooltip>
                                     </td>
@@ -1466,7 +1450,7 @@ export default async function MonitorDetailPage({
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         Performance trends
                       </h2>
-                      <TtfbChart data={chartPoints} range={range} />
+                      <TtfbChart data={chartPoints} range={range} regionMeta={regionMeta} />
                     </section>
                   )}
 
@@ -1483,7 +1467,7 @@ export default async function MonitorDetailPage({
                                 {new Date(spike.bucket).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
                               </span>
                               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 truncate">
-                                {REGION_LABELS[spike.region] ?? spike.region}
+                                {regionLabels[spike.region] ?? spike.region}
                               </span>
                             </div>
                             <div className="flex items-center gap-3 shrink-0 tabular-nums text-xs">
@@ -1506,7 +1490,7 @@ export default async function MonitorDetailPage({
                         {weekTrend.map(t => (
                           <div key={t.region} className="flex items-center justify-between px-4 py-3 gap-4">
                             <span className="text-sm text-zinc-700 dark:text-zinc-300 font-medium min-w-[120px]">
-                              {REGION_LABELS[t.region] ?? t.region}
+                              {regionLabels[t.region] ?? t.region}
                             </span>
                             <div className="flex items-center gap-3 tabular-nums text-sm">
                               <span className="text-zinc-400 text-xs">{t.previous_avg_ms}ms → {t.current_avg_ms}ms</span>
@@ -1527,7 +1511,7 @@ export default async function MonitorDetailPage({
               {activeView === 'diagnostics' && (
                 <div className="space-y-4">
                   {waterfallProbes.length > 0 ? (
-                    <ProbeWaterfall probes={waterfallProbes} />
+                    <ProbeWaterfall probes={waterfallProbes} regionLabels={regionLabels} />
                   ) : (
                     <p className="text-sm text-zinc-400 italic">No diagnostic data available yet.</p>
                   )}
@@ -1536,7 +1520,7 @@ export default async function MonitorDetailPage({
 
               {activeView === 'infrastructure' && (
                 <div className="space-y-10">
-                  <BypassAudit data={hourlyBypass} regionLabels={REGION_LABELS} />
+                  <BypassAudit data={hourlyBypass} regionLabels={regionLabels} />
                 </div>
               )}
             </div>
@@ -1574,7 +1558,7 @@ export default async function MonitorDetailPage({
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                   {stats.map(s => (
                     <div key={s.region} className="rounded-xl border border-border bg-surface p-4 shadow-sm">
-                      <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-tight mb-1">{REGION_LABELS[s.region] ?? s.region}</p>
+                      <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-tight mb-1">{regionLabels[s.region] ?? s.region}</p>
                       <div className="flex items-end justify-between">
                         <span className={`text-xl font-bold tabular-nums ${uptimeColor(s.uptime_pct)}`}>
                           {s.uptime_pct != null ? `${s.uptime_pct}%` : '—'}
@@ -1792,7 +1776,7 @@ export default async function MonitorDetailPage({
                             )}
                             <div className="flex -space-x-2">
                               {mainProfile.regions.map(r => (
-                                <div key={r} title={REGION_LABELS[r]} className="flex h-6 w-6 cursor-help items-center justify-center rounded-full border-2 border-white bg-emerald-500 text-[8px] font-bold text-white shadow-sm dark:border-zinc-950">
+                                <div key={r} title={regionLabels[r]} className="flex h-6 w-6 cursor-help items-center justify-center rounded-full border-2 border-white bg-emerald-500 text-[8px] font-bold text-white shadow-sm dark:border-zinc-950">
                                   {r.split('-').map(p => p[0].toUpperCase()).join('')}
                                 </div>
                               ))}
@@ -1872,7 +1856,7 @@ export default async function MonitorDetailPage({
                                 <div className="flex gap-1">
                                   {prof.regions.map(r => (
                                     <span key={r} className="text-[10px] font-bold bg-white dark:bg-zinc-900 px-1.5 py-0.5 rounded border border-red-100 dark:border-red-900/50 text-red-600">
-                                      {REGION_LABELS[r]}
+                                      {regionLabels[r]}
                                     </span>
                                   ))}
                                 </div>
@@ -2055,7 +2039,7 @@ export default async function MonitorDetailPage({
                               </td>
                               <td className="px-4 py-3.5">
                                 <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                                  {REGION_LABELS[alert.region] ?? alert.region}
+                                  {regionLabels[alert.region] ?? alert.region}
                                 </span>
                               </td>
                               <td className="px-4 py-3.5">

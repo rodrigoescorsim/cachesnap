@@ -27,17 +27,6 @@ export interface WaterfallProbe {
   probed_at: Date | null
 }
 
-const REGION_LABELS: Record<string, string> = {
-  'sa-east': 'South America',
-  'eu-west': 'Europe',
-  'us-east': 'US East',
-  'us-west': 'US West',
-  'ap-east': 'Asia Pacific',
-  'ap-south': 'India',
-  'oc': 'Oceania',
-  'af-south': 'Africa',
-}
-
 // ── segment palette (for legend + bars) — matches timing-metrics-palette ───
 const SEGS = {
   dns:      { bg: TIMING.dns.bar,      label: 'DNS Lookup' },
@@ -51,7 +40,7 @@ const SEGS = {
 
 // ── main component ───────────────────────────────────────────────────────────
 
-export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
+export function ProbeWaterfall({ probes, regionLabels }: { probes: WaterfallProbe[]; regionLabels: Record<string, string> }) {
   if (probes.length === 0) return null
 
   // Scale: max total_ms across all regions (floor 100ms for readability)
@@ -126,7 +115,7 @@ export function ProbeWaterfall({ probes }: { probes: WaterfallProbe[] }) {
 
           const pop = extractPop(probe.served_by)
           const cdnLabel = resolveCdnLabel(probe.cdn_provider, probe.served_by)
-          const regionLabel = REGION_LABELS[probe.region] ?? probe.region
+          const regionLabel = regionLabels[probe.region] ?? probe.region
           const age = formatAge(probe.age_s)
           const isZombie = probe.age_s != null && probe.age_s > 86_400
 

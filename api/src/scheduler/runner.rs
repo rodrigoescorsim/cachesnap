@@ -1,26 +1,51 @@
-// Scheduler: a cada intervalo configurado por monitor, dispara os probes
-// nas regiões ativas chamando os Cloudflare Workers.
-//
-// Implementação completa vem no Dia 4 do cronograma.
-// Por ora: stub para compilar e estrutura comentada.
+// Scheduler: a cada segundo verifica monitores ativos e dispara probes
+// em paralelo para todas as regiões habilitadas (tabela `regions` no banco).
 
 use crate::AppState;
 use crate::models::monitor::Monitor;
 use tokio::time::{interval, Duration};
 use deadpool_redis::redis::cmd;
 use serde_json::json;
-use tracing::{info, error, debug};
+use tracing::{info, warn, error, debug};
+
+pub async fn fetch_regions(db: &sqlx::PgPool) -> Vec<(String, String)> {
+    match sqlx::query_as!(
+        crate::models::region::Region,
+        "SELECT id, lambda_url FROM regions WHERE enabled = true AND lambda_url != '' ORDER BY id"
+    )
+    .fetch_all(db)
+    .await
+    {
+        Ok(rows) => {
+            let regions: Vec<_> = rows.into_iter().map(|r| (r.id, r.lambda_url)).collect();
+            if regions.is_empty() {
+                warn!("No enabled regions with lambda_url found — probes will not be dispatched until regions are configured");
+            }
+            regions
+        }
+        Err(e) => {
+            error!("Failed to fetch regions from db: {e} — no probes will be dispatched this cycle");
+            vec![]
+        }
+    }
+}
 
 pub async fn start(state: AppState) {
     info!("Scheduler started — probe dispatch loop initialized");
-    
+
     let mut ticker = interval(Duration::from_secs(1));
-    
-    let regions = build_regions(&state);
+    let mut regions = fetch_regions(&state.db).await;
+    let mut tick_count = 0u64;
 
     loop {
         ticker.tick().await;
-        
+        tick_count += 1;
+
+        // Refresh regions from DB every 60 seconds
+        if tick_count % 60 == 0 {
+            regions = fetch_regions(&state.db).await;
+        }
+
         let monitors = match sqlx::query_as!(
             Monitor,
             r#"SELECT id as "id!", user_id as "user_id!", url as "url!", name,
@@ -114,21 +139,6 @@ async fn should_run_bypass(state: &AppState, monitor: &Monitor) -> bool {
     .unwrap_or(true);
 
     !has_history
-}
-
-pub fn build_regions(state: &AppState) -> Vec<(String, String)> {
-    let all = vec![
-        ("sa-east".to_string(),  state.config.region_sa_east.clone()),
-        ("eu-west".to_string(),  state.config.region_eu_west.clone()),
-        ("us-east".to_string(),  state.config.region_us_east.clone()),
-        ("us-west".to_string(),  state.config.region_us_west.clone()),
-        ("ap-east".to_string(),  state.config.region_ap_east.clone()),
-        ("ap-south".to_string(), state.config.region_ap_south.clone()),
-        ("oc".to_string(),       state.config.region_oc.clone()),
-        ("af-south".to_string(), state.config.region_af_south.clone()),
-    ];
-    // Filter out regions with empty URLs (not yet configured)
-    all.into_iter().filter(|(_, url)| !url.is_empty()).collect()
 }
 
 pub async fn dispatch_probes(state: &AppState, monitor: &Monitor, regions: Vec<(String, String)>, run_bypass: bool, is_manual: bool) {

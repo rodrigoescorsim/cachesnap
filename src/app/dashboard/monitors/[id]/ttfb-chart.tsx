@@ -15,26 +15,9 @@ export interface ChartPoint {
   cache_hit_pct: number | null
 }
 
-const REGION_COLORS: Record<string, string> = {
-  'sa-east':  '#f59e0b',
-  'eu-west':  '#3b82f6',
-  'us-east':  '#10b981',
-  'us-west':  '#06b6d4',
-  'ap-east':  '#8b5cf6',
-  'ap-south': '#ec4899',
-  'oc':       '#f43f5e',
-  'af-south': '#a855f7',
-}
-
-const REGION_LABELS: Record<string, string> = {
-  'sa-east':  'South America',
-  'eu-west':  'Europe',
-  'us-east':  'US East',
-  'us-west':  'US West',
-  'ap-east':  'Asia Pacific',
-  'ap-south': 'India',
-  'oc':       'Oceania',
-  'af-south': 'Africa',
+interface RegionRenderMeta {
+  label: string
+  color: string
 }
 
 // SVG viewport
@@ -43,7 +26,7 @@ const PAD = { top: 12, right: 16, bottom: 32, left: 48 }
 const CW = W - PAD.left - PAD.right
 const CH = H - PAD.top  - PAD.bottom
 
-export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }) {
+export function TtfbChart({ data, range, regionMeta }: { data: ChartPoint[]; range: string; regionMeta: Record<string, RegionRenderMeta> }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
@@ -168,9 +151,9 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
               return (
                 <div key={region} className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: REGION_COLORS[region] }} />
+                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: regionMeta[region]?.color ?? '#6b7280' }} />
                     <span className="text-[10px] font-medium text-zinc-400 capitalize whitespace-nowrap">
-                      {REGION_LABELS[region]?.split(' ')[0] ?? region}
+                      {(regionMeta[region]?.label ?? region).split(' ')[0]}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 tabular-nums">
@@ -213,7 +196,7 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
                   const m = byRegion[region]
                   if (!m) return null
                   const points = allBuckets.map((b, i) => m.has(b) ? `${toX(i)},${toYTtfb(m.get(b)!.ttfb_avg)}` : null).filter(Boolean).join(' ')
-                  return <polyline key={region} points={points} fill="none" stroke={REGION_COLORS[region]} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={hoveredIdx === null ? 1 : byRegion[region]?.has(allBuckets[hoveredIdx]) ? 1 : 0.2} />
+                  return <polyline key={region} points={points} fill="none" stroke={regionMeta[region]?.color ?? '#6b7280'} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={hoveredIdx === null ? 1 : byRegion[region]?.has(allBuckets[hoveredIdx]) ? 1 : 0.2} />
                 })}
               </svg>
             </div>
@@ -239,7 +222,7 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
                   const points = allBuckets.map((b, i) => m.has(b)
                     ? `${toX(i)},${toYNet((m.get(b)!.dns_avg ?? 0) + (m.get(b)!.tcp_avg ?? 0) + (m.get(b)!.tls_avg ?? 0))}`
                     : null).filter(Boolean).join(' ')
-                  return <polyline key={region} points={points} fill="none" stroke={REGION_COLORS[region]} strokeWidth={1} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={0.2} />
+                  return <polyline key={region} points={points} fill="none" stroke={regionMeta[region]?.color ?? '#6b7280'} strokeWidth={1} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={0.2} />
                 })}
               </svg>
             </div>
@@ -266,7 +249,7 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
                     return p && p.cache_hit_pct != null ? `${toX(i)},${toYPct(p.cache_hit_pct)}` : null
                   }).filter(Boolean).join(' ')
                   if (!points) return null
-                  return <polyline key={region} points={points} fill="none" stroke={REGION_COLORS[region]} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={hoveredIdx === null ? 1 : byRegion[region]?.has(allBuckets[hoveredIdx]) ? 1 : 0.2} />
+                  return <polyline key={region} points={points} fill="none" stroke={regionMeta[region]?.color ?? '#6b7280'} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={hoveredIdx === null ? 1 : byRegion[region]?.has(allBuckets[hoveredIdx]) ? 1 : 0.2} />
                 })}
               </svg>
             </div>
@@ -279,9 +262,9 @@ export function TtfbChart({ data, range }: { data: ChartPoint[]; range: string }
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           {regions.map(region => (
             <div key={region} className="flex items-center gap-1.5 border-b border-transparent hover:border-border transition-colors cursor-default">
-              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: REGION_COLORS[region] }} />
+              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: regionMeta[region]?.color ?? '#6b7280' }} />
               <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">
-                {REGION_LABELS[region] ?? region}
+                {regionMeta[region]?.label ?? region}
               </span>
             </div>
           ))}

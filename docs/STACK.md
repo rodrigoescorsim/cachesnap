@@ -9,9 +9,10 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  PROBES (Cloudflare Workers)                                    │
-│  5 regiões: GRU / FRA / IAD / NRT / SYD                        │
-│  Mede: TTFB, cache status, headers de diagnóstico               │
+│  PROBES (AWS Lambda — Node.js 20, arm64)                        │
+│  N regiões (tabela `regions`): sa-east · us-east · us-west ·    │
+│  eu-west · ap-east · ap-south · oc · af-south (+ novas)         │
+│  Mede: DNS, TCP, TLS, TTFB, download, cache, headers, security  │
 │  → POST /api/ingest  (com PROBE_SECRET no header)               │
 └────────────────────────┬────────────────────────────────────────┘
                          │
@@ -19,10 +20,12 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │  API RUST (axum)  — porta 3001                                  │
 │  ├─ POST /api/ingest          → persiste no TimescaleDB         │
-│  ├─ GET  /api/monitors/active → lista monitors p/ CF Worker     │
+│  ├─ GET  /api/monitors/active → lista monitors ativos           │
 │  ├─ GET  /health              → status da API                   │
-│  ├─ scheduler/         → dispara probes (tokio task)            │
-│  ├─ baseline/          → calcula avg/stddev por região          │
+│  ├─ GET  /api/events          → SSE fan-out por user_id         │
+│  ├─ POST /api/monitors/:id/dispatch → disparo on-demand         │
+│  ├─ scheduler/         → loop 1s, Redis Lua atômico             │
+│  ├─ baseline/          → calcula avg/stddev por região (hourly) │
 │  ├─ diagnosis/engine   → regras de inferência (rule-based)      │
 │  └─ alerts/            → detecta anomalias + notifica           │
 └────────┬──────────────────────────────┬────────────────────────┘
@@ -46,27 +49,34 @@
 
 ### 🔄 Scheduler & Probes
 
-O Scheduler ([runner.rs](file:///c:/workspace/CacheSnap/api/src/scheduler/runner.rs)) é o coração do sistema de monitoramento:
-- **Loop de 10s**: Verifica no PostgreSQL todos os monitores ativos.
-- **Atomicidade com Redis**: Usa um script Lua para verificar e atualizar o timestamp do último check (`last_check:ID`) de forma atômica. Isso evita que múltiplos nós de API disparem o mesmo probe simultaneamente em um ambiente escalado.
-- **Dispatch Regional**: Para cada monitor devido, dispara requisições HTTP POST para os Workers nas 5 regiões configuradas.
-- **Configuração**: As URLs dos workers são configuráveis via variáveis de ambiente `REGION_SA_EAST`, `REGION_EU_WEST`, etc.
+O Scheduler (`api/src/scheduler/runner.rs`) é o coração do sistema de monitoramento:
+- **Loop de 1s**: A cada iteração, consulta no PostgreSQL os monitores ativos (o intervalo entre checks de um mesmo monitor continua sendo `check_interval_seconds`, aplicado via Redis Lua).
+- **Atomicidade com Redis**: Usa um script Lua para verificar e atualizar o timestamp do último check (`last_check:ID`) de forma atômica. Evita dispatches duplicados em ambientes escalados.
+- **Dispatch Regional**: Para cada monitor devido, dispara requisições HTTP POST para as Lambda Function URLs de todas as regiões habilitadas (lidas da tabela `regions`).
+- **Bypass inteligente**: Disparo de bypass audit (origin comparison) limitado a 1×/hora via Redis; forçado no primeiro probe se não há histórico.
+- **Regiões dinâmicas**: URLs e metadados das Lambdas vivem na tabela `regions` do banco (não mais em env vars). Adicionar uma região = `INSERT INTO regions` + criar a Lambda na AWS.
 
-Os Probes ([index.ts](file:///c:/workspace/CacheSnap/workers/probe/src/index.ts)) rodam em Cloudflare Workers:
-- **Modo HTTP**: Recebe `monitor_id` e `url`, executa o probe e envia o resultado de volta para o endpoint `/api/ingest`.
-- **Métricas**: TTFB, download, redirects, status de cache e headers de diagnóstico.
+Os Probes (`probes/lambda/index.mjs`) rodam como AWS Lambda (Node.js 20, arm64):
+- **Métricas de rede**: `dns_ms`, `tcp_ms`, `tls_ms` via `net.Socket` nativo — diferencial vs. Cloudflare Workers.
+- **Timing completo**: `ttfb_ms`, `download_ms`, `total_ms`, `redirect_count`.
+- **Cache**: `cache_status` de múltiplos CDNs (CF-Cache-Status, X-Vercel-Cache, X-Cache, etc.).
+- **Headers de diagnóstico**: `served_by` (PoP), `server_timing`, `http_version`, `content_length`.
+- **Security**: `security_headers` JSONB (HSTS, CSP, X-Frame-Options, etc.) + `age_s` (zombie cache detection).
+- **CDN detection**: `cdn_provider` detectado por heurística de headers.
+
+> **Legado:** `workers/probe/` (Cloudflare Workers, 5 regiões) — descontinuado em Abril/2026. Mantido apenas como referência histórica. Limitações que motivaram a migração: Anycast Trap (sem separação geográfica real) e ausência de acesso a `net.Socket` (dns_ms/tls_ms sempre null).
 
 ---
 
 ## Estrutura de arquivos
 
 ```
-CacheSnap/
+cachesnap/
 ├── src/                            ← Next.js 16 App Router
-│   ├── proxy.ts                    ← proteção de rotas /dashboard/* (Next.js 16: middleware→proxy)
 │   ├── app/
 │   │   ├── layout.tsx              ← metadata + fontes Geist
-│   │   ├── page.tsx                ← redireciona → /login ou /dashboard
+│   │   ├── page.tsx                ← landing page (hero + test form) ou redirect para /dashboard
+│   │   ├── hero-url-form.tsx       ← Client Component do formulário hero
 │   │   ├── actions/
 │   │   │   └── auth.ts             ← Server Actions: signup, login, logout
 │   │   ├── (auth)/                 ← route group (layout centralizado)
@@ -75,51 +85,72 @@ CacheSnap/
 │   │   │   └── signup/page.tsx
 │   │   ├── dashboard/
 │   │   │   ├── layout.tsx          ← nav + verificação de sessão
-│   │   │   ├── page.tsx            ← overview: narrativa conselheiro + cards
+│   │   │   ├── page.tsx            ← overview: cards com borda de estado
+│   │   │   ├── real-time-hub.tsx   ← SSE client (EventSource → debounced router.refresh)
+│   │   │   ├── auto-refresh.tsx    ← polling quando collecting data
+│   │   │   ├── presenter.ts        ← lógica de UI pura (statusLabel, cardBorderClass, etc.)
 │   │   │   └── monitors/
 │   │   │       ├── new/page.tsx    ← formulário de criação
-│   │   │       └── [id]/page.tsx   ← detalhe: tabela por região + alertas
+│   │   │       └── [id]/
+│   │   │           ├── page.tsx               ← detalhe com 4 abas (?tab=performance|cache|security|alerts)
+│   │   │           ├── monitor-actions.tsx    ← edit/delete/toggle + bypass variant
+│   │   │           ├── monitor-settings.tsx   ← painel de configurações inline
+│   │   │           ├── monitor-dispatch.tsx   ← botão de probe manual
+│   │   │           ├── ttfb-chart.tsx         ← gráfico SVG 24h/7d (sem D3)
+│   │   │           ├── probe-waterfall.tsx    ← timing breakdown (edge/origin/download)
+│   │   │           └── probe-waterfall.helpers.ts ← helpers puros (28 testes)
 │   │   └── api/
 │   │       └── monitors/
 │   │           ├── route.ts        ← GET (lista) / POST (cria)
 │   │           └── [id]/
-│   │               ├── route.ts    ← GET / PATCH / DELETE
-│   │               └── stats/route.ts ← stats por região + alertas recentes
+│   │               ├── route.ts         ← GET / PATCH / DELETE
+│   │               ├── stats/route.ts   ← stats por região (horas configuráveis)
+│   │               └── dispatch/route.ts ← POST disparo on-demand
 │   ├── lib/
 │   │   ├── db.ts                   ← singleton postgres.js (DATABASE_URL)
-│   │   └── auth.ts                 ← createSession / getSession / deleteSession
-│   └── test/
-│       └── setup.ts                ← configura env vars para testes unitários
+│   │   ├── auth.ts                 ← createSession / getSession / deleteSession
+│   │   ├── edge-helpers.ts         ← extractPop, detectCdn (9 testes)
+│   │   └── cdn-providers.ts        ← heurísticas de detecção CDN + cores
+│   └── components/
+│       └── logo.tsx
 │
 ├── api/                            ← Rust / axum
 │   ├── src/
 │   │   ├── main.rs                 ← entry point, router, tokio tasks
-│   │   ├── config.rs               ← variáveis de ambiente tipadas
+│   │   ├── config.rs               ← variáveis de ambiente tipadas (DB, Redis, secrets)
 │   │   ├── db.rs                   ← PgPool + run_migrations()
 │   │   ├── redis.rs                ← deadpool-redis Pool
 │   │   ├── routes/
-│   │   │   ├── health.rs           ← GET /health ✅
-│   │   │   ├── ingest.rs           ← POST /api/ingest ✅
-│   │   │   └── monitors.rs         ← GET /api/monitors/active ✅
+│   │   │   ├── health.rs           ← GET /health
+│   │   │   ├── ingest.rs           ← POST /api/ingest (probe version contract)
+│   │   │   ├── monitors.rs         ← GET /api/monitors/active
+│   │   │   ├── dispatch.rs         ← POST /api/monitors/:id/dispatch
+│   │   │   └── events.rs           ← GET /api/events (SSE por user_id)
 │   │   ├── models/
-│   │   │   └── probe_result.rs     ← ProbeResultPayload + ProbeResult
+│   │   │   ├── probe_result.rs     ← ProbeResultPayload + ProbeResult
+│   │   │   ├── monitor.rs          ← Monitor model
+│   │   │   └── region.rs           ← Region model (id, lambda_url)
 │   │   ├── diagnosis/
-│   │   │   └── engine.rs           ← diagnose() rule-based ✅ (com testes)
+│   │   │   └── engine.rs           ← diagnose() rule-based (com testes unitários)
 │   │   ├── scheduler/
-│   │   │   └── runner.rs           ← stub — implementar Dia 4
+│   │   │   └── runner.rs           ← loop 1s, Redis Lua, bypass inteligente (1×/h)
 │   │   ├── baseline/
-│   │   │   └── calculator.rs       ← stub — implementar Dia 5
+│   │   │   └── calculator.rs       ← hourly: TTFB avg/stddev, cache hit %, 7-day rolling
 │   │   └── alerts/
-│   │       ├── detector.rs         ← stub — implementar Dia 5
-│   │       └── notifier.rs         ← stub — implementar Dia 12
+│   │       ├── detector.rs         ← down / anomaly / anycast / zombie_cache / ssl_expiry
+│   │       └── notifier.rs         ← Resend (email HTML) + Slack/Discord webhook
 │   ├── Cargo.toml
 │   └── Dockerfile                  ← multi-stage, imagem ~20MB
 │
-├── workers/
-│   └── probe/                      ← Cloudflare Workers — implementar Dia 2-3
+├── probes/lambda/                  ← AWS Lambda probes (ativo)
+│   ├── index.mjs                   ← probe principal (Node.js 20, arm64)
+│   ├── cdn-providers.mjs           ← CDN detection
+│   └── README.md                   ← guia de deploy por região
 │
-├── migrations/
-│   └── 001_initial.sql             ← schema completo (TimescaleDB + auth)
+├── workers/probe/                  ← ⚠️ LEGADO — Cloudflare Workers (descontinuado Abril/2026)
+│
+├── migrations/                     ← 16 migrations (001 a 016)
+│   └── 001_initial.sql … 016_add_regions_table.sql
 │
 ├── scripts/
 │   ├── dev.sh                      ← sobe infra local + instruções
@@ -197,14 +228,17 @@ cd api && cargo test
 |:---|:---|:---:|:---|
 | `DB_PASSWORD` | Docker Compose | ✅ | Senha do PostgreSQL |
 | `REDIS_PASSWORD` | Docker Compose | ✅ | Senha do Redis |
-| `DATABASE_URL` | Rust API | ✅ | URL completa de conexão ao PostgreSQL |
+| `DATABASE_URL` | Rust API + Next.js | ✅ | URL completa de conexão ao PostgreSQL |
 | `REDIS_URL` | Rust API | ✅ | URL completa de conexão ao Redis |
 | `API_PORT` | Rust API | — | Porta da API (default: 3001) |
-| `PROBE_SECRET` | Rust API + CF Workers | ✅ | Token compartilhado para autenticar probes |
+| `PROBE_SECRET` | Rust API + Lambda | ✅ | Token compartilhado para autenticar probes |
 | `RESEND_API_KEY` | Rust API | — | API key do Resend para emails de alerta |
-| `SLACK_WEBHOOK_URL` | Rust API | — | Webhook do Slack para alertas |
 | `APP_URL` | Rust API | — | URL base do Next.js (para links nos alertas) |
-| `NEXT_PUBLIC_API_URL` | Next.js (futuro) | — | URL da Rust API (acessível pelo browser) |
+| `NEXT_PUBLIC_API_URL` | Next.js | ✅ | URL da Rust API (para SSE EventSource no browser) |
+
+> **Regiões Lambda**: não são mais env vars. Ficam na tabela `regions` do banco.
+> Para adicionar uma nova região: `INSERT INTO regions (id, label, description, color, lambda_url) VALUES (...)`.
+> O scheduler recarrega a tabela a cada 60 segundos automaticamente.
 
 > **Nota:** `NEXTAUTH_SECRET` e `NEXTAUTH_URL` foram removidos — o sistema de auth é agora custom (sem NextAuth).
 > A sessão usa um UUID armazenado na tabela `sessions` do PostgreSQL + cookie HTTP-only `session=<token>`.
@@ -291,26 +325,50 @@ x-probe-secret: <PROBE_SECRET>
 
 ### Tabelas principais
 
-**`probe_results`** (hypertable TimescaleDB)
+**`probe_results`** (hypertable TimescaleDB — telemetria orgânica/agendada)
 ```sql
-time             TIMESTAMPTZ  -- particionamento automático por tempo
-monitor_id       UUID
-region           TEXT         -- "sa-east", "eu-west", "us-east", etc.
-ttfb_ms          FLOAT        -- Time to First Byte ✅ medido
-download_ms      FLOAT        -- ✅ medido
-total_ms         FLOAT        -- ✅ medido
-dns_ms           FLOAT        -- NULL no Phase 1, preenchido no Phase 2
-tls_ms           FLOAT        -- NULL no Phase 1, preenchido no Phase 2
-status_code      INT
-cache_status     TEXT         -- CF-Cache-Status / X-Vercel-Cache / X-Cache
-served_by        TEXT         -- CF-Ray / X-Served-By
-server_timing    TEXT         -- header bruto
-http_version     TEXT
-redirect_count   INT
-content_length   BIGINT
-error            TEXT
+time                      TIMESTAMPTZ  -- partição automática
+monitor_id                UUID
+region                    TEXT         -- "sa-east" | "us-east" | "us-west" | "eu-west" | "ap-east" | "ap-south" | "oc" | "af-south"
+ttfb_ms                   FLOAT        -- Time to First Byte
+download_ms               FLOAT
+total_ms                  FLOAT
+dns_ms                    FLOAT        -- via net.Socket (AWS Lambda) — null em probes antigos
+tcp_ms                    FLOAT        -- via net.Socket
+tls_ms                    FLOAT        -- via net.Socket
+status_code               INT
+cache_status              TEXT         -- CF-Cache-Status / X-Vercel-Cache / X-Cache / etc.
+served_by                 TEXT         -- PoP IATA (ex: GRU) ou datacenter
+server_timing             TEXT         -- header bruto
+server_timing_breakdown   JSONB        -- { db: ms, auth: ms, cache: ms, ... }
+http_version              TEXT         -- "HTTP/2" | "HTTP/3" | "HTTP/1.1"
+redirect_count            INT
+content_length            BIGINT
+error                     TEXT
+age_s                     INT          -- header Age (zombie cache detection)
+security_headers          JSONB        -- { hsts, csp, x_frame_options, ..., ssl: { days_remaining, ... } }
+edge_ms                   FLOAT        -- via Server-Timing: edge
+origin_ms                 FLOAT        -- via Server-Timing: origin
+probe_version             TEXT         -- contrato de versão (rejeita probes desatualizados)
+is_manual                 BOOLEAN      -- true = disparado pelo usuário
+cdn_provider              TEXT         -- "cloudflare" | "vercel" | "fastly" | etc.
 ```
 Compressão automática após 7 dias. Índices em `(monitor_id, time DESC)` e `(monitor_id, region, time DESC)`.
+
+**`audit_results`** (hypertable TimescaleDB — runs de bypass/comparação edge vs. origin)
+
+Mesmo shape de `probe_results`, porém escrito separadamente para manter pureza estatística. Bypass agendado 1×/hora; forçado no primeiro probe de cada monitor.
+
+**`monitor_baselines`**
+```sql
+monitor_id      UUID   -- PK composta
+region          TEXT   -- PK composta
+ttfb_avg_ms     FLOAT  -- média rolling 7 dias
+ttfb_stddev_ms  FLOAT
+cache_hit_rate  FLOAT  -- % com status != MISS/BYPASS/EXPIRED/DYNAMIC
+sample_count    INT
+calculated_at   TIMESTAMPTZ
+```
 
 **`monitor_baselines`**
 ```sql
@@ -329,14 +387,27 @@ Atualizada a cada hora pelo `baseline/calculator.rs`.
 id               UUID
 monitor_id       UUID
 region           TEXT
-alert_type       TEXT   -- 'anomaly' | 'threshold' | 'ssl_expiry' | 'down'
+alert_type       TEXT   -- 'down' | 'anomaly' | 'anycast' | 'zombie_cache' | 'ssl_expiry'
 baseline_ms      FLOAT  -- valor histórico para comparação
-actual_ms        FLOAT  -- valor que disparou o alerta
-deviation_factor FLOAT  -- ex: 2.4 = "2.4x mais lento que o normal"
+actual_ms        FLOAT  -- valor que disparou o alerta (ou days_remaining para ssl_expiry)
+deviation_factor FLOAT  -- ex: 2.4 = "2.4× mais lento que o normal"
+estimated_gain_ms FLOAT -- ganho estimado de performance ao resolver
 diagnosis        TEXT   -- texto gerado pelo engine
 action           TEXT   -- ação recomendada
 notified_email   BOOLEAN
 notified_slack   BOOLEAN
+created_at       TIMESTAMPTZ
+```
+
+**`monitors`** (campos relevantes além do básico)
+```sql
+check_interval          INT         -- intervalo de probe em segundos
+audit_interval          INT         -- intervalo de bypass probe (padrão: 3600s)
+notify_email            TEXT
+notify_email_enabled    BOOLEAN
+notify_slack_webhook    TEXT
+notify_slack_enabled    BOOLEAN
+cdn_provider            TEXT        -- detectado automaticamente pelo probe
 ```
 
 ---
@@ -504,8 +575,8 @@ Na VPS, o Docker roda tudo. No local, só a infra vai pro Docker.
 | DB client (Next.js) | postgres.js | 3 | Acesso direto ao PG do dashboard, sem ORM |
 | Banco de dados | TimescaleDB | pg16 | Compressão e queries de time-series otimizadas |
 | Cache/filas | Redis | 7 | Rate limiting e cache de resultados recentes |
-| Probes Phase 1 | Cloudflare Workers | — | 300+ cidades, ~$5/mês, sem infra a manter |
-| Probes Phase 2 | Node.js / Fly.io | — | Acesso a `net.Socket` para DNS/TCP/TLS breakdown |
+| Probes (ativo) | AWS Lambda (Node.js 20, arm64) | — | Separação geográfica real, `net.Socket` para dns_ms/tls_ms |
+| Probes (legado) | ~~Cloudflare Workers~~ | — | Descontinuado Abril/2026 — Anycast Trap + sem DNS/TLS |
 | Auth | Custom (bcryptjs + pg) | — | Self-hosted, sessões UUID na tabela `sessions`; NextAuth incompatível com Next.js 16 |
 | Testes | Vitest | 4 | Zero config, compatível com TypeScript nativo |
 | Email | Resend | — | API simples, 100 emails/dia grátis |

@@ -9,15 +9,7 @@ pub struct Config {
     pub resend_api_key: Option<String>,
     pub slack_webhook_url: Option<String>,
     pub app_url: String,
-    pub api_url: String, // URL pública da API (para os workers)
-    pub region_sa_east: String,
-    pub region_eu_west: String,
-    pub region_us_east: String,
-    pub region_us_west: String,
-    pub region_ap_east: String,
-    pub region_ap_south: String,
-    pub region_oc: String,
-    pub region_af_south: String,
+    pub api_url: String,
 }
 
 impl Config {
@@ -36,14 +28,6 @@ impl Config {
                 .unwrap_or_else(|_| "http://localhost:3000".to_string()),
             api_url: std::env::var("API_URL")
                 .unwrap_or_else(|_| "http://localhost:3001".to_string()),
-            region_sa_east:  std::env::var("REGION_SA_EAST").unwrap_or_default(),
-            region_eu_west:  std::env::var("REGION_EU_WEST").unwrap_or_default(),
-            region_us_east:  std::env::var("REGION_US_EAST").unwrap_or_default(),
-            region_us_west:  std::env::var("REGION_US_WEST").unwrap_or_default(),
-            region_ap_east:  std::env::var("REGION_AP_EAST").unwrap_or_default(),
-            region_ap_south: std::env::var("REGION_AP_SOUTH").unwrap_or_default(),
-            region_oc:       std::env::var("REGION_OC").unwrap_or_default(),
-            region_af_south: std::env::var("REGION_AF_SOUTH").unwrap_or_default(),
         })
     }
 }
