@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
   `
   if (existing.length > 0) {
     return NextResponse.json(
-      { error: 'Você já possui um monitor configurado para esta URL.' },
+      { error: 'You already have a monitor configured for this URL.' },
       { status: 409 }
     )
   }
