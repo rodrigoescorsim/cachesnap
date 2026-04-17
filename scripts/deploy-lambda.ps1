@@ -46,7 +46,8 @@ if (-not (Test-Path $SourcePath)) {
 # 1. Create Zip
 Write-Host "Creating deployment package..." -NoNewline
 if (Test-Path $ZipFile) { Remove-Item $ZipFile -Force }
-Compress-Archive -Path $SourcePath -DestinationPath $ZipFile
+# Include all .mjs files in the directory
+Compress-Archive -Path "probes/lambda/*.mjs" -DestinationPath $ZipFile
 Write-Host " DONE" -ForegroundColor Green
 
 # 2. Update each region
