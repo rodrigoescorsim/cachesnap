@@ -17,12 +17,10 @@ export const BRAND_TABLE_SURFACE_GRADIENT =
  */
 export const TTFB_LAYER_NEUTRAL =
   'bg-white/[0.02] dark:bg-white/[0.03]'
-export const TTFB_LAYER_FAST =
-  'bg-emerald-500/[0.04] dark:bg-emerald-500/[0.08]'
-export const TTFB_LAYER_MED =
-  'bg-amber-500/[0.04] dark:bg-amber-500/[0.08]'
-export const TTFB_LAYER_SLOW =
-  'bg-red-500/[0.04] dark:bg-red-500/[0.08]'
+/** Background washes — paired with .text-metric-ttfb-* in globals.css (:root --metric-*). */
+export const TTFB_LAYER_FAST = 'bg-metric-layer-fast'
+export const TTFB_LAYER_MED = 'bg-metric-layer-med'
+export const TTFB_LAYER_SLOW = 'bg-metric-layer-slow'
 export const TTFB_COL_RAIL =
   '[box-shadow:inset_1px_0_0_rgba(255,255,255,0.03),inset_-1px_0_0_rgba(255,255,255,0.03)]'
 
@@ -42,23 +40,25 @@ export const MONITOR_TABLE = {
   outerWrapperMuted: 'cs-card cs-card-glass',
   innerScroll: 'relative overflow-x-auto md:overflow-visible',
   tableBase: 'w-full text-sm',
+  /** Tighter vertical padding than cs-table-compact defaults (Live + Trends data tables). */
+  tableDense: '[&_th]:!py-2 [&_td]:!py-2',
 } as const
 
-/** Green — fast, amber — medium, red — slow (aggregate TTFB). */
+/** Green — fast, amber — medium, red — slow (aggregate TTFB). Maps to .text-metric-ttfb-* in globals.css. */
 export function ttfbColor(ms: number | null): string {
   if (ms == null) return 'text-zinc-400'
-  if (ms <= 200) return 'text-emerald-400'
-  if (ms <= 350) return 'text-amber-500/90'
-  return 'text-rose-400/90'
+  if (ms <= 200) return 'text-metric-ttfb-fast'
+  if (ms <= 350) return 'text-metric-ttfb-med'
+  return 'text-metric-ttfb-slow'
 }
 
 /** Real-time & Trends “Avg TTFB” — same tiers as ttfbColor(). */
 export function ttfbMetricCellClass(ms: number | null): string {
   const base = `px-3 py-2.5 text-right font-bold tabular-nums ${TTFB_COL_RAIL}`
   if (ms == null) return `${base} text-zinc-400 ${TTFB_LAYER_NEUTRAL}`
-  if (ms <= 200) return `${base} text-emerald-400 ${TTFB_LAYER_FAST}`
-  if (ms <= 350) return `${base} text-amber-500/90 ${TTFB_LAYER_MED}`
-  return `${base} text-rose-400/90 ${TTFB_LAYER_SLOW}`
+  if (ms <= 200) return `${base} text-metric-ttfb-fast ${TTFB_LAYER_FAST}`
+  if (ms <= 350) return `${base} text-metric-ttfb-med ${TTFB_LAYER_MED}`
+  return `${base} text-metric-ttfb-slow ${TTFB_LAYER_SLOW}`
 }
 
 /** Trends Edge/Origin TTFB columns — same tiers as ttfbColor(), semibold weight. */

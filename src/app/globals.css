@@ -20,6 +20,7 @@
   --surface-muted: #132238;
   --surface-danger: #120d0a;
   --surface-dropdown: rgba(17, 29, 50, 0.98);
+  --tooltip-surface: #111d32;
 
   /* Metric Status Colors (Refined) */
   --metric-fast: #34d399;
@@ -415,5 +416,74 @@ body {
 
   .cs-pop-tag {
     @apply inline-flex items-center rounded bg-white/5 px-1.5 py-0.5 text-[9px] font-bold text-zinc-400 ring-1 ring-inset ring-white/10 tracking-wide;
+  }
+
+  /** Monitor overview metric cards — label row (Health / TTFB / Cache / Alerts). */
+  .cs-metric-card-label {
+    @apply text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 group-hover:border-zinc-500 cursor-help transition-colors;
+  }
+
+  /** PremiumTooltip panel — ties to --tooltip-surface (same effective look as previous #111d32/98). */
+  .cs-tooltip-panel {
+    @apply box-border w-full whitespace-normal break-words text-left leading-relaxed backdrop-blur-xl border border-white/10 rounded-xl p-3.5 shadow-2xl text-[11px] font-medium text-zinc-200 ring-1 ring-white/5;
+    background-color: color-mix(in srgb, var(--tooltip-surface) 98%, transparent);
+  }
+
+  /* TTFB column tiers — semantic aliases (same Tailwind output as before; colors trace to --metric-* in :root). */
+  .text-metric-ttfb-fast {
+    @apply text-emerald-400;
+  }
+
+  .text-metric-ttfb-med {
+    @apply text-amber-500/90;
+  }
+
+  .text-metric-ttfb-slow {
+    @apply text-rose-400/90;
+  }
+
+  .bg-metric-layer-fast {
+    @apply bg-emerald-500/[0.04] dark:bg-emerald-500/[0.08];
+  }
+
+  .bg-metric-layer-med {
+    @apply bg-amber-500/[0.04] dark:bg-amber-500/[0.08];
+  }
+
+  .bg-metric-layer-slow {
+    @apply bg-red-500/[0.04] dark:bg-red-500/[0.08];
+  }
+
+  /**
+   * Cache column badges — Live Activity + Trends (centralized from monitor page inline styles).
+   * (Primitives only — @apply cannot reference other .cs-* utilities in Tailwind v4.)
+   */
+  .cs-badge-cache-hit {
+    @apply inline-flex items-center justify-center gap-1 rounded-md border border-emerald-400/20 min-h-[22px] min-w-[60px] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ring-1 ring-inset ring-emerald-400/30 bg-emerald-500/20 text-emerald-300 shadow-[0_0_12px_-3px_rgba(16,185,129,0.3)] transition-all duration-300;
+  }
+
+  .cs-badge-cache-miss {
+    @apply inline-flex min-h-[22px] min-w-[60px] items-center justify-center rounded-md border border-orange-500/15 bg-orange-500/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-orange-300 shadow-[0_0_12px_-4px_rgba(249,115,22,0.4)] ring-1 ring-inset ring-orange-400/35;
+  }
+
+  .cs-badge-cache-bypass {
+    @apply inline-flex min-h-[22px] min-w-[60px] items-center justify-center rounded-md border border-violet-500/15 bg-violet-500/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-violet-300 shadow-[0_0_10px_-3px_rgba(139,92,246,0.25)] ring-1 ring-inset ring-violet-400/35;
+  }
+
+  .cs-badge-cache-dynamic {
+    @apply inline-flex min-h-[22px] min-w-[60px] items-center justify-center rounded-md border border-amber-500/15 bg-amber-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-300 ring-1 ring-inset ring-amber-400/30;
+  }
+
+  .cs-badge-cache-not-reported {
+    @apply inline-flex min-h-[22px] min-w-[60px] max-w-[9.5rem] items-center justify-center text-balance rounded-md border border-[#64748b]/30 bg-[#475569]/35 px-2 py-0.5 text-[10px] font-bold leading-tight tracking-normal text-[#94a3b8] ring-1 ring-inset ring-[#64748b]/40;
+  }
+
+  /** Trends cache hit &lt; 50%. */
+  .cs-badge-cache-hit-rate-low {
+    @apply inline-flex min-h-[22px] min-w-[60px] items-center justify-center rounded-md border border-red-500/20 bg-red-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-red-300 ring-1 ring-inset ring-red-400/35;
+  }
+
+  .cs-badge-cache-dash {
+    @apply inline-flex items-center justify-center gap-1 rounded-md min-h-[22px] min-w-[60px] px-2 py-0.5 text-[10px] font-bold tracking-wide ring-1 ring-inset transition-all bg-white/5 text-zinc-500 ring-white/10;
   }
 }

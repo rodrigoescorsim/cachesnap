@@ -3,12 +3,12 @@
 export type MonitorTab =
   | 'performance'
   | 'on-demand'
-  | 'insights'
+  | 'resilience'
   | 'security'
   | 'settings'
   | 'incidents'
 
-export type PerformanceView = 'real-time' | 'trends' | 'edge-audit'
+export type PerformanceView = 'real-time' | 'trends' | 'diagnostics' | 'infrastructure'
 
 export type AlertType = 'down' | 'anomaly' | 'anycast' | 'zombie_cache'
 

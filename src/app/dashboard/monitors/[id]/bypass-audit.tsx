@@ -1,6 +1,15 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { Clock, Zap, AlertTriangle } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { MonitorDispatchButtons } from './monitor-dispatch-buttons'
+import {
+  BRAND_CARD_SURFACE_GRADIENT,
+  BRAND_TABLE_SURFACE_GRADIENT,
+  MONITOR_TABLE,
+} from './monitor-table-styles'
+import { PremiumTooltip } from '@/components/premium-tooltip'
 
 interface BypassPoint {
   hour: Date
@@ -12,14 +21,13 @@ interface BypassPoint {
   origin_cache_status: string | null
 }
 
-import { AlertTriangle, Info } from 'lucide-react'
-
 interface BypassAuditProps {
   data: BypassPoint[]
   regionLabels: Record<string, string>
 }
 
 export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
+  const { id } = useParams()
   // Group data by hour
   const itemsByHour = useMemo(() => {
     const groups: Record<string, BypassPoint[]> = {}
@@ -36,7 +44,7 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
 
   const currentItems = selectedHour ? itemsByHour[selectedHour] : []
   
-  // For global impact analysis, we only consider verified Edge HITs and successful Origin MISSes
+  // For global impact analysis
   const confirmedHits = currentItems.filter(item => 
     item.edge_cache_status?.toUpperCase() === 'HIT' && 
     item.origin_cache_status?.toUpperCase() !== 'HIT' &&
@@ -52,46 +60,58 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
 
   if (hours.length === 0) {
     return (
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 p-12 text-center">
+      <div className="cs-card cs-card-glass p-12 text-center">
         <p className="text-sm text-zinc-400 italic">No hourly bypass events detected in the last 24h.</p>
-        <p className="text-xs text-zinc-500 mt-2">Bypass probes typically run once per hour per region.</p>
+        <p className="text-[11px] text-zinc-500 mt-2 uppercase tracking-widest font-bold">Bypass probes run once per hour per region.</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Time Explorer */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
-            Hourly Precision Audit
+      <div className="space-y-4">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Audit Timeline — Performance Snapshots
           </h2>
-          <div className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-800/10 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tight">
-            1:1 Temporal Alignment
-          </div>
+          <MonitorDispatchButtons monitorId={id as string} variant="audit" />
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
           {hours.map((h) => {
             const date = new Date(h)
             const isActive = selectedHour === h
+            
+            // Calculate relative time for a more "Live" feel
+            const diffMs = Date.now() - date.getTime()
+            const diffMin = Math.floor(diffMs / 60000)
+            const diffHours = Math.floor(diffMin / 60)
+            
+            let relativeTime = ""
+            if (diffMin < 1) relativeTime = "Just now"
+            else if (diffMin < 60) relativeTime = `${diffMin}m ago`
+            else if (diffHours < 24) relativeTime = `${diffHours}h ago`
+            else relativeTime = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
             return (
-              <button
-                key={h}
-                onClick={() => setSelectedHour(h)}
-                className={`shrink-0 flex flex-col items-center justify-center min-w-[72px] py-1.5 rounded-xl border transition-all ${isActive
-                    ? 'bg-zinc-900 dark:bg-zinc-800 border-zinc-900 dark:border-zinc-700 text-white shadow-lg shadow-zinc-200 dark:shadow-none'
-                    : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-zinc-400 dark:hover:border-zinc-600'
-                  }`}
-              >
-                <span className="text-[9px] font-bold uppercase tracking-tight opacity-50">
-                  {date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                </span>
-                <span className="text-sm font-bold tabular-nums">
-                  {date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
-                </span>
-              </button>
+              <PremiumTooltip key={h} content={`${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}`}>
+                <button
+                  onClick={() => setSelectedHour(h)}
+                  className={`shrink-0 flex flex-col items-center justify-center min-w-[100px] h-14 rounded-xl border transition-all duration-300 active:scale-95 ${isActive
+                      ? 'border-emerald-500/30 bg-emerald-500/10 text-white shadow-[0_0_15px_rgba(16,185,129,0.1)]'
+                      : 'border-white/5 bg-white/[0.03] text-zinc-500 hover:bg-white/5 hover:text-zinc-300'
+                    }`}
+                >
+                  <span className={`text-[12px] font-black uppercase tracking-tight ${isActive ? 'text-emerald-400' : 'text-zinc-400'}`}>
+                    {relativeTime}
+                  </span>
+                  <span className="text-[9px] font-bold uppercase tracking-widest opacity-40">
+                    Snapshot
+                  </span>
+                </button>
+              </PremiumTooltip>
             )
           })}
         </div>
@@ -99,55 +119,49 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
 
       {/* Bypass Failure Alert */}
       {bypassFails.length > 0 && (
-        <div className="rounded-xl border border-amber-200/50 dark:border-amber-900/30 bg-amber-50/50 dark:bg-amber-950/10 p-3.5 flex gap-3 items-start">
-          <div className="mt-0.5">
-            <AlertTriangle className="w-4 h-4 text-amber-500" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-tight">Partial Signal Optimization</h3>
-            <p className="text-[11px] leading-relaxed text-amber-800/80 dark:text-amber-500/80">
-              Could not obtain Origin metrics in <span className="font-bold">{bypassFails.length} {bypassFails.length === 1 ? 'region' : 'regions'}</span> due to infrastructure optimizations that forced delivery via Edge (Cache HIT), preventing a direct server measurement for comparison.
+        <div className="cs-card-glass p-4 flex gap-4 items-start border-amber-500/10 bg-amber-500/5">
+          <div className="cs-card-wash opacity-40" />
+          <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5" />
+          <div className="relative z-10 space-y-1">
+            <h3 className="text-[10px] font-black text-amber-400 uppercase tracking-[0.15em]">Partial Signal Optimization</h3>
+            <p className="text-xs leading-relaxed text-amber-200/60 font-medium">
+              Could not obtain Origin metrics in <span className="text-amber-400 font-bold">{bypassFails.length} {bypassFails.length === 1 ? 'region' : 'regions'}</span> due to infrastructure optimizations that forced delivery via Edge (Cache HIT), preventing a direct server measurement.
             </p>
           </div>
         </div>
       )}
 
       {/* Impact Summary - Unified Wide Card */}
-      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/50 p-4 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-4 pt-5 opacity-10 dark:opacity-5">
-          <svg className="w-24 h-24 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-        </div>
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.15em]">Global Impact Analysis</div>
-            <div className="flex items-baseline gap-3">
+      <div className="cs-card px-6 py-5">
+        <div className={BRAND_CARD_SURFACE_GRADIENT} />
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div className="space-y-2">
+            <div className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.25em]">Global Impact Analysis</div>
+            <div className="flex items-baseline gap-4">
               {confirmedHits.length > 0 ? (
                 <>
-                  <span className={`text-4xl font-black tracking-tighter ${avgSavingMs > 0 ? 'text-emerald-500' : 'text-amber-500'}`}>
+                  <span className={`text-5xl font-black tracking-tighter ${avgSavingMs > 0 ? 'text-emerald-500 drop-shadow-[0_0_12px_rgba(16,185,129,0.3)]' : 'text-amber-500'}`}>
                     {avgSavingMs > 0 ? '-' : '+'}{Math.abs(Math.round(avgSavingMs))}ms
                   </span>
                   <div className="flex flex-col">
-                    <span className={`text-sm font-bold ${avgSavingMs > 0 ? 'text-emerald-500' : 'text-amber-500'}`}>
+                    <span className={`text-base font-bold ${avgSavingMs > 0 ? 'text-emerald-400' : 'text-amber-500'}`}>
                       {avgSavingMs > 0 ? '-' : '+'}{Math.abs(Math.round(avgSavingPct))}% {avgSavingMs > 0 ? 'Saved' : 'Added'}
                     </span>
-                    <span className="text-[10px] font-medium text-zinc-500 uppercase">
-                      {avgSavingMs > 0 ? 'CDN Benefit' : 'Performance Penalty'}
+                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                      {avgSavingMs > 0 ? 'CDN Edge Benefit' : 'Latency Penalty'}
                     </span>
                   </div>
                 </>
               ) : (
                 <>
-                  <span className="text-4xl font-black tracking-tighter text-zinc-300">
+                  <span className="text-5xl font-black tracking-tighter text-zinc-700">
                     —ms
                   </span>
                   <div className="flex flex-col">
-                    <span className="text-sm font-bold text-zinc-400">
+                    <span className="text-base font-bold text-zinc-600">
                       Baseline Pending
                     </span>
-                    <span className="text-[10px] font-medium text-zinc-500 uppercase">
+                    <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
                       Waiting for cache hit
                     </span>
                   </div>
@@ -156,32 +170,34 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
             </div>
           </div>
 
-          <div className="flex flex-col sm:items-end gap-1 px-4 sm:border-l border-zinc-100 dark:border-zinc-800">
-            <div className="flex items-center gap-1.5 font-bold text-zinc-700 dark:text-zinc-300 text-xs">
-              <div className={`h-2 w-2 rounded-full ${confirmedHits.length > 0 ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
+          <div className="flex flex-col sm:items-end gap-1.5 px-6 sm:border-l border-white/5">
+            <div className="flex items-center gap-2 font-black text-zinc-400 text-[10px] uppercase tracking-widest">
+              <span className={`h-2 w-2 rounded-full ${confirmedHits.length > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-700'}`} />
               Edge (HIT) vs Origin (Direct)
             </div>
-            <p className="text-[11px] text-zinc-400 max-w-[240px] sm:text-right leading-tight">
+            <p className="text-[11px] text-zinc-500 max-w-[280px] sm:text-right leading-relaxed font-medium">
               {confirmedHits.length > 0 
-                ? `Aggregated metrics for ${confirmedHits.length} regions with verified cache hits in this 60min window.`
-                : `No verified cache hits available for analysis in this window.`}
+                ? `Analyzing comparative data for ${confirmedHits.length} regions with verified cache hits in this window.`
+                : `Insufficient verified hits for a statistical comparative analysis.`}
             </p>
           </div>
         </div>
       </div>
 
       {/* Regional Table for Selected Hour */}
-      <div className="overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-transparent shadow-sm">
-        <table className="w-full text-sm">
+      <div className={MONITOR_TABLE.outerWrapper}>
+        <div className={BRAND_TABLE_SURFACE_GRADIENT} />
+        <div className={MONITOR_TABLE.innerScroll}>
+        <table className={MONITOR_TABLE.tableBase}>
           <thead>
-            <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
-              <th className="px-4 py-3 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Region</th>
-              <th className="px-4 py-3 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Edge (HIT)</th>
-              <th className="px-4 py-3 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Origin (Direct)</th>
-              <th className="px-4 py-3 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Real Benefit</th>
+            <tr className={MONITOR_TABLE.theadRow}>
+              <th className="px-4 py-3 text-left text-[10px] font-black text-zinc-500 uppercase tracking-widest">Region</th>
+              <th className="px-4 py-3 text-right text-[10px] font-black text-zinc-500 uppercase tracking-widest">Edge (HIT)</th>
+              <th className="px-4 py-3 text-right text-[10px] font-black text-zinc-500 uppercase tracking-widest">Origin (Direct)</th>
+              <th className="px-4 py-3 text-right text-[10px] font-black text-zinc-500 uppercase tracking-widest">Real Benefit</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          <tbody>
             {currentItems.map((row) => {
               const isEdgeHit = row.edge_cache_status?.toUpperCase() === 'HIT'
               const isOriginHit = row.origin_cache_status?.toUpperCase() === 'HIT'
@@ -190,75 +206,66 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
               const itemSaving = row.origin_ttfb - row.edge_ttfb
               const isSaving = itemSaving > 0
               return (
-                <tr key={row.region} className="group hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20 transition-colors">
-                  <td className="px-4 py-3.5">
-                    <div className="font-bold text-zinc-800 dark:text-zinc-200 tracking-tight">
+                <tr key={row.region} className={MONITOR_TABLE.tbodyRow}>
+                  <td className="px-4 py-4">
+                    <span className="font-bold text-zinc-200 tracking-tight">
                       {regionLabels[row.region] ?? row.region}
-                    </div>
+                    </span>
                   </td>
-                  <td className="px-4 py-3.5 text-right tabular-nums font-mono">
-                    <div className="flex items-center justify-end gap-2">
+                  <td className="px-4 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2.5">
                       {row.edge_cache_status?.toUpperCase() === 'HIT' ? (
-                        <span className="px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-800/10 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tight">HIT</span>
-                      ) : row.edge_cache_status?.toUpperCase() === 'HIDDEN' ? (
-                        <span className="px-1.5 py-0.5 rounded-md bg-zinc-100/50 dark:bg-zinc-800/40 border border-zinc-200/50 dark:border-zinc-700/50 text-[10px] font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-tight">HIDDEN</span>
+                        <span className="cs-badge cs-badge-success text-[10px] px-2 py-0.5">
+                          <Zap className="w-2.5 h-2.5 fill-current" />
+                          HIT
+                        </span>
                       ) : (
-                        <span className="px-1.5 py-0.5 rounded-md bg-zinc-100/50 dark:bg-zinc-800/40 border border-zinc-200/50 dark:border-zinc-700/50 text-[10px] font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-tight">{row.edge_cache_status?.toUpperCase() || 'MISS'}</span>
+                        <span className="cs-badge-flat cs-badge-flat-muted text-[10px] px-2 py-0.5 font-bold">
+                          {row.edge_cache_status?.toUpperCase() || 'MISS'}
+                        </span>
                       )}
-                      <span className="text-zinc-700 dark:text-zinc-300">{Math.round(row.edge_ttfb)}ms</span>
+                      <span className="text-zinc-200 font-mono font-bold text-xs">{Math.round(row.edge_ttfb)}ms</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3.5 text-right tabular-nums font-mono">
-                    <div className="flex items-center justify-end gap-2">
+                  <td className="px-4 py-4 text-right">
+                    <div className="flex items-center justify-end gap-2.5">
                         {isOriginHit ? (
-                          <span className="text-[10px] font-bold text-zinc-400/50 tracking-widest px-2" title="Origin measurement unavailable (CDN served cache)">
+                          <span className="text-[10px] font-black text-zinc-700 tracking-[0.4em] px-2" title="Origin measurement unavailable (CDN served cache)">
                             ———
                           </span>
                         ) : (
                           <>
-                            {row.origin_cache_status?.toUpperCase() === 'HIDDEN' ? (
-                              <span className="px-1.5 py-0.5 rounded-md bg-zinc-100/50 dark:bg-zinc-800/40 border border-zinc-200/50 dark:border-zinc-700/50 text-[10px] font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-tight" title="Status Hidden: Cannot confirm if it hit origin.">
-                                HIDDEN
-                              </span>
-                            ) : (
-                              <span className="px-1.5 py-0.5 rounded-md bg-zinc-100/50 dark:bg-zinc-800/40 border border-zinc-200/50 dark:border-zinc-700/50 text-[10px] font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-tight">
-                                {row.origin_cache_status?.toUpperCase() || 'MISS'}
-                              </span>
-                            )}
-                            <span className="text-zinc-400">{Math.round(row.origin_ttfb)}ms</span>
+                            <span className="cs-badge-flat cs-badge-flat-muted text-[10px] px-2 py-0.5 font-bold">
+                              {row.origin_cache_status?.toUpperCase() || 'MISS'}
+                            </span>
+                            <span className="text-zinc-500 font-mono font-medium text-xs">{Math.round(row.origin_ttfb)}ms</span>
                           </>
                         )}
                     </div>
                   </td>
-                  <td className="px-4 py-3.5 text-right tabular-nums">
+                  <td className="px-4 py-4 text-right">
                     <div className="flex flex-col items-end">
                       {isOriginHit ? (
-                        <>
-                          <span className="text-xs font-bold text-zinc-400 italic">
-                            Inconclusive
-                          </span>
-                          <span className="text-[10px] font-medium text-zinc-500/70 whitespace-nowrap">
-                            Origin Forced HIT
-                          </span>
-                        </>
+                        <PremiumTooltip content="The origin server could not be reached directly as the Edge served a HIT. This makes a comparison impossible for this window.">
+                          <div className="flex flex-col items-end cursor-help">
+                            <span className="text-[11px] font-bold text-zinc-500 italic">Inconclusive</span>
+                            <span className="text-[9px] font-black text-zinc-600 uppercase tracking-tighter">Origin Forced HIT</span>
+                          </div>
+                        </PremiumTooltip>
                       ) : !isValidComparison ? (
-                        <>
-                          <span className="text-xs font-bold text-zinc-400 uppercase tracking-tighter">
-                            Insufficient Signal
-                          </span>
-                          <span className="text-[10px] font-medium text-zinc-500/70">
-                            Waiting for HIT/MISS pair
-                          </span>
-                        </>
+                        <div className="flex flex-col items-end">
+                          <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Analysis Pending</span>
+                          <span className="text-[9px] font-bold text-zinc-700 uppercase">Wait for HIT/MISS</span>
+                        </div>
                       ) : (
-                        <>
-                          <span className={`text-xs font-black ${isSaving ? 'text-emerald-500' : 'text-amber-500'}`}>
+                        <div className="flex flex-col items-end">
+                          <span className={`text-xs font-black flex items-center gap-1 ${isSaving ? 'text-emerald-500' : 'text-amber-500'}`}>
                             {isSaving ? '-' : '+'}{Math.abs(Math.round(itemSaving))}ms
                           </span>
-                          <span className={`text-[10px] font-bold opacity-80 ${isSaving ? 'text-emerald-600' : 'text-amber-600'}`}>
-                            {isSaving ? 'Faster' : 'Slower'}
+                          <span className={`text-[9px] font-black uppercase tracking-widest ${isSaving ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            {isSaving ? 'Faster at Edge' : 'Latency Penalty'}
                           </span>
-                        </>
+                        </div>
                       )}
                     </div>
                   </td>
@@ -267,10 +274,11 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
-      <p className="text-[10px] text-zinc-400 italic px-1 text-center font-medium">
-        Historical snapshots are persisted hourly. Previous hours provide a baseline for CDN propagation stability.
+      <p className="text-[10px] text-zinc-500 italic text-center font-bold uppercase tracking-wide opacity-50 px-1">
+        Statistical snapshots are persisted hourly. Previous windows provide a baseline for CDN propagation stability.
       </p>
     </div>
   )

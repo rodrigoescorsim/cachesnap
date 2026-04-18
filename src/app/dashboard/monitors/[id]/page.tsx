@@ -1,12 +1,13 @@
-import { notFound } from 'next/navigation'
+import { PremiumTooltip } from '@/components/premium-tooltip'
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import sql from '@/lib/db'
 import { AutoRefresh } from './auto-refresh'
 import { TtfbChart, type ChartPoint } from './ttfb-chart'
 import { MonitorHeaderToolbar } from './monitor-header-toolbar'
-import { MonitorOnDemandPanel } from './monitor-on-demand'
 import { MonitorSettingsPanel } from './monitor-settings-panel'
+import { MonitorDispatchButtons } from './monitor-dispatch-buttons'
 import { RealTimeHub } from '../../real-time-hub'
 import { extractPop, popToCity, resolveCdnLabel } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
@@ -32,8 +33,8 @@ import {
   TrendingUp,
   Zap,
   Fingerprint,
-  Lightbulb,
   Settings,
+  type LucideIcon,
 } from 'lucide-react'
 import {
   BRAND_CARD_SURFACE_GRADIENT,
@@ -202,26 +203,41 @@ const TAB_LABELS: Record<MonitorTab, string> = {
   incidents: 'Alerts',
 }
 
-const TAB_ICONS: Record<MonitorTab, any> = {
+const TAB_ICONS: Record<MonitorTab, LucideIcon> = {
   performance: Activity,
   'on-demand': PlayCircle,
-  insights: Lightbulb,
+  resilience: TrendingUp,
   security: Lock,
   settings: Settings,
   incidents: AlertCircle,
 }
 
-const VALID_PERFORMANCE_VIEWS = ['real-time', 'trends', 'edge-audit'] as const satisfies readonly PerformanceView[]
+const VALID_PERFORMANCE_VIEWS = ['real-time', 'trends', 'diagnostics', 'infrastructure'] as const satisfies readonly PerformanceView[]
 
 const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   'real-time': 'Live',
   trends: 'Trends',
-  'edge-audit': 'Edge Audit',
+  diagnostics: 'Diagnostics',
+  infrastructure: 'Edge Audit',
 }
 
 /** Monitor title card — subtle top wash + glass (Vercel-style). Densidade ~tool (menos padding vertical). */
 const MONITOR_HEADER_CARD =
   'cs-card cs-card-glass px-5 py-2.5 relative'
+
+const TOOLTIP_EDGE_DATA_UNAVAILABLE = 'Data not available yet'
+
+function regionRowServedFromLabel(servedBy: string | null): string {
+  if (!servedBy?.trim()) return ''
+  return (popToCity(extractPop(servedBy) || '') || extractPop(servedBy) || '').trim()
+}
+
+function regionRowCdnLabelTrimmed(
+  provider: string | null | undefined,
+  servedBy: string | null | undefined
+): string {
+  return (resolveCdnLabel(provider, servedBy) ?? '').trim()
+}
 
 /** Status pills in the monitor title bar — consistent shell + interactive hover. */
 const MONITOR_HEADER_STATUS_BADGE =
@@ -274,13 +290,30 @@ function redirectDisplay(redirectAvg: number | string | null): { text: string; t
   return { text: `${value}`, tone: 'text-red-500 font-medium' }
 }
 
-function cacheDisplay(status: string | null, hitPct: number | null): { text: string; tone: string; title: string } {
+/** Tooltip copy when the origin/CDN did not send cache status headers (replaces legacy "Hidden"). */
+const CACHE_STATUS_NOT_REPORTED_TOOLTIP =
+  'Cache status not reported by the server. The origin may not be sending cache headers (CF-Cache-Status, X-Vercel-Cache, etc.).'
+
+type LiveActivityCacheVariant =
+  | 'hit'
+  | 'miss'
+  | 'bypass'
+  | 'dynamic'
+  | 'not_reported'
+  | 'percent_good'
+  | 'percent_warn'
+  | 'dash'
+
+function cacheDisplay(
+  status: string | null,
+  hitPct: number | null
+): { text: string; title: string; variant: LiveActivityCacheVariant } {
   const normalizedStatus = status?.toUpperCase() ?? null
 
   if (normalizedStatus === 'HIT') {
     return {
       text: hitPct != null ? `${formatPct(hitPct)}%` : 'HIT',
-      tone: 'text-emerald-500',
+      variant: 'hit',
       title: 'Cache hit observed',
     }
   }
@@ -288,32 +321,56 @@ function cacheDisplay(status: string | null, hitPct: number | null): { text: str
   if (normalizedStatus === 'MISS') {
     return {
       text: hitPct != null ? `${formatPct(hitPct)}%` : 'MISS',
-      tone: 'text-amber-500',
+      variant: 'miss',
       title: 'Cache miss observed',
     }
   }
 
-  if (normalizedStatus === 'DYNAMIC' || normalizedStatus === 'BYPASS' || normalizedStatus === 'HIDDEN') {
+  if (normalizedStatus === 'DYNAMIC') {
     return {
-      text: normalizedStatus === 'HIDDEN' ? 'Hidden' : normalizedStatus === 'DYNAMIC' ? 'Dynamic' : 'Bypass',
-      tone: 'text-zinc-500 dark:text-zinc-400',
-      title: 'No cacheable response signal',
+      text: 'Dynamic',
+      variant: 'dynamic',
+      title: 'Dynamic response — not a static edge cache hit (e.g. Vercel DYNAMIC).',
     }
   }
 
-  // Fallback for 0% hit rate with no clear status
+  if (normalizedStatus === 'BYPASS') {
+    return {
+      text: 'Bypass',
+      variant: 'bypass',
+      title: 'Cache bypass — the edge did not serve this from cache.',
+    }
+  }
+
+  // "Hidden" → "Not Reported": missing headers is normal for many origins; neutral slate reads as informational, not broken.
+  if (normalizedStatus === 'HIDDEN') {
+    return {
+      text: 'Not Reported',
+      variant: 'not_reported',
+      title: CACHE_STATUS_NOT_REPORTED_TOOLTIP,
+    }
+  }
+
   if (hitPct === 0 || normalizedStatus === null) {
     return {
-      text: 'Hidden',
-      tone: 'text-zinc-400/60',
-      title: 'No cache headers were observed',
+      text: 'Not Reported',
+      variant: 'not_reported',
+      title: CACHE_STATUS_NOT_REPORTED_TOOLTIP,
+    }
+  }
+
+  if (hitPct != null) {
+    return {
+      text: `${formatPct(hitPct)}%`,
+      variant: hitPct > 70 ? 'percent_good' : 'percent_warn',
+      title: 'Observed from response headers',
     }
   }
 
   return {
-    text: hitPct != null ? `${formatPct(hitPct)}%` : '—',
-    tone: hitPct != null && hitPct > 70 ? 'text-emerald-500' : 'text-amber-500',
-    title: 'Observed from response headers',
+    text: '—',
+    variant: 'dash',
+    title: 'No cache status in this response',
   }
 }
 
@@ -449,30 +506,6 @@ function formatMs(value: number | null): string {
 
 import { BypassAudit } from './bypass-audit'
 
-/** High-fidelity glassmorphism tooltip to replace native browser 'title' attributes. */
-function PremiumTooltip({ children, content, position = 'top-center', direction = 'top' }: { children: React.ReactNode, content: React.ReactNode, position?: 'top-center' | 'top-right' | 'top-left' | 'bottom-center' | 'bottom-right' | 'bottom-left', direction?: 'top' | 'bottom' }) {
-  const isBottom = direction === 'bottom'
-  
-  const posClasses = {
-    'top-center': 'bottom-full left-1/2 -translate-x-1/2 mb-2',
-    'top-right': 'bottom-full right-0 mb-2',
-    'top-left': 'bottom-full left-0 mb-2',
-    'bottom-center': 'top-full left-1/2 -translate-x-1/2 mt-2',
-    'bottom-right': 'top-full right-0 mt-2',
-    'bottom-left': 'top-full left-0 mt-2',
-  }[position]
-
-  return (
-    <div className="relative group/tooltip inline-flex items-center">
-      {children}
-      <div className={`absolute ${posClasses} invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 ${isBottom ? '-translate-y-1 group-hover/tooltip:translate-y-0' : 'translate-y-1 group-hover/tooltip:translate-y-0'} z-[100] pointer-events-none`}>
-        <div className="bg-[#111d32]/98 backdrop-blur-xl border border-white/10 rounded-xl p-3.5 shadow-2xl text-[11px] font-medium text-zinc-200 whitespace-nowrap ring-1 ring-white/5">
-          {content}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 export default async function MonitorDetailPage({
   params,
@@ -679,7 +712,7 @@ export default async function MonitorDetailPage({
     ORDER BY bucket ASC, region ASC
   `
 
-  const hourlyBypass = (activeView === 'edge-audit')
+  const hourlyBypass = (activeView === 'infrastructure' || activeView === 'diagnostics')
     ? await sql<{ hour: Date; region: string; edge_ttfb: number; origin_ttfb: number; savings: number; edge_cache_status: string | null; origin_cache_status: string | null }[]>`
         SELECT
           date_trunc('hour', time) AS hour,
@@ -790,10 +823,10 @@ export default async function MonitorDetailPage({
   const isCollecting = totalProbes < 3
 
   // AGGREGATE CALCULATIONS FOR SUMMARY CARDS
-  const avgTtfb = stats.length > 0 
-    ? Math.round(stats.reduce((acc, s) => acc + (s.ttfb_avg_ms || 0), 0) / stats.length) 
+  const avgTtfb = stats.length > 0
+    ? Math.round(stats.reduce((acc, s) => acc + (s.ttfb_avg_ms || 0), 0) / stats.length)
     : 0;
-  
+
   const totalHitProbes = stats.reduce((acc, s) => acc + Math.round((s.cache_hit_pct || 0) * s.probe_count / 100), 0);
   const totalProbesCount = stats.reduce((acc, s) => acc + s.probe_count, 0);
   const globalHitRate = totalProbesCount > 0 ? Math.round((totalHitProbes / totalProbesCount) * 100) : 0;
@@ -802,7 +835,7 @@ export default async function MonitorDetailPage({
   const globalUptime = validUptimeStats.length > 0
     ? validUptimeStats.reduce((acc, s) => acc + (s.uptime_pct || 0), 0) / validUptimeStats.length
     : 100;
-    
+
   // Simple heuristic: Uptime + TTFB performance vs 300ms baseline
   const ttfbPenalty = Math.max(0, (avgTtfb - 300) / 10);
   const healthScore = Math.max(0, Math.min(100, Math.round(globalUptime - ttfbPenalty)));
@@ -810,7 +843,7 @@ export default async function MonitorDetailPage({
   // PREVIOUS PERIOD TOTALS FOR TRENDS
   const hasHistory = prevStats.length > 0 && prevStats[0].ttfb_avg_ms !== null;
   const prevData = hasHistory ? prevStats[0] : null;
-  
+
   const prevAvgTtfb = prevData ? Number(prevData.ttfb_avg_ms || 0) : 0;
   const prevGlobalHitRate = prevData ? Math.round(Number(prevData.cache_hit_pct || 0)) : 0;
   const prevGlobalUptime = prevData ? Number(prevData.uptime_pct || 100) : 100;
@@ -890,7 +923,7 @@ export default async function MonitorDetailPage({
       {!isCollecting && (
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
-            <h2 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] flex items-center gap-2">
+            <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2">
               <History className="h-3 w-3" />
               Monitor Overview • Last {range}
             </h2>
@@ -906,7 +939,7 @@ export default async function MonitorDetailPage({
               <div className="relative z-10">
                 <div className="flex items-start justify-between">
                   <PremiumTooltip content={`Weighted performance score based on availability and latency during the last ${range}`}>
-                    <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 group-hover:border-zinc-500 cursor-help transition-colors">Health Score</p>
+                    <p className="cs-metric-card-label">Health Score</p>
                   </PremiumTooltip>
                   <Activity className={`h-4 w-4 ${healthScore > 90 ? 'text-emerald-400' : 'text-amber-400'}`} />
                 </div>
@@ -920,90 +953,90 @@ export default async function MonitorDetailPage({
                     </PremiumTooltip>
                   )}
                 </div>
-                <p className="text-[11px] text-zinc-500 mt-1 font-medium">Global infrastructure stability</p>
+                <p className="text-[11px] text-zinc-500 mt-1 font-medium">Global edge resilience</p>
               </div>
             </Link>
 
-          {/* GLOBAL TTFB CARD */}
-          <Link 
-            href={buildViewHref('trends', range, monitor.id)}
-            scroll={false}
-            className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
-          >
-            <div className="cs-card-wash opacity-40" />
-            <div className="relative z-10">
-              <div className="flex items-start justify-between">
-                <PremiumTooltip content={`Global average Time to First Byte during the last ${range}`}>
-                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 group-hover:border-zinc-500 cursor-help transition-colors">Global TTFB</p>
-                </PremiumTooltip>
-                <Zap className={`h-4 w-4 ${avgTtfb < 200 ? 'text-emerald-400' : avgTtfb < 500 ? 'text-amber-400' : 'text-red-400'}`} />
-              </div>
-              <div className="flex items-baseline gap-2 mt-1.5">
-                <span className="text-[26px] font-bold text-white tracking-tight">{avgTtfb}<span className="text-lg ml-0.5 text-zinc-500">ms</span></span>
-                {hasHistory && ttfbDelta !== 0 && (
-                  <PremiumTooltip content={`${ttfbDelta > 0 ? '+' : '-'}${Math.abs(ttfbDelta)}ms compared to the prior period`} position="top-center" direction="top">
-                    <span className={`text-[11px] font-bold cursor-help ${ttfbDelta <= 0 ? 'text-emerald-400' : 'text-amber-500'}`}>
-                      {ttfbDelta <= 0 ? '↓' : '↑'} {Math.abs(ttfbDelta)}ms
-                    </span>
+            {/* GLOBAL TTFB CARD */}
+            <Link
+              href={buildViewHref('trends', range, monitor.id)}
+              scroll={false}
+              className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
+            >
+              <div className="cs-card-wash opacity-40" />
+              <div className="relative z-10">
+                <div className="flex items-start justify-between">
+                  <PremiumTooltip content={`Global average Time to First Byte during the last ${range}`}>
+                    <p className="cs-metric-card-label">Global TTFB</p>
                   </PremiumTooltip>
-                )}
+                  <Zap className={`h-4 w-4 ${avgTtfb < 200 ? 'text-emerald-400' : avgTtfb < 500 ? 'text-amber-400' : 'text-red-400'}`} />
+                </div>
+                <div className="flex items-baseline gap-2 mt-1.5">
+                  <span className="text-[26px] font-bold text-white tracking-tight">{avgTtfb}<span className="text-lg ml-0.5 text-zinc-500">ms</span></span>
+                  {hasHistory && ttfbDelta !== 0 && (
+                    <PremiumTooltip content={`${ttfbDelta > 0 ? '+' : '-'}${Math.abs(ttfbDelta)}ms compared to the prior period`} position="top-center" direction="top">
+                      <span className={`text-[11px] font-bold cursor-help ${ttfbDelta <= 0 ? 'text-emerald-400' : 'text-amber-500'}`}>
+                        {ttfbDelta <= 0 ? '↓' : '↑'} {Math.abs(ttfbDelta)}ms
+                      </span>
+                    </PremiumTooltip>
+                  )}
+                </div>
+                <p className="text-[11px] text-zinc-500 mt-1 font-medium">Latency across {stats.length} regions</p>
               </div>
-              <p className="text-[11px] text-zinc-500 mt-1 font-medium">Latency across {stats.length} regions</p>
-            </div>
-          </Link>
+            </Link>
 
-          {/* CACHE HIT RATE CARD */}
-          <Link
-            href={buildViewHref('edge-audit', range, monitor.id)}
-            scroll={false}
-            className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
-          >
-            <div className="cs-card-wash opacity-60 bg-gradient-to-br from-emerald-500/5 to-transparent" />
-            <div className="relative z-10">
-              <div className="flex items-start justify-between">
-                <PremiumTooltip content={`Percentage of requests successfully served from CDN edge cache during the last ${range}`}>
-                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 group-hover:border-zinc-500 cursor-help transition-colors">Cache Hit Rate</p>
-                </PremiumTooltip>
-                <ShieldCheck className="h-4 w-4 text-emerald-400" />
-              </div>
-              <div className="flex items-baseline gap-2 mt-1.5">
-                <span className="text-[26px] font-bold text-white tracking-tight">{globalHitRate}<span className="text-lg ml-0.5 text-zinc-500">%</span></span>
-                {hasHistory && cacheDelta !== 0 && (
-                  <PremiumTooltip content={`${cacheDelta > 0 ? '+' : ''}${cacheDelta}% compared to the prior period`} position="top-center" direction="top">
-                    <span className={`text-[11px] font-bold cursor-help ${cacheDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {cacheDelta >= 0 ? '↑' : '↓'} {Math.abs(cacheDelta)}%
-                    </span>
+            {/* CACHE HIT RATE CARD */}
+            <Link
+              href={buildViewHref('infrastructure', range, monitor.id)}
+              scroll={false}
+              className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
+            >
+              <div className="cs-card-wash opacity-60 bg-gradient-to-br from-emerald-500/5 to-transparent" />
+              <div className="relative z-10">
+                <div className="flex items-start justify-between">
+                  <PremiumTooltip content={`Percentage of requests successfully served from CDN edge cache during the last ${range}`}>
+                    <p className="cs-metric-card-label">Cache Hit Rate</p>
                   </PremiumTooltip>
-                )}
+                  <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                </div>
+                <div className="flex items-baseline gap-2 mt-1.5">
+                  <span className="text-[26px] font-bold text-white tracking-tight">{globalHitRate}<span className="text-lg ml-0.5 text-zinc-500">%</span></span>
+                  {hasHistory && cacheDelta !== 0 && (
+                    <PremiumTooltip content={`${cacheDelta > 0 ? '+' : ''}${cacheDelta}% compared to the prior period`} position="top-center" direction="top">
+                      <span className={`text-[11px] font-bold cursor-help ${cacheDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {cacheDelta >= 0 ? '↑' : '↓'} {Math.abs(cacheDelta)}%
+                      </span>
+                    </PremiumTooltip>
+                  )}
+                </div>
+                <p className="text-[11px] text-zinc-500 mt-1 font-medium">Total edge delivery efficiency</p>
               </div>
-              <p className="text-[11px] text-zinc-500 mt-1 font-medium">Total edge delivery efficiency</p>
-            </div>
-          </Link>
+            </Link>
 
-          {/* ACTIVE ALERTS CARD */}
-          <Link
-            href={buildMonitorHref('incidents', range, null, '', monitor.id)}
-            scroll={false}
-            className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
-          >
-            <div className={`cs-card-wash ${alerts.length > 0 ? 'opacity-40 bg-gradient-to-br from-red-500/10 to-transparent' : 'opacity-40'}`} />
-            <div className="relative z-10">
-              <div className="flex items-start justify-between">
-                <PremiumTooltip content={`Count of anomalous events or failures detected during the last ${range}`}>
-                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 group-hover:border-zinc-500 cursor-help transition-colors">Active Alerts</p>
-                </PremiumTooltip>
-                <AlertTriangle className={`h-4 w-4 ${alerts.length > 0 ? 'text-red-400' : 'text-emerald-400'}`} />
+            {/* ACTIVE ALERTS CARD */}
+            <Link
+              href={buildMonitorHref('incidents', range, null, '', monitor.id)}
+              scroll={false}
+              className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
+            >
+              <div className={`cs-card-wash ${alerts.length > 0 ? 'opacity-40 bg-gradient-to-br from-red-500/10 to-transparent' : 'opacity-40'}`} />
+              <div className="relative z-10">
+                <div className="flex items-start justify-between">
+                  <PremiumTooltip content={`Count of anomalous events or failures detected during the last ${range}`}>
+                    <p className="cs-metric-card-label">Active Alerts</p>
+                  </PremiumTooltip>
+                  <AlertTriangle className={`h-4 w-4 ${alerts.length > 0 ? 'text-red-400' : 'text-emerald-400'}`} />
+                </div>
+                <div className="flex items-baseline gap-2 mt-1.5">
+                  <span className={`text-[26px] font-bold tracking-tight ${alerts.length > 0 ? 'text-red-400' : 'text-white'}`}>
+                    {alerts.length === 0 ? 'Clean' : alerts.length}
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-500 mt-1 font-medium">Live anomaly detection</p>
               </div>
-              <div className="flex items-baseline gap-2 mt-1.5">
-                <span className={`text-[26px] font-bold tracking-tight ${alerts.length > 0 ? 'text-red-400' : 'text-white'}`}>
-                  {alerts.length === 0 ? 'Clean' : alerts.length}
-                </span>
-              </div>
-              <p className="text-[11px] text-zinc-500 mt-1 font-medium">Live anomaly detection</p>
-            </div>
-          </Link>
+            </Link>
+          </div>
         </div>
-      </div>
       )}
 
       {isCollecting && (
@@ -1042,6 +1075,11 @@ export default async function MonitorDetailPage({
                         </span>
                         Live Activity — Regional Latest
                       </h2>
+                      <div className="flex items-center gap-2">
+                        <PremiumTooltip content="Run a fresh probe across all regions right now. Cooldown: 30 seconds.">
+                          <MonitorDispatchButtons monitorId={monitor.id} variant="compact" />
+                        </PremiumTooltip>
+                      </div>
                     </div>
                     {latestProbes.length === 0 ? (
                       <p className="text-sm text-zinc-400 italic">Listening for incoming probes...</p>
@@ -1049,186 +1087,182 @@ export default async function MonitorDetailPage({
                       <div className={MONITOR_TABLE.outerWrapper}>
                         <div className={BRAND_TABLE_SURFACE_GRADIENT} />
                         <div className={MONITOR_TABLE.innerScroll}>
-                        <table className={`${MONITOR_TABLE.tableBase} ${MONITOR_TABLE.transition}`}>
-                          <thead>
-                            <tr className={MONITOR_TABLE.theadRow}>
-                              <th className="cs-table-compact-th !text-center">
-                                <PremiumTooltip content="Region where the probe was executed" position="top-center" direction="top">Region</PremiumTooltip>
-                              </th>
-                              <th className="cs-table-compact-th !text-center">
-                                <PremiumTooltip content="Point of presence (PoP) inferred from response headers" position="top-center" direction="top">Served from</PremiumTooltip>
-                              </th>
-                              <th className="cs-table-compact-th !text-center">
-                                <PremiumTooltip content="Edge provider identity (explicit header or inferred from response)" position="top-center" direction="top">Served by</PremiumTooltip>
-                              </th>
-                              <th className="cs-table-compact-th !text-center">
-                                <PremiumTooltip content="Cache status from headers" position="top-center" direction="top">Cache</PremiumTooltip>
-                              </th>
-                              <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER}`}>
-                                <PremiumTooltip content="Time to first byte" position="top-center" direction="top">TTFB</PremiumTooltip>
-                              </th>
-                              <th className="cs-table-compact-th !text-center">
-                                <PremiumTooltip content="Network Handshake (DNS + TCP + TLS)" position="top-center" direction="top">Net</PremiumTooltip>
-                              </th>
-                              <th className="cs-table-compact-th !text-center">
-                                <PremiumTooltip content="Age header (shared cache)" position="top-center" direction="top">Age</PremiumTooltip>
-                              </th>
-                              <th className="cs-table-compact-th !text-center">
-                                <PremiumTooltip content="HTTP status code" position="top-center" direction="top">Status</PremiumTooltip>
-                              </th>
-                              <th className="cs-table-compact-th !text-center">
-                                <PremiumTooltip content="Last synchronization time" position="top-center" direction="top">Sync</PremiumTooltip>
-                              </th>
-                              {process.env.NODE_ENV === 'development' && (
-                                <th
-                                  className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
-                                  title="Software version of the Lambda probe"
-                                >
-                                  v
+                          <table
+                            className={`${MONITOR_TABLE.tableBase} ${MONITOR_TABLE.transition} ${MONITOR_TABLE.tableDense}`}
+                          >
+                            <thead>
+                              <tr className={MONITOR_TABLE.theadRow}>
+                                <th className="cs-table-compact-th !text-center">
+                                  <PremiumTooltip content="Region where the probe was executed" position="top-center" direction="top">Region</PremiumTooltip>
                                 </th>
-                              )}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {latestProbes.map((s) => {
-                              const isError = s.error && s.error !== ''
-                              const cache = cacheDisplay(s.common_cache_status, null)
-                              const age = Number(s.max_age_s ?? 0)
-                              const ageVisual = age > 0 ? ageBadgeVisual(age) : null
-                              const ageBadgeTitle
-                                = age > 0 && ageVisual
-                                  ? `Age header: ${age}s — ${ageVisual.tierHint}`
-                                  : ''
-                              return (
-                                <tr
-                                  key={s.region}
-                                  className={MONITOR_TABLE.tbodyRow}
-                                >
-                                  <td className="cs-table-compact-td font-bold text-zinc-200">
-                                    <PremiumTooltip content={regionDescriptions[s.region] ?? s.region} position="top-left">
-                                      {regionLabels[s.region] ?? s.region}
-                                    </PremiumTooltip>
-                                  </td>
-                                  <td className="cs-table-compact-td text-center">
-                                    <PremiumTooltip content={extractPop(s.common_served_by) || 'Unknown Point of Presence'} position="top-left">
-                                      <span className="cs-pop-tag uppercase">
-                                        {s.common_served_by ? (popToCity(extractPop(s.common_served_by) || '') || extractPop(s.common_served_by)) : '—'}
-                                      </span>
-                                    </PremiumTooltip>
-                                  </td>
-                                  <td className="cs-table-compact-td text-center">
-                                    <PremiumTooltip
-                                      content={s.common_served_by ? `Raw served_by: ${s.common_served_by}` : 'No edge hint'}
-                                      position="top-center"
-                                      direction="top"
-                                    >
-                                      <span className="cs-pop-tag max-w-[9rem] truncate">
-                                        {resolveCdnLabel(s.common_cdn_provider, s.common_served_by) ?? '—'}
-                                      </span>
-                                    </PremiumTooltip>
-                                  </td>
-                                  <td className="cs-table-compact-td text-center">
-                                    <PremiumTooltip content={cache.title} position="top-center" direction="top">
-                                      {cache.text === 'HIT' ? (
-                                        <span className="cs-badge cs-badge-success text-[11px] px-2.5 py-1 min-w-[62px] justify-center">
-                                          <Zap className="w-[11px] h-[11px] fill-current" />
-                                          {cache.text}
-                                        </span>
-                                      ) : (
-                                        <span className="cs-badge-flat cs-badge-flat-warning text-[11px] px-2.5 py-1 min-w-[62px] justify-center font-bold">
-                                          {cache.text}
-                                        </span>
-                                      )}
-                                    </PremiumTooltip>
-                                  </td>
-                                  <td className={`${ttfbMetricCellClass(s.ttfb_ms)} !px-3 !py-2 text-[13px]`}>
-                                    <PremiumTooltip content="Response time for this specific probe" position="top-right" direction="top"><VisualGlow value={s.ttfb_ms}>{s.ttfb_ms != null ? `${Math.round(s.ttfb_ms)}ms` : '—'}</VisualGlow></PremiumTooltip>
-                                  </td>
-                                  <td className="cs-table-compact-td-mono text-right relative group/net">
-                                    <span className="text-zinc-400 cursor-help border-b border-dashed border-zinc-700/50 hover:border-zinc-500 transition-colors pb-0.5">
-                                      {Math.round((s.dns_ms || 0) + (s.tcp_ms || 0) + (s.tls_ms || 0))}<span className="text-[9px] ml-0.5 opacity-50 font-sans">ms</span>
-                                    </span>
-                                    {/* Glass Tooltip */}
-                                    <div className="absolute bottom-full right-0 mb-2 invisible group-hover/net:visible opacity-0 group-hover/net:opacity-100 transition-all duration-200 translate-y-2 group-hover/net:translate-y-0 z-50">
-                                      <div className="bg-[#111d32]/95 backdrop-blur-xl border border-white/10 rounded-lg p-2.5 shadow-2xl min-w-[140px] text-left">
-                                        <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-2 border-b border-white/5 pb-1">Network Breakdown</p>
-                                        <div className="space-y-1.5">
-                                          <div className="flex justify-between items-center gap-4">
-                                            <span className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-medium">
-                                              <div className="w-1 h-1 rounded-full bg-purple-500" /> DNS
-                                            </span>
-                                            <span className="text-[10px] font-mono font-bold text-zinc-300">{Math.round(s.dns_ms || 0)}ms</span>
-                                          </div>
-                                          <div className="flex justify-between items-center gap-4">
-                                            <span className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-medium">
-                                              <div className="w-1 h-1 rounded-full bg-blue-500" /> TCP
-                                            </span>
-                                            <span className="text-[10px] font-mono font-bold text-zinc-300">{Math.round(s.tcp_ms || 0)}ms</span>
-                                          </div>
-                                          <div className="flex justify-between items-center gap-4">
-                                            <span className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-medium">
-                                              <div className="w-1 h-1 rounded-full bg-fuchsia-500" /> TLS
-                                            </span>
-                                            <span className="text-[10px] font-mono font-bold text-zinc-300">{Math.round(s.tls_ms || 0)}ms</span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </td>
-                                  <td className="cs-table-compact-td text-right">
-                                    {age > 0 && ageVisual ? (
-                                      <PremiumTooltip content={ageBadgeTitle} position="top-right" direction="top">
-                                        <span className={`cs-badge-flat ${ageVisual.className}`}>
-                                          {formatCacheAgeShort(age)}
-                                        </span>
+                                <th className="cs-table-compact-th !text-center">
+                                  <PremiumTooltip content="Point of presence (PoP) inferred from response headers" position="top-center" direction="top">Served from</PremiumTooltip>
+                                </th>
+                                <th className="cs-table-compact-th !text-center">
+                                  <PremiumTooltip content="Edge provider identity (explicit header or inferred from response)" position="top-center" direction="top">Served by</PremiumTooltip>
+                                </th>
+                                <th className="cs-table-compact-th !text-center">
+                                  <PremiumTooltip content="Cache status from headers" position="top-center" direction="top">Cache</PremiumTooltip>
+                                </th>
+                                <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER}`}>
+                                  <PremiumTooltip content="Time to first byte" position="top-center" direction="top">TTFB</PremiumTooltip>
+                                </th>
+                                <th className="cs-table-compact-th !text-center">
+                                  <PremiumTooltip content="Age header (shared cache)" position="top-center" direction="top">Age</PremiumTooltip>
+                                </th>
+                                <th className="cs-table-compact-th !text-center">
+                                  <PremiumTooltip content="HTTP status code" position="top-center" direction="top">Status</PremiumTooltip>
+                                </th>
+                                <th className="cs-table-compact-th !text-center">
+                                  <PremiumTooltip content="Last synchronization time" position="top-center" direction="top">Sync</PremiumTooltip>
+                                </th>
+                                {process.env.NODE_ENV === 'development' && (
+                                  <th
+                                    className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
+                                    title="Software version of the Lambda probe"
+                                  >
+                                    v
+                                  </th>
+                                )}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {latestProbes.map((s) => {
+                                const isError = s.error && s.error !== ''
+                                const cache = cacheDisplay(s.common_cache_status, null)
+                                const servedFromLabel = regionRowServedFromLabel(s.common_served_by)
+                                const cdnLabel = regionRowCdnLabelTrimmed(s.common_cdn_provider, s.common_served_by)
+                                const age = Number(s.max_age_s ?? 0)
+                                const ageVisual = age > 0 ? ageBadgeVisual(age) : null
+                                const ageBadgeTitle
+                                  = age > 0 && ageVisual
+                                    ? `Age header: ${age}s — ${ageVisual.tierHint}`
+                                    : ''
+                                return (
+                                  <tr
+                                    key={s.region}
+                                    className={MONITOR_TABLE.tbodyRow}
+                                  >
+                                    <td className="cs-table-compact-td font-bold text-zinc-200">
+                                      <PremiumTooltip content={regionDescriptions[s.region] ?? s.region} position="top-left">
+                                        {regionLabels[s.region] ?? s.region}
                                       </PremiumTooltip>
-                                    ) : (
-                                      <span className="text-[10px] text-zinc-500 tabular-nums">—</span>
-                                    )}
-                                  </td>
-                                  <td className="cs-table-compact-td text-right">
-                                    {(() => {
-                                      const code = s.status_code
-                                      const isErr = isError || (code != null && code >= 400)
-                                      const colorClass = code != null && code < 400 ? 'cs-badge-flat-success' : 'cs-badge-flat-danger';
-                                      const hops = Number(s.redirect_count ?? 0)
-                                      return (
-                                        <div className="flex items-center justify-end gap-1">
-                                          {hops > 0 && (
-                                            <PremiumTooltip content={`This request was redirected ${hops} times.`} position="top-right">
-                                              <span className="cs-badge-flat cs-badge-flat-muted" style={{ fontSize: '8px' }}>{hops}↷</span>
-                                            </PremiumTooltip>
-                                          )}
-                                          {isErr ? (
-                                            <PremiumTooltip content={s.error || 'The edge server returned an error status or connection failed.'} position="top-right" direction="top">
-                                              <span className="cs-badge-flat cs-badge-flat-danger">ERR</span>
-                                            </PremiumTooltip>
-                                          ) : (
-                                            <PremiumTooltip content="Request completed successfully (200 OK)" position="top-right" direction="top"><span className={`cs-badge-flat ${colorClass}`}>{code || '200'}</span></PremiumTooltip>
-                                          )}
-                                        </div>
-                                      )
-                                    })()}
-                                  </td>
-                                  <td className="cs-table-compact-td text-right !text-zinc-600 !text-[10px] tabular-nums">
-                                    {s.last_probe_at ? (
-                                       <PremiumTooltip content={`Probe synchronized at ${new Date(s.last_probe_at).toLocaleString()}`} position="top-right" direction="top">
-                                         {new Date(s.last_probe_at).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                       </PremiumTooltip>
-                                     ) : '—'}
-                                  </td>
-                                  {process.env.NODE_ENV === 'development' && (
-                                    <td className="px-3 py-2 text-right whitespace-nowrap">
-                                      <span className="text-[9px] font-bold text-zinc-400 font-mono bg-zinc-100 dark:bg-zinc-800/50 px-1 py-0.5 rounded">
-                                        {s.probe_version || '—'}
-                                      </span>
                                     </td>
-                                  )}
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </table>
+                                    <td className="cs-table-compact-td text-center">
+                                      {servedFromLabel ? (
+                                        <PremiumTooltip content={extractPop(s.common_served_by) || 'Unknown Point of Presence'} position="top-left">
+                                          <span className="cs-pop-tag uppercase">{servedFromLabel}</span>
+                                        </PremiumTooltip>
+                                      ) : (
+                                        <PremiumTooltip content={TOOLTIP_EDGE_DATA_UNAVAILABLE} position="top-center" direction="top">
+                                          <span className="cs-pop-tag max-w-[9rem] truncate">—</span>
+                                        </PremiumTooltip>
+                                      )}
+                                    </td>
+                                    <td className="cs-table-compact-td text-center">
+                                      {cdnLabel ? (
+                                        <PremiumTooltip
+                                          content={s.common_served_by ? `Raw served_by: ${s.common_served_by}` : 'No edge hint'}
+                                          position="top-center"
+                                          direction="top"
+                                        >
+                                          <span className="cs-pop-tag max-w-[9rem] truncate">{cdnLabel}</span>
+                                        </PremiumTooltip>
+                                      ) : (
+                                        <PremiumTooltip content={TOOLTIP_EDGE_DATA_UNAVAILABLE} position="top-center" direction="top">
+                                          <span className="cs-pop-tag max-w-[9rem] truncate">—</span>
+                                        </PremiumTooltip>
+                                      )}
+                                    </td>
+                                    <td className="cs-table-compact-td text-center">
+                                      {/* Live Activity cache column: badges match min width / padding of Status & Age; slate #475569/#64748b for "Not Reported" = neutral, not failure */}
+                                      <PremiumTooltip content={cache.title} position="top-center" direction="top">
+                                        {cache.variant === 'hit' && (
+                                          <span className="cs-badge-cache-hit">
+                                            <Zap className="h-[10px] w-[10px] shrink-0 fill-current" aria-hidden />
+                                            {cache.text}
+                                          </span>
+                                        )}
+                                        {cache.variant === 'miss' && (
+                                          <span className="cs-badge-cache-miss">{cache.text}</span>
+                                        )}
+                                        {cache.variant === 'bypass' && (
+                                          <span className="cs-badge-cache-bypass">{cache.text}</span>
+                                        )}
+                                        {cache.variant === 'dynamic' && (
+                                          <span className="cs-badge-cache-dynamic">{cache.text}</span>
+                                        )}
+                                        {cache.variant === 'not_reported' && (
+                                          <span className="cs-badge-cache-not-reported">{cache.text}</span>
+                                        )}
+                                        {cache.variant === 'percent_good' && (
+                                          <span className="cs-badge-cache-hit">{cache.text}</span>
+                                        )}
+                                        {cache.variant === 'percent_warn' && (
+                                          <span className="cs-badge-cache-miss">{cache.text}</span>
+                                        )}
+                                        {cache.variant === 'dash' && (
+                                          <span className="cs-badge-cache-dash">{cache.text}</span>
+                                        )}
+                                      </PremiumTooltip>
+                                    </td>
+                                    <td className={`${ttfbMetricCellClass(s.ttfb_ms)} !px-3 !py-2 text-[13px]`}>
+                                      <PremiumTooltip content="Response time for this specific probe" position="top-right" direction="top"><VisualGlow value={s.ttfb_ms}>{s.ttfb_ms != null ? `${Math.round(s.ttfb_ms)}ms` : '—'}</VisualGlow></PremiumTooltip>
+                                    </td>
+                                    <td className="cs-table-compact-td text-right">
+                                      {age > 0 && ageVisual ? (
+                                        <PremiumTooltip content={ageBadgeTitle} position="top-right" direction="top">
+                                          <span className={`cs-badge-flat ${ageVisual.className}`}>
+                                            {formatCacheAgeShort(age)}
+                                          </span>
+                                        </PremiumTooltip>
+                                      ) : (
+                                        <span className="text-[10px] text-zinc-500 tabular-nums">—</span>
+                                      )}
+                                    </td>
+                                    <td className="cs-table-compact-td text-right">
+                                      {(() => {
+                                        const code = s.status_code
+                                        const isErr = isError || (code != null && code >= 400)
+                                        const colorClass = code != null && code < 400 ? 'cs-badge-flat-success' : 'cs-badge-flat-danger';
+                                        const hops = Number(s.redirect_count ?? 0)
+                                        return (
+                                          <div className="flex items-center justify-end gap-1">
+                                            {hops > 0 && (
+                                              <PremiumTooltip content={`This request was redirected ${hops} times.`} position="top-right">
+                                                <span className="cs-badge-flat cs-badge-flat-muted" style={{ fontSize: '8px' }}>{hops}↷</span>
+                                              </PremiumTooltip>
+                                            )}
+                                            {isErr ? (
+                                              <PremiumTooltip content={s.error || 'The edge server returned an error status or connection failed.'} position="top-right" direction="top">
+                                                <span className="cs-badge-flat cs-badge-flat-danger">ERR</span>
+                                              </PremiumTooltip>
+                                            ) : (
+                                              <PremiumTooltip content="Request completed successfully (200 OK)" position="top-right" direction="top"><span className={`cs-badge-flat ${colorClass}`}>{code || '200'}</span></PremiumTooltip>
+                                            )}
+                                          </div>
+                                        )
+                                      })()}
+                                    </td>
+                                    <td className="cs-table-compact-td text-right !text-zinc-600 !text-[10px] tabular-nums">
+                                      {s.last_probe_at ? (
+                                        <PremiumTooltip content={`Probe synchronized at ${new Date(s.last_probe_at).toLocaleString()}`} position="top-right" direction="top">
+                                          {new Date(s.last_probe_at).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                        </PremiumTooltip>
+                                      ) : '—'}
+                                    </td>
+                                    {process.env.NODE_ENV === 'development' && (
+                                      <td className="px-3 py-2 text-right whitespace-nowrap">
+                                        <span className="text-[9px] font-bold text-zinc-400 font-mono bg-zinc-100 dark:bg-zinc-800/50 px-1 py-0.5 rounded">
+                                          {s.probe_version || '—'}
+                                        </span>
+                                      </td>
+                                    )}
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
                     )}
@@ -1240,22 +1274,21 @@ export default async function MonitorDetailPage({
                 <div className="space-y-10">
                   <section>
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
-                      <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
+                      <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
                         Global Performance • Last {range.toUpperCase()}
                       </h2>
                       <div className="flex items-center gap-1.5 rounded-lg bg-zinc-100 dark:bg-white/5 p-1 border border-zinc-200 dark:border-white/10">
                         {['24h', '7d', '30d'].map((r) => (
-                           <Link
-                             key={r}
-                             href={buildViewHref(activeView, r)}
-                             className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${
-                               range === r 
-                               ? 'bg-zinc-100 text-zinc-900 shadow-lg shadow-white/5 ring-1 ring-white/10' 
-                               : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
-                             }`}
-                           >
-                             {r}
-                           </Link>
+                          <Link
+                            key={r}
+                            href={buildViewHref(activeView, r)}
+                            className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${range === r
+                                ? 'bg-zinc-100 text-zinc-900 shadow-lg shadow-white/5 ring-1 ring-white/10'
+                                : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
+                              }`}
+                          >
+                            {r}
+                          </Link>
                         ))}
                       </div>
                     </div>
@@ -1265,16 +1298,17 @@ export default async function MonitorDetailPage({
                       <div className={MONITOR_TABLE.outerWrapper}>
                         <div className={BRAND_TABLE_SURFACE_GRADIENT} />
                         <div className={MONITOR_TABLE.innerScroll}>
-                        <table className={`${MONITOR_TABLE.tableBase} ${MONITOR_TABLE.transition}`}>
-                          <thead>
-                            {(() => {
-                              const hasEdgeData = stats.some(s => s.edge_hit_avg_ms !== null);
-                              const hasOriginData = stats.some(s => s.origin_miss_avg_ms !== null);
-                              const showSplitTtfb = hasEdgeData || hasOriginData;
+                          <table
+                            className={`${MONITOR_TABLE.tableBase} ${MONITOR_TABLE.transition} ${MONITOR_TABLE.tableDense}`}
+                          >
+                            <thead>
+                              {(() => {
+                                const hasEdgeData = stats.some(s => s.edge_hit_avg_ms !== null);
+                                const hasOriginData = stats.some(s => s.origin_miss_avg_ms !== null);
+                                const showSplitTtfb = hasEdgeData || hasOriginData;
 
-                              return (
-                                <>
-                                  <tr className={MONITOR_HEADER_CARD.replace('px-5 py-3.5', 'px-3 py-2') + ' bg-zinc-900/50 border-white/5 border-b'}>
+                                return (
+                                  <tr className={MONITOR_TABLE.theadRow}>
                                     <th className="cs-table-compact-th !text-center">
                                       <PremiumTooltip content="Geographic region" position="top-center" direction="top">Region</PremiumTooltip>
                                     </th>
@@ -1305,9 +1339,6 @@ export default async function MonitorDetailPage({
                                       </th>
                                     )}
 
-                                    <th className="cs-table-compact-th !text-center">
-                                      <PremiumTooltip content="Average Network Handshake duration" position="top-center" direction="top">Net</PremiumTooltip>
-                                    </th>
                                     <th className="cs-table-compact-th !text-center whitespace-nowrap">
                                       <PremiumTooltip content="Min and Max TTFB observed over period" position="top-center" direction="top">Min / Max</PremiumTooltip>
                                     </th>
@@ -1315,150 +1346,124 @@ export default async function MonitorDetailPage({
                                       <PremiumTooltip content="Percentage of successful probes" position="top-center" direction="top">Uptime</PremiumTooltip>
                                     </th>
                                   </tr>
-                                </>
-                              )
-                            })()}
-                          </thead>
-                          <tbody>
-                            {(() => {
-                              const hasEdgeData = stats.some(st => st.edge_hit_avg_ms !== null);
-                              const hasOriginData = stats.some(st => st.origin_miss_avg_ms !== null);
-                              const showSplitTtfb = hasEdgeData || hasOriginData;
-
-                              return stats.map((s) => {
-                                return (
-                                  <tr
-                                    key={s.region}
-                                    className={MONITOR_TABLE.tbodyRow}
-                                  >
-                                    <td className="cs-table-compact-td">
-                                      <PremiumTooltip content={regionDescriptions[s.region] ?? s.region} position="top-left">
-                                        <span className="font-bold text-zinc-200">
-                                          {regionLabels[s.region] ?? s.region}
-                                        </span>
-                                      </PremiumTooltip>
-                                    </td>
-                                    <td className="cs-table-compact-td text-center">
-                                      <PremiumTooltip content={extractPop(s.common_served_by) ? `PoP code detected: ${extractPop(s.common_served_by)}` : 'Location inferred from monitoring region'} position="top-left">
-                                        <span className="cs-pop-tag whitespace-nowrap uppercase">
-                                          {s.common_served_by ? (popToCity(extractPop(s.common_served_by) || '') || extractPop(s.common_served_by)) : '—'}
-                                        </span>
-                                      </PremiumTooltip>
-                                    </td>
-                                    <td className="cs-table-compact-td text-center">
-                                      <PremiumTooltip content={s.common_served_by ? `served_by: ${s.common_served_by}` : 'No edge hint'} position="top-center" direction="top">
-                                        <span className="cs-pop-tag max-w-[9rem] truncate">
-                                          {resolveCdnLabel(s.common_cdn_provider, s.common_served_by) ?? '—'}
-                                        </span>
-                                      </PremiumTooltip>
-                                    </td>
-                                    <td className="cs-table-compact-td text-center">
-                                      {s.cache_hit_pct != null ? (
-                                        <PremiumTooltip content={`${s.cache_hit_pct}% of requests were served from edge cache`} position="top-center" direction="top">
-                                          {Math.round(s.cache_hit_pct) >= 95 ? (
-                                            <span className="cs-badge cs-badge-success text-[11px] px-2.5 py-1 min-w-[62px] justify-center">
-                                              <Zap className="w-[11px] h-[11px] fill-current" />
-                                              {Math.round(s.cache_hit_pct)}%
-                                            </span>
-                                          ) : Math.round(s.cache_hit_pct) >= 90 ? (
-                                            <span className="cs-badge-flat cs-badge-flat-success text-[11px] px-2.5 py-1 min-w-[62px] justify-center font-bold">
-                                              {Math.round(s.cache_hit_pct)}%
-                                            </span>
-                                          ) : Math.round(s.cache_hit_pct) >= 50 ? (
-                                            <span className="cs-badge-flat cs-badge-flat-warning text-[11px] px-2.5 py-1 min-w-[62px] justify-center font-bold">
-                                              {Math.round(s.cache_hit_pct)}%
-                                            </span>
-                                          ) : (
-                                            <span className="cs-badge-flat cs-badge-flat-danger text-[11px] px-2.5 py-1 min-w-[62px] justify-center font-bold">
-                                              {Math.round(s.cache_hit_pct)}%
-                                            </span>
-                                          )}
-                                        </PremiumTooltip>
-                                      ) : '—'}
-                                    </td>
-
-                                    {showSplitTtfb ? (
-                                      <>
-                                        <td className={`${edgeTtfbMetricCellClass(s.edge_hit_avg_ms)} !text-[13px] !py-2`}>
-                                          <PremiumTooltip content="Avg response time served from CDN Cache" position="top-right" direction="top">{s.edge_hit_avg_ms != null ? `${Math.round(s.edge_hit_avg_ms)}ms` : '—'}</PremiumTooltip>
-                                        </td>
-                                        <td className={`${originTtfbMetricCellClass(s.origin_miss_avg_ms)} !text-[13px] !py-2`}>
-                                          <PremiumTooltip content="Avg response time bypassing cache (Direct from Origin)" position="top-right" direction="top">{s.origin_miss_avg_ms != null ? `${Math.round(s.origin_miss_avg_ms)}ms` : '—'}</PremiumTooltip>
-                                        </td>
-                                        <td className={`${ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2 border-l border-white/5`}>
-                                          <PremiumTooltip content="Overall weighted average response time for this region" position="top-right" direction="top">{s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}</PremiumTooltip>
-                                        </td>
-                                      </>
-                                    ) : (
-                                      <td className={`${ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2`}>
-                                        {s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}
-                                      </td>
-                                    )}
-
-                                    <td className="cs-table-compact-td-mono text-right relative group/net">
-                                      <span className="text-zinc-400 cursor-help border-b border-dashed border-zinc-700/50 hover:border-zinc-500 transition-colors pb-0.5">
-                                        {Math.round((s.dns_avg_ms || 0) + (s.tcp_avg_ms || 0) + (s.tls_avg_ms || 0))}<span className="text-[9px] ml-0.5 opacity-50 font-sans">ms</span>
-                                      </span>
-                                      {/* Glass Tooltip */}
-                                      <div className="absolute bottom-full right-0 mb-2 invisible group-hover/net:visible opacity-0 group-hover/net:opacity-100 transition-all duration-200 translate-y-2 group-hover/net:translate-y-0 z-50">
-                                        <div className="bg-[#111d32]/95 backdrop-blur-xl border border-white/10 rounded-lg p-2.5 shadow-2xl min-w-[140px] text-left">
-                                          <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mb-2 border-b border-white/5 pb-1">Average Breakdown</p>
-                                          <div className="space-y-1.5">
-                                            <div className="flex justify-between items-center gap-4">
-                                              <span className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-medium">
-                                                <div className="w-1 h-1 rounded-full bg-purple-500" /> DNS
-                                              </span>
-                                              <span className="text-[10px] font-mono font-bold text-zinc-300">{Math.round(s.dns_avg_ms || 0)}ms</span>
-                                            </div>
-                                            <div className="flex justify-between items-center gap-4">
-                                              <span className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-medium">
-                                                <div className="w-1 h-1 rounded-full bg-blue-500" /> TCP
-                                              </span>
-                                              <span className="text-[10px] font-mono font-bold text-zinc-300">{Math.round(s.tcp_avg_ms || 0)}ms</span>
-                                            </div>
-                                            <div className="flex justify-between items-center gap-4">
-                                              <span className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-medium">
-                                                <div className="w-1 h-1 rounded-full bg-fuchsia-500" /> TLS
-                                              </span>
-                                              <span className="text-[10px] font-mono font-bold text-zinc-300">{Math.round(s.tls_avg_ms || 0)}ms</span>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </td>
-
-                                    <td className="cs-table-compact-td-mono text-right text-zinc-400">
-                                      {s.ttfb_min_ms != null ? (
-                                        <PremiumTooltip content={`Min: ${Math.round(s.ttfb_min_ms)}ms / Max: ${Math.round(s.ttfb_max_ms || 0)}ms recorded`} position="top-right">
-                                          <span className="whitespace-nowrap border-b border-dashed border-zinc-800 hover:border-zinc-600 transition-colors pb-0.5 cursor-help">
-                                            {Math.round(s.ttfb_min_ms)}<span className="opacity-30 mx-1">/</span>{Math.round(s.ttfb_max_ms || 0)}<span className="text-[9px] ml-0.5 opacity-50 font-sans">ms</span>
-                                          </span>
-                                        </PremiumTooltip>
-                                      ) : '—'}
-                                    </td>
-                                    <td className="cs-table-compact-td text-right">
-                                      {s.uptime_pct != null ? (
-                                        <PremiumTooltip content={`Uptime: ${Math.round(s.uptime_pct)}% of successful probes`} position="top-right" direction="top">
-                                          <span className={`cs-badge-flat ${s.uptime_pct >= 99 ? 'cs-badge-flat-success' : s.uptime_pct >= 95 ? 'cs-badge-flat-warning' : 'cs-badge-flat-danger'} font-bold`}>
-                                            {Math.round(s.uptime_pct)}%
-                                          </span>
-                                        </PremiumTooltip>
-                                      ) : '—'}
-                                    </td>
-                                  </tr>
                                 )
-                              })
-                            })()}
-                          </tbody>
-                        </table>
+                              })()}
+                            </thead>
+                            <tbody>
+                              {(() => {
+                                const hasEdgeData = stats.some(st => st.edge_hit_avg_ms !== null);
+                                const hasOriginData = stats.some(st => st.origin_miss_avg_ms !== null);
+                                const showSplitTtfb = hasEdgeData || hasOriginData;
+
+                                return stats.map((s) => {
+                                  const servedFromLabel = regionRowServedFromLabel(s.common_served_by)
+                                  const cdnLabel = regionRowCdnLabelTrimmed(s.common_cdn_provider, s.common_served_by)
+                                  return (
+                                    <tr
+                                      key={s.region}
+                                      className={MONITOR_TABLE.tbodyRow}
+                                    >
+                                      <td className="cs-table-compact-td">
+                                        <PremiumTooltip content={regionDescriptions[s.region] ?? s.region} position="top-left">
+                                          <span className="font-bold text-zinc-200">
+                                            {regionLabels[s.region] ?? s.region}
+                                          </span>
+                                        </PremiumTooltip>
+                                      </td>
+                                      <td className="cs-table-compact-td text-center">
+                                        {servedFromLabel ? (
+                                          <PremiumTooltip content={extractPop(s.common_served_by) ? `PoP code detected: ${extractPop(s.common_served_by)}` : 'Location inferred from monitoring region'} position="top-left">
+                                            <span className="cs-pop-tag whitespace-nowrap uppercase">{servedFromLabel}</span>
+                                          </PremiumTooltip>
+                                        ) : (
+                                          <PremiumTooltip content={TOOLTIP_EDGE_DATA_UNAVAILABLE} position="top-center" direction="top">
+                                            <span className="cs-pop-tag max-w-[9rem] truncate">—</span>
+                                          </PremiumTooltip>
+                                        )}
+                                      </td>
+                                      <td className="cs-table-compact-td text-center">
+                                        {cdnLabel ? (
+                                          <PremiumTooltip content={s.common_served_by ? `served_by: ${s.common_served_by}` : 'No edge hint'} position="top-center" direction="top">
+                                            <span className="cs-pop-tag max-w-[9rem] truncate">{cdnLabel}</span>
+                                          </PremiumTooltip>
+                                        ) : (
+                                          <PremiumTooltip content={TOOLTIP_EDGE_DATA_UNAVAILABLE} position="top-center" direction="top">
+                                            <span className="cs-pop-tag max-w-[9rem] truncate">—</span>
+                                          </PremiumTooltip>
+                                        )}
+                                      </td>
+                                      <td className="cs-table-compact-td text-center">
+                                        {s.cache_hit_pct != null ? (
+                                          <PremiumTooltip content={`${s.cache_hit_pct}% of requests were served from edge cache`} position="top-center" direction="top">
+                                            {Math.round(s.cache_hit_pct) >= 95 ? (
+                                              <span className="cs-badge-cache-hit">
+                                                <Zap className="h-[10px] w-[10px] shrink-0 fill-current" aria-hidden />
+                                                {Math.round(s.cache_hit_pct)}%
+                                              </span>
+                                            ) : Math.round(s.cache_hit_pct) >= 90 ? (
+                                              <span className="cs-badge-cache-hit">{Math.round(s.cache_hit_pct)}%</span>
+                                            ) : Math.round(s.cache_hit_pct) >= 50 ? (
+                                              <span className="cs-badge-cache-miss">{Math.round(s.cache_hit_pct)}%</span>
+                                            ) : (
+                                              <span className="cs-badge-cache-hit-rate-low">{Math.round(s.cache_hit_pct)}%</span>
+                                            )}
+                                          </PremiumTooltip>
+                                        ) : (
+                                          <span className="cs-badge-cache-dash">—</span>
+                                        )}
+                                      </td>
+
+                                      {showSplitTtfb ? (
+                                        <>
+                                          <td className={`${edgeTtfbMetricCellClass(s.edge_hit_avg_ms)} !text-[13px] !py-2`}>
+                                            <PremiumTooltip content="Avg response time served from CDN Cache" position="top-right" direction="top">{s.edge_hit_avg_ms != null ? `${Math.round(s.edge_hit_avg_ms)}ms` : '—'}</PremiumTooltip>
+                                          </td>
+                                          <td className={`${originTtfbMetricCellClass(s.origin_miss_avg_ms)} !text-[13px] !py-2`}>
+                                            <PremiumTooltip content="Avg response time bypassing cache (Direct from Origin)" position="top-right" direction="top">{s.origin_miss_avg_ms != null ? `${Math.round(s.origin_miss_avg_ms)}ms` : '—'}</PremiumTooltip>
+                                          </td>
+                                          <td className={`${ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2 border-l border-white/5`}>
+                                            <PremiumTooltip content="Overall weighted average response time for this region" position="top-right" direction="top">{s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}</PremiumTooltip>
+                                          </td>
+                                        </>
+                                      ) : (
+                                        <td className={`${ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2`}>
+                                          {s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}
+                                        </td>
+                                      )}
+
+
+                                      <td className="cs-table-compact-td-mono text-right text-zinc-400">
+                                        {s.ttfb_min_ms != null ? (
+                                          <PremiumTooltip content={`Min: ${Math.round(s.ttfb_min_ms)}ms / Max: ${Math.round(s.ttfb_max_ms || 0)}ms recorded`} position="top-right">
+                                            <span className="whitespace-nowrap border-b border-dashed border-zinc-800 hover:border-zinc-600 transition-colors pb-0.5 cursor-help">
+                                              {Math.round(s.ttfb_min_ms)}<span className="opacity-30 mx-1">/</span>{Math.round(s.ttfb_max_ms || 0)}<span className="text-[9px] ml-0.5 opacity-50 font-sans">ms</span>
+                                            </span>
+                                          </PremiumTooltip>
+                                        ) : '—'}
+                                      </td>
+                                      <td className="cs-table-compact-td text-right">
+                                        {s.uptime_pct != null ? (
+                                          <PremiumTooltip content={`Uptime: ${Math.round(s.uptime_pct)}% of successful probes`} position="top-right" direction="top">
+                                            <span className={`cs-badge-flat ${s.uptime_pct >= 99 ? 'cs-badge-flat-success' : s.uptime_pct >= 95 ? 'cs-badge-flat-warning' : 'cs-badge-flat-danger'} font-bold`}>
+                                              {Math.round(s.uptime_pct)}%
+                                            </span>
+                                          </PremiumTooltip>
+                                        ) : '—'}
+                                      </td>
+                                    </tr>
+                                  )
+                                })
+                              })()}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
                     )}
                   </section>
 
                   {stats.length > 0 && (
-                    <section className="space-y-4">
-                      <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1">
+                    <section className="space-y-6">
+                      <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1 mb-6">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         Performance trends
                       </h2>
@@ -1467,11 +1472,12 @@ export default async function MonitorDetailPage({
                   )}
 
                   {spikes.length > 0 && (
-                    <section>
-                      <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">
-                        Recent spikes - last 24h
+                    <section className="space-y-6">
+                      <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1 mb-6">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Recent performance spikes — last 24h
                       </h2>
-                      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
+                      <div className="rounded-2xl border border-zinc-200 dark:border-white/5 bg-white/[0.02] divide-y divide-zinc-100 dark:divide-white/5 overflow-hidden">
                         {spikes.map((spike, index) => (
                           <div key={index} className="flex items-center justify-between px-4 py-2.5 gap-4">
                             <div className="flex items-center gap-3 min-w-0">
@@ -1494,11 +1500,12 @@ export default async function MonitorDetailPage({
                   )}
 
                   {weekTrend.length > 0 && (
-                    <section>
-                      <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">
-                        Week-over-week trend
+                    <section className="space-y-6">
+                      <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1 mb-6">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Week-over-week performance trend
                       </h2>
-                      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800">
+                      <div className="rounded-2xl border border-zinc-200 dark:border-white/5 bg-white/[0.02] divide-y divide-zinc-100 dark:divide-white/5 overflow-hidden">
                         {weekTrend.map(t => (
                           <div key={t.region} className="flex items-center justify-between px-4 py-3 gap-4">
                             <span className="text-sm text-zinc-700 dark:text-zinc-300 font-medium min-w-[120px]">
@@ -1520,7 +1527,17 @@ export default async function MonitorDetailPage({
                 </div>
               )}
 
-              {activeView === 'edge-audit' && (
+              {activeView === 'diagnostics' && (
+                <div className="space-y-4">
+                  {waterfallProbes.length > 0 ? (
+                    <ProbeWaterfall probes={waterfallProbes} regionLabels={regionLabels} />
+                  ) : (
+                    <p className="text-sm text-zinc-400 italic">No diagnostic data available yet.</p>
+                  )}
+                </div>
+              )}
+
+              {activeView === 'infrastructure' && (
                 <div className="space-y-10">
                   <BypassAudit data={hourlyBypass} regionLabels={regionLabels} />
                 </div>
@@ -1528,34 +1545,13 @@ export default async function MonitorDetailPage({
             </div>
           )}
 
-          {activeTab === 'on-demand' && (
-            <div>
-              <MonitorOnDemandPanel monitorId={monitor.id} />
-            </div>
-          )}
-
-          {/* Insights — reserved for AI-powered actionable recommendations */}
-          {activeTab === 'insights' && (
-            <div className="flex flex-col items-center justify-center gap-6 py-20 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-500/20 bg-cyan-500/5 shadow-lg shadow-cyan-500/10">
-                <Lightbulb className="h-6 w-6 text-cyan-400" />
-              </div>
-              <div className="space-y-2 max-w-xs">
-                <h3 className="text-sm font-bold text-zinc-200">Insights coming soon</h3>
-                <p className="text-xs text-zinc-500 leading-relaxed">
-                  AI-powered analysis of your cache strategy, latency patterns and actionable recommendations — in plain language.
-                </p>
-              </div>
-              <span className="rounded-full border border-cyan-500/20 bg-cyan-500/5 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-cyan-500/60">
-                In development
-              </span>
-            </div>
-          )}
-
 
           {activeTab === 'settings' && (
-            <div>
-              <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">Monitor settings</h2>
+            <div className="space-y-10 pt-4">
+              <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1 mb-8">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Monitor configuration
+              </h2>
               <MonitorSettingsPanel
                 id={monitor.id}
                 url={monitor.url}
@@ -1572,9 +1568,10 @@ export default async function MonitorDetailPage({
 
 
           {activeTab === 'security' && (
-            <section className="space-y-5">
-              <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide">
-                Security
+            <div className="space-y-10 pt-4">
+              <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1 mb-8">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Security Headers Audit
               </h2>
 
               {!security && securityByRegion.length === 0 && (
@@ -1654,11 +1651,10 @@ export default async function MonitorDetailPage({
                                     </p>
                                   </div>
                                   <div
-                                    className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 ${
-                                      urgent
+                                    className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 ${urgent
                                         ? 'border-red-500/30 bg-red-500/10'
                                         : 'border-emerald-500/25 bg-emerald-500/[0.07]'
-                                    }`}
+                                      }`}
                                   >
                                     <span
                                       className={`h-2 w-2 shrink-0 rounded-full ${urgent ? 'animate-pulse bg-red-400' : 'bg-emerald-400'}`}
@@ -1666,9 +1662,8 @@ export default async function MonitorDetailPage({
                                     <div>
                                       <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Renewal</p>
                                       <p
-                                        className={`text-sm font-bold tabular-nums ${
-                                          urgent ? 'text-red-400' : 'text-emerald-600 dark:text-emerald-400'
-                                        }`}
+                                        className={`text-sm font-bold tabular-nums ${urgent ? 'text-red-400' : 'text-emerald-600 dark:text-emerald-400'
+                                          }`}
                                       >
                                         {daysRem} days left
                                       </p>
@@ -1758,84 +1753,84 @@ export default async function MonitorDetailPage({
                       <div className="relative overflow-hidden rounded-2xl border border-border bg-surface p-6 shadow-sm">
                         <div className={BRAND_CARD_SURFACE_GRADIENT} />
                         <div className="relative">
-                        <div className="mb-6 flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="min-w-0 space-y-1">
-                            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Global Security Profile</h3>
-                            <p className="text-sm text-zinc-500">
-                              Which security headers were observed on the latest probes. Score is out of nine tracked headers.
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-4 sm:justify-end">
-                            {security && (
-                              <div className="flex items-baseline gap-1 rounded-lg border border-border bg-white/5 px-3 py-2 tabular-nums" title="Headers present out of nine tracked">
-                                <span className="text-2xl font-bold text-zinc-100">{security.score}</span>
-                                <span className="text-lg font-medium text-zinc-500">/</span>
-                                <span className="text-xl font-semibold text-zinc-400">9</span>
-                              </div>
-                            )}
-                            <div className="flex -space-x-2">
-                              {mainProfile.regions.map(r => (
-                                <div key={r} title={regionLabels[r]} className="flex h-6 w-6 cursor-help items-center justify-center rounded-full border-2 border-white bg-emerald-500 text-[8px] font-bold text-white shadow-sm dark:border-zinc-950">
-                                  {r.split('-').map(p => p[0].toUpperCase()).join('')}
+                          <div className="mb-6 flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0 space-y-1">
+                              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Global Security Profile</h3>
+                              <p className="text-sm text-zinc-500">
+                                Which security headers were observed on the latest probes. Score is out of nine tracked headers.
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-4 sm:justify-end">
+                              {security && (
+                                <div className="flex items-baseline gap-1 rounded-lg border border-border bg-white/5 px-3 py-2 tabular-nums" title="Headers present out of nine tracked">
+                                  <span className="text-2xl font-bold text-zinc-100">{security.score}</span>
+                                  <span className="text-lg font-medium text-zinc-500">/</span>
+                                  <span className="text-xl font-semibold text-zinc-400">9</span>
                                 </div>
-                              ))}
+                              )}
+                              <div className="flex -space-x-2">
+                                {mainProfile.regions.map(r => (
+                                  <div key={r} title={regionLabels[r]} className="flex h-6 w-6 cursor-help items-center justify-center rounded-full border-2 border-white bg-emerald-500 text-[8px] font-bold text-white shadow-sm dark:border-zinc-950">
+                                    {r.split('-').map(p => p[0].toUpperCase()).join('')}
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                          {SECURITY_HEADERS_LABELS.map(({ key, label, description }) => {
-                            const value = mainProfile.headers?.[key] ?? null
-                            const present = value != null && String(value).trim().length > 0
-                            return (
-                              <div key={key} className="space-y-1.5">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-tight">{label}</span>
-                                  {present ? (
-                                    <span className="inline-flex items-center rounded-md bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-400 ring-1 ring-inset ring-emerald-200/50 dark:ring-emerald-800/50 uppercase">Active</span>
-                                  ) : (
-                                    <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800/80 px-1.5 py-0.5 text-[9px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-tight ring-1 ring-inset ring-zinc-200/50 dark:ring-zinc-700/50">Missing</span>
-                                  )}
-                                </div>
-                                {present && (() => {
-                                  const valStr = String(value)
-                                  if (valStr.length < 160) {
-                                    return (
-                                      <div className="rounded border border-border bg-white/5 p-2 text-wrap dark:bg-zinc-900/40">
-                                        <code className="block text-[10px] text-zinc-600 dark:text-zinc-400 break-all font-mono leading-relaxed">
-                                          {valStr}
-                                        </code>
-                                      </div>
-                                    )
-                                  }
-                                  return (
-                                    <details className="group">
-                                      <summary className="flex items-center gap-1.5 cursor-pointer list-none outline-none">
-                                        <div className="min-w-0 flex-1 rounded border border-border bg-white/5 p-2 dark:bg-zinc-900/40">
-                                          <code className="text-[10px] text-zinc-600 dark:text-zinc-400 font-mono block truncate">
-                                            {valStr.slice(0, 100)}...
+                          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                            {SECURITY_HEADERS_LABELS.map(({ key, label, description }) => {
+                              const value = mainProfile.headers?.[key] ?? null
+                              const present = value != null && String(value).trim().length > 0
+                              return (
+                                <div key={key} className="space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-tight">{label}</span>
+                                    {present ? (
+                                      <span className="inline-flex items-center rounded-md bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-400 ring-1 ring-inset ring-emerald-200/50 dark:ring-emerald-800/50 uppercase">Active</span>
+                                    ) : (
+                                      <span className="inline-flex items-center rounded-md bg-zinc-100 dark:bg-zinc-800/80 px-1.5 py-0.5 text-[9px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-tight ring-1 ring-inset ring-zinc-200/50 dark:ring-zinc-700/50">Missing</span>
+                                    )}
+                                  </div>
+                                  {present && (() => {
+                                    const valStr = String(value)
+                                    if (valStr.length < 160) {
+                                      return (
+                                        <div className="rounded border border-border bg-white/5 p-2 text-wrap dark:bg-zinc-900/40">
+                                          <code className="block text-[10px] text-zinc-600 dark:text-zinc-400 break-all font-mono leading-relaxed">
+                                            {valStr}
                                           </code>
                                         </div>
-                                        <div className="flex flex-col items-center gap-0.5 px-1">
-                                          <span className="text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter group-open:hidden">Full</span>
-                                          <span className="text-[8px] font-black text-zinc-400 uppercase tracking-tighter hidden group-open:inline">Less</span>
+                                      )
+                                    }
+                                    return (
+                                      <details className="group">
+                                        <summary className="flex items-center gap-1.5 cursor-pointer list-none outline-none">
+                                          <div className="min-w-0 flex-1 rounded border border-border bg-white/5 p-2 dark:bg-zinc-900/40">
+                                            <code className="text-[10px] text-zinc-600 dark:text-zinc-400 font-mono block truncate">
+                                              {valStr.slice(0, 100)}...
+                                            </code>
+                                          </div>
+                                          <div className="flex flex-col items-center gap-0.5 px-1">
+                                            <span className="text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter group-open:hidden">Full</span>
+                                            <span className="text-[8px] font-black text-zinc-400 uppercase tracking-tighter hidden group-open:inline">Less</span>
+                                          </div>
+                                        </summary>
+                                        <div className="mt-2 rounded border border-border bg-surface/80 p-2 shadow-inner">
+                                          <code className="block text-[10px] text-zinc-600 dark:text-zinc-400 break-all font-mono leading-relaxed">
+                                            {valStr}
+                                          </code>
                                         </div>
-                                      </summary>
-                                      <div className="mt-2 rounded border border-border bg-surface/80 p-2 shadow-inner">
-                                        <code className="block text-[10px] text-zinc-600 dark:text-zinc-400 break-all font-mono leading-relaxed">
-                                          {valStr}
-                                        </code>
-                                      </div>
-                                    </details>
-                                  )
-                                })()}
-                                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 italic">
-                                  {description}
-                                </p>
-                              </div>
-                            )
-                          })}
-                        </div>
+                                      </details>
+                                    )
+                                  })()}
+                                  <p className="text-[10px] text-zinc-400 dark:text-zinc-500 italic">
+                                    {description}
+                                  </p>
+                                </div>
+                              )
+                            })}
+                          </div>
                         </div>
                       </div>
                       <p className="text-[10px] text-zinc-400 text-right italic">Consistent across {mainProfile.regions.length} regions. Last verified: {formatDate(mainProfile.sampled_at)}</p>
@@ -1884,7 +1879,7 @@ export default async function MonitorDetailPage({
                   </div>
                 )
               })()}
-            </section>
+            </div>
           )}
 
           {activeTab === 'incidents' && (
@@ -2012,68 +2007,68 @@ export default async function MonitorDetailPage({
                   <div className={MONITOR_TABLE.outerWrapperMuted}>
                     <div className={BRAND_TABLE_SURFACE_GRADIENT} />
                     <div className={MONITOR_TABLE.innerScroll}>
-                    <table className={`${MONITOR_TABLE.tableBase} ${MONITOR_TABLE.transition}`}>
-                      <thead>
-                        <tr className={MONITOR_TABLE.theadRow}>
-                          <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Timestamp</th>
-                          <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Region</th>
-                          <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Event Type</th>
-                          <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Metric</th>
-                          <th className="px-4 py-2.5 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Baseline</th>
-                          <th className="px-4 py-2.5 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Actual</th>
-                          <th className="px-4 py-2.5 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Severity</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {alerts.map((alert) => {
-                          const severity = (alert.deviation_factor ?? 0) > 4 ? 'CRITICAL' : (alert.deviation_factor ?? 0) > 2 ? 'WARNING' : 'STATED';
-                          const severityColor = severity === 'CRITICAL' ? 'bg-red-500 text-white' : severity === 'WARNING' ? 'bg-amber-500 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400';
+                      <table className={`${MONITOR_TABLE.tableBase} ${MONITOR_TABLE.transition}`}>
+                        <thead>
+                          <tr className={MONITOR_TABLE.theadRow}>
+                            <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Timestamp</th>
+                            <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Region</th>
+                            <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Event Type</th>
+                            <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Metric</th>
+                            <th className="px-4 py-2.5 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Baseline</th>
+                            <th className="px-4 py-2.5 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Actual</th>
+                            <th className="px-4 py-2.5 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Severity</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {alerts.map((alert) => {
+                            const severity = (alert.deviation_factor ?? 0) > 4 ? 'CRITICAL' : (alert.deviation_factor ?? 0) > 2 ? 'WARNING' : 'STATED';
+                            const severityColor = severity === 'CRITICAL' ? 'bg-red-500 text-white' : severity === 'WARNING' ? 'bg-amber-500 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400';
 
-                          return (
-                            <tr key={alert.id} className={MONITOR_TABLE.tbodyRow}>
-                              <td className="px-4 py-3.5">
-                                <span className="text-[11px] text-zinc-500 font-medium tabular-nums">
-                                  {new Date(alert.created_at).toLocaleString('en-US', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                                  {regionLabels[alert.region] ?? alert.region}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <div className="flex items-center gap-2">
-                                  {alert.alert_type === 'anomaly' ? (
-                                    <Zap className="w-3 h-3 text-amber-500" />
-                                  ) : (
-                                    <AlertTriangle className="w-3 h-3 text-red-500" />
-                                  )}
-                                  <span className="text-[11px] font-bold uppercase tracking-tight text-zinc-600 dark:text-zinc-400">
-                                    {ALERT_TYPE_LABELS[alert.alert_type as AlertType] ?? alert.alert_type.replace('_', ' ')}
+                            return (
+                              <tr key={alert.id} className={MONITOR_TABLE.tbodyRow}>
+                                <td className="px-4 py-3.5">
+                                  <span className="text-[11px] text-zinc-500 font-medium tabular-nums">
+                                    {new Date(alert.created_at).toLocaleString('en-US', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                   </span>
-                                </div>
-                              </td>
-                              <td className="px-4 py-3.5">
-                                <code className="text-[10px] font-mono bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-500">
-                                  {alert.metric}
-                                </code>
-                              </td>
-                              <td className="px-4 py-3.5 text-right text-xs tabular-nums text-zinc-400">
-                                {formatMs(alert.baseline_ms)}
-                              </td>
-                              <td className="px-4 py-3.5 text-right text-xs tabular-nums font-semibold text-zinc-700 dark:text-zinc-300">
-                                {formatMs(alert.actual_ms)}
-                              </td>
-                              <td className="px-4 py-3.5 text-right">
-                                <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-black tracking-tighter ${severityColor}`}>
-                                  {alert.deviation_factor != null ? `${alert.deviation_factor.toFixed(1)}X` : '-'}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                                </td>
+                                <td className="px-4 py-3.5">
+                                  <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                                    {regionLabels[alert.region] ?? alert.region}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3.5">
+                                  <div className="flex items-center gap-2">
+                                    {alert.alert_type === 'anomaly' ? (
+                                      <Zap className="w-3 h-3 text-amber-500" />
+                                    ) : (
+                                      <AlertTriangle className="w-3 h-3 text-red-500" />
+                                    )}
+                                    <span className="text-[11px] font-bold uppercase tracking-tight text-zinc-600 dark:text-zinc-400">
+                                      {ALERT_TYPE_LABELS[alert.alert_type as AlertType] ?? alert.alert_type.replace('_', ' ')}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3.5">
+                                  <code className="text-[10px] font-mono bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-500">
+                                    {alert.metric}
+                                  </code>
+                                </td>
+                                <td className="px-4 py-3.5 text-right text-xs tabular-nums text-zinc-400">
+                                  {formatMs(alert.baseline_ms)}
+                                </td>
+                                <td className="px-4 py-3.5 text-right text-xs tabular-nums font-semibold text-zinc-700 dark:text-zinc-300">
+                                  {formatMs(alert.actual_ms)}
+                                </td>
+                                <td className="px-4 py-3.5 text-right">
+                                  <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-black tracking-tighter ${severityColor}`}>
+                                    {alert.deviation_factor != null ? `${alert.deviation_factor.toFixed(1)}X` : '-'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 )}

@@ -30,12 +30,12 @@ export function MonitorSettingsPanel(props: {
   }, [])
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-12 max-w-5xl">
       <section aria-labelledby="settings-edit-heading">
         <MonitorEditForm {...props} idPrefix="settings" />
       </section>
 
-      <section aria-labelledby="settings-danger-heading" className="cs-danger-card mt-8">
+      <section aria-labelledby="settings-danger-heading" className="cs-danger-card">
         <div className="cs-card-wash" />
         <div className="flex flex-col mb-6">
           <h2 id="settings-danger-heading" className="cs-danger-header">

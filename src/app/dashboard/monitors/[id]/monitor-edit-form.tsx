@@ -167,14 +167,6 @@ export function MonitorEditForm({
         </div>
       </div>
 
-      <div className="flex items-start justify-between">
-        <header className="mb-2">
-          <h2 id={`${p}-edit-heading`} className="text-lg font-bold text-white mb-1">
-            Monitor configuration
-          </h2>
-          <p className="text-xs text-zinc-500">Changes are saved automatically as you work.</p>
-        </header>
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl">
         {/* GENERAL SECTION */}
