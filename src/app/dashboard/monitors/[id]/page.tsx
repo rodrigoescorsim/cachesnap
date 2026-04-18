@@ -853,11 +853,12 @@ export default async function MonitorDetailPage({
   const healthDelta = hasHistory ? healthScore - prevHealthScore : 0;
   const ttfbDelta = hasHistory ? avgTtfb - prevAvgTtfb : 0;
   const cacheDelta = hasHistory ? globalHitRate - prevGlobalHitRate : 0;
+  const liveFreezeStorageKey = `live_updates_frozen_${monitor.id}`
 
   return (
     <div className="space-y-5">
       <RealTimeHub userId={user.id} watchId={monitor.id} />
-      <AutoRefresh />
+      <AutoRefresh pauseStorageKey={liveFreezeStorageKey} />
       <div className={`${MONITOR_HEADER_CARD} min-w-0`}>
         {/* Uma linha: contexto (esq.) | estado + ações (dir.) — alinhamento tipo SaaS */}
         <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
@@ -1076,9 +1077,11 @@ export default async function MonitorDetailPage({
                         Live Activity — Regional Latest
                       </h2>
                       <div className="flex items-center gap-2">
-                        <PremiumTooltip content="Run a fresh probe across all regions right now. Cooldown: 30 seconds.">
-                          <MonitorDispatchButtons monitorId={monitor.id} variant="compact" />
-                        </PremiumTooltip>
+                        <MonitorDispatchButtons
+                          monitorId={monitor.id}
+                          variant="compact"
+                          freezeStorageKey={liveFreezeStorageKey}
+                        />
                       </div>
                     </div>
                     {latestProbes.length === 0 ? (

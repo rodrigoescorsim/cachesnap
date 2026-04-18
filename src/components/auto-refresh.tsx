@@ -3,18 +3,28 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
-export function AutoRefresh({ intervalMs = 60_000 }: { intervalMs?: number }) {
+interface AutoRefreshProps {
+  intervalMs?: number
+  pauseStorageKey?: string
+}
+
+export function AutoRefresh({ intervalMs = 60_000, pauseStorageKey }: AutoRefreshProps) {
   const router = useRouter()
 
   useEffect(() => {
     const id = setInterval(() => {
-      if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+      const isFrozen = Boolean(
+        pauseStorageKey &&
+          typeof window !== 'undefined' &&
+          window.localStorage.getItem(pauseStorageKey) === '1'
+      )
+      if (!isFrozen && (typeof document === 'undefined' || document.visibilityState === 'visible')) {
         router.refresh()
       }
     }, intervalMs)
 
     return () => clearInterval(id)
-  }, [intervalMs, router])
+  }, [intervalMs, pauseStorageKey, router])
 
   return null
 }
