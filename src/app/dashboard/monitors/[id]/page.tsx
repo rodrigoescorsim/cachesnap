@@ -7,7 +7,7 @@ import { AutoRefresh } from './auto-refresh'
 import { TtfbChart, type ChartPoint } from './ttfb-chart'
 import { MonitorHeaderToolbar } from './monitor-header-toolbar'
 import { MonitorSettingsPanel } from './monitor-settings-panel'
-import { MonitorDispatchButtons } from './monitor-dispatch-buttons'
+import { LiveActivityHeader } from './live-activity-header'
 import { RealTimeHub } from '../../real-time-hub'
 import { extractPop, popToCity, resolveCdnLabel } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
@@ -1068,22 +1068,10 @@ export default async function MonitorDetailPage({
               {activeView === 'real-time' && (
                 <div className="space-y-10">
                   <section>
-                    <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                        </span>
-                        Live Activity — Regional Latest
-                      </h2>
-                      <div className="flex items-center gap-2">
-                        <MonitorDispatchButtons
-                          monitorId={monitor.id}
-                          variant="compact"
-                          freezeStorageKey={liveFreezeStorageKey}
-                        />
-                      </div>
-                    </div>
+                    <LiveActivityHeader
+                      monitorId={monitor.id}
+                      freezeStorageKey={liveFreezeStorageKey}
+                    />
                     {latestProbes.length === 0 ? (
                       <p className="text-sm text-zinc-400 italic">Listening for incoming probes...</p>
                     ) : (

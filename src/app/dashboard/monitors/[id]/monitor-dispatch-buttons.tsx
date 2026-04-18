@@ -92,6 +92,12 @@ export function MonitorDispatchButtons({
     const nextFrozen = !isFrozen
     setIsFrozen(nextFrozen)
     window.localStorage.setItem(liveFreezeStorageKey, nextFrozen ? '1' : '0')
+    // Persist the exact freeze moment so the header can display "View frozen at HH:mm".
+    if (nextFrozen) {
+      window.localStorage.setItem(`${liveFreezeStorageKey}_at`, String(Date.now()))
+    } else {
+      window.localStorage.removeItem(`${liveFreezeStorageKey}_at`)
+    }
   }
 
   return (
@@ -141,7 +147,15 @@ export function MonitorDispatchButtons({
         </PremiumTooltip>
 
         {isCompact && (
-          <PremiumTooltip content="Pause live updates to analyze this snapshot without changes." position="top-center" direction="top">
+          <PremiumTooltip
+            content={
+              isFrozen
+                ? 'Live updates paused. Click to resume real-time monitoring.'
+                : 'Pause live updates to analyze this snapshot without changes.'
+            }
+            position="top-center"
+            direction="top"
+          >
             <button
               type="button"
               onClick={toggleFreeze}
@@ -155,7 +169,7 @@ export function MonitorDispatchButtons({
               {isFrozen ? <PauseCircle className="h-3.5 w-3.5" /> : <Snowflake className="h-3.5 w-3.5" />}
               <span className="whitespace-nowrap">
                 {/* Visual hierarchy: secondary when idle, more prominent when frozen. */}
-                {isFrozen ? 'Frozen • Resume Updates' : 'Freeze View'}
+                {isFrozen ? 'Frozen' : 'Freeze View'}
               </span>
             </button>
           </PremiumTooltip>
