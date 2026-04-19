@@ -99,7 +99,7 @@ export function MonitorsStageOne() {
 
       <main className="mx-auto w-full max-w-6xl space-y-3.5 px-4 pb-8 pt-3 sm:px-8 lg:px-12">
         <section>
-          <h2 className="cs-section-header !mb-2">Global Summary</h2>
+          <h2 className="cs-view-section-title mb-3">Global Summary</h2>
         </section>
 
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -186,10 +186,10 @@ export function MonitorsStageOne() {
         </article>
 
         <section>
-          <h2 className="cs-section-header !mb-2">Monitors List</h2>
+          <h2 className="cs-view-section-title mb-3">Monitors List</h2>
         </section>
 
-        <section className="cs-card cs-card-glass animate-[cs-fade-in_0.6s_ease-out] overflow-hidden !p-0">
+        <section className="cs-card cs-card-glass animate-[cs-fade-in_0.6s_ease-out] !p-0">
           <MonitorsTable
             searchQuery={searchQuery}
             activeFilter={activeFilter}

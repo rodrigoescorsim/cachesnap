@@ -1,29 +1,137 @@
-import React from 'react'
+'use client'
 
-/** High-fidelity glassmorphism tooltip to replace native browser 'title' attributes. */
-export function PremiumTooltip({ children, content, position = 'top-center', direction = 'top' }: { children: React.ReactNode, content: React.ReactNode, position?: 'top-center' | 'top-right' | 'top-left' | 'bottom-center' | 'bottom-right' | 'bottom-left', direction?: 'top' | 'bottom' }) {
-  const isBottom = direction === 'bottom'
-  
-  const posClasses = {
-    'top-center': 'bottom-full left-1/2 -translate-x-1/2 mb-2',
-    'top-right': 'bottom-full right-0 mb-2',
-    'top-left': 'bottom-full left-0 mb-2',
-    'bottom-center': 'top-full left-1/2 -translate-x-1/2 mt-2',
-    'bottom-right': 'top-full right-0 mt-2',
-    'bottom-left': 'top-full left-0 mt-2',
-  }[position]
+import React, { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+
+export type PremiumTooltipPosition =
+  | 'top-center'
+  | 'top-right'
+  | 'top-left'
+  | 'bottom-center'
+  | 'bottom-right'
+  | 'bottom-left'
+
+const TOOLTIP_WIDTH = 'min(320px, calc(100vw - 2rem))' as const
+const GAP_PX = 8
+
+function tooltipFixedStyle(trigger: DOMRect, position: PremiumTooltipPosition): React.CSSProperties {
+  const base: React.CSSProperties = {
+    position: 'fixed',
+    zIndex: 99999,
+    pointerEvents: 'none',
+    width: TOOLTIP_WIDTH,
+    maxWidth: 'calc(100vw - 2rem)',
+  }
+
+  switch (position) {
+    case 'top-center':
+      return {
+        ...base,
+        left: trigger.left + trigger.width / 2,
+        top: trigger.top,
+        transform: `translate(-50%, calc(-100% - ${GAP_PX}px))`,
+      }
+    case 'top-right':
+      return {
+        ...base,
+        left: trigger.right,
+        top: trigger.top,
+        transform: `translate(-100%, calc(-100% - ${GAP_PX}px))`,
+      }
+    case 'top-left':
+      return {
+        ...base,
+        left: trigger.left,
+        top: trigger.top,
+        transform: `translate(0, calc(-100% - ${GAP_PX}px))`,
+      }
+    case 'bottom-center':
+      return {
+        ...base,
+        left: trigger.left + trigger.width / 2,
+        top: trigger.bottom + GAP_PX,
+        transform: 'translate(-50%, 0)',
+      }
+    case 'bottom-right':
+      return {
+        ...base,
+        left: trigger.right,
+        top: trigger.bottom + GAP_PX,
+        transform: 'translate(-100%, 0)',
+      }
+    case 'bottom-left':
+      return {
+        ...base,
+        left: trigger.left,
+        top: trigger.bottom + GAP_PX,
+        transform: 'translate(0, 0)',
+      }
+    default:
+      return base
+  }
+}
+
+/** High-fidelity tooltip; panel renders in a portal with `position: fixed` so it is not clipped by sticky table headers or overflow. */
+export function PremiumTooltip({
+  children,
+  content,
+  position = 'top-center',
+  direction: _direction = 'top',
+}: {
+  children: React.ReactNode
+  content: React.ReactNode
+  position?: PremiumTooltipPosition
+  direction?: 'top' | 'bottom'
+}) {
+  const hostRef = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false)
+  const [fixedStyle, setFixedStyle] = useState<React.CSSProperties>({})
+
+  const updatePosition = useCallback(() => {
+    const el = hostRef.current
+    if (!el) return
+    setFixedStyle(tooltipFixedStyle(el.getBoundingClientRect(), position))
+  }, [position])
+
+  useLayoutEffect(() => {
+    if (!open) return
+    updatePosition()
+    window.addEventListener('scroll', updatePosition, true)
+    window.addEventListener('resize', updatePosition)
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true)
+      window.removeEventListener('resize', updatePosition)
+    }
+  }, [open, updatePosition])
+
+  const onEnter = () => {
+    const el = hostRef.current
+    if (el) setFixedStyle(tooltipFixedStyle(el.getBoundingClientRect(), position))
+    setOpen(true)
+  }
+
+  const onLeave = () => setOpen(false)
+
+  const panel =
+    open && typeof document !== 'undefined' ? (
+      <div
+        style={fixedStyle}
+        className="opacity-100 transition-opacity duration-200 ease-out"
+        aria-hidden
+      >
+        <div className="cs-tooltip-panel">{content}</div>
+      </div>
+    ) : null
 
   return (
-    <div className="relative group/tooltip inline-flex items-center">
+    <div
+      ref={hostRef}
+      className="relative inline-flex items-center"
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+    >
       {children}
-      {/* Fixed panel width: the trigger is only as wide as the badge (~72px). Without an explicit width, abspos shrink-to-fit uses that narrow containing block and long text wraps one word per line. */}
-      <div
-        className={`absolute ${posClasses} invisible z-[100] w-[min(320px,calc(100vw-2rem))] max-w-none opacity-0 transition-all duration-200 group-hover/tooltip:visible group-hover/tooltip:opacity-100 pointer-events-none ${isBottom ? '-translate-y-1 group-hover/tooltip:translate-y-0' : 'translate-y-1 group-hover/tooltip:translate-y-0'}`}
-      >
-        <div className="cs-tooltip-panel">
-          {content}
-        </div>
-      </div>
+      {panel ? createPortal(panel, document.body) : null}
     </div>
   )
 }

@@ -42,7 +42,7 @@ export function LiveActivityHeader({ monitorId, freezeStorageKey }: LiveActivity
     <div className="mb-3">
       {/* Título à esquerda; à direita: botões empilhados com label só no estado pausado (menos ruído). */}
       <div className="flex items-start justify-between gap-3">
-        <h2 className="flex min-w-0 items-center gap-2 text-xs font-bold uppercase tracking-widest text-zinc-400">
+        <h2 className="cs-view-section-title">
           <span className="relative flex h-2 w-2 shrink-0">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />

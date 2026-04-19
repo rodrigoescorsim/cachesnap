@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   useReactTable,
@@ -290,11 +290,32 @@ function Sparkline({ data, delta }: { data: number[]; delta: number }) {
   )
 }
 
+function cacheHitTooltipText(tier: ReturnType<typeof getCacheHitTier>): string {
+  if (tier === 'high') return 'Strong edge cache on the latest check — edge is doing most of the work.'
+  if (tier === 'mid') return 'Moderate cache hit — there is still room to tune headers or TTLs.'
+  return 'Low cache hit — review origin caching, CDN rules, and response headers.'
+}
+
 function CacheHitBadge({ pct }: { pct: number }) {
   const tier = getCacheHitTier(pct)
-  if (tier === 'high') return <span className="cs-badge-cache-hit">{pct.toFixed(1)}%</span>
-  if (tier === 'mid')  return <span className="cs-badge-cache-dynamic">{pct.toFixed(1)}%</span>
-  return <span className="cs-badge-cache-miss">{pct.toFixed(1)}%</span>
+  const tip = cacheHitTooltipText(tier)
+  if (tier === 'high')
+    return (
+      <PremiumTooltip content={tip} position="top-center" direction="top">
+        <span className="cs-badge-cache-hit">{pct.toFixed(1)}%</span>
+      </PremiumTooltip>
+    )
+  if (tier === 'mid')
+    return (
+      <PremiumTooltip content={tip} position="top-center" direction="top">
+        <span className="cs-badge-cache-dynamic">{pct.toFixed(1)}%</span>
+      </PremiumTooltip>
+    )
+  return (
+    <PremiumTooltip content={tip} position="top-center" direction="top">
+      <span className="cs-badge-cache-miss">{pct.toFixed(1)}%</span>
+    </PremiumTooltip>
+  )
 }
 
 // inverted=true: negative delta = improvement (TTFB going down is good)
@@ -323,6 +344,40 @@ function SortIcon({ isSorted }: { isSorted: false | 'asc' | 'desc' }) {
   )
 }
 
+/** Column header + PremiumTooltip (panel = .cs-tooltip-panel), aligned with Live / Trends tables. */
+function MonitorsThTooltip({ label, description }: { label: ReactNode; description: string }) {
+  return (
+    <PremiumTooltip
+      content={
+        <p className="text-[11px] font-normal leading-relaxed tracking-normal text-zinc-300">
+          {description}
+        </p>
+      }
+      position="top-center"
+      direction="top"
+    >
+      <span className="cursor-help">{label}</span>
+    </PremiumTooltip>
+  )
+}
+
+const MONITORS_LIST_HEADER_HELP: Record<string, string> = {
+  monitor:
+    'Monitor name and URL being tracked. Click any row to open detailed performance diagnostics.',
+  ttfbNow:
+    'Time to first byte from the most recent check. Measures how long the server takes to start responding. Lower is better.',
+  avgTtfb24h:
+    'Average time to first byte over the last 24 hours (P50). Typical performance for your site across the day.',
+  cacheHit:
+    'Share of requests served from the edge or CDN on the latest check. Above 90% is excellent.',
+  hit24hAvg:
+    'Average cache hit rate over the last 24 hours. Higher, stable values usually mean a healthier cache setup.',
+  regions:
+    'Performance across geographic regions. "All clear" means every monitored region looks healthy. Open the row for a regional breakdown.',
+  lastCheck:
+    'Time since the last verification. Values under about a minute mean the data is still fresh.',
+}
+
 // ─── Column definitions ───────────────────────────────────────────────────────
 
 const col = createColumnHelper<Monitor>()
@@ -331,7 +386,9 @@ const columns = [
   // 1. Monitor — name + url + status badge
   col.accessor('name', {
     id: 'monitor',
-    header: 'Monitor',
+    header: () => (
+      <MonitorsThTooltip label="Monitor" description={MONITORS_LIST_HEADER_HELP.monitor} />
+    ),
     size: 27,
     enableSorting: true,
     cell: ({ row }) => {
@@ -357,12 +414,19 @@ const columns = [
               </span>
             )}
           </div>
-          <span
-            className="max-w-[220px] truncate font-mono text-[10px] text-zinc-500 transition-colors duration-150 group-hover/row:text-zinc-400"
-            title={m.url}
+          <PremiumTooltip
+            content={
+              <p className="break-all font-mono text-[11px] font-normal leading-snug tracking-normal text-zinc-200">
+                {m.url}
+              </p>
+            }
+            position="top-left"
+            direction="top"
           >
-            {m.url.replace(/^https?:\/\//, '')}
-          </span>
+            <span className="max-w-[220px] cursor-default truncate font-mono text-[10px] text-zinc-500 transition-colors duration-150 group-hover/row:text-zinc-400">
+              {m.url.replace(/^https?:\/\//, '')}
+            </span>
+          </PremiumTooltip>
         </div>
       )
     },
@@ -370,7 +434,9 @@ const columns = [
 
   // 2. TTFB current + delta chip + tier tooltip
   col.accessor('ttfbCurrent', {
-    header: 'TTFB Now',
+    header: () => (
+      <MonitorsThTooltip label="TTFB Now" description={MONITORS_LIST_HEADER_HELP.ttfbNow} />
+    ),
     size: 10,
     enableSorting: true,
     cell: ({ getValue, row }) => {
@@ -379,13 +445,13 @@ const columns = [
         <div className="flex flex-col gap-[3px]">
           <PremiumTooltip
             content={
-              <p className="text-[11px]">
-                <span className="font-black text-white">{ms} ms</span>
+              <p className="text-[11px] font-normal leading-relaxed tracking-normal">
+                <span className="font-semibold text-white">{ms} ms</span>
                 <span className="ml-1.5 text-zinc-400">{ttfbLabel(ms)}</span>
               </p>
             }
-            position="bottom-left"
-            direction="bottom"
+            position="top-center"
+            direction="top"
           >
             <span className={`text-[14px] font-black leading-none tabular-nums ${ttfbClass(ms)}`}>
               {ms}<span className="ml-0.5 text-[9px] font-bold opacity-40">ms</span>
@@ -399,7 +465,9 @@ const columns = [
 
   // 3. TTFB avg 24h + sparkline
   col.accessor('ttfbAvg24h', {
-    header: 'Avg TTFB 24h',
+    header: () => (
+      <MonitorsThTooltip label="Avg TTFB 24h" description={MONITORS_LIST_HEADER_HELP.avgTtfb24h} />
+    ),
     size: 13,
     enableSorting: true,
     cell: ({ getValue, row }) => {
@@ -417,7 +485,9 @@ const columns = [
 
   // 4. Cache hit current — semantic badge
   col.accessor('cacheHitCurrent', {
-    header: 'Cache Hit',
+    header: () => (
+      <MonitorsThTooltip label="Cache Hit" description={MONITORS_LIST_HEADER_HELP.cacheHit} />
+    ),
     size: 10,
     enableSorting: true,
     cell: ({ getValue }) => <CacheHitBadge pct={getValue()} />,
@@ -425,7 +495,9 @@ const columns = [
 
   // 5. Cache hit avg 24h + delta
   col.accessor('cacheHitAvg24h', {
-    header: 'Hit 24h Avg',
+    header: () => (
+      <MonitorsThTooltip label="Hit 24h Avg" description={MONITORS_LIST_HEADER_HELP.hit24hAvg} />
+    ),
     size: 10,
     enableSorting: true,
     cell: ({ getValue, row }) => {
@@ -449,21 +521,15 @@ const columns = [
   // 6. Regions — degraded region badges + count, or "All Clear" indicator
   col.accessor('slowRegionCount', {
     header: () => (
-      <PremiumTooltip
-        content={
-          <div className="space-y-1 text-[11px]">
-            <p className="font-black text-white">Degraded Regions</p>
-            <p className="text-zinc-400">Regions where TTFB exceeds threshold. "All clear" means all monitored regions are healthy.</p>
-          </div>
+      <MonitorsThTooltip
+        label={
+          <span className="inline-flex items-center gap-0.5">
+            Regions
+            <span className="ml-0.5 inline-block h-1 w-1 rounded-full bg-zinc-600 opacity-60" aria-hidden />
+          </span>
         }
-        position="top-right"
-        direction="top"
-      >
-        <span className="inline-flex items-center gap-0.5">
-          Regions
-          <span className="ml-0.5 inline-block h-1 w-1 rounded-full bg-zinc-600 opacity-60" />
-        </span>
-      </PremiumTooltip>
+        description={MONITORS_LIST_HEADER_HELP.regions}
+      />
     ),
     size: 15,
     enableSorting: true,
@@ -483,13 +549,16 @@ const columns = [
       return (
         <div className="flex flex-wrap items-center justify-end gap-1">
           {slowOnes.map((r) => (
-            <span
+            <PremiumTooltip
               key={r.code}
-              title={`${r.label} is degraded`}
-              className="cs-badge cs-badge-warning !px-1 !py-[1px] !text-[8px]"
+              content={`${r.label}: TTFB is above the threshold in this region.`}
+              position="top-center"
+              direction="top"
             >
-              {r.flag} {r.label}
-            </span>
+              <span className="cs-badge cs-badge-warning !px-1 !py-[1px] !text-[8px]">
+                {r.flag} {r.label}
+              </span>
+            </PremiumTooltip>
           ))}
           <span className="text-[9px] font-bold tabular-nums text-zinc-600">
             {m.slowRegionCount}/{m.totalRegionCount}
@@ -501,21 +570,30 @@ const columns = [
 
   // 7. Last check — relative time, right-aligned
   col.accessor('lastCheckedAt', {
-    header: 'Last Check',
+    header: () => (
+      <MonitorsThTooltip label="Last Check" description={MONITORS_LIST_HEADER_HELP.lastCheck} />
+    ),
     size: 9,
     enableSorting: true,
     sortingFn: (a, b) =>
       a.original.lastCheckedAt.getTime() - b.original.lastCheckedAt.getTime(),
     cell: ({ getValue }) => {
-      const { text, isRecent } = formatRelativeTime(getValue())
+      const at = getValue()
+      const { text, isRecent } = formatRelativeTime(at)
       return (
-        <span
-          className={`block text-right text-[11px] font-bold tabular-nums transition-colors duration-150 ${
-            isRecent ? 'text-emerald-400' : 'text-zinc-500 group-hover/row:text-zinc-400'
-          }`}
+        <PremiumTooltip
+          content={`Last check at ${at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })}.`}
+          position="top-right"
+          direction="top"
         >
-          {text}
-        </span>
+          <span
+            className={`block cursor-default text-right text-[11px] font-bold tabular-nums transition-colors duration-150 ${
+              isRecent ? 'text-emerald-400' : 'text-zinc-500 group-hover/row:text-zinc-400'
+            }`}
+          >
+            {text}
+          </span>
+        </PremiumTooltip>
       )
     },
   }),
@@ -622,7 +700,7 @@ export function MonitorsTable({
   const tbodyKey = `${activeFilter}:${searchQuery}`
 
   return (
-    <div className="relative overflow-hidden rounded-xl">
+    <div className="relative rounded-xl">
       <div className={BRAND_TABLE_SURFACE_GRADIENT} aria-hidden />
       <div className={`${MONITOR_TABLE.innerScroll} cs-dropdown-scroll`}>
         <table className={`w-full border-collapse ${MONITOR_TABLE.transition}`}>

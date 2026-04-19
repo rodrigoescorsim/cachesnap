@@ -136,6 +136,14 @@ body {
     @apply text-[11px] font-black text-white/50 uppercase tracking-[0.12em] border-l-[3px] border-emerald-500/40 pl-2.5 leading-none mb-6 relative z-10;
   }
 
+  /**
+   * Título de bloco principal (Live Activity, Trends “Global Performance…”, Monitors).
+   * Mesmo tom e escala que `live-activity-header` + Trends em `page.tsx`.
+   */
+  .cs-view-section-title {
+    @apply flex min-w-0 items-center gap-2 text-xs font-bold uppercase tracking-widest text-zinc-400;
+  }
+
   .cs-danger-header {
     @apply text-[11px] font-black text-red-500/60 uppercase tracking-widest border-l-[3px] border-red-500/40 pl-2.5 leading-none mb-3;
   }
@@ -434,10 +442,12 @@ body {
     @apply text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 group-hover:border-zinc-500 cursor-help transition-colors;
   }
 
-  /** PremiumTooltip panel — ties to --tooltip-surface (same effective look as previous #111d32/98). */
+  /**
+   * Painel do PremiumTooltip — fundo opaco; `normal-case` evita herdar `uppercase` de `<th>` / badges.
+   */
   .cs-tooltip-panel {
-    @apply box-border w-full whitespace-normal break-words text-left leading-relaxed backdrop-blur-xl border border-white/10 rounded-xl p-3.5 shadow-2xl text-[11px] font-medium text-zinc-200 ring-1 ring-white/5;
-    background-color: color-mix(in srgb, var(--tooltip-surface) 98%, transparent);
+    @apply box-border w-full whitespace-normal break-words text-left leading-relaxed normal-case border border-white/10 rounded-xl p-3.5 shadow-2xl text-[11px] font-medium text-zinc-200 ring-1 ring-white/5;
+    background-color: var(--tooltip-surface);
   }
 
   /* TTFB column tiers — semantic aliases (same Tailwind output as before; colors trace to --metric-* in :root). */

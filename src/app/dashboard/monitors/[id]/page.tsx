@@ -1265,7 +1265,7 @@ export default async function MonitorDetailPage({
                 <div className="space-y-10">
                   <section>
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
-                      <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                      <h2 className="cs-view-section-title">
                         Global Performance • Last {range.toUpperCase()}
                       </h2>
                       <div className="flex items-center gap-1.5 rounded-lg bg-zinc-100 dark:bg-white/5 p-1 border border-zinc-200 dark:border-white/10">
