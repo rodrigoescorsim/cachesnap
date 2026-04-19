@@ -147,7 +147,7 @@ export default async function DashboardPage() {
             </div>
           </div>
           <Link
-            href="/dashboard/monitors/new"
+            href="/monitors/new"
             className="cs-btn-primary"
           >
             <div className="cs-card-wash opacity-20" />
@@ -161,7 +161,7 @@ export default async function DashboardPage() {
         <div id="monitors" className="rounded-xl border border-dashed border-border py-16 text-center">
           <p className="text-sm text-zinc-500 font-medium">You are not monitoring any sites yet.</p>
           <Link
-            href="/dashboard/monitors/new"
+            href="/monitors/new"
             className="mt-3 inline-block text-sm font-medium text-zinc-900 dark:text-zinc-50 hover:underline"
           >
             Add your first site
@@ -176,7 +176,6 @@ export default async function DashboardPage() {
             const totalProblems = m.error_count + m.alert_count
             const lastProbeText = formatProbeAge(m.last_probe_at)
             const lastProbeTone = probeFreshnessTone(m.last_probe_at)
-            const isCollecting = m.last_probe_at == null
             const uptimePct = m.uptime_pct
             const redirectAvg = m.redirect_avg
             const redirectCount = redirectAvg == null ? null : Math.round(Number(redirectAvg))

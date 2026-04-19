@@ -38,6 +38,11 @@ export function MonitorsDropdown({ monitors, navActive = false }: MonitorsDropdo
   const panelRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
+  function closeDropdown() {
+    setIsOpen(false)
+    setQuery('')
+  }
+
   useEffect(() => {
     if (!isOpen) return
 
@@ -47,12 +52,12 @@ export function MonitorsDropdown({ monitors, navActive = false }: MonitorsDropdo
       const target = event.target as Node
       if (buttonRef.current?.contains(target)) return
       if (panelRef.current?.contains(target)) return
-      setIsOpen(false)
+      closeDropdown()
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setIsOpen(false)
+        closeDropdown()
         buttonRef.current?.focus()
       }
     }
@@ -63,10 +68,6 @@ export function MonitorsDropdown({ monitors, navActive = false }: MonitorsDropdo
       document.removeEventListener('mousedown', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [isOpen])
-
-  useEffect(() => {
-    if (!isOpen) setQuery('')
   }, [isOpen])
 
   const filtered = useMemo(() => {
@@ -84,7 +85,13 @@ export function MonitorsDropdown({ monitors, navActive = false }: MonitorsDropdo
       <button
         ref={buttonRef}
         type="button"
-        onClick={() => setIsOpen(open => !open)}
+        onClick={() => {
+          if (isOpen) {
+            closeDropdown()
+            return
+          }
+          setIsOpen(true)
+        }}
         className={`group relative inline-flex items-center gap-1.5 px-1 py-1 text-[13px] font-semibold tracking-tight transition-colors duration-200 ease-out ${
           navActive ? 'text-zinc-50' : 'text-zinc-500 hover:text-cyan-200/85'
         } after:pointer-events-none after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px after:rounded-full after:transition-opacity after:duration-200 after:ease-out ${
@@ -139,7 +146,7 @@ export function MonitorsDropdown({ monitors, navActive = false }: MonitorsDropdo
                   <li key={monitor.id}>
                     <Link
                       href={`/dashboard/monitors/${monitor.id}`}
-                      onClick={() => setIsOpen(false)}
+                      onClick={closeDropdown}
                       className="block rounded-lg px-2.5 py-2 transition-colors duration-200 ease-out hover:bg-white/[0.06]"
                     >
                       <p className="truncate text-[13px] font-semibold leading-tight tracking-tight text-slate-50">
@@ -160,8 +167,8 @@ export function MonitorsDropdown({ monitors, navActive = false }: MonitorsDropdo
 
           <div className="border-t border-slate-600/35 bg-[#172033]/80 p-2.5">
             <Link
-              href="/dashboard/monitors/new"
-              onClick={() => setIsOpen(false)}
+              href="/monitors/new"
+              onClick={closeDropdown}
               className="flex w-full items-center justify-center rounded-lg border border-cyan-500/35 bg-cyan-500/[0.12] px-3 py-2.5 text-center text-[12px] font-semibold text-cyan-200 transition-all duration-200 ease-out hover:border-cyan-400/55 hover:bg-cyan-500/22 hover:text-cyan-50 hover:shadow-[0_0_20px_-4px_rgba(34,211,238,0.35)]"
             >
               + Create monitor
