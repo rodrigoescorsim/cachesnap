@@ -195,7 +195,7 @@ const MOCK_MONITORS: Monitor[] = [
 
 const TTFB_CLASS: Record<string, string> = {
   fast: 'text-metric-ttfb-fast',
-  med: 'text-metric-ttfb-med',
+  med:  'text-metric-ttfb-med',
   slow: 'text-metric-ttfb-slow',
 }
 
@@ -214,13 +214,14 @@ function formatRelativeTime(date: Date): { text: string; isRecent: boolean } {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function Sparkline({ data, tier }: { data: number[]; tier: string }) {
+// Color reflects trend direction: negative delta on TTFB = improving = green
+function Sparkline({ data, delta }: { data: number[]; delta: number }) {
   if (data.length < 2) return null
   const min = Math.min(...data)
   const max = Math.max(...data)
   const range = max - min || 1
-  const W = 64
-  const H = 18
+  const W = 56
+  const H = 16
   const pts = data
     .map((v, i) => {
       const x = (i / (data.length - 1)) * W
@@ -228,14 +229,15 @@ function Sparkline({ data, tier }: { data: number[]; tier: string }) {
       return `${x.toFixed(1)},${y.toFixed(1)}`
     })
     .join(' ')
-  const color = tier === 'fast' ? '#34d399' : tier === 'med' ? '#f59e0b' : '#fb7185'
+  // delta < 0 → TTFB dropped → improving → emerald; delta > 0 → worsening → --metric-slow (#f43f5e)
+  const color = delta < -1 ? '#34d399' : delta > 1 ? 'var(--metric-slow)' : '#f59e0b'
   return (
     <svg
       width={W}
       height={H}
       viewBox={`0 0 ${W} ${H}`}
       aria-hidden="true"
-      className="shrink-0 opacity-80"
+      className="shrink-0 opacity-75"
     >
       <polyline
         points={pts}
@@ -256,22 +258,30 @@ function CacheHitBadge({ pct }: { pct: number }) {
   return <span className="cs-badge-cache-miss">{pct.toFixed(1)}%</span>
 }
 
+// inverted=true means a negative delta is good (TTFB going down = improvement)
 function DeltaChip({ value, inverted = false }: { value: number; inverted?: boolean }) {
-  const improved = inverted ? value > 0 : value < 0
-  const tone = improved ? 'text-emerald-400' : 'text-rose-400'
+  const improved = inverted ? value < 0 : value > 0
   const Icon = value < 0 ? ArrowDown : ArrowUp
   return (
-    <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold ${tone}`}>
-      <Icon className="h-2.5 w-2.5" aria-hidden="true" />
+    <span
+      className={`inline-flex items-center gap-px text-[10px] font-black tabular-nums ${
+        improved ? 'text-emerald-300' : 'text-metric-bad'
+      }`}
+    >
+      <Icon className="h-2.5 w-2.5 stroke-[3]" aria-hidden="true" />
       {Math.abs(value).toFixed(1)}%
     </span>
   )
 }
 
 function SortIcon({ isSorted }: { isSorted: false | 'asc' | 'desc' }) {
-  if (isSorted === 'asc') return <ArrowUp className="ml-1 inline h-3 w-3 text-emerald-400" />
-  if (isSorted === 'desc') return <ArrowDown className="ml-1 inline h-3 w-3 text-emerald-400" />
-  return <ArrowUpDown className="ml-1 inline h-3 w-3 opacity-30 group-hover/th:opacity-60" />
+  if (isSorted === 'asc')
+    return <ArrowUp className="ml-1 inline h-2.5 w-2.5 shrink-0 text-emerald-400" />
+  if (isSorted === 'desc')
+    return <ArrowDown className="ml-1 inline h-2.5 w-2.5 shrink-0 text-emerald-400" />
+  return (
+    <ArrowUpDown className="ml-1 inline h-2.5 w-2.5 shrink-0 opacity-25 transition-opacity duration-150 group-hover/th:opacity-50" />
+  )
 }
 
 // ─── Column definitions ───────────────────────────────────────────────────────
@@ -279,36 +289,37 @@ function SortIcon({ isSorted }: { isSorted: false | 'asc' | 'desc' }) {
 const col = createColumnHelper<Monitor>()
 
 const columns = [
+  // 1. Monitor — name + url + status badge
   col.accessor('name', {
     id: 'monitor',
     header: 'Monitor',
-    size: 30,
+    size: 28,
     enableSorting: true,
     cell: ({ row }) => {
       const m = row.original
       const isActive = m.status === 'active'
       return (
         <div className="flex min-w-0 flex-col gap-0.5">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <span className="truncate text-[13px] font-black tracking-tight text-white">
               {m.name}
             </span>
-            <span
-              className={`cs-badge shrink-0 !py-0 !px-1.5 !text-[9px] ${
-                isActive ? 'cs-badge-success' : 'cs-badge-muted'
-              }`}
-            >
-              {isActive ? (
+            {isActive ? (
+              <span className="cs-badge cs-badge-success shrink-0 !px-1.5 !py-0 !text-[8.5px]">
                 <span className="relative mr-1 flex h-1.5 w-1.5 shrink-0">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
                   <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
                 </span>
-              ) : null}
-              {isActive ? 'Active' : 'Paused'}
-            </span>
+                Active
+              </span>
+            ) : (
+              <span className="cs-badge cs-badge-warning shrink-0 !px-1.5 !py-0 !text-[8.5px]">
+                Paused
+              </span>
+            )}
           </div>
           <span
-            className="max-w-[200px] truncate text-[10px] text-zinc-600"
+            className="max-w-[220px] truncate text-[10px] text-zinc-700"
             title={m.url}
           >
             {m.url.replace(/^https?:\/\//, '')}
@@ -318,51 +329,51 @@ const columns = [
     },
   }),
 
+  // 2. TTFB current + delta chip
   col.accessor('ttfbCurrent', {
     header: 'TTFB Now',
-    size: 12,
+    size: 10,
     enableSorting: true,
     cell: ({ getValue, row }) => {
       const ms = getValue()
-      const delta = row.original.ttfbCurrentDelta
       return (
         <div className="flex flex-col gap-0.5">
-          <span className={`text-[15px] font-black leading-none tabular-nums ${ttfbClass(ms)}`}>
-            {ms} <span className="text-[10px] font-bold opacity-60">ms</span>
+          <span className={`text-[14px] font-black leading-none tabular-nums ${ttfbClass(ms)}`}>
+            {ms}<span className="ml-0.5 text-[9px] font-bold opacity-50">ms</span>
           </span>
-          <DeltaChip value={delta} inverted />
+          <DeltaChip value={row.original.ttfbCurrentDelta} inverted />
         </div>
       )
     },
   }),
 
+  // 3. TTFB avg 24h + sparkline (color = trend direction)
   col.accessor('ttfbAvg24h', {
     header: 'Avg TTFB 24h',
-    size: 14,
+    size: 12,
     enableSorting: true,
     cell: ({ getValue, row }) => {
       const ms = getValue()
-      const tier = getTtfbTier(ms)
       return (
-        <div className="flex items-center gap-2.5">
-          <div className="flex flex-col gap-0.5">
-            <span className={`text-[13px] font-black tabular-nums ${ttfbClass(ms)}`}>
-              {ms} <span className="text-[10px] font-bold opacity-60">ms</span>
-            </span>
-          </div>
-          <Sparkline data={row.original.ttfbSparkline} tier={tier} />
+        <div className="flex items-center gap-2">
+          <span className={`text-[13px] font-black tabular-nums ${ttfbClass(ms)}`}>
+            {ms}<span className="ml-0.5 text-[9px] font-bold opacity-50">ms</span>
+          </span>
+          <Sparkline data={row.original.ttfbSparkline} delta={row.original.ttfbCurrentDelta} />
         </div>
       )
     },
   }),
 
+  // 4. Cache hit current — semantic badge
   col.accessor('cacheHitCurrent', {
     header: 'Cache Hit',
-    size: 12,
+    size: 11,
     enableSorting: true,
     cell: ({ getValue }) => <CacheHitBadge pct={getValue()} />,
   }),
 
+  // 5. Cache hit avg 24h + delta
   col.accessor('cacheHitAvg24h', {
     header: 'Hit 24h Avg',
     size: 10,
@@ -371,11 +382,7 @@ const columns = [
       const pct = getValue()
       const tier = getCacheHitTier(pct)
       const textClass =
-        tier === 'high'
-          ? 'text-emerald-400'
-          : tier === 'mid'
-            ? 'text-amber-400'
-            : 'text-rose-400'
+        tier === 'high' ? 'text-emerald-400' : tier === 'mid' ? 'text-amber-400' : 'text-metric-bad'
       return (
         <div className="flex flex-col gap-0.5">
           <span className={`text-[13px] font-black tabular-nums ${textClass}`}>
@@ -387,32 +394,33 @@ const columns = [
     },
   }),
 
+  // 6. Regions — slow region badges or "Global" muted, right-aligned
   col.accessor('slowRegionCount', {
     header: 'Regions',
-    size: 10,
+    size: 14,
     enableSorting: true,
     cell: ({ row }) => {
       const m = row.original
       if (m.slowRegionCount === 0) {
         return (
-          <span className="text-[11px] font-semibold text-zinc-600">
-            Global
+          <span className="block text-right text-[10px] font-medium italic text-zinc-700">
+            — Global
           </span>
         )
       }
       const slowOnes = m.regions.filter((r) => r.isSlow)
       return (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap items-center justify-end gap-1">
           {slowOnes.map((r) => (
             <span
               key={r.code}
-              className="cs-badge cs-badge-warning !py-0 !px-1.5 !text-[9px]"
               title={`${r.label} degraded`}
+              className="cs-badge cs-badge-warning !px-1 !py-[1px] !text-[8.5px]"
             >
               {r.flag} {r.label}
             </span>
           ))}
-          <span className="text-[9px] font-bold text-zinc-600 self-center">
+          <span className="text-[9px] font-bold text-zinc-600">
             {m.slowRegionCount}/{m.totalRegionCount}
           </span>
         </div>
@@ -420,9 +428,10 @@ const columns = [
     },
   }),
 
+  // 7. Last check — relative time, right-aligned
   col.accessor('lastCheckedAt', {
     header: 'Last Check',
-    size: 8,
+    size: 9,
     enableSorting: true,
     sortingFn: (a, b) =>
       b.original.lastCheckedAt.getTime() - a.original.lastCheckedAt.getTime(),
@@ -430,7 +439,7 @@ const columns = [
       const { text, isRecent } = formatRelativeTime(getValue())
       return (
         <span
-          className={`text-[11px] font-bold tabular-nums ${
+          className={`block text-right text-[11px] font-bold tabular-nums ${
             isRecent ? 'text-emerald-400' : 'text-zinc-500'
           }`}
         >
@@ -440,30 +449,27 @@ const columns = [
     },
   }),
 
+  // 8. Actions — appear on row hover only
   col.display({
     id: 'actions',
     header: '',
-    size: 4,
+    size: 6,
     cell: ({ row }) => {
       const m = row.original
       const isPaused = m.status === 'paused'
       return (
         <div
-          className="flex items-center gap-1 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100"
+          className="flex items-center justify-end gap-1 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100"
           onClick={(e) => e.stopPropagation()}
         >
           <ActionBtn label="View details" href={`/dashboard/monitors/${m.id}`}>
-            <Eye className="h-3.5 w-3.5" />
+            <Eye className="h-3 w-3" />
           </ActionBtn>
           <ActionBtn label={isPaused ? 'Resume monitor' : 'Pause monitor'}>
-            {isPaused ? (
-              <Play className="h-3.5 w-3.5" />
-            ) : (
-              <Pause className="h-3.5 w-3.5" />
-            )}
+            {isPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
           </ActionBtn>
           <ActionBtn label="Edit monitor">
-            <Pencil className="h-3.5 w-3.5" />
+            <Pencil className="h-3 w-3" />
           </ActionBtn>
         </div>
       )
@@ -485,14 +491,13 @@ function ActionBtn({
   onClick?: () => void
 }) {
   const base =
-    'flex h-6 w-6 items-center justify-center rounded-md border border-white/5 bg-white/[0.02] text-zinc-500 transition-all duration-150 hover:border-white/10 hover:bg-white/[0.06] hover:text-white'
-  if (href) {
+    'flex h-[22px] w-[22px] items-center justify-center rounded border border-white/[0.06] bg-white/[0.02] text-zinc-500 transition-all duration-150 hover:border-white/10 hover:bg-white/[0.07] hover:text-white'
+  if (href)
     return (
-      <a href={href} aria-label={label} className={base} title={label}>
+      <a href={href} aria-label={label} title={label} className={base}>
         {children}
       </a>
     )
-  }
   return (
     <button type="button" aria-label={label} title={label} onClick={onClick} className={base}>
       {children}
@@ -516,9 +521,7 @@ export function MonitorsTable() {
   })
 
   const handleRowClick = useCallback(
-    (monitorId: string) => {
-      router.push(`/dashboard/monitors/${monitorId}`)
-    },
+    (monitorId: string) => router.push(`/dashboard/monitors/${monitorId}`),
     [router],
   )
 
@@ -526,17 +529,19 @@ export function MonitorsTable() {
     <div className="overflow-hidden rounded-xl">
       <div className="overflow-x-auto cs-dropdown-scroll">
         <table className="w-full border-collapse">
-          <thead>
+
+          {/* Sticky header */}
+          <thead className="sticky top-0 z-10">
             {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-white/[0.05]">
+              <tr key={hg.id} className="border-b border-white/[0.06] bg-white/[0.025] backdrop-blur-sm">
                 {hg.headers.map((header) => {
                   const canSort = header.column.getCanSort()
+                  const isRightAligned =
+                    header.column.id === 'lastCheckedAt' ||
+                    header.column.id === 'slowRegionCount'
                   return (
                     <th
                       key={header.id}
-                      className={`cs-table-compact-th group/th whitespace-nowrap bg-white/[0.01] ${
-                        canSort ? 'cursor-pointer select-none hover:text-zinc-300' : ''
-                      }`}
                       style={{ width: `${header.column.columnDef.size}%` }}
                       onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
                       aria-sort={
@@ -546,13 +551,19 @@ export function MonitorsTable() {
                             ? 'descending'
                             : undefined
                       }
+                      className={[
+                        'cs-table-compact-th group/th select-none whitespace-nowrap',
+                        '!text-[9px] !tracking-widest',
+                        canSort ? 'cursor-pointer hover:text-zinc-300' : '',
+                        isRightAligned ? 'text-right' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
                     >
                       {header.isPlaceholder ? null : (
                         <span className="inline-flex items-center">
                           {flexRender(header.column.columnDef.header, header.getContext())}
-                          {canSort ? (
-                            <SortIcon isSorted={header.column.getIsSorted()} />
-                          ) : null}
+                          {canSort ? <SortIcon isSorted={header.column.getIsSorted()} /> : null}
                         </span>
                       )}
                     </th>
@@ -563,21 +574,32 @@ export function MonitorsTable() {
           </thead>
 
           <tbody>
-            {table.getRowModel().rows.map((row, i) => (
-              <tr
-                key={row.id}
-                onClick={() => handleRowClick(row.original.id)}
-                className={`group/row cursor-pointer border-b border-white/[0.03] transition-all duration-150 hover:bg-emerald-500/[0.04] hover:shadow-[inset_0_0_0_1px_rgba(52,211,153,0.06)] ${
-                  i % 2 === 1 ? 'bg-white/[0.012]' : ''
-                } ${row.original.status === 'paused' ? 'opacity-60' : ''}`}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="cs-table-compact-td">
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {table.getRowModel().rows.map((row, i) => {
+              const isPaused = row.original.status === 'paused'
+              return (
+                <tr
+                  key={row.id}
+                  onClick={() => handleRowClick(row.original.id)}
+                  className={[
+                    'group/row cursor-pointer border-b border-white/[0.03]',
+                    'transition-all duration-150',
+                    // premium neon hover: background tint + left-edge accent + diffuse glow
+                    'hover:bg-emerald-500/[0.07]',
+                    'hover:shadow-[inset_3px_0_0_rgba(52,211,153,0.55),inset_0_0_32px_-8px_rgba(52,211,153,0.12)]',
+                    i % 2 === 1 ? 'bg-white/[0.012]' : '',
+                    isPaused ? 'opacity-50 saturate-50' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <td key={cell.id} className="cs-table-compact-td">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              )
+            })}
           </tbody>
         </table>
 
@@ -588,12 +610,13 @@ export function MonitorsTable() {
         )}
       </div>
 
-      <div className="flex items-center justify-between border-t border-white/[0.04] px-3 py-2.5">
-        <span className="text-[10px] font-semibold text-zinc-600">
+      {/* Footer */}
+      <div className="flex items-center justify-between border-t border-white/[0.04] px-4 py-2">
+        <span className="text-[9.5px] font-bold uppercase tracking-widest text-zinc-700">
           {table.getRowModel().rows.length} monitors
         </span>
-        <span className="text-[10px] font-semibold text-zinc-700">
-          Click a row to open monitor details
+        <span className="text-[9.5px] font-medium text-zinc-700">
+          Click row · open details
         </span>
       </div>
     </div>
