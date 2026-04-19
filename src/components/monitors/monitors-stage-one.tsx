@@ -107,44 +107,9 @@ export function MonitorsStageOne() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl space-y-3 px-4 pb-8 pt-2 sm:px-8 lg:px-12">
-        <section className="flex justify-start">
-          <div
-            className="inline-flex h-[34px] items-center gap-1 rounded-lg border border-white/5 bg-zinc-900/50 p-1 backdrop-blur-sm"
-            role="group"
-            aria-label="View mode"
-          >
-            <button
-              type="button"
-              onClick={() => setViewMode('table')}
-              aria-pressed={viewMode === 'table'}
-              className={`inline-flex items-center gap-1.5 rounded-md px-3 h-full text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${
-                viewMode === 'table'
-                  ? 'bg-emerald-500 text-slate-950 shadow-[0_0_12px_-3px_rgba(16,185,129,0.5)]'
-                  : 'text-zinc-600 hover:text-zinc-400'
-              }`}
-            >
-              <Table className={`h-3 w-3 ${viewMode === 'table' ? 'stroke-[3]' : 'stroke-[2.5]'}`} />
-              Table View
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('grid')}
-              aria-pressed={viewMode === 'grid'}
-              className={`inline-flex items-center gap-1.5 rounded-md px-3 h-full text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${
-                viewMode === 'grid'
-                  ? 'bg-emerald-500 text-slate-950 shadow-[0_0_12px_-3px_rgba(16,185,129,0.5)]'
-                  : 'text-zinc-600 hover:text-zinc-400'
-              }`}
-            >
-              <Grid3X3 className={`h-3 w-3 ${viewMode === 'grid' ? 'stroke-[3]' : 'stroke-[2.5]'}`} />
-              Card Grid
-            </button>
-          </div>
-        </section>
-
+      <main className="mx-auto w-full max-w-6xl space-y-3.5 px-4 pb-8 pt-3 sm:px-8 lg:px-12">
         <section>
-          <h2 className="cs-section-header mb-2.5">Global Summary</h2>
+          <h2 className="cs-section-header !mb-2">Global Summary</h2>
         </section>
 
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -190,15 +155,18 @@ export function MonitorsStageOne() {
           />
         </section>
 
-        <article className="cs-card group/search-box cs-card-glass space-y-3 !p-5 animate-[cs-fade-in_0.5s_ease-out]">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <article className="cs-card group/search-box cs-card-glass space-y-3.5 !p-6 animate-[cs-fade-in_0.5s_ease-out]">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex-1 max-w-2xl relative">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+              <label htmlFor="monitor-search-input" className="absolute -top-4.5 left-0 text-[10px] font-bold uppercase tracking-widest text-zinc-600">
+                Filter Monitors
+              </label>
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500 transition-colors group-focus-within/search:text-emerald-400" />
               <input
                 id="monitor-search-input"
                 type="text"
-                className="cs-input-premium h-10 w-full !pl-10 pr-4 text-[13px] placeholder:text-zinc-600 focus:scale-[1.002]"
-                placeholder="Filter Monitors (ex: microsoft, cache miss, TTFB > 300ms)"
+                className="cs-input-premium h-11 w-full !pl-11 pr-5 text-[13px] placeholder:text-zinc-600 focus:scale-[1.002]"
+                placeholder="Ex: microsoft, cache miss, TTFB > 300ms..."
               />
             </div>
 
@@ -212,7 +180,7 @@ export function MonitorsStageOne() {
                     <button
                       key={filter.id}
                       onClick={() => setActiveFilter(filter.id)}
-                      className="h-7.5 rounded-lg bg-emerald-500 text-slate-950 px-3 text-[9px] font-black uppercase tracking-widest shadow-[0_0_10px_-2px_rgba(16,185,129,0.4)] transition-all"
+                      className="h-8 rounded-lg bg-emerald-500 text-slate-950 px-3.5 text-[9px] font-black uppercase tracking-widest shadow-[0_0_12px_-3px_rgba(16,185,129,0.4)] transition-all"
                     >
                       {filter.label}
                     </button>
@@ -225,10 +193,10 @@ export function MonitorsStageOne() {
                     type="button"
                     onClick={() => setActiveFilter(filter.id)}
                     aria-pressed={isActive}
-                    className={`h-7.5 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                    className={`h-8 px-3.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
                       isActive
-                        ? 'cs-badge cs-badge-success !px-3'
-                        : 'border border-white/5 bg-white/[0.01] text-zinc-600 hover:text-zinc-400'
+                        ? 'cs-badge cs-badge-success !px-3.5 !py-0'
+                        : 'border border-white/5 bg-white/[0.01] text-zinc-500 hover:text-zinc-300'
                     }`}
                   >
                     {filter.label}
@@ -240,32 +208,21 @@ export function MonitorsStageOne() {
         </article>
 
         <section>
-          <h2 className="cs-section-header mb-2.5">Monitors List</h2>
+          <h2 className="cs-section-header !mb-2">Monitors List</h2>
         </section>
 
-        <section id="monitors-table-container" className="cs-card cs-card-glass min-h-[320px] !p-6 pt-5 animate-[cs-fade-in_0.6s_ease-out] relative">
-          {/* Subtle status indicators in the corner */}
-          <div className="absolute top-4 right-5 flex items-center gap-3">
-             <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/[0.03] border border-white/5 text-[9px] font-bold uppercase tracking-tight text-zinc-600">
-               <div className="h-1 w-1 rounded-full bg-emerald-500/50" />
-               {viewMode === 'table' ? 'Table' : 'Grid'}
-             </div>
-             <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/[0.03] border border-white/5 text-[9px] font-bold uppercase tracking-tight text-zinc-600">
-               {quickFilterLabel}
-             </div>
-          </div>
-
-          <div className="flex min-h-[200px] flex-col items-center justify-center rounded-xl border border-white/5 bg-white/[0.01] px-6 text-center">
-            <div className="relative mb-4">
-              <div className="absolute inset-0 bg-emerald-500/10 blur-xl rounded-full" />
-              <div className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-white/5 bg-zinc-900/40">
-                <Table className="h-5 w-5 text-emerald-400 stroke-[2.5]" />
+        <section id="monitors-table-container" className="cs-card cs-card-glass min-h-[280px] !p-8 animate-[cs-fade-in_0.6s_ease-out] relative">
+          <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/5 bg-white/[0.01] px-8 text-center ring-1 ring-white/[0.02]">
+            <div className="relative mb-5">
+              <div className="absolute inset-0 bg-emerald-500/10 blur-2xl rounded-full" />
+              <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-zinc-900/80 shadow-2xl">
+                <Table className="h-7 w-7 text-emerald-400 stroke-[2.5]" />
               </div>
             </div>
-            <h3 className="text-base font-black tracking-tight text-white/90 mb-1">
+            <h3 className="text-lg font-black tracking-tight text-white mb-1.5">
               Table View arriving soon
             </h3>
-            <p className="max-w-[240px] text-[11px] font-medium leading-relaxed text-zinc-600">
+            <p className="max-w-[280px] text-sm font-medium leading-relaxed text-zinc-600">
               High-performance tabular interface coming in Etapa 2.
             </p>
           </div>
