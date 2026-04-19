@@ -7,16 +7,12 @@ import {
   ArrowDown,
   ArrowUp,
   Gauge,
-  Grid3X3,
   HeartPulse,
   Search,
-  ShieldCheck,
-  Table,
 } from 'lucide-react'
 import { Logo } from '@/components/logo'
 import { GlobalMetricCard } from './global-metric-card'
-
-type ViewMode = 'table' | 'grid'
+import { MonitorsTable } from './monitors-table'
 
 type QuickFilter = {
   id: string
@@ -40,7 +36,6 @@ const QUICK_FILTERS: QuickFilter[] = [
 ]
 
 export function MonitorsStageOne() {
-  const [viewMode, setViewMode] = useState<ViewMode>('table')
   const [activeFilter, setActiveFilter] = useState<string>('all')
   const globalAvgTtfbDelta = -12
   const ttfbImproved = globalAvgTtfbDelta < 0
@@ -211,21 +206,8 @@ export function MonitorsStageOne() {
           <h2 className="cs-section-header !mb-2">Monitors List</h2>
         </section>
 
-        <section id="monitors-table-container" className="cs-card cs-card-glass min-h-[280px] !p-8 animate-[cs-fade-in_0.6s_ease-out] relative">
-          <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/5 bg-white/[0.01] px-8 text-center ring-1 ring-white/[0.02]">
-            <div className="relative mb-5">
-              <div className="absolute inset-0 bg-emerald-500/10 blur-2xl rounded-full" />
-              <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-zinc-900/80 shadow-2xl">
-                <Table className="h-7 w-7 text-emerald-400 stroke-[2.5]" />
-              </div>
-            </div>
-            <h3 className="text-lg font-black tracking-tight text-white mb-1.5">
-              Table View arriving soon
-            </h3>
-            <p className="max-w-[280px] text-sm font-medium leading-relaxed text-zinc-600">
-              High-performance tabular interface coming in Etapa 2.
-            </p>
-          </div>
+        <section className="cs-card cs-card-glass animate-[cs-fade-in_0.6s_ease-out] overflow-hidden !p-0">
+          <MonitorsTable />
         </section>
       </main>
     </div>
