@@ -51,7 +51,8 @@ See `README.md` and `docs/STACK.md` for runbooks and deeper technical detail.
 ## Scheduling & probe execution
 
 - **Redis-gated intervals:** The scheduler uses an atomic **Redis Lua** check so only one dispatch wins per monitor per interval (safe when multiple API instances run).
-- **Regional dispatch:** Each due monitor triggers parallel requests to every **configured** regional probe URL (Lambda Function URL or equivalent); empty region env vars are skipped.
+- **Regional dispatch:** Each due monitor triggers HTTP `POST` to every **configured** regional probe URL (Lambda Function URL or equivalent), as stored in the database `regions` table.
+- **Concurrency caps (Rust API):** The scheduler processes at most **N** monitors per 1s tick and up to **R** regions in parallel per monitor (`buffer_unordered`). Each outbound probe `POST` acquires a **global** semaphore and a **per-region** semaphore so Function URLs are not flooded (reduces HTTP **429**). On **429**, the client retries with exponential backoff (and honors numeric **`Retry-After`** when present); semaphore permits are released before sleeping between retries. Tunable via `PROBE_DISPATCH_*` and `PROBE_SCHEDULER_*` environment variables (see `docs/STACK.md`).
 - **Manual runs:** The dashboard (via Next.js) can call **dispatch** to refresh data immediately instead of waiting for the next interval.
 
 ---

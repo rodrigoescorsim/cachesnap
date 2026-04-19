@@ -15,7 +15,10 @@ use axum::{
 };
 use sqlx::PgPool;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::broadcast;
+
+use crate::scheduler::dispatch_limiter::ProbeDispatchLimits;
 use axum::http::{HeaderValue, Method, header};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -26,6 +29,7 @@ pub struct AppState {
     pub redis: deadpool_redis::Pool,
     pub config: Arc<config::Config>,
     pub http: reqwest::Client,
+    pub probe_limits: Arc<ProbeDispatchLimits>,
     pub tx: broadcast::Sender<String>,
 }
 
@@ -51,11 +55,22 @@ async fn main() -> Result<()> {
     let redis = redis::connect(&config.redis_url)?;
     db::run_migrations(&db).await?;
 
+    let http = reqwest::Client::builder()
+        .timeout(Duration::from_secs(120))
+        .connect_timeout(Duration::from_secs(15))
+        .build()
+        .expect("reqwest Client");
+
+    let probe_limits = Arc::new(ProbeDispatchLimits::new(Arc::new(
+        config.probe_dispatch.clone(),
+    )));
+
     let state = AppState {
         db: db.clone(),
         redis,
         config: config.clone(),
-        http: reqwest::Client::new(),
+        http,
+        probe_limits,
         tx,
     };
 

@@ -53,3 +53,7 @@ node test-local.mjs
 
 This runs a probe against `https://www.cloudflare.com` and prints the full
 result object, validating all 24 fields before you deploy to AWS.
+
+## API scheduler behaviour (429)
+
+The Rust scheduler limits how many concurrent `POST` requests hit each Function URL (global + per-region semaphores) and retries on **HTTP 429** with backoff. If you see 429s in Lambda logs during cold starts or bulk tests, tune the `PROBE_DISPATCH_*` variables on the API host (see `docs/STACK.md` in Portuguese, section *Limitação de concorrência, HTTP 429 e backpressure*).

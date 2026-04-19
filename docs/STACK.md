@@ -52,9 +52,29 @@
 O Scheduler (`api/src/scheduler/runner.rs`) é o coração do sistema de monitoramento:
 - **Loop de 1s**: A cada iteração, consulta no PostgreSQL os monitores ativos (o intervalo entre checks de um mesmo monitor continua sendo `check_interval_seconds`, aplicado via Redis Lua).
 - **Atomicidade com Redis**: Usa um script Lua para verificar e atualizar o timestamp do último check (`last_check:ID`) de forma atômica. Evita dispatches duplicados em ambientes escalados.
-- **Dispatch Regional**: Para cada monitor devido, dispara requisições HTTP POST para as Lambda Function URLs de todas as regiões habilitadas (lidas da tabela `regions`).
+- **Dispatch regional**: Para cada monitor devido, envia requisições HTTP `POST` para as Lambda Function URLs de todas as regiões habilitadas (lidas da tabela `regions`).
 - **Bypass inteligente**: Disparo de bypass audit (origin comparison) limitado a 1×/hora via Redis; forçado no primeiro probe se não há histórico.
 - **Regiões dinâmicas**: URLs e metadados das Lambdas vivem na tabela `regions` do banco (não mais em env vars). Adicionar uma região = `INSERT INTO regions` + criar a Lambda na AWS.
+
+#### Limitação de concorrência, HTTP 429 e backpressure (2026)
+
+Para evitar rajadas que saturam as Function URLs (muitos `429 Too Many Requests`) e evitar milhares de `tokio::spawn` por segundo, a API aplica:
+
+| Mecanismo | Onde | O quê faz |
+|:---|:---|:---|
+| **Limite de monitores por tick** | `runner.rs` | `futures::stream` + `buffer_unordered(N)` — no máximo `PROBE_SCHEDULER_MAX_MONITORS_PARALLEL` monitores a avaliar/dispatchar em paralelo por segundo (default **16**). |
+| **Limite de regiões por monitor** | `runner.rs` | Dentro de `dispatch_probes`, outro `buffer_unordered` limita quantas regiões disparam em paralelo por monitor (`PROBE_DISPATCH_REGION_PARALLEL`, default **3**). |
+| **Semáforo global** | `scheduler/dispatch_limiter.rs` | Cap de `POST` de probe em voo em todo o processo (`PROBE_DISPATCH_MAX_GLOBAL`, default **64**). |
+| **Semáforo por região** | `dispatch_limiter.rs` | Um `tokio::sync::Semaphore` lazy por `region_id` — no máximo `PROBE_DISPATCH_MAX_PER_REGION` requisições simultâneas à mesma URL de worker (default **3**). |
+| **Retry em 429** | `dispatch_limiter.rs` | Até `PROBE_DISPATCH_429_MAX_ATTEMPTS` tentativas; entre tentativas liberta os semáforos, espera backoff exponencial ou respeita `Retry-After` numérico (segundos). |
+| **Timeout de aquisição** | `dispatch_limiter.rs` | Se não conseguir permit em `PROBE_DISPATCH_ACQUIRE_TIMEOUT_SECS`, desiste **só dessa região neste ciclo** (evita fila infinita). |
+| **Jitter determinístico** | `dispatch_limiter.rs` | Pequeno atraso inicial por `(monitor_id, region_id)` para espalhar pedidos no mesmo tick (sem `Math.random`/`rand` no caminho crítico). |
+| **Lista de regiões compartilhada** | `runner.rs` | `Arc<Vec<(region_id, lambda_url)>>` no tick — evita clonar o vetor inteiro por monitor. |
+| **Cliente HTTP** | `main.rs` | `reqwest::Client` com `timeout` e `connect_timeout` para não reter permits em rede presa. |
+
+Configuração tipada: `ProbeDispatchConfig` em `api/src/config.rs` (carregada de env com defaults + `sanitize()` que garante `max_global >= max_per_region` e avisa se o produto monitores×regiões excede o cap global).
+
+Referência de código: `api/src/scheduler/dispatch_limiter.rs`, testes unitários no mesmo ficheiro (`exponential_backoff`, `Retry-After`, jitter).
 
 Os Probes (`probes/lambda/index.mjs`) rodam como AWS Lambda (Node.js 20, arm64):
 - **Métricas de rede**: `dns_ms`, `tcp_ms`, `tls_ms` via `net.Socket` nativo — diferencial vs. Cloudflare Workers.
@@ -117,7 +137,7 @@ cachesnap/
 ├── api/                            ← Rust / axum
 │   ├── src/
 │   │   ├── main.rs                 ← entry point, router, tokio tasks
-│   │   ├── config.rs               ← variáveis de ambiente tipadas (DB, Redis, secrets)
+│   │   ├── config.rs               ← Config + ProbeDispatchConfig (env de DB, Redis, probe limits)
 │   │   ├── db.rs                   ← PgPool + run_migrations()
 │   │   ├── redis.rs                ← deadpool-redis Pool
 │   │   ├── routes/
@@ -133,7 +153,8 @@ cachesnap/
 │   │   ├── diagnosis/
 │   │   │   └── engine.rs           ← diagnose() rule-based (com testes unitários)
 │   │   ├── scheduler/
-│   │   │   └── runner.rs           ← loop 1s, Redis Lua, bypass inteligente (1×/h)
+│   │   │   ├── runner.rs           ← loop 1s, Redis Lua, buffer_unordered, dispatch_probes
+│   │   │   └── dispatch_limiter.rs ← semáforos global/região, retry 429, jitter
 │   │   ├── baseline/
 │   │   │   └── calculator.rs       ← hourly: TTFB avg/stddev, cache hit %, 7-day rolling
 │   │   └── alerts/
@@ -162,7 +183,8 @@ cachesnap/
 │
 ├── docker-compose.yml              ← infra local: DB + Redis
 ├── docker-compose.prod.yml         ← VPS: adiciona container da API
-├── .env.example                    ← todas as variáveis documentadas
+├── .env.example                    ← variáveis raiz (se existir no repo)
+├── api/.env.example                ← modelo focado na API Rust (+ probe dispatch)
 └── docs/                           ← documentação do projeto
 ```
 
@@ -230,11 +252,27 @@ cd api && cargo test
 | `REDIS_PASSWORD` | Docker Compose | ✅ | Senha do Redis |
 | `DATABASE_URL` | Rust API + Next.js | ✅ | URL completa de conexão ao PostgreSQL |
 | `REDIS_URL` | Rust API | ✅ | URL completa de conexão ao Redis |
-| `API_PORT` | Rust API | — | Porta da API (default: 3001) |
+| `PORT` | Rust API | — | Porta HTTP da API (default `3001`). Evite definir na mesma raiz que o Next se `next dev` não deva mudar de porta. |
+| `API_PORT` | Rust API | — | Alternativa a `PORT`: a API usa `PORT` ou, se vazio, `API_PORT` (recomendado em monorepo com Next). |
 | `PROBE_SECRET` | Rust API + Lambda | ✅ | Token compartilhado para autenticar probes |
+| `API_URL` | Rust API + Lambdas | ✅ | URL pública da API (`{API_URL}/api/ingest`) — workers precisam alcançá-la |
 | `RESEND_API_KEY` | Rust API | — | API key do Resend para emails de alerta |
-| `APP_URL` | Rust API | — | URL base do Next.js (para links nos alertas) |
-| `NEXT_PUBLIC_API_URL` | Next.js | ✅ | URL da Rust API (para SSE EventSource no browser) |
+| `SLACK_WEBHOOK_URL` | Rust API | — | Webhook Slack (opcional) |
+| `APP_URL` | Rust API | — | URL base do Next.js (CORS / links nos alertas) |
+| `NEXT_PUBLIC_API_URL` | Next.js | ✅ | URL da Rust API no browser (fetch, SSE) |
+
+**Probe dispatch (opcionais — ver `api/.env.example` e `ProbeDispatchConfig` em `config.rs`):**
+
+| Variável | Default | Descrição |
+|:---|:---:|:---|
+| `PROBE_DISPATCH_MAX_GLOBAL` | 64 | Máximo de `POST` de probe em voo no processo |
+| `PROBE_DISPATCH_MAX_PER_REGION` | 3 | Máximo em voo por `region_id` (cada Function URL) |
+| `PROBE_DISPATCH_REGION_PARALLEL` | 3 | Regiões em paralelo por monitor dentro de um `dispatch_probes` |
+| `PROBE_SCHEDULER_MAX_MONITORS_PARALLEL` | 16 | Monitores processados em paralelo por tick de 1s |
+| `PROBE_DISPATCH_429_MAX_ATTEMPTS` | 5 | Tentativas HTTP por região (inclui a 1.ª) em caso de 429 |
+| `PROBE_DISPATCH_429_BASE_MS` | 120 | Backoff base (ms) quando não há `Retry-After` |
+| `PROBE_DISPATCH_429_MAX_MS` | 5000 | Teto do backoff (ms) |
+| `PROBE_DISPATCH_ACQUIRE_TIMEOUT_SECS` | 18 | Tempo máximo à espera de um permit do semáforo |
 
 > **Regiões Lambda**: não são mais env vars. Ficam na tabela `regions` do banco.
 > Para adicionar uma nova região: `INSERT INTO regions (id, label, description, color, lambda_url) VALUES (...)`.
@@ -243,7 +281,7 @@ cd api && cargo test
 > **Nota:** `NEXTAUTH_SECRET` e `NEXTAUTH_URL` foram removidos — o sistema de auth é agora custom (sem NextAuth).
 > A sessão usa um UUID armazenado na tabela `sessions` do PostgreSQL + cookie HTTP-only `session=<token>`.
 
-Para desenvolvimento local, os valores padrão do `.env.example` funcionam sem alteração.
+Para desenvolvimento local, use o `.env` na raiz (ou copie de `api/.env.example` como referência para variáveis da API). Os defaults de `ProbeDispatchConfig` aplicam-se mesmo sem definir `PROBE_DISPATCH_*`.
 
 ---
 

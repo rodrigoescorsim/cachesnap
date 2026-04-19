@@ -101,6 +101,21 @@ Preencha cada variável conforme a tabela abaixo:
 | `NEXTAUTH_URL` | `https://yourdomain.com` |
 | `NEXT_PUBLIC_API_URL` | `https://api.yourdomain.com` |
 
+### Probe dispatch (opcional — produção com muitos monitores)
+
+Se a API registar muitos `429` ao falar com as Lambdas, ajuste (ou defina explicitamente) as variáveis abaixo. Defaults seguros estão em `api/src/config.rs` (`ProbeDispatchConfig`); descrição completa em `docs/STACK.md` (secção *Limitação de concorrência, HTTP 429 e backpressure*).
+
+| Variável | Exemplo | Notas |
+|:---|:---|:---|
+| `PROBE_DISPATCH_MAX_GLOBAL` | `64` | Teto de `POST` de probe em voo no processo |
+| `PROBE_DISPATCH_MAX_PER_REGION` | `3` | Por região (`region_id` / mesma Function URL) |
+| `PROBE_DISPATCH_REGION_PARALLEL` | `3` | Regiões em paralelo por monitor |
+| `PROBE_SCHEDULER_MAX_MONITORS_PARALLEL` | `16` | Monitores por tick de 1s |
+| `PROBE_DISPATCH_429_MAX_ATTEMPTS` | `5` | Tentativas por região em 429 |
+| `PROBE_DISPATCH_429_BASE_MS` | `120` | Backoff base (ms) |
+| `PROBE_DISPATCH_429_MAX_MS` | `5000` | Teto do backoff (ms) |
+| `PROBE_DISPATCH_ACQUIRE_TIMEOUT_SECS` | `18` | Timeout à espera de permit do semáforo |
+
 > **Nota sobre DATABASE_URL**: em produção, use o hostname `db` (nome do container Docker), não `localhost`.
 
 ---

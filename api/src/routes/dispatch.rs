@@ -5,6 +5,7 @@ use axum::{
     Json,
 };
 use serde_json::json;
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{models::monitor::Monitor, routes::auth, scheduler::runner, AppState};
@@ -53,10 +54,10 @@ pub async fn handler(
         }
     };
 
-    let regions = runner::fetch_regions(&state.db).await;
+    let regions = Arc::new(runner::fetch_regions(&state.db).await);
     let run_bypass = payload.bypass.unwrap_or(true);
     let is_manual = payload.is_manual.unwrap_or(true); // Default to true if called via /dispatch API
-    
+
     tokio::spawn(async move {
         runner::dispatch_probes(&state, &monitor, regions, run_bypass, is_manual).await;
     });
