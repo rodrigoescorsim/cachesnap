@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import {
   Activity,
   ArrowDown,
@@ -11,13 +11,9 @@ import {
   Search,
 } from 'lucide-react'
 import { Logo } from '@/components/logo'
+import { type MonitorQuickFilterId } from '@/types/monitor'
 import { GlobalMetricCard } from './global-metric-card'
 import { MonitorsTable } from './monitors-table'
-
-type QuickFilter = {
-  id: string
-  label: string
-}
 
 const NAV_ITEMS = [
   { label: 'Overview', href: '/dashboard', isActive: false, isDisabled: false },
@@ -27,7 +23,7 @@ const NAV_ITEMS = [
   { label: 'Settings', href: '', isActive: false, isDisabled: true },
 ]
 
-const QUICK_FILTERS: QuickFilter[] = [
+const QUICK_FILTERS: ReadonlyArray<{ id: MonitorQuickFilterId; label: string }> = [
   { id: 'all', label: 'All' },
   { id: 'healthy', label: 'Healthy' },
   { id: 'degraded', label: 'Degraded' },
@@ -36,13 +32,10 @@ const QUICK_FILTERS: QuickFilter[] = [
 ]
 
 export function MonitorsStageOne() {
-  const [activeFilter, setActiveFilter] = useState<string>('all')
+  const [activeFilter, setActiveFilter] = useState<MonitorQuickFilterId>('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const globalAvgTtfbDelta = -12
   const ttfbImproved = globalAvgTtfbDelta < 0
-
-  const quickFilterLabel = useMemo(() => {
-    return QUICK_FILTERS.find((filter) => filter.id === activeFilter)?.label ?? 'All'
-  }, [activeFilter])
 
   return (
     <div className="min-h-full bg-background">
@@ -162,36 +155,24 @@ export function MonitorsStageOne() {
                 type="text"
                 className="cs-input-premium h-11 w-full !pl-11 pr-5 text-[13px] placeholder:text-zinc-600 focus:scale-[1.002]"
                 placeholder="Ex: microsoft, cache miss, TTFB > 300ms..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5" role="toolbar" aria-label="Monitor filters">
               {QUICK_FILTERS.map((filter) => {
                 const isActive = activeFilter === filter.id
-                const isAll = filter.id === 'all'
-                
-                if (isAll && isActive) {
-                  return (
-                    <button
-                      key={filter.id}
-                      onClick={() => setActiveFilter(filter.id)}
-                      className="h-8 rounded-lg bg-emerald-500 text-slate-950 px-3.5 text-[9px] font-black uppercase tracking-widest shadow-[0_0_12px_-3px_rgba(16,185,129,0.4)] transition-all"
-                    >
-                      {filter.label}
-                    </button>
-                  )
-                }
-
                 return (
                   <button
                     key={filter.id}
                     type="button"
                     onClick={() => setActiveFilter(filter.id)}
                     aria-pressed={isActive}
-                    className={`h-8 px-3.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                    className={`inline-flex h-8 min-w-[4.5rem] items-center justify-center rounded-lg px-3.5 text-[9px] font-black uppercase tracking-widest transition-all duration-200 ${
                       isActive
-                        ? 'cs-badge cs-badge-success !px-3.5 !py-0'
-                        : 'border border-white/5 bg-white/[0.01] text-zinc-500 hover:text-zinc-300'
+                        ? 'cs-badge cs-badge-success !min-h-0 !px-3.5 !py-0'
+                        : 'border border-white/5 bg-white/[0.01] text-zinc-500 hover:border-white/10 hover:text-zinc-300'
                     }`}
                   >
                     {filter.label}
@@ -207,7 +188,7 @@ export function MonitorsStageOne() {
         </section>
 
         <section className="cs-card cs-card-glass animate-[cs-fade-in_0.6s_ease-out] overflow-hidden !p-0">
-          <MonitorsTable />
+          <MonitorsTable searchQuery={searchQuery} activeFilter={activeFilter} />
         </section>
       </main>
     </div>

@@ -1,6 +1,11 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+/**
+ * Active Monitors — Etapa 3
+ * TanStack Table: dados filtrados no cliente (busca + chips); ordenação nas colunas de dados (exceto ações).
+ */
+
+import { useState, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   useReactTable,
@@ -10,21 +15,42 @@ import {
   createColumnHelper,
   type SortingState,
 } from '@tanstack/react-table'
-import { ArrowDown, ArrowUp, ArrowUpDown, Eye, Pause, Play, Pencil } from 'lucide-react'
-import { type Monitor, getTtfbTier, getCacheHitTier } from '@/types/monitor'
+import { ArrowDown, ArrowUp, ArrowUpDown, Eye, Pause, Play, Pencil, Search } from 'lucide-react'
+import {
+  type Monitor,
+  type MonitorQuickFilterId,
+  getTtfbTier,
+  getCacheHitTier,
+  monitorMatchesQuickFilter,
+  monitorMatchesSearch,
+} from '@/types/monitor'
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
-function spark(base: number, points = 24): number[] {
+/** “Agora” fixo para mocks: mesmo HTML no SSR e no cliente (evita hydration mismatch). */
+const MOCK_CLOCK = new Date('2026-04-19T15:00:00.000Z')
+const MOCK_CLOCK_MS = MOCK_CLOCK.getTime()
+
+const ago = (seconds: number) => new Date(MOCK_CLOCK_MS - seconds * 1000)
+
+/** Ruído reproduzível (sem Math.random) — spark idêntico no servidor e no browser. */
+function hash01(seed: string, i: number): number {
+  let h = 2166136261
+  const s = `${seed}:${i}`
+  for (let k = 0; k < s.length; k++) {
+    h ^= s.charCodeAt(k)
+    h = Math.imul(h, 16777619)
+  }
+  return (h >>> 0) / 2 ** 32
+}
+
+function spark(base: number, seed: string, points = 24): number[] {
   return Array.from({ length: points }, (_, i) => {
-    const noise = (Math.random() - 0.5) * base * 0.4
+    const noise = (hash01(seed, i) - 0.5) * base * 0.4
     const trend = Math.sin(i / 4) * base * 0.1
     return Math.max(10, base + noise + trend)
   })
 }
-
-const NOW = new Date()
-const ago = (seconds: number) => new Date(NOW.getTime() - seconds * 1000)
 
 const MOCK_MONITORS: Monitor[] = [
   {
@@ -35,7 +61,7 @@ const MOCK_MONITORS: Monitor[] = [
     ttfbCurrent: 142,
     ttfbCurrentDelta: -8.2,
     ttfbAvg24h: 168,
-    ttfbSparkline: spark(168),
+    ttfbSparkline: spark(168, 'mon_microsoft'),
     cacheHitCurrent: 98.2,
     cacheHitAvg24h: 96.8,
     cacheHitDelta: 1.4,
@@ -57,7 +83,7 @@ const MOCK_MONITORS: Monitor[] = [
     ttfbCurrent: 89,
     ttfbCurrentDelta: -3.1,
     ttfbAvg24h: 95,
-    ttfbSparkline: spark(95),
+    ttfbSparkline: spark(95, 'mon_apple'),
     cacheHitCurrent: 99.5,
     cacheHitAvg24h: 99.1,
     cacheHitDelta: 0.4,
@@ -77,7 +103,7 @@ const MOCK_MONITORS: Monitor[] = [
     ttfbCurrent: 284,
     ttfbCurrentDelta: 12.5,
     ttfbAvg24h: 241,
-    ttfbSparkline: spark(241),
+    ttfbSparkline: spark(241, 'mon_nytimes'),
     cacheHitCurrent: 74.1,
     cacheHitAvg24h: 78.3,
     cacheHitDelta: -4.2,
@@ -97,7 +123,7 @@ const MOCK_MONITORS: Monitor[] = [
     ttfbCurrent: 412,
     ttfbCurrentDelta: 28.7,
     ttfbAvg24h: 388,
-    ttfbSparkline: spark(388),
+    ttfbSparkline: spark(388, 'mon_govbr'),
     cacheHitCurrent: 52.4,
     cacheHitAvg24h: 58.1,
     cacheHitDelta: -5.7,
@@ -118,7 +144,7 @@ const MOCK_MONITORS: Monitor[] = [
     ttfbCurrent: 198,
     ttfbCurrentDelta: 4.3,
     ttfbAvg24h: 187,
-    ttfbSparkline: spark(187),
+    ttfbSparkline: spark(187, 'mon_github'),
     cacheHitCurrent: 88.7,
     cacheHitAvg24h: 86.2,
     cacheHitDelta: 2.5,
@@ -138,7 +164,7 @@ const MOCK_MONITORS: Monitor[] = [
     ttfbCurrent: 61,
     ttfbCurrentDelta: -1.8,
     ttfbAvg24h: 64,
-    ttfbSparkline: spark(64),
+    ttfbSparkline: spark(64, 'mon_cloudflare'),
     cacheHitCurrent: 99.9,
     cacheHitAvg24h: 99.7,
     cacheHitDelta: 0.2,
@@ -158,7 +184,7 @@ const MOCK_MONITORS: Monitor[] = [
     ttfbCurrent: 155,
     ttfbCurrentDelta: 2.1,
     ttfbAvg24h: 149,
-    ttfbSparkline: spark(149),
+    ttfbSparkline: spark(149, 'mon_netflix'),
     cacheHitCurrent: 91.3,
     cacheHitAvg24h: 90.8,
     cacheHitDelta: 0.5,
@@ -177,7 +203,7 @@ const MOCK_MONITORS: Monitor[] = [
     ttfbCurrent: 112,
     ttfbCurrentDelta: -5.4,
     ttfbAvg24h: 118,
-    ttfbSparkline: spark(118),
+    ttfbSparkline: spark(118, 'mon_vercel'),
     cacheHitCurrent: 95.8,
     cacheHitAvg24h: 94.1,
     cacheHitDelta: 1.7,
@@ -204,7 +230,7 @@ function ttfbClass(ms: number) {
 }
 
 function formatRelativeTime(date: Date): { text: string; isRecent: boolean } {
-  const diffS = Math.floor((Date.now() - date.getTime()) / 1000)
+  const diffS = Math.floor((MOCK_CLOCK_MS - date.getTime()) / 1000)
   if (diffS < 60) return { text: diffS < 5 ? 'just now' : `${diffS}s ago`, isRecent: true }
   const diffM = Math.floor(diffS / 60)
   if (diffM < 60) return { text: `${diffM}m ago`, isRecent: false }
@@ -229,7 +255,7 @@ function Sparkline({ data, delta }: { data: number[]; delta: number }) {
       return `${x.toFixed(1)},${y.toFixed(1)}`
     })
     .join(' ')
-  // delta < 0 → TTFB dropped → improving → emerald; delta > 0 → worsening → --metric-slow (#f43f5e)
+  // delta < 0 → TTFB dropped → improving → emerald; delta > 1 → worsening → --metric-slow
   const color = delta < -1 ? '#34d399' : delta > 1 ? 'var(--metric-slow)' : '#f59e0b'
   return (
     <svg
@@ -433,8 +459,9 @@ const columns = [
     header: 'Last Check',
     size: 9,
     enableSorting: true,
+    // Comparador ascendente; TanStack inverte no modo desc.
     sortingFn: (a, b) =>
-      b.original.lastCheckedAt.getTime() - a.original.lastCheckedAt.getTime(),
+      a.original.lastCheckedAt.getTime() - b.original.lastCheckedAt.getTime(),
     cell: ({ getValue }) => {
       const { text, isRecent } = formatRelativeTime(getValue())
       return (
@@ -454,6 +481,7 @@ const columns = [
     id: 'actions',
     header: '',
     size: 6,
+    enableSorting: false,
     cell: ({ row }) => {
       const m = row.original
       const isPaused = m.status === 'paused'
@@ -507,29 +535,44 @@ function ActionBtn({
 
 // ─── MonitorsTable ────────────────────────────────────────────────────────────
 
-export function MonitorsTable() {
+interface MonitorsTableProps {
+  searchQuery?: string
+  activeFilter?: MonitorQuickFilterId
+}
+
+export function MonitorsTable({ searchQuery = '', activeFilter = 'all' }: MonitorsTableProps) {
   const router = useRouter()
   const [sorting, setSorting] = useState<SortingState>([])
 
+  /** Busca (nome/URL) + chip — O(n) sobre mock; helpers puros facilitam testes futuros. */
+  const filteredData = useMemo(() => {
+    return MOCK_MONITORS.filter(
+      (m) => monitorMatchesSearch(m, searchQuery) && monitorMatchesQuickFilter(m, activeFilter),
+    )
+  }, [searchQuery, activeFilter])
+
   const table = useReactTable({
-    data: MOCK_MONITORS,
+    data: filteredData,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getRowId: (row) => row.id,
+    enableMultiSort: false,
   })
 
   const handleRowClick = useCallback(
     (monitorId: string) => router.push(`/dashboard/monitors/${monitorId}`),
-    [router],
+    [router]
   )
+
+  const rows = table.getRowModel().rows
 
   return (
     <div className="overflow-hidden rounded-xl">
       <div className="overflow-x-auto cs-dropdown-scroll">
         <table className="w-full border-collapse">
-
           {/* Sticky header */}
           <thead className="sticky top-0 z-10">
             {table.getHeaderGroups().map((hg) => (
@@ -537,8 +580,7 @@ export function MonitorsTable() {
                 {hg.headers.map((header) => {
                   const canSort = header.column.getCanSort()
                   const isRightAligned =
-                    header.column.id === 'lastCheckedAt' ||
-                    header.column.id === 'slowRegionCount'
+                    header.column.id === 'lastCheckedAt' || header.column.id === 'slowRegionCount'
                   return (
                     <th
                       key={header.id}
@@ -548,8 +590,8 @@ export function MonitorsTable() {
                         header.column.getIsSorted() === 'asc'
                           ? 'ascending'
                           : header.column.getIsSorted() === 'desc'
-                            ? 'descending'
-                            : undefined
+                          ? 'descending'
+                          : undefined
                       }
                       className={[
                         'cs-table-compact-th group/th select-none whitespace-nowrap',
@@ -574,7 +616,7 @@ export function MonitorsTable() {
           </thead>
 
           <tbody>
-            {table.getRowModel().rows.map((row, i) => {
+            {rows.map((row, i) => {
               const isPaused = row.original.status === 'paused'
               return (
                 <tr
@@ -583,7 +625,6 @@ export function MonitorsTable() {
                   className={[
                     'group/row cursor-pointer border-b border-white/[0.03]',
                     'transition-all duration-150',
-                    // premium neon hover: background tint + left-edge accent + diffuse glow
                     'hover:bg-emerald-500/[0.07]',
                     'hover:shadow-[inset_3px_0_0_rgba(52,211,153,0.55),inset_0_0_32px_-8px_rgba(52,211,153,0.12)]',
                     i % 2 === 1 ? 'bg-white/[0.012]' : '',
@@ -603,9 +644,23 @@ export function MonitorsTable() {
           </tbody>
         </table>
 
-        {table.getRowModel().rows.length === 0 && (
-          <div className="flex min-h-[120px] items-center justify-center text-[12px] font-semibold text-zinc-600">
-            No monitors found
+        {rows.length === 0 && (
+          <div
+            className="flex min-h-[220px] flex-col items-center justify-center gap-3 border-t border-white/[0.04] py-14"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/[0.03] ring-1 ring-inset ring-white/10">
+              <Search className="h-5 w-5 text-zinc-500" aria-hidden />
+            </div>
+            <div className="max-w-sm text-center">
+              <p className="text-[13px] font-black tracking-tight text-zinc-400">No monitors match</p>
+              <p className="mt-1 text-[11px] font-medium leading-relaxed text-zinc-600">
+                {searchQuery.trim()
+                  ? `Nothing matched "${searchQuery.trim()}". Try another name or URL.`
+                  : 'No rows for this filter. Choose another chip or clear the search.'}
+              </p>
+            </div>
           </div>
         )}
       </div>
@@ -613,7 +668,12 @@ export function MonitorsTable() {
       {/* Footer */}
       <div className="flex items-center justify-between border-t border-white/[0.04] px-4 py-2">
         <span className="text-[9.5px] font-bold uppercase tracking-widest text-zinc-700">
-          {table.getRowModel().rows.length} monitors
+          {rows.length === 1 ? '1 MONITOR' : `${rows.length} MONITORS`}
+          {rows.length < MOCK_MONITORS.length ? (
+            <span className="ml-2 font-medium normal-case tracking-normal text-zinc-600">
+              ({MOCK_MONITORS.length} total)
+            </span>
+          ) : null}
         </span>
         <span className="text-[9.5px] font-medium text-zinc-700">
           Click row · open details

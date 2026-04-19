@@ -38,3 +38,37 @@ export function getCacheHitTier(pct: number): CacheHitTier {
   if (pct >= 70) return 'mid'
   return 'low'
 }
+
+/** Chips da lista Active Monitors (Etapa 3) — um ativo por vez. */
+export type MonitorQuickFilterId =
+  | 'all'
+  | 'healthy'
+  | 'degraded'
+  | 'high-ttfb'
+  | 'low-cache-hit'
+
+export function monitorMatchesSearch(monitor: Monitor, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return monitor.name.toLowerCase().includes(q) || monitor.url.toLowerCase().includes(q)
+}
+
+/** Critérios alinhados ao produto: TTFB / cache atuais (`ttfbCurrent`, `cacheHitCurrent`). */
+export function monitorMatchesQuickFilter(
+  monitor: Monitor,
+  filter: MonitorQuickFilterId,
+): boolean {
+  if (filter === 'all') return true
+  const ttfb = monitor.ttfbCurrent
+  const hit = monitor.cacheHitCurrent
+  switch (filter) {
+    case 'healthy':
+      return ttfb < 200 && hit > 90
+    case 'degraded':
+      return ttfb > 300 || hit < 70
+    case 'high-ttfb':
+      return ttfb > 300
+    case 'low-cache-hit':
+      return hit < 70
+  }
+}
