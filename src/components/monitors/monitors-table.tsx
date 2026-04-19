@@ -1,11 +1,6 @@
 'use client'
 
-/**
- * Active Monitors — Etapa 3
- * TanStack Table: dados filtrados no cliente (busca + chips); ordenação nas colunas de dados (exceto ações).
- */
-
-import { useState, useCallback, useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   useReactTable,
@@ -13,6 +8,7 @@ import {
   getSortedRowModel,
   flexRender,
   createColumnHelper,
+  type OnChangeFn,
   type SortingState,
 } from '@tanstack/react-table'
 import { ArrowDown, ArrowUp, ArrowUpDown, Eye, Pause, Play, Pencil, Search } from 'lucide-react'
@@ -24,16 +20,19 @@ import {
   monitorMatchesQuickFilter,
   monitorMatchesSearch,
 } from '@/types/monitor'
+import { PremiumTooltip } from '@/components/premium-tooltip'
+import {
+  BRAND_TABLE_SURFACE_GRADIENT,
+  MONITOR_TABLE,
+} from '@/app/dashboard/monitors/[id]/monitor-table-styles'
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
-/** “Agora” fixo para mocks: mesmo HTML no SSR e no cliente (evita hydration mismatch). */
 const MOCK_CLOCK = new Date('2026-04-19T15:00:00.000Z')
 const MOCK_CLOCK_MS = MOCK_CLOCK.getTime()
 
 const ago = (seconds: number) => new Date(MOCK_CLOCK_MS - seconds * 1000)
 
-/** Ruído reproduzível (sem Math.random) — spark idêntico no servidor e no browser. */
 function hash01(seed: string, i: number): number {
   let h = 2166136261
   const s = `${seed}:${i}`
@@ -225,51 +224,65 @@ const TTFB_CLASS: Record<string, string> = {
   slow: 'text-metric-ttfb-slow',
 }
 
-function ttfbClass(ms: number) {
-  return TTFB_CLASS[getTtfbTier(ms)]
+const TTFB_LABEL: Record<string, string> = {
+  fast: 'Fast — under 150 ms',
+  med:  'Moderate — 150–300 ms',
+  slow: 'Slow — over 300 ms',
 }
+
+function ttfbClass(ms: number) { return TTFB_CLASS[getTtfbTier(ms)] }
+function ttfbLabel(ms: number) { return `${TTFB_LABEL[getTtfbTier(ms)]}` }
 
 function formatRelativeTime(date: Date): { text: string; isRecent: boolean } {
   const diffS = Math.floor((MOCK_CLOCK_MS - date.getTime()) / 1000)
   if (diffS < 60) return { text: diffS < 5 ? 'just now' : `${diffS}s ago`, isRecent: true }
   const diffM = Math.floor(diffS / 60)
-  if (diffM < 60) return { text: `${diffM}m ago`, isRecent: false }
+  if (diffM < 60) return { text: `${diffM}m ago`, isRecent: diffM < 3 }
   const diffH = Math.floor(diffM / 60)
   return { text: `${diffH}h ago`, isRecent: false }
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-// Color reflects trend direction: negative delta on TTFB = improving = green
 function Sparkline({ data, delta }: { data: number[]; delta: number }) {
   if (data.length < 2) return null
   const min = Math.min(...data)
   const max = Math.max(...data)
   const range = max - min || 1
-  const W = 56
-  const H = 16
+  const W = 60
+  const H = 18
+
+  // Smooth polyline using midpoint interpolation for a soft curve effect
   const pts = data
     .map((v, i) => {
       const x = (i / (data.length - 1)) * W
-      const y = H - ((v - min) / range) * (H - 2) - 1
+      const y = H - ((v - min) / range) * (H - 3) - 1.5
       return `${x.toFixed(1)},${y.toFixed(1)}`
     })
     .join(' ')
-  // delta < 0 → TTFB dropped → improving → emerald; delta > 1 → worsening → --metric-slow
-  const color = delta < -1 ? '#34d399' : delta > 1 ? 'var(--metric-slow)' : '#f59e0b'
+
+  /** Alinhado a `--metric-slow` (globals); SVG não herda utilities Tailwind. */
+  const color = delta < -1 ? '#34d399' : delta > 1 ? '#f43f5e' : '#f59e0b'
+  const glowClass =
+    delta < -1
+      ? 'group-hover/row:[filter:drop-shadow(0_0_5px_rgba(52,211,153,0.55))]'
+      : delta > 1
+        ? 'group-hover/row:[filter:drop-shadow(0_0_5px_rgba(244,63,94,0.55))]'
+        : 'group-hover/row:[filter:drop-shadow(0_0_5px_rgba(245,158,11,0.45))]'
+
   return (
     <svg
       width={W}
       height={H}
       viewBox={`0 0 ${W} ${H}`}
       aria-hidden="true"
-      className="shrink-0 opacity-75"
+      className={`shrink-0 opacity-85 transition-[filter,opacity] duration-300 ${glowClass}`}
     >
       <polyline
         points={pts}
         fill="none"
         stroke={color}
-        strokeWidth="1.5"
+        strokeWidth="1.75"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -280,17 +293,17 @@ function Sparkline({ data, delta }: { data: number[]; delta: number }) {
 function CacheHitBadge({ pct }: { pct: number }) {
   const tier = getCacheHitTier(pct)
   if (tier === 'high') return <span className="cs-badge-cache-hit">{pct.toFixed(1)}%</span>
-  if (tier === 'mid') return <span className="cs-badge-cache-dynamic">{pct.toFixed(1)}%</span>
+  if (tier === 'mid')  return <span className="cs-badge-cache-dynamic">{pct.toFixed(1)}%</span>
   return <span className="cs-badge-cache-miss">{pct.toFixed(1)}%</span>
 }
 
-// inverted=true means a negative delta is good (TTFB going down = improvement)
+// inverted=true: negative delta = improvement (TTFB going down is good)
 function DeltaChip({ value, inverted = false }: { value: number; inverted?: boolean }) {
   const improved = inverted ? value < 0 : value > 0
   const Icon = value < 0 ? ArrowDown : ArrowUp
   return (
     <span
-      className={`inline-flex items-center gap-px text-[10px] font-black tabular-nums ${
+      className={`inline-flex items-center gap-px text-[10px] font-black tabular-nums leading-none ${
         improved ? 'text-emerald-300' : 'text-metric-bad'
       }`}
     >
@@ -302,11 +315,11 @@ function DeltaChip({ value, inverted = false }: { value: number; inverted?: bool
 
 function SortIcon({ isSorted }: { isSorted: false | 'asc' | 'desc' }) {
   if (isSorted === 'asc')
-    return <ArrowUp className="ml-1 inline h-2.5 w-2.5 shrink-0 text-emerald-400" />
+    return <ArrowUp className="ml-1 inline h-[9px] w-[9px] shrink-0 text-emerald-400" />
   if (isSorted === 'desc')
-    return <ArrowDown className="ml-1 inline h-2.5 w-2.5 shrink-0 text-emerald-400" />
+    return <ArrowDown className="ml-1 inline h-[9px] w-[9px] shrink-0 text-emerald-400" />
   return (
-    <ArrowUpDown className="ml-1 inline h-2.5 w-2.5 shrink-0 opacity-25 transition-opacity duration-150 group-hover/th:opacity-50" />
+    <ArrowUpDown className="ml-1 inline h-[9px] w-[9px] shrink-0 opacity-20 transition-opacity duration-150 group-hover/th:opacity-60" />
   )
 }
 
@@ -319,33 +332,33 @@ const columns = [
   col.accessor('name', {
     id: 'monitor',
     header: 'Monitor',
-    size: 28,
+    size: 27,
     enableSorting: true,
     cell: ({ row }) => {
       const m = row.original
       const isActive = m.status === 'active'
       return (
-        <div className="flex min-w-0 flex-col gap-0.5">
+        <div className="flex min-w-0 flex-col gap-[3px]">
           <div className="flex items-center gap-1.5">
-            <span className="truncate text-[13px] font-black tracking-tight text-white">
+            <span className="truncate text-[13px] font-black tracking-tight text-white/90 transition-colors duration-150 group-hover/row:text-white">
               {m.name}
             </span>
             {isActive ? (
-              <span className="cs-badge cs-badge-success shrink-0 !px-1.5 !py-0 !text-[8.5px]">
-                <span className="relative mr-1 flex h-1.5 w-1.5 shrink-0">
+              <span className="cs-badge cs-badge-success shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px]">
+                <span className="relative flex h-1.5 w-1.5 shrink-0">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
                   <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
                 </span>
                 Active
               </span>
             ) : (
-              <span className="cs-badge cs-badge-warning shrink-0 !px-1.5 !py-0 !text-[8.5px]">
+              <span className="cs-badge cs-badge-warning shrink-0 !px-1.5 !py-0 !text-[8px]">
                 Paused
               </span>
             )}
           </div>
           <span
-            className="max-w-[220px] truncate text-[10px] text-zinc-700"
+            className="max-w-[220px] truncate font-mono text-[10px] text-zinc-500 transition-colors duration-150 group-hover/row:text-zinc-400"
             title={m.url}
           >
             {m.url.replace(/^https?:\/\//, '')}
@@ -355,7 +368,7 @@ const columns = [
     },
   }),
 
-  // 2. TTFB current + delta chip
+  // 2. TTFB current + delta chip + tier tooltip
   col.accessor('ttfbCurrent', {
     header: 'TTFB Now',
     size: 10,
@@ -363,27 +376,38 @@ const columns = [
     cell: ({ getValue, row }) => {
       const ms = getValue()
       return (
-        <div className="flex flex-col gap-0.5">
-          <span className={`text-[14px] font-black leading-none tabular-nums ${ttfbClass(ms)}`}>
-            {ms}<span className="ml-0.5 text-[9px] font-bold opacity-50">ms</span>
-          </span>
+        <div className="flex flex-col gap-[3px]">
+          <PremiumTooltip
+            content={
+              <p className="text-[11px]">
+                <span className="font-black text-white">{ms} ms</span>
+                <span className="ml-1.5 text-zinc-400">{ttfbLabel(ms)}</span>
+              </p>
+            }
+            position="bottom-left"
+            direction="bottom"
+          >
+            <span className={`text-[14px] font-black leading-none tabular-nums ${ttfbClass(ms)}`}>
+              {ms}<span className="ml-0.5 text-[9px] font-bold opacity-40">ms</span>
+            </span>
+          </PremiumTooltip>
           <DeltaChip value={row.original.ttfbCurrentDelta} inverted />
         </div>
       )
     },
   }),
 
-  // 3. TTFB avg 24h + sparkline (color = trend direction)
+  // 3. TTFB avg 24h + sparkline
   col.accessor('ttfbAvg24h', {
     header: 'Avg TTFB 24h',
-    size: 12,
+    size: 13,
     enableSorting: true,
     cell: ({ getValue, row }) => {
       const ms = getValue()
       return (
-        <div className="flex items-center gap-2">
-          <span className={`text-[13px] font-black tabular-nums ${ttfbClass(ms)}`}>
-            {ms}<span className="ml-0.5 text-[9px] font-bold opacity-50">ms</span>
+        <div className="flex items-center gap-2.5">
+          <span className={`text-[13px] font-black tabular-nums leading-none ${ttfbClass(ms)}`}>
+            {ms}<span className="ml-0.5 text-[9px] font-bold opacity-40">ms</span>
           </span>
           <Sparkline data={row.original.ttfbSparkline} delta={row.original.ttfbCurrentDelta} />
         </div>
@@ -394,7 +418,7 @@ const columns = [
   // 4. Cache hit current — semantic badge
   col.accessor('cacheHitCurrent', {
     header: 'Cache Hit',
-    size: 11,
+    size: 10,
     enableSorting: true,
     cell: ({ getValue }) => <CacheHitBadge pct={getValue()} />,
   }),
@@ -408,10 +432,12 @@ const columns = [
       const pct = getValue()
       const tier = getCacheHitTier(pct)
       const textClass =
-        tier === 'high' ? 'text-emerald-400' : tier === 'mid' ? 'text-amber-400' : 'text-metric-bad'
+        tier === 'high' ? 'text-emerald-400'
+        : tier === 'mid' ? 'text-amber-400'
+        : 'text-metric-bad'
       return (
-        <div className="flex flex-col gap-0.5">
-          <span className={`text-[13px] font-black tabular-nums ${textClass}`}>
+        <div className="flex flex-col gap-[3px]">
+          <span className={`text-[13px] font-black tabular-nums leading-none ${textClass}`}>
             {pct.toFixed(1)}%
           </span>
           <DeltaChip value={row.original.cacheHitDelta} />
@@ -420,18 +446,37 @@ const columns = [
     },
   }),
 
-  // 6. Regions — slow region badges or "Global" muted, right-aligned
+  // 6. Regions — degraded region badges + count, or "All Clear" indicator
   col.accessor('slowRegionCount', {
-    header: 'Regions',
-    size: 14,
+    header: () => (
+      <PremiumTooltip
+        content={
+          <div className="space-y-1 text-[11px]">
+            <p className="font-black text-white">Degraded Regions</p>
+            <p className="text-zinc-400">Regions where TTFB exceeds threshold. "All clear" means all monitored regions are healthy.</p>
+          </div>
+        }
+        position="top-right"
+        direction="top"
+      >
+        <span className="inline-flex items-center gap-0.5">
+          Regions
+          <span className="ml-0.5 inline-block h-1 w-1 rounded-full bg-zinc-600 opacity-60" />
+        </span>
+      </PremiumTooltip>
+    ),
+    size: 15,
     enableSorting: true,
     cell: ({ row }) => {
       const m = row.original
       if (m.slowRegionCount === 0) {
         return (
-          <span className="block text-right text-[10px] font-medium italic text-zinc-700">
-            — Global
-          </span>
+          <div className="flex items-center justify-end gap-1.5">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 transition-colors duration-150 group-hover/row:text-zinc-500">
+              All clear
+            </span>
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/40 ring-1 ring-emerald-500/20" />
+          </div>
         )
       }
       const slowOnes = m.regions.filter((r) => r.isSlow)
@@ -440,13 +485,13 @@ const columns = [
           {slowOnes.map((r) => (
             <span
               key={r.code}
-              title={`${r.label} degraded`}
-              className="cs-badge cs-badge-warning !px-1 !py-[1px] !text-[8.5px]"
+              title={`${r.label} is degraded`}
+              className="cs-badge cs-badge-warning !px-1 !py-[1px] !text-[8px]"
             >
               {r.flag} {r.label}
             </span>
           ))}
-          <span className="text-[9px] font-bold text-zinc-600">
+          <span className="text-[9px] font-bold tabular-nums text-zinc-600">
             {m.slowRegionCount}/{m.totalRegionCount}
           </span>
         </div>
@@ -459,15 +504,14 @@ const columns = [
     header: 'Last Check',
     size: 9,
     enableSorting: true,
-    // Comparador ascendente; TanStack inverte no modo desc.
     sortingFn: (a, b) =>
       a.original.lastCheckedAt.getTime() - b.original.lastCheckedAt.getTime(),
     cell: ({ getValue }) => {
       const { text, isRecent } = formatRelativeTime(getValue())
       return (
         <span
-          className={`block text-right text-[11px] font-bold tabular-nums ${
-            isRecent ? 'text-emerald-400' : 'text-zinc-500'
+          className={`block text-right text-[11px] font-bold tabular-nums transition-colors duration-150 ${
+            isRecent ? 'text-emerald-400' : 'text-zinc-500 group-hover/row:text-zinc-400'
           }`}
         >
           {text}
@@ -476,7 +520,7 @@ const columns = [
     },
   }),
 
-  // 8. Actions — appear on row hover only
+  // 8. Actions — revealed on row hover
   col.display({
     id: 'actions',
     header: '',
@@ -487,7 +531,7 @@ const columns = [
       const isPaused = m.status === 'paused'
       return (
         <div
-          className="flex items-center justify-end gap-1 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100"
+          className="flex items-center justify-end gap-1 opacity-0 transition-opacity duration-200 group-hover/row:opacity-100"
           onClick={(e) => e.stopPropagation()}
         >
           <ActionBtn label="View details" href={`/dashboard/monitors/${m.id}`}>
@@ -519,7 +563,7 @@ function ActionBtn({
   onClick?: () => void
 }) {
   const base =
-    'flex h-[22px] w-[22px] items-center justify-center rounded border border-white/[0.06] bg-white/[0.02] text-zinc-500 transition-all duration-150 hover:border-white/10 hover:bg-white/[0.07] hover:text-white'
+    'flex h-[22px] w-[22px] items-center justify-center rounded border border-white/[0.06] bg-white/[0.02] text-zinc-500 transition-all duration-150 hover:border-white/10 hover:bg-white/[0.07] hover:text-white active:scale-95'
   if (href)
     return (
       <a href={href} aria-label={label} title={label} className={base}>
@@ -538,13 +582,18 @@ function ActionBtn({
 interface MonitorsTableProps {
   searchQuery?: string
   activeFilter?: MonitorQuickFilterId
+  sorting: SortingState
+  onSortingChange: OnChangeFn<SortingState>
 }
 
-export function MonitorsTable({ searchQuery = '', activeFilter = 'all' }: MonitorsTableProps) {
+export function MonitorsTable({
+  searchQuery = '',
+  activeFilter = 'all',
+  sorting,
+  onSortingChange,
+}: MonitorsTableProps) {
   const router = useRouter()
-  const [sorting, setSorting] = useState<SortingState>([])
 
-  /** Busca (nome/URL) + chip — O(n) sobre mock; helpers puros facilitam testes futuros. */
   const filteredData = useMemo(() => {
     return MOCK_MONITORS.filter(
       (m) => monitorMatchesSearch(m, searchQuery) && monitorMatchesQuickFilter(m, activeFilter),
@@ -555,7 +604,7 @@ export function MonitorsTable({ searchQuery = '', activeFilter = 'all' }: Monito
     data: filteredData,
     columns,
     state: { sorting },
-    onSortingChange: setSorting,
+    onSortingChange,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getRowId: (row) => row.id,
@@ -564,23 +613,28 @@ export function MonitorsTable({ searchQuery = '', activeFilter = 'all' }: Monito
 
   const handleRowClick = useCallback(
     (monitorId: string) => router.push(`/dashboard/monitors/${monitorId}`),
-    [router]
+    [router],
   )
 
   const rows = table.getRowModel().rows
 
+  // tbody key forces remount (and therefore stagger re-animation) on filter/search change
+  const tbodyKey = `${activeFilter}:${searchQuery}`
+
   return (
-    <div className="overflow-hidden rounded-xl">
-      <div className="overflow-x-auto cs-dropdown-scroll">
-        <table className="w-full border-collapse">
-          {/* Sticky header */}
+    <div className="relative overflow-hidden rounded-xl">
+      <div className={BRAND_TABLE_SURFACE_GRADIENT} aria-hidden />
+      <div className={`${MONITOR_TABLE.innerScroll} cs-dropdown-scroll`}>
+        <table className={`w-full border-collapse ${MONITOR_TABLE.transition}`}>
+
           <thead className="sticky top-0 z-10">
             {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-white/[0.06] bg-white/[0.025] backdrop-blur-sm">
+              <tr key={hg.id} className={MONITOR_TABLE.theadRow}>
                 {hg.headers.map((header) => {
                   const canSort = header.column.getCanSort()
                   const isRightAligned =
-                    header.column.id === 'lastCheckedAt' || header.column.id === 'slowRegionCount'
+                    header.column.id === 'lastCheckedAt' ||
+                    header.column.id === 'slowRegionCount'
                   return (
                     <th
                       key={header.id}
@@ -594,16 +648,17 @@ export function MonitorsTable({ searchQuery = '', activeFilter = 'all' }: Monito
                           : undefined
                       }
                       className={[
-                        'cs-table-compact-th group/th select-none whitespace-nowrap',
-                        '!text-[9px] !tracking-widest',
+                        'cs-table-compact-th !py-3 !text-[9px] !font-black !tracking-[0.12em] !text-zinc-600',
+                        'select-none whitespace-nowrap transition-colors duration-150',
                         canSort ? 'cursor-pointer hover:text-zinc-300' : '',
                         isRightAligned ? 'text-right' : '',
+                        header.column.getIsSorted() ? '!text-zinc-300' : '',
                       ]
                         .filter(Boolean)
                         .join(' ')}
                     >
                       {header.isPlaceholder ? null : (
-                        <span className="inline-flex items-center">
+                        <span className="group/th inline-flex items-center">
                           {flexRender(header.column.columnDef.header, header.getContext())}
                           {canSort ? <SortIcon isSorted={header.column.getIsSorted()} /> : null}
                         </span>
@@ -615,26 +670,38 @@ export function MonitorsTable({ searchQuery = '', activeFilter = 'all' }: Monito
             ))}
           </thead>
 
-          <tbody>
+          {/* tbody key triggers stagger re-animation on filter/search change */}
+          <tbody key={tbodyKey}>
             {rows.map((row, i) => {
               const isPaused = row.original.status === 'paused'
               return (
                 <tr
                   key={row.id}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`View details for ${row.original.name}`}
                   onClick={() => handleRowClick(row.original.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleRowClick(row.original.id)
+                    }
+                  }}
+                  // Stagger fade-in — 25ms per row, max 8 rows visible
+                  style={{ animationDelay: `${Math.min(i, 7) * 25}ms` }}
                   className={[
-                    'group/row cursor-pointer border-b border-white/[0.03]',
-                    'transition-all duration-150',
-                    'hover:bg-emerald-500/[0.07]',
-                    'hover:shadow-[inset_3px_0_0_rgba(52,211,153,0.55),inset_0_0_32px_-8px_rgba(52,211,153,0.12)]',
-                    i % 2 === 1 ? 'bg-white/[0.012]' : '',
-                    isPaused ? 'opacity-50 saturate-50' : '',
+                    MONITOR_TABLE.tbodyRow,
+                    'group/row cursor-pointer',
+                    'animate-[cs-fade-in_0.22s_ease-out_both]',
+                    'active:bg-white/[0.03]',
+                    'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-white/15',
+                    isPaused ? 'opacity-40 saturate-0 hover:opacity-60 hover:saturate-50' : '',
                   ]
                     .filter(Boolean)
                     .join(' ')}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="cs-table-compact-td">
+                    <td key={cell.id} className="cs-table-compact-td !py-3">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -644,21 +711,24 @@ export function MonitorsTable({ searchQuery = '', activeFilter = 'all' }: Monito
           </tbody>
         </table>
 
+        {/* Empty state */}
         {rows.length === 0 && (
           <div
-            className="flex min-h-[220px] flex-col items-center justify-center gap-3 border-t border-white/[0.04] py-14"
+            className="flex min-h-[220px] flex-col items-center justify-center gap-4 border-t border-border/40 py-14"
             role="status"
             aria-live="polite"
           >
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/[0.03] ring-1 ring-inset ring-white/10">
-              <Search className="h-5 w-5 text-zinc-500" aria-hidden />
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.025] shadow-[0_0_24px_-8px_rgba(52,211,153,0.08)]">
+              <Search className="h-5 w-5 text-zinc-600" aria-hidden />
             </div>
-            <div className="max-w-sm text-center">
-              <p className="text-[13px] font-black tracking-tight text-zinc-400">No monitors match</p>
-              <p className="mt-1 text-[11px] font-medium leading-relaxed text-zinc-600">
+            <div className="max-w-xs text-center">
+              <p className="text-[13px] font-black tracking-tight text-zinc-400">
+                No monitors match
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-zinc-600">
                 {searchQuery.trim()
-                  ? `Nothing matched "${searchQuery.trim()}". Try another name or URL.`
-                  : 'No rows for this filter. Choose another chip or clear the search.'}
+                  ? <>Nothing matched <span className="font-bold text-zinc-500">"{searchQuery.trim()}"</span>. Try another name or URL.</>
+                  : 'No monitors match this filter. Choose another chip above.'}
               </p>
             </div>
           </div>
@@ -666,17 +736,21 @@ export function MonitorsTable({ searchQuery = '', activeFilter = 'all' }: Monito
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between border-t border-white/[0.04] px-4 py-2">
-        <span className="text-[9.5px] font-bold uppercase tracking-widest text-zinc-700">
+      <div
+        className="flex items-center justify-between border-t border-border/40 px-4 py-2.5"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <span className="text-[9.5px] font-black uppercase tracking-[0.12em] text-zinc-600">
           {rows.length === 1 ? '1 MONITOR' : `${rows.length} MONITORS`}
-          {rows.length < MOCK_MONITORS.length ? (
-            <span className="ml-2 font-medium normal-case tracking-normal text-zinc-600">
-              ({MOCK_MONITORS.length} total)
+          {rows.length < MOCK_MONITORS.length && (
+            <span className="ml-1.5 font-medium normal-case tracking-normal text-zinc-700">
+              of {MOCK_MONITORS.length}
             </span>
-          ) : null}
+          )}
         </span>
-        <span className="text-[9.5px] font-medium text-zinc-700">
-          Click row · open details
+        <span className="text-[9px] font-medium text-zinc-700">
+          ↵ or click row · open details
         </span>
       </div>
     </div>

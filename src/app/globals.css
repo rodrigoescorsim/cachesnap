@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* Timing palette: Edge/Download use hex arbitrary classes; page.tsx often applies them via `${TIMING.*}` so list them here too. */
-@source inline("bg-[#38bdf8] bg-[#84cc16] text-[#0369a1] dark:text-[#7dd3fc] text-[#4d7c0f] dark:text-[#bef264]");
+@source inline("bg-[#38bdf8] bg-[#84cc16] text-[#0369a1] dark:text-[#7dd3fc] text-[#4d7c0f] dark:text-[#bef264] text-[#f43f5e] stroke-[#f43f5e]");
 
 :root {
   --background: #0B1220;
@@ -27,7 +27,18 @@
   /* emerald-400 */
   --metric-med: #f59e0b;
   /* amber-500 */
+  /**
+   * Slow / critical metrics (Tailwind rose-500). `--metric-slow` é o tom principal;
+   * as variáveis `*-rgb` alimentam bordas/fundo/sombra sem color-mix no sRGB, que
+   * empurrava o vermelho para um rosa “quente” em fundos escuros.
+   */
   --metric-slow: #f43f5e;
+  --metric-slow-rgb: 244, 63, 94;
+  --metric-slow-border: rgba(var(--metric-slow-rgb), 0.26);
+  --metric-slow-surface: rgba(var(--metric-slow-rgb), 0.11);
+  --metric-slow-shadow: rgba(var(--metric-slow-rgb), 0.32);
+  --metric-slow-ring: rgba(var(--metric-slow-rgb), 0.3);
+  --metric-slow-layer: rgba(var(--metric-slow-rgb), 0.08);
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -438,11 +449,12 @@ body {
     @apply text-amber-500/90;
   }
 
+  /** TTFB > limiar lento — mesmo tom que deltas / cache crítico (rose-500). */
   .text-metric-ttfb-slow {
     color: var(--metric-slow);
   }
 
-  /** TTFB/cache negativos, deltas de piora — sempre --metric-slow (#f43f5e). */
+  /** TTFB/cache negativos, deltas de piora, setas de regressão. */
   .text-metric-bad {
     color: var(--metric-slow);
   }
@@ -456,7 +468,7 @@ body {
   }
 
   .bg-metric-layer-slow {
-    background-color: color-mix(in srgb, var(--metric-slow) 6%, transparent);
+    background-color: var(--metric-slow-layer);
   }
 
   /**
@@ -469,11 +481,11 @@ body {
 
   .cs-badge-cache-miss {
     @apply inline-flex min-h-[22px] min-w-[60px] items-center justify-center rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ring-1 ring-inset;
-    border: 1px solid color-mix(in srgb, var(--metric-slow) 15%, transparent);
-    background-color: color-mix(in srgb, var(--metric-slow) 20%, transparent);
+    border: 1px solid var(--metric-slow-border);
+    background-color: var(--metric-slow-surface);
     color: var(--metric-slow);
-    box-shadow: 0 0 12px -4px color-mix(in srgb, var(--metric-slow) 40%, transparent);
-    --tw-ring-color: color-mix(in srgb, var(--metric-slow) 35%, transparent);
+    box-shadow: 0 0 12px -4px var(--metric-slow-shadow);
+    --tw-ring-color: var(--metric-slow-ring);
   }
 
   .cs-badge-cache-bypass {
@@ -491,10 +503,10 @@ body {
   /** Trends cache hit &lt; 50%. */
   .cs-badge-cache-hit-rate-low {
     @apply inline-flex min-h-[22px] min-w-[60px] items-center justify-center rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ring-1 ring-inset;
-    border: 1px solid color-mix(in srgb, var(--metric-slow) 20%, transparent);
-    background-color: color-mix(in srgb, var(--metric-slow) 15%, transparent);
+    border: 1px solid var(--metric-slow-border);
+    background-color: var(--metric-slow-surface);
     color: var(--metric-slow);
-    --tw-ring-color: color-mix(in srgb, var(--metric-slow) 35%, transparent);
+    --tw-ring-color: var(--metric-slow-ring);
   }
 
   .cs-badge-cache-dash {

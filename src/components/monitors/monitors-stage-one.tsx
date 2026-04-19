@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import type { SortingState } from '@tanstack/react-table'
 import {
   Activity,
   ArrowDown,
@@ -34,6 +35,7 @@ const QUICK_FILTERS: ReadonlyArray<{ id: MonitorQuickFilterId; label: string }> 
 export function MonitorsStageOne() {
   const [activeFilter, setActiveFilter] = useState<MonitorQuickFilterId>('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [sorting, setSorting] = useState<SortingState>([])
   const globalAvgTtfbDelta = -12
   const ttfbImproved = globalAvgTtfbDelta < 0
 
@@ -188,7 +190,12 @@ export function MonitorsStageOne() {
         </section>
 
         <section className="cs-card cs-card-glass animate-[cs-fade-in_0.6s_ease-out] overflow-hidden !p-0">
-          <MonitorsTable searchQuery={searchQuery} activeFilter={activeFilter} />
+          <MonitorsTable
+            searchQuery={searchQuery}
+            activeFilter={activeFilter}
+            sorting={sorting}
+            onSortingChange={setSorting}
+          />
         </section>
       </main>
     </div>
