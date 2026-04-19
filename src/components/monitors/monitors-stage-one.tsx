@@ -122,8 +122,8 @@ export function MonitorsStageOne() {
   }, [])
 
   // ── Metrics calculation ──────────────────────────────────────────────────
-  const { activeCount, avgTtfb, avgHit, healthScore } = useMemo(() => {
-    if (!monitors.length) return { activeCount: 0, avgTtfb: 0, avgHit: 0, healthScore: 0 }
+  const { activeCount, avgTtfb, avgHit, healthScore, ttfbDelta } = useMemo(() => {
+    if (!monitors.length) return { activeCount: 0, avgTtfb: 0, avgHit: 0, healthScore: 0, ttfbDelta: 0 }
     
     const active = monitors.filter((m) => m.status === 'active')
     const avgTtfb = Math.round(monitors.reduce((sum, m) => sum + m.ttfbCurrent, 0) / monitors.length)
@@ -134,17 +134,23 @@ export function MonitorsStageOne() {
       ? Number((withCacheData.reduce((sum, m) => sum + m.cacheHitCurrent!, 0) / withCacheData.length).toFixed(1))
       : 0
 
-    // Health score: only penalise low cache hit when we actually have data
+    // Health score: TTFB < 200ms threshold matches the "healthy" quick-filter
     const healthyCount = monitors.filter(
-      (m) => m.ttfbCurrent < 250 && (m.cacheHitCurrent === null || m.cacheHitCurrent > 80),
+      (m) => m.ttfbCurrent < 200 && (m.cacheHitCurrent === null || m.cacheHitCurrent > 80),
     ).length
     const score = Math.round((healthyCount / monitors.length) * 100)
-    
-    return { activeCount: active.length, avgTtfb, avgHit, healthScore: score }
+
+    // Global TTFB trend: average of each monitor's individual current-vs-24h delta
+    const ttfbDelta = monitors.length > 0
+      ? Math.round(
+          monitors.reduce((sum, m) => sum + m.ttfbCurrentDelta, 0) / monitors.length * 10,
+        ) / 10
+      : 0
+
+    return { activeCount: active.length, avgTtfb, avgHit, healthScore: score, ttfbDelta }
   }, [monitors])
 
-  const globalAvgTtfbDelta = -12
-  const ttfbImproved = globalAvgTtfbDelta < 0
+  const ttfbImproved = ttfbDelta < 0
 
   return (
     <div className="min-h-full bg-background">
@@ -227,7 +233,7 @@ export function MonitorsStageOne() {
             icon={Gauge}
             valueClassName={avgTtfb < 200 ? 'text-metric-ttfb-fast' : avgTtfb > 350 ? 'text-metric-ttfb-slow' : 'text-metric-ttfb-med'}
             trend={{
-              value: `${Math.abs(globalAvgTtfbDelta)}%`,
+              value: `${Math.abs(ttfbDelta)}%`,
               tone: ttfbImproved ? 'success' : 'danger',
               icon: ttfbImproved ? ArrowDown : ArrowUp,
             }}

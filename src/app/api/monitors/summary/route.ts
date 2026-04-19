@@ -19,7 +19,9 @@ export async function GET() {
   const user = await getSession()
   if (!user) return unauthorized()
 
-  const rows = await sql`
+  let rows: Array<Record<string, unknown>>
+  try {
+    rows = await sql`
     WITH
     -- Latest probe per (monitor, region) within the last 30 days.
     -- DISTINCT ON relies on idx_probe_results_monitor_region_time — fast.
@@ -147,6 +149,10 @@ export async function GET() {
     WHERE m.user_id = ${user.id}
     ORDER BY m.created_at DESC
   `
+  } catch (err) {
+    console.error('[GET /api/monitors/summary]', err)
+    return NextResponse.json({ error: 'Failed to load monitors' }, { status: 500 })
+  }
 
   // Attach emoji flags (stable mapping, no reason to persist in DB)
   const result = rows.map((row) => ({
