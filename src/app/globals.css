@@ -96,6 +96,23 @@ body {
     animation: flash-highlight 2.5s ease-out;
   }
 
+  @keyframes cs-shimmer {
+    from { background-position: -200% center; }
+    to   { background-position:  200% center; }
+  }
+
+  .cs-skeleton {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.03) 0%,
+      rgba(255, 255, 255, 0.07) 50%,
+      rgba(255, 255, 255, 0.03) 100%
+    );
+    background-size: 200% 100%;
+    animation: cs-shimmer 1.8s ease-in-out infinite;
+    border-radius: 4px;
+  }
+
   /* PREMIUM COMPONENT SYSTEM */
 
   .cs-card {

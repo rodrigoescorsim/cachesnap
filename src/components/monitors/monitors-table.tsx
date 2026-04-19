@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, type ReactNode } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   useReactTable,
@@ -11,7 +12,18 @@ import {
   type OnChangeFn,
   type SortingState,
 } from '@tanstack/react-table'
-import { ArrowDown, ArrowUp, ArrowUpDown, Eye, Pause, Play, Pencil, Search } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Eye,
+  Pause,
+  Pencil,
+  Play,
+  RefreshCw,
+  Search,
+} from 'lucide-react'
 import {
   type Monitor,
   type MonitorQuickFilterId,
@@ -25,196 +37,6 @@ import {
   BRAND_TABLE_SURFACE_GRADIENT,
   MONITOR_TABLE,
 } from '@/app/dashboard/monitors/[id]/monitor-table-styles'
-
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const MOCK_CLOCK = new Date('2026-04-19T15:00:00.000Z')
-const MOCK_CLOCK_MS = MOCK_CLOCK.getTime()
-
-const ago = (seconds: number) => new Date(MOCK_CLOCK_MS - seconds * 1000)
-
-function hash01(seed: string, i: number): number {
-  let h = 2166136261
-  const s = `${seed}:${i}`
-  for (let k = 0; k < s.length; k++) {
-    h ^= s.charCodeAt(k)
-    h = Math.imul(h, 16777619)
-  }
-  return (h >>> 0) / 2 ** 32
-}
-
-function spark(base: number, seed: string, points = 24): number[] {
-  return Array.from({ length: points }, (_, i) => {
-    const noise = (hash01(seed, i) - 0.5) * base * 0.4
-    const trend = Math.sin(i / 4) * base * 0.1
-    return Math.max(10, base + noise + trend)
-  })
-}
-
-const MOCK_MONITORS: Monitor[] = [
-  {
-    id: 'mon_microsoft',
-    name: 'microsoft.com',
-    url: 'https://www.microsoft.com',
-    status: 'active',
-    ttfbCurrent: 142,
-    ttfbCurrentDelta: -8.2,
-    ttfbAvg24h: 168,
-    ttfbSparkline: spark(168, 'mon_microsoft'),
-    cacheHitCurrent: 98.2,
-    cacheHitAvg24h: 96.8,
-    cacheHitDelta: 1.4,
-    regions: [
-      { code: 'gru', flag: '🇧🇷', label: 'SP', isSlow: false },
-      { code: 'iad', flag: '🇺🇸', label: 'US-E', isSlow: false },
-      { code: 'lhr', flag: '🇬🇧', label: 'LHR', isSlow: false },
-      { code: 'nrt', flag: '🇯🇵', label: 'NRT', isSlow: false },
-    ],
-    slowRegionCount: 0,
-    totalRegionCount: 8,
-    lastCheckedAt: ago(22),
-  },
-  {
-    id: 'mon_apple',
-    name: 'apple.com',
-    url: 'https://www.apple.com',
-    status: 'active',
-    ttfbCurrent: 89,
-    ttfbCurrentDelta: -3.1,
-    ttfbAvg24h: 95,
-    ttfbSparkline: spark(95, 'mon_apple'),
-    cacheHitCurrent: 99.5,
-    cacheHitAvg24h: 99.1,
-    cacheHitDelta: 0.4,
-    regions: [
-      { code: 'gru', flag: '🇧🇷', label: 'SP', isSlow: false },
-      { code: 'iad', flag: '🇺🇸', label: 'US-E', isSlow: false },
-    ],
-    slowRegionCount: 0,
-    totalRegionCount: 8,
-    lastCheckedAt: ago(8),
-  },
-  {
-    id: 'mon_nytimes',
-    name: 'nytimes.com',
-    url: 'https://www.nytimes.com',
-    status: 'active',
-    ttfbCurrent: 284,
-    ttfbCurrentDelta: 12.5,
-    ttfbAvg24h: 241,
-    ttfbSparkline: spark(241, 'mon_nytimes'),
-    cacheHitCurrent: 74.1,
-    cacheHitAvg24h: 78.3,
-    cacheHitDelta: -4.2,
-    regions: [
-      { code: 'gru', flag: '🇧🇷', label: 'SP', isSlow: true },
-      { code: 'syd', flag: '🇦🇺', label: 'SYD', isSlow: true },
-    ],
-    slowRegionCount: 2,
-    totalRegionCount: 8,
-    lastCheckedAt: ago(51),
-  },
-  {
-    id: 'mon_govbr',
-    name: 'gov.br',
-    url: 'https://www.gov.br',
-    status: 'active',
-    ttfbCurrent: 412,
-    ttfbCurrentDelta: 28.7,
-    ttfbAvg24h: 388,
-    ttfbSparkline: spark(388, 'mon_govbr'),
-    cacheHitCurrent: 52.4,
-    cacheHitAvg24h: 58.1,
-    cacheHitDelta: -5.7,
-    regions: [
-      { code: 'gru', flag: '🇧🇷', label: 'SP', isSlow: true },
-      { code: 'iad', flag: '🇺🇸', label: 'US-E', isSlow: true },
-      { code: 'lhr', flag: '🇬🇧', label: 'LHR', isSlow: true },
-    ],
-    slowRegionCount: 3,
-    totalRegionCount: 8,
-    lastCheckedAt: ago(37),
-  },
-  {
-    id: 'mon_github',
-    name: 'github.com',
-    url: 'https://github.com',
-    status: 'active',
-    ttfbCurrent: 198,
-    ttfbCurrentDelta: 4.3,
-    ttfbAvg24h: 187,
-    ttfbSparkline: spark(187, 'mon_github'),
-    cacheHitCurrent: 88.7,
-    cacheHitAvg24h: 86.2,
-    cacheHitDelta: 2.5,
-    regions: [
-      { code: 'gru', flag: '🇧🇷', label: 'SP', isSlow: true },
-      { code: 'nrt', flag: '🇯🇵', label: 'NRT', isSlow: false },
-    ],
-    slowRegionCount: 1,
-    totalRegionCount: 8,
-    lastCheckedAt: ago(15),
-  },
-  {
-    id: 'mon_cloudflare',
-    name: 'cloudflare.com',
-    url: 'https://www.cloudflare.com',
-    status: 'active',
-    ttfbCurrent: 61,
-    ttfbCurrentDelta: -1.8,
-    ttfbAvg24h: 64,
-    ttfbSparkline: spark(64, 'mon_cloudflare'),
-    cacheHitCurrent: 99.9,
-    cacheHitAvg24h: 99.7,
-    cacheHitDelta: 0.2,
-    regions: [
-      { code: 'gru', flag: '🇧🇷', label: 'SP', isSlow: false },
-      { code: 'iad', flag: '🇺🇸', label: 'US-E', isSlow: false },
-    ],
-    slowRegionCount: 0,
-    totalRegionCount: 8,
-    lastCheckedAt: ago(5),
-  },
-  {
-    id: 'mon_netflix',
-    name: 'netflix.com',
-    url: 'https://www.netflix.com',
-    status: 'paused',
-    ttfbCurrent: 155,
-    ttfbCurrentDelta: 2.1,
-    ttfbAvg24h: 149,
-    ttfbSparkline: spark(149, 'mon_netflix'),
-    cacheHitCurrent: 91.3,
-    cacheHitAvg24h: 90.8,
-    cacheHitDelta: 0.5,
-    regions: [
-      { code: 'gru', flag: '🇧🇷', label: 'SP', isSlow: false },
-    ],
-    slowRegionCount: 0,
-    totalRegionCount: 8,
-    lastCheckedAt: ago(7200),
-  },
-  {
-    id: 'mon_vercel',
-    name: 'vercel.com',
-    url: 'https://vercel.com',
-    status: 'active',
-    ttfbCurrent: 112,
-    ttfbCurrentDelta: -5.4,
-    ttfbAvg24h: 118,
-    ttfbSparkline: spark(118, 'mon_vercel'),
-    cacheHitCurrent: 95.8,
-    cacheHitAvg24h: 94.1,
-    cacheHitDelta: 1.7,
-    regions: [
-      { code: 'gru', flag: '🇧🇷', label: 'SP', isSlow: false },
-      { code: 'iad', flag: '🇺🇸', label: 'US-E', isSlow: false },
-    ],
-    slowRegionCount: 0,
-    totalRegionCount: 8,
-    lastCheckedAt: ago(29),
-  },
-]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -231,10 +53,10 @@ const TTFB_LABEL: Record<string, string> = {
 }
 
 function ttfbClass(ms: number) { return TTFB_CLASS[getTtfbTier(ms)] }
-function ttfbLabel(ms: number) { return `${TTFB_LABEL[getTtfbTier(ms)]}` }
+function ttfbLabel(ms: number) { return TTFB_LABEL[getTtfbTier(ms)] }
 
 function formatRelativeTime(date: Date): { text: string; isRecent: boolean } {
-  const diffS = Math.floor((MOCK_CLOCK_MS - date.getTime()) / 1000)
+  const diffS = Math.floor((Date.now() - date.getTime()) / 1000)
   if (diffS < 60) return { text: diffS < 5 ? 'just now' : `${diffS}s ago`, isRecent: true }
   const diffM = Math.floor(diffS / 60)
   if (diffM < 60) return { text: `${diffM}m ago`, isRecent: diffM < 3 }
@@ -252,7 +74,6 @@ function Sparkline({ data, delta }: { data: number[]; delta: number }) {
   const W = 60
   const H = 18
 
-  // Smooth polyline using midpoint interpolation for a soft curve effect
   const pts = data
     .map((v, i) => {
       const x = (i / (data.length - 1)) * W
@@ -261,7 +82,6 @@ function Sparkline({ data, delta }: { data: number[]; delta: number }) {
     })
     .join(' ')
 
-  /** Alinhado a `--metric-slow` (globals); SVG não herda utilities Tailwind. */
   const color = delta < -1 ? '#34d399' : delta > 1 ? '#f43f5e' : '#f59e0b'
   const glowClass =
     delta < -1
@@ -296,30 +116,33 @@ function cacheHitTooltipText(tier: ReturnType<typeof getCacheHitTier>): string {
   return 'Low cache hit — review origin caching, CDN rules, and response headers.'
 }
 
-function CacheHitBadge({ pct }: { pct: number }) {
+function CacheHitBadge({ pct }: { pct: number | null }) {
+  if (pct === null) {
+    return (
+      <PremiumTooltip
+        content="No cache-status header detected on recent probes. The origin may not use a supported CDN."
+        position="top-center"
+        direction="top"
+      >
+        <span className="cs-badge-cache-dash cursor-help">—</span>
+      </PremiumTooltip>
+    )
+  }
   const tier = getCacheHitTier(pct)
   const tip = cacheHitTooltipText(tier)
-  if (tier === 'high')
-    return (
-      <PremiumTooltip content={tip} position="top-center" direction="top">
-        <span className="cs-badge-cache-hit">{pct.toFixed(1)}%</span>
-      </PremiumTooltip>
-    )
-  if (tier === 'mid')
-    return (
-      <PremiumTooltip content={tip} position="top-center" direction="top">
-        <span className="cs-badge-cache-dynamic">{pct.toFixed(1)}%</span>
-      </PremiumTooltip>
-    )
+  const cls =
+    tier === 'high' ? 'cs-badge-cache-hit'
+    : tier === 'mid' ? 'cs-badge-cache-dynamic'
+    : 'cs-badge-cache-miss'
   return (
     <PremiumTooltip content={tip} position="top-center" direction="top">
-      <span className="cs-badge-cache-miss">{pct.toFixed(1)}%</span>
+      <span className={cls}>{pct.toFixed(1)}%</span>
     </PremiumTooltip>
   )
 }
 
-// inverted=true: negative delta = improvement (TTFB going down is good)
-function DeltaChip({ value, inverted = false }: { value: number; inverted?: boolean }) {
+function DeltaChip({ value, inverted = false }: { value: number | null; inverted?: boolean }) {
+  if (value === null) return null
   const improved = inverted ? value < 0 : value > 0
   const Icon = value < 0 ? ArrowDown : ArrowUp
   return (
@@ -344,7 +167,6 @@ function SortIcon({ isSorted }: { isSorted: false | 'asc' | 'desc' }) {
   )
 }
 
-/** Column header + PremiumTooltip (panel = .cs-tooltip-panel), aligned with Live / Trends tables. */
 function MonitorsThTooltip({ label, description }: { label: ReactNode; description: string }) {
   return (
     <PremiumTooltip
@@ -361,7 +183,88 @@ function MonitorsThTooltip({ label, description }: { label: ReactNode; descripti
   )
 }
 
-const MONITORS_LIST_HEADER_HELP: Record<string, string> = {
+function ActionBtn({
+  children,
+  label,
+  href,
+  onClick,
+}: {
+  children: React.ReactNode
+  label: string
+  href?: string
+  onClick?: () => void
+}) {
+  const base =
+    'flex h-[22px] w-[22px] items-center justify-center rounded border border-white/[0.06] bg-white/[0.02] text-zinc-500 transition-all duration-150 hover:border-white/10 hover:bg-white/[0.07] hover:text-white active:scale-95'
+  
+  if (href) {
+    return (
+      <Link href={href} aria-label={label} title={label} className={base}>
+        {children}
+      </Link>
+    )
+  }
+  return (
+    <button type="button" aria-label={label} title={label} onClick={onClick} className={base}>
+      {children}
+    </button>
+  )
+}
+
+// ─── Skeleton row ─────────────────────────────────────────────────────────────
+
+function SkeletonRow({ delay = 0 }: { delay?: number }) {
+  return (
+    <tr
+      style={{ animationDelay: `${delay}ms` }}
+      className="animate-[cs-fade-in_0.22s_ease-out_both] border-b border-border/20"
+      aria-hidden="true"
+    >
+      <td className="cs-table-compact-td !py-3">
+        <div className="flex flex-col gap-[5px]">
+          <div className="cs-skeleton h-3.5 w-32" />
+          <div className="cs-skeleton h-2.5 w-48" />
+        </div>
+      </td>
+      <td className="cs-table-compact-td !py-3">
+        <div className="flex flex-col gap-[5px]">
+          <div className="cs-skeleton h-3.5 w-11" />
+          <div className="cs-skeleton h-2.5 w-8" />
+        </div>
+      </td>
+      <td className="cs-table-compact-td !py-3">
+        <div className="flex items-center gap-2.5">
+          <div className="cs-skeleton h-3.5 w-11" />
+          <div className="cs-skeleton h-[18px] w-[60px]" />
+        </div>
+      </td>
+      <td className="cs-table-compact-td !py-3">
+        <div className="cs-skeleton h-5 w-14 rounded-full" />
+      </td>
+      <td className="cs-table-compact-td !py-3">
+        <div className="flex flex-col gap-[5px]">
+          <div className="cs-skeleton h-3.5 w-11" />
+          <div className="cs-skeleton h-2.5 w-8" />
+        </div>
+      </td>
+      <td className="cs-table-compact-td !py-3">
+        <div className="flex justify-end">
+          <div className="cs-skeleton h-2.5 w-14" />
+        </div>
+      </td>
+      <td className="cs-table-compact-td !py-3">
+        <div className="flex justify-end">
+          <div className="cs-skeleton h-2.5 w-10" />
+        </div>
+      </td>
+      <td className="cs-table-compact-td !py-3" />
+    </tr>
+  )
+}
+
+// ─── Column header help text ──────────────────────────────────────────────────
+
+const HEADER_HELP: Record<string, string> = {
   monitor:
     'Monitor name and URL being tracked. Click any row to open detailed performance diagnostics.',
   ttfbNow:
@@ -383,12 +286,9 @@ const MONITORS_LIST_HEADER_HELP: Record<string, string> = {
 const col = createColumnHelper<Monitor>()
 
 const columns = [
-  // 1. Monitor — name + url + status badge
   col.accessor('name', {
     id: 'monitor',
-    header: () => (
-      <MonitorsThTooltip label="Monitor" description={MONITORS_LIST_HEADER_HELP.monitor} />
-    ),
+    header: () => <MonitorsThTooltip label="Monitor" description={HEADER_HELP.monitor} />,
     size: 27,
     enableSorting: true,
     cell: ({ row }) => {
@@ -432,11 +332,8 @@ const columns = [
     },
   }),
 
-  // 2. TTFB current + delta chip + tier tooltip
   col.accessor('ttfbCurrent', {
-    header: () => (
-      <MonitorsThTooltip label="TTFB Now" description={MONITORS_LIST_HEADER_HELP.ttfbNow} />
-    ),
+    header: () => <MonitorsThTooltip label="TTFB Now" description={HEADER_HELP.ttfbNow} />,
     size: 10,
     enableSorting: true,
     cell: ({ getValue, row }) => {
@@ -463,11 +360,8 @@ const columns = [
     },
   }),
 
-  // 3. TTFB avg 24h + sparkline
   col.accessor('ttfbAvg24h', {
-    header: () => (
-      <MonitorsThTooltip label="Avg TTFB 24h" description={MONITORS_LIST_HEADER_HELP.avgTtfb24h} />
-    ),
+    header: () => <MonitorsThTooltip label="Avg TTFB 24h" description={HEADER_HELP.avgTtfb24h} />,
     size: 13,
     enableSorting: true,
     cell: ({ getValue, row }) => {
@@ -483,25 +377,22 @@ const columns = [
     },
   }),
 
-  // 4. Cache hit current — semantic badge
   col.accessor('cacheHitCurrent', {
-    header: () => (
-      <MonitorsThTooltip label="Cache Hit" description={MONITORS_LIST_HEADER_HELP.cacheHit} />
-    ),
+    header: () => <MonitorsThTooltip label="Cache Hit" description={HEADER_HELP.cacheHit} />,
     size: 10,
     enableSorting: true,
     cell: ({ getValue }) => <CacheHitBadge pct={getValue()} />,
   }),
 
-  // 5. Cache hit avg 24h + delta
   col.accessor('cacheHitAvg24h', {
-    header: () => (
-      <MonitorsThTooltip label="Hit 24h Avg" description={MONITORS_LIST_HEADER_HELP.hit24hAvg} />
-    ),
+    header: () => <MonitorsThTooltip label="Hit 24h Avg" description={HEADER_HELP.hit24hAvg} />,
     size: 10,
     enableSorting: true,
     cell: ({ getValue, row }) => {
       const pct = getValue()
+      if (pct === null) {
+        return <span className="text-[12px] font-bold tabular-nums text-zinc-700">—</span>
+      }
       const tier = getCacheHitTier(pct)
       const textClass =
         tier === 'high' ? 'text-emerald-400'
@@ -518,7 +409,6 @@ const columns = [
     },
   }),
 
-  // 6. Regions — degraded region badges + count, or "All Clear" indicator
   col.accessor('slowRegionCount', {
     header: () => (
       <MonitorsThTooltip
@@ -528,7 +418,7 @@ const columns = [
             <span className="ml-0.5 inline-block h-1 w-1 rounded-full bg-zinc-600 opacity-60" aria-hidden />
           </span>
         }
-        description={MONITORS_LIST_HEADER_HELP.regions}
+        description={HEADER_HELP.regions}
       />
     ),
     size: 15,
@@ -546,9 +436,13 @@ const columns = [
         )
       }
       const slowOnes = m.regions.filter((r) => r.isSlow)
+      const MAX_VISIBLE = 2
+      const visible = slowOnes.slice(0, MAX_VISIBLE)
+      const overflow = slowOnes.length - MAX_VISIBLE
+      const overflowLabels = slowOnes.slice(MAX_VISIBLE).map((r) => r.label).join(', ')
       return (
         <div className="flex flex-wrap items-center justify-end gap-1">
-          {slowOnes.map((r) => (
+          {visible.map((r) => (
             <PremiumTooltip
               key={r.code}
               content={`${r.label}: TTFB is above the threshold in this region.`}
@@ -560,6 +454,17 @@ const columns = [
               </span>
             </PremiumTooltip>
           ))}
+          {overflow > 0 && (
+            <PremiumTooltip
+              content={`Also slow: ${overflowLabels}`}
+              position="top-center"
+              direction="top"
+            >
+              <span className="cs-badge cs-badge-warning !px-1 !py-[1px] !text-[8px] cursor-help">
+                +{overflow}
+              </span>
+            </PremiumTooltip>
+          )}
           <span className="text-[9px] font-bold tabular-nums text-zinc-600">
             {m.slowRegionCount}/{m.totalRegionCount}
           </span>
@@ -568,11 +473,8 @@ const columns = [
     },
   }),
 
-  // 7. Last check — relative time, right-aligned
   col.accessor('lastCheckedAt', {
-    header: () => (
-      <MonitorsThTooltip label="Last Check" description={MONITORS_LIST_HEADER_HELP.lastCheck} />
-    ),
+    header: () => <MonitorsThTooltip label="Last Check" description={HEADER_HELP.lastCheck} />,
     size: 9,
     enableSorting: true,
     sortingFn: (a, b) =>
@@ -598,7 +500,6 @@ const columns = [
     },
   }),
 
-  // 8. Actions — revealed on row hover
   col.display({
     id: 'actions',
     header: '',
@@ -627,37 +528,18 @@ const columns = [
   }),
 ]
 
-// ─── ActionBtn ────────────────────────────────────────────────────────────────
-
-function ActionBtn({
-  children,
-  label,
-  href,
-  onClick,
-}: {
-  children: React.ReactNode
-  label: string
-  href?: string
-  onClick?: () => void
-}) {
-  const base =
-    'flex h-[22px] w-[22px] items-center justify-center rounded border border-white/[0.06] bg-white/[0.02] text-zinc-500 transition-all duration-150 hover:border-white/10 hover:bg-white/[0.07] hover:text-white active:scale-95'
-  if (href)
-    return (
-      <a href={href} aria-label={label} title={label} className={base}>
-        {children}
-      </a>
-    )
-  return (
-    <button type="button" aria-label={label} title={label} onClick={onClick} className={base}>
-      {children}
-    </button>
-  )
-}
-
 // ─── MonitorsTable ────────────────────────────────────────────────────────────
 
+const SKELETON_COUNT = 5
+
 interface MonitorsTableProps {
+  monitors: Monitor[]
+  isLoading?: boolean
+  /** True during background refetches — shows a subtle sync dot, not skeletons. */
+  isFetching?: boolean
+  isError?: boolean
+  onRetry?: () => void
+  onClearFilters?: () => void
   searchQuery?: string
   activeFilter?: MonitorQuickFilterId
   sorting: SortingState
@@ -665,6 +547,12 @@ interface MonitorsTableProps {
 }
 
 export function MonitorsTable({
+  monitors,
+  isLoading = false,
+  isFetching = false,
+  isError = false,
+  onRetry,
+  onClearFilters,
   searchQuery = '',
   activeFilter = 'all',
   sorting,
@@ -672,11 +560,13 @@ export function MonitorsTable({
 }: MonitorsTableProps) {
   const router = useRouter()
 
-  const filteredData = useMemo(() => {
-    return MOCK_MONITORS.filter(
-      (m) => monitorMatchesSearch(m, searchQuery) && monitorMatchesQuickFilter(m, activeFilter),
-    )
-  }, [searchQuery, activeFilter])
+  const filteredData = useMemo(
+    () =>
+      monitors.filter(
+        (m) => monitorMatchesSearch(m, searchQuery) && monitorMatchesQuickFilter(m, activeFilter),
+      ),
+    [monitors, searchQuery, activeFilter],
+  )
 
   const table = useReactTable({
     data: filteredData,
@@ -695,15 +585,14 @@ export function MonitorsTable({
   )
 
   const rows = table.getRowModel().rows
-
-  // tbody key forces remount (and therefore stagger re-animation) on filter/search change
   const tbodyKey = `${activeFilter}:${searchQuery}`
+  const hasActiveFilters = searchQuery.trim() !== '' || activeFilter !== 'all'
 
   return (
     <div className="relative rounded-xl">
       <div className={BRAND_TABLE_SURFACE_GRADIENT} aria-hidden />
       <div className={`${MONITOR_TABLE.innerScroll} cs-dropdown-scroll`}>
-        <table className={`w-full border-collapse ${MONITOR_TABLE.transition}`}>
+        <table className={`w-full table-fixed border-collapse ${MONITOR_TABLE.transition}`}>
 
           <thead className="sticky top-0 z-10">
             {table.getHeaderGroups().map((hg) => (
@@ -711,8 +600,7 @@ export function MonitorsTable({
                 {hg.headers.map((header) => {
                   const canSort = header.column.getCanSort()
                   const isRightAligned =
-                    header.column.id === 'lastCheckedAt' ||
-                    header.column.id === 'slowRegionCount'
+                    header.column.id === 'lastCheckedAt' || header.column.id === 'slowRegionCount'
                   return (
                     <th
                       key={header.id}
@@ -748,49 +636,89 @@ export function MonitorsTable({
             ))}
           </thead>
 
-          {/* tbody key triggers stagger re-animation on filter/search change */}
-          <tbody key={tbodyKey}>
-            {rows.map((row, i) => {
-              const isPaused = row.original.status === 'paused'
-              return (
-                <tr
-                  key={row.id}
-                  tabIndex={0}
-                  role="button"
-                  aria-label={`View details for ${row.original.name}`}
-                  onClick={() => handleRowClick(row.original.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      handleRowClick(row.original.id)
-                    }
-                  }}
-                  // Stagger fade-in — 25ms per row, max 8 rows visible
-                  style={{ animationDelay: `${Math.min(i, 7) * 25}ms` }}
-                  className={[
-                    MONITOR_TABLE.tbodyRow,
-                    'group/row cursor-pointer',
-                    'animate-[cs-fade-in_0.22s_ease-out_both]',
-                    'active:bg-white/[0.03]',
-                    'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-white/15',
-                    isPaused ? 'opacity-40 saturate-0 hover:opacity-60 hover:saturate-50' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="cs-table-compact-td !py-3">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                </tr>
-              )
-            })}
-          </tbody>
+          {/* Loading skeleton */}
+          {isLoading && (
+            <tbody aria-label="Loading monitors…">
+              {Array.from({ length: SKELETON_COUNT }, (_, i) => (
+                <SkeletonRow key={i} delay={i * 40} />
+              ))}
+            </tbody>
+          )}
+
+          {/* Data rows */}
+          {!isLoading && !isError && (
+            <tbody key={tbodyKey}>
+              {rows.map((row, i) => {
+                const isPaused = row.original.status === 'paused'
+                return (
+                  <tr
+                    key={row.id}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`View details for ${row.original.name}`}
+                    onClick={() => handleRowClick(row.original.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        handleRowClick(row.original.id)
+                      }
+                    }}
+                    style={{ animationDelay: `${Math.min(i, 7) * 25}ms` }}
+                    className={[
+                      MONITOR_TABLE.tbodyRow,
+                      'group/row cursor-pointer',
+                      'animate-[cs-fade-in_0.22s_ease-out_both]',
+                      'active:bg-white/[0.03]',
+                      'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-white/15',
+                      isPaused ? 'opacity-40 saturate-0 hover:opacity-60 hover:saturate-50' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td key={cell.id} className="cs-table-compact-td !py-3">
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })}
+            </tbody>
+          )}
         </table>
 
+        {/* Error state */}
+        {isError && !isLoading && (
+          <div
+            className="flex min-h-[220px] flex-col items-center justify-center gap-4 border-t border-border/40 py-14"
+            role="alert"
+          >
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-500/20 bg-rose-500/[0.06] shadow-[0_0_24px_-8px_rgba(244,63,94,0.12)]">
+              <AlertTriangle className="h-5 w-5 text-rose-400" aria-hidden />
+            </div>
+            <div className="max-w-xs text-center">
+              <p className="text-[13px] font-black tracking-tight text-zinc-400">
+                Failed to load monitors
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-zinc-600">
+                Something went wrong while fetching your data. Your monitors are still running.
+              </p>
+            </div>
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="inline-flex h-8 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 text-[11px] font-bold text-zinc-400 transition-all duration-200 hover:border-white/15 hover:bg-white/[0.07] hover:text-zinc-200 active:scale-95"
+              >
+                <RefreshCw className="h-3 w-3" aria-hidden />
+                Try again
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Empty state */}
-        {rows.length === 0 && (
+        {!isLoading && !isError && rows.length === 0 && (
           <div
             className="flex min-h-[220px] flex-col items-center justify-center gap-4 border-t border-border/40 py-14"
             role="status"
@@ -804,11 +732,26 @@ export function MonitorsTable({
                 No monitors match
               </p>
               <p className="mt-1 text-[11px] leading-relaxed text-zinc-600">
-                {searchQuery.trim()
-                  ? <>Nothing matched <span className="font-bold text-zinc-500">"{searchQuery.trim()}"</span>. Try another name or URL.</>
-                  : 'No monitors match this filter. Choose another chip above.'}
+                {searchQuery.trim() ? (
+                  <>
+                    Nothing matched{' '}
+                    <span className="font-bold text-zinc-500">"{searchQuery.trim()}"</span>.
+                    Try another name or URL.
+                  </>
+                ) : (
+                  'No monitors match this filter. Choose another chip above.'
+                )}
               </p>
             </div>
+            {hasActiveFilters && onClearFilters && (
+              <button
+                type="button"
+                onClick={onClearFilters}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-4 text-[11px] font-bold text-zinc-400 transition-all duration-200 hover:border-emerald-500/25 hover:bg-emerald-500/[0.06] hover:text-emerald-300 active:scale-95"
+              >
+                Clear filters
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -819,12 +762,26 @@ export function MonitorsTable({
         aria-live="polite"
         aria-atomic="true"
       >
-        <span className="text-[9.5px] font-black uppercase tracking-[0.12em] text-zinc-600">
-          {rows.length === 1 ? '1 MONITOR' : `${rows.length} MONITORS`}
-          {rows.length < MOCK_MONITORS.length && (
-            <span className="ml-1.5 font-medium normal-case tracking-normal text-zinc-700">
-              of {MOCK_MONITORS.length}
-            </span>
+        <span className="inline-flex items-center gap-2 text-[9.5px] font-black uppercase tracking-[0.12em] text-zinc-600">
+          {isLoading ? (
+            <span className="text-zinc-700">Loading…</span>
+          ) : (
+            <>
+              {rows.length === 1 ? '1 MONITOR' : `${rows.length} MONITORS`}
+              {rows.length < monitors.length && (
+                <span className="ml-1.5 font-medium normal-case tracking-normal text-zinc-700">
+                  of {monitors.length}
+                </span>
+              )}
+            </>
+          )}
+          {/* Background sync indicator — visible only during refetch after initial load */}
+          {isFetching && !isLoading && (
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-emerald-500/60 ring-2 ring-emerald-500/20 animate-pulse"
+              title="Syncing…"
+              aria-label="Syncing data"
+            />
           )}
         </span>
         <span className="text-[9px] font-medium text-zinc-700">

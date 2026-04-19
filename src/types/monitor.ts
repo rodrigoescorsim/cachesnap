@@ -18,9 +18,10 @@ export interface Monitor {
   ttfbCurrentDelta: number
   ttfbAvg24h: number
   ttfbSparkline: number[]
-  cacheHitCurrent: number
-  cacheHitAvg24h: number
-  cacheHitDelta: number
+  // null = CDN/origin doesn't report a recognisable cache-status header
+  cacheHitCurrent: number | null
+  cacheHitAvg24h: number | null
+  cacheHitDelta: number | null
   regions: MonitorRegion[]
   slowRegionCount: number
   totalRegionCount: number
@@ -63,12 +64,13 @@ export function monitorMatchesQuickFilter(
   const hit = monitor.cacheHitCurrent
   switch (filter) {
     case 'healthy':
-      return ttfb < 200 && hit > 90
+      return ttfb < 200 && (hit === null || hit > 90)
     case 'degraded':
-      return ttfb > 300 || hit < 70
+      return ttfb > 300 || (hit !== null && hit < 70)
     case 'high-ttfb':
       return ttfb > 300
     case 'low-cache-hit':
-      return hit < 70
+      // null = no cache header data → don't flag as "low"
+      return hit !== null && hit < 70
   }
 }

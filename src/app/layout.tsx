@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { QueryProvider } from "@/components/providers/query-provider";
 import "./globals.css";
 
 const inter = Inter({
@@ -24,7 +25,9 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} dark h-full antialiased bg-background text-foreground`}
     >
-      <body className="min-h-full flex flex-col selection:bg-cyan-500/30">{children}</body>
+      <body className="min-h-full flex flex-col selection:bg-cyan-500/30">
+        <QueryProvider>{children}</QueryProvider>
+      </body>
     </html>
   );
 }
