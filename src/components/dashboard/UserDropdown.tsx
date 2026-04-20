@@ -22,9 +22,11 @@ function emailInitials(email: string): string {
 type UserDropdownProps = {
   email: string
   logoutAction: () => Promise<void>
+  variant?: 'default' | 'monitorsBadge'
+  avatarText?: string
 }
 
-export function UserDropdown({ email, logoutAction }: UserDropdownProps) {
+export function UserDropdown({ email, logoutAction, variant = 'default', avatarText }: UserDropdownProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -45,6 +47,7 @@ export function UserDropdown({ email, logoutAction }: UserDropdownProps) {
   }, [open])
 
   const initials = emailInitials(email)
+  const isMonitorsBadge = variant === 'monitorsBadge'
 
   return (
     <div ref={rootRef} className="relative flex min-w-0 items-center justify-end">
@@ -54,17 +57,27 @@ export function UserDropdown({ email, logoutAction }: UserDropdownProps) {
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Account menu"
-        className="group flex max-w-full items-center gap-2.5 rounded-lg py-0.5 pl-1 pr-2 transition-[background-color,transform] duration-200 ease-out hover:bg-white/[0.04] active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617]"
+        className={
+          isMonitorsBadge
+            ? 'group inline-flex items-center justify-center rounded-full transition-transform duration-200 hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617]'
+            : 'group flex max-w-full items-center gap-2.5 rounded-lg py-0.5 pl-1 pr-2 transition-[background-color,transform] duration-200 ease-out hover:bg-white/[0.04] active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617]'
+        }
       >
         <span
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500/20 via-teal-500/8 to-slate-900/90 text-[9px] font-semibold tracking-wide text-cyan-100/90 ring-1 ring-white/[0.12] transition-transform duration-200 ease-out group-hover:scale-[1.04] group-hover:ring-cyan-400/25 group-active:scale-[0.96]"
+          className={
+            isMonitorsBadge
+              ? 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-zinc-900 text-[11px] font-black text-emerald-400 shadow-[inset_0_0_12px_rgba(16,185,129,0.1)] ring-1 ring-white/5 transition-transform group-hover:scale-105'
+              : 'flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500/20 via-teal-500/8 to-slate-900/90 text-[9px] font-semibold tracking-wide text-cyan-100/90 ring-1 ring-white/[0.12] transition-transform duration-200 ease-out group-hover:scale-[1.04] group-hover:ring-cyan-400/25 group-active:scale-[0.96]'
+          }
           aria-hidden
         >
-          {initials}
+          {avatarText ?? initials}
         </span>
-        <span className="hidden max-w-[min(220px,28vw)] truncate text-left text-[11px] font-medium text-zinc-500 transition-colors duration-200 ease-out group-hover:text-zinc-300 md:inline">
-          {email}
-        </span>
+        {!isMonitorsBadge && (
+          <span className="hidden max-w-[min(220px,28vw)] truncate text-left text-[11px] font-medium text-zinc-500 transition-colors duration-200 ease-out group-hover:text-zinc-300 md:inline">
+            {email}
+          </span>
+        )}
       </button>
 
       {open && (

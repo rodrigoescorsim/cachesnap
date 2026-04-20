@@ -70,7 +70,7 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
   return (
     <div className="space-y-6">
       {/* Time Explorer */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />

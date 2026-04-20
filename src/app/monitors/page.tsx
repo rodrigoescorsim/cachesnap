@@ -1,10 +1,16 @@
 import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
+import { logout } from '@/app/actions/auth'
 import { MonitorsStageOne } from '@/components/monitors/monitors-stage-one'
+import { getSession } from '@/lib/auth'
 
 // MonitorsStageOne uses useSearchParams, which requires a Suspense boundary
 // so the route can prerender everything above the boundary while the search
 // params are resolved client-side.
-export default function MonitorsPage() {
+export default async function MonitorsPage() {
+  const user = await getSession()
+  if (!user) redirect('/login')
+
   return (
     <Suspense fallback={
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -14,7 +20,7 @@ export default function MonitorsPage() {
         </div>
       </div>
     }>
-      <MonitorsStageOne />
+      <MonitorsStageOne userEmail={user.email} logoutAction={logout} />
     </Suspense>
   )
 }

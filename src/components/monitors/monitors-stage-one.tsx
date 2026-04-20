@@ -13,6 +13,7 @@ import {
   Search,
 } from 'lucide-react'
 import { Logo } from '@/components/logo'
+import { UserDropdown } from '@/components/dashboard/UserDropdown'
 import { type MonitorQuickFilterId } from '@/types/monitor'
 import { GlobalMetricCard } from './global-metric-card'
 import { MonitorsTable } from './monitors-table'
@@ -46,7 +47,12 @@ function coerceFilter(value: string | null): MonitorQuickFilterId {
 
 // ─── MonitorsStageOne ─────────────────────────────────────────────────────────
 
-export function MonitorsStageOne() {
+type MonitorsStageOneProps = {
+  userEmail: string
+  logoutAction: () => Promise<void>
+}
+
+export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOneProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -162,7 +168,7 @@ export function MonitorsStageOne() {
             className="inline-flex items-center transition-transform duration-200 hover:scale-[1.01]"
             aria-label="CacheSnap home"
           >
-            <Logo variant="header" className="h-6 w-auto sm:h-8" />
+            <Logo variant="header" className="h-8 w-auto sm:h-[2.2rem]" />
           </Link>
 
           <nav className="hidden items-center gap-5 lg:flex" aria-label="Main Navigation">
@@ -195,9 +201,7 @@ export function MonitorsStageOne() {
           </nav>
 
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-zinc-900 text-[11px] font-black text-emerald-400 shadow-[inset_0_0_12px_rgba(16,185,129,0.1)] ring-1 ring-white/5 transition-transform hover:scale-105">
-              RS
-            </div>
+            <UserDropdown email={userEmail} logoutAction={logoutAction} variant="monitorsBadge" avatarText="RS" />
             <Link
               href="/monitors/new"
               className="cs-btn-primary h-9 gap-2 px-4 text-[13px] font-bold"
