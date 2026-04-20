@@ -1,11 +1,12 @@
 import type { Monitor } from '@/types/monitor'
+import { MONITOR_TTFB, MONITOR_CACHE } from '@/lib/thresholds'
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────
 
-export const TTFB_CRITICAL  = 500  // ms  — origin likely overloaded
-export const TTFB_HIGH      = 300  // ms  — elevated, action recommended
-export const CACHE_WARN     = 70   // %   — below optimal CDN efficiency
-export const CACHE_CRITICAL = 40   // %   — cache is essentially non-functional
+export const TTFB_CRITICAL  = MONITOR_TTFB.SLOW
+export const TTFB_HIGH      = MONITOR_TTFB.FAST
+export const CACHE_WARN     = MONITOR_CACHE.GOOD
+export const CACHE_CRITICAL = MONITOR_CACHE.LOW
 export const DELTA_WARN     = 20   // %   — TTFB increase vs 24h avg
 
 // ─── Types ────────────────────────────────────────────────────────────────────

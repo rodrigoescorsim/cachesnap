@@ -13,6 +13,7 @@ type GlobalMetricCardProps = {
     text: string
     className?: string
     withPulseDot?: boolean
+    dotClassName?: string
   }
   trend?: {
     value: string
@@ -31,7 +32,7 @@ const toneClassMap: Record<MetricTone, string> = {
   neutral: 'text-zinc-400',
   success: 'text-emerald-300',
   warning: 'text-amber-400',
-  danger: 'text-red-300',
+  danger: 'text-rose-500',
 }
 
 export function GlobalMetricCard({
@@ -62,15 +63,15 @@ export function GlobalMetricCard({
       </div>
 
       <div className="relative z-10 mt-2.5 flex items-end justify-between gap-2">
-        <p className={`text-[24px] font-black tracking-tighter text-white leading-none ${valueClassName ?? ''}`}>
+        <p className={`text-[24px] font-black tracking-tighter leading-none ${valueClassName ?? 'text-zinc-100'}`}>
           {value}
         </p>
         {badge ? (
           <span className={`cs-badge ${badge.className ?? 'cs-badge-success'}`}>
             {badge.withPulseDot ? (
               <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${badge.dotClassName ?? 'bg-emerald-400'}`} />
+                <span className={`relative inline-flex h-2 w-2 rounded-full ${badge.dotClassName ?? 'bg-emerald-400'}`} />
               </span>
             ) : null}
             {badge.text}

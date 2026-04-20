@@ -18,6 +18,12 @@ import { monitorHealthScore, type MonitorQuickFilterId } from '@/types/monitor'
 import { GlobalMetricCard } from './global-metric-card'
 import { MonitorsTable } from './monitors-table'
 import { useMonitors } from '@/hooks/use-monitors'
+import {
+  GLOBAL_HEALTH,
+  getTtfbColorClass,
+  getHealthColor,
+  getCacheColor,
+} from '@/lib/thresholds'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -141,11 +147,9 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
       ? Number((withCacheData.reduce((sum, m) => sum + m.cacheHitCurrent!, 0) / withCacheData.length).toFixed(1))
       : 0
 
-    // Global health: driven by the weakest monitor so a single bad endpoint is visible
-    const score =
-      monitors.length > 0
-        ? Math.min(...monitors.map((m) => monitorHealthScore(m)))
-        : 0
+    // Global health Score: percentage of monitors which are NOT slow/critical
+    const slowCount = monitors.filter(m => m.ttfbCurrent >= 500).length
+    const score = monitors.length > 0 ? Math.round(((monitors.length - slowCount) / monitors.length) * 100) : 0
 
     // Global TTFB trend: average of each monitor's individual current-vs-24h delta
     const ttfbDelta = monitors.length > 0
@@ -236,7 +240,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
             value={isLoading ? '...' : `${avgTtfb} ms`}
             subtitle="Average across all endpoints"
             icon={Gauge}
-            valueClassName={avgTtfb < 200 ? 'text-metric-ttfb-fast' : avgTtfb > 350 ? 'text-metric-ttfb-slow' : 'text-metric-ttfb-med'}
+            valueClassName={getTtfbColorClass(avgTtfb, 'global')}
             trend={{
               value: `${Math.abs(ttfbDelta)}%`,
               tone: ttfbImproved ? 'success' : 'danger',
@@ -249,6 +253,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
             value={isLoading ? '...' : `${avgHit}%`}
             subtitle="Global distribution efficiency"
             icon={ArrowUp}
+            valueClassName={getCacheColor(avgHit, 'global')}
             trend={{ value: '3.1%', tone: 'success', icon: ArrowUp }}
             metaBadge={{ text: 'HIT', className: 'cs-badge-cache-hit' }}
             animationDelayMs={150}
@@ -258,10 +263,12 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
             value={isLoading ? '...' : `${healthScore}/100`}
             subtitle="Global edge resilience"
             icon={HeartPulse}
-            valueClassName="text-[24px] sm:text-[28px] font-black"
+            valueClassName={`text-[24px] sm:text-[28px] font-black ${getHealthColor(healthScore)}`}
             badge={{ 
-              text: healthScore > 90 ? 'STABLE' : 'DEGRADED', 
-              className: healthScore > 90 ? 'cs-badge-success !py-0.5 !px-1.5 !text-[9px]' : 'cs-badge-warning !py-0.5 !px-1.5 !text-[9px]' 
+              text: healthScore >= GLOBAL_HEALTH.HEALTHY ? 'STABLE' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'DEGRADED' : 'CRITICAL', 
+              className: `${healthScore >= GLOBAL_HEALTH.HEALTHY ? 'cs-badge-success' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'cs-badge-warning' : 'cs-badge-error'} !py-0.5 !px-1.5 !text-[9px]`,
+              withPulseDot: !isLoading,
+              dotClassName: healthScore >= GLOBAL_HEALTH.HEALTHY ? 'bg-emerald-400' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'bg-amber-400' : 'bg-rose-500'
             }}
             progress={isLoading ? 0 : healthScore}
             animationDelayMs={210}

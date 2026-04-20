@@ -33,6 +33,14 @@ import {
   aggregateTtfbTrend,
   safeHostname,
 } from './insights.helpers'
+import {
+  GLOBAL_HEALTH,
+  GLOBAL_TTFB,
+  getTtfbColorClass,
+  getHealthColor,
+  getCacheColor,
+  MONITOR_TTFB,
+} from '@/lib/thresholds'
 
 // ─── Nav ──────────────────────────────────────────────────────────────────────
 
@@ -138,8 +146,8 @@ type HoverState = {
 } | null
 
 function ttfbSegColor(value: number): string {
-  if (value > 350) return '#f43f5e'
-  if (value > 200) return '#f59e0b'
+  if (value > GLOBAL_TTFB.SLOW) return '#f43f5e'
+  if (value > GLOBAL_TTFB.FAST) return '#f59e0b'
   return '#34d399'
 }
 
@@ -380,9 +388,9 @@ function TrendChart({
               transform: 'translate(-50%, calc(-100% - 12px))',
             }}
           >
-            <p className="font-mono text-[12px] font-bold tabular-nums text-zinc-100">
+            <p className="font-mono text-[12px] font-bold tabular-nums" style={{ color: hovered.segColor }}>
               {hovered.value}
-              <span className="text-[11px] font-semibold text-zinc-400">{unit}</span>
+              <span className="text-[11px] font-semibold opacity-70" style={{ color: hovered.segColor }}>{unit}</span>
             </p>
             <p className="mt-0.5 text-[11px] font-medium text-zinc-400">
               {hovered.clockLabel} · hourly TTFB
@@ -685,7 +693,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
       : 0
 
     const healthyCount = monitors.filter(
-      m => m.ttfbCurrent < 200 && (m.cacheHitCurrent === null || m.cacheHitCurrent > 80),
+      m => m.ttfbCurrent < MONITOR_TTFB.SLOW && (m.cacheHitCurrent === null || m.cacheHitCurrent > 80),
     ).length
     const healthScore = Math.round((healthyCount / monitors.length) * 100)
 
@@ -698,9 +706,9 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
 
   const ttfbImproved = ttfbDelta < 0
 
-  const healthLabel    = healthScore >= 90 ? 'Healthy' : healthScore >= 70 ? 'Degraded' : 'Critical'
-  const healthBadgeCls = healthScore >= 90 ? 'cs-badge-success' : healthScore >= 70 ? 'cs-badge-warning' : 'cs-badge-error'
-  const healthDotCls   = healthScore >= 90 ? 'bg-emerald-400' : healthScore >= 70 ? 'bg-amber-400' : 'bg-rose-400'
+  const healthLabel    = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'Healthy' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'Degraded' : 'Critical'
+  const healthBadgeCls = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'cs-badge-success' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'cs-badge-warning' : 'cs-badge-error'
+  const healthDotCls   = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'bg-emerald-400' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'bg-amber-400' : 'bg-rose-400'
 
   const insights  = useMemo(() => deriveInsights(monitors), [monitors])
   const ttfbTrend = useMemo(() => aggregateTtfbTrend(monitors), [monitors])
@@ -841,12 +849,13 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               value={isLoading ? '…' : `${healthScore}/100`}
               subtitle={isLoading ? 'Calculating…' : `${healthLabel} — ${activeCount} active monitors`}
               icon={HeartPulse}
-              valueClassName="text-[28px] sm:text-[32px] font-black"
+              valueClassName={`text-[28px] sm:text-[32px] font-black ${getHealthColor(healthScore)}`}
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
               badge={{
                 text:         healthLabel,
                 className:    `${healthBadgeCls} !py-0.5 !px-1.5 !text-[9px]`,
                 withPulseDot: !isLoading,
+                dotClassName: healthDotCls,
               }}
               progress={isLoading ? 0 : healthScore}
               animationDelayMs={0}
@@ -857,11 +866,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               subtitle="Average response time across all endpoints"
               icon={Gauge}
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
-              valueClassName={
-                avgTtfb < 200 ? 'text-metric-ttfb-fast'
-                : avgTtfb > 350 ? 'text-metric-ttfb-slow'
-                : 'text-metric-ttfb-med'
-              }
+              valueClassName={getTtfbColorClass(avgTtfb, 'global')}
               trend={{
                 value: `${Math.abs(ttfbDelta)}%`,
                 tone:  ttfbImproved ? 'success' : 'danger',
@@ -873,6 +878,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               title="Avg Cache Hit"
               value={isLoading ? '…' : `${avgHit}%`}
               subtitle="Global CDN cache efficiency"
+              valueClassName={getCacheColor(avgHit, 'global')}
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
               icon={Activity}
               trend={{
@@ -926,11 +932,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                 <div>
                   <p className="cs-metric-card-label mb-0 border-0 !text-[10px] text-zinc-400">TTFB Trend (24h)</p>
                   <p
-                    className={`mt-1.5 text-[24px] font-black tabular-nums leading-none ${
-                      avgTtfb < 200 ? 'text-metric-ttfb-fast'
-                      : avgTtfb > 350 ? 'text-metric-ttfb-slow'
-                      : 'text-metric-ttfb-med'
-                    }`}
+                    className={`mt-1.5 text-[24px] font-black tabular-nums leading-none ${getTtfbColorClass(avgTtfb, 'global')}`}
                   >
                     {isLoading ? '…' : `${avgTtfb}ms`}
                   </p>
@@ -949,7 +951,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                       id="ttfb"
                       height={92}
                       unit="ms"
-                      thresholds={{ warn: 200, critical: 350 }}
+                  thresholds={{ warn: GLOBAL_TTFB.FAST, critical: GLOBAL_TTFB.SLOW }}
                     />
                   </>
                 ) : (
