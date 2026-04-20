@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Activity,
@@ -148,7 +148,7 @@ type HoverState = {
 function ttfbSegColor(value: number): string {
   if (value > GLOBAL_TTFB.SLOW) return '#f43f5e'
   if (value > GLOBAL_TTFB.FAST) return '#f59e0b'
-  return '#34d399'
+  return '#22FF88'
 }
 
 /** Local wall-clock hour for an hourly sample (e.g. 22h). `nowMs` from event time avoids impure render. */
@@ -438,16 +438,73 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
   )
 }
 
+// ─── SlowRegionsPopover ───────────────────────────────────────────────────────
+
+type RegionEntry = { code: string; label: string; flag: string; isSlow: boolean }
+
+function SlowRegionsPopover({ regions, visible }: { regions: RegionEntry[]; visible: boolean }) {
+  if (!visible) return null
+
+  const slowCount = regions.filter(r => r.isSlow).length
+  const sorted    = [...regions].sort((a, b) => (b.isSlow ? 1 : 0) - (a.isSlow ? 1 : 0))
+
+  return (
+    <div
+      role="tooltip"
+      className="pointer-events-none absolute bottom-full left-0 z-50 mb-2.5 w-[220px] animate-[cs-fade-in_0.15s_ease-out] rounded-xl border border-border bg-[#111d32] p-3 shadow-2xl ring-1 ring-white/5"
+    >
+      {/* Arrow */}
+      <div className="absolute -bottom-[5px] left-4 h-2.5 w-2.5 rotate-45 rounded-[2px] border-b border-r border-border bg-[#111d32]" />
+
+      <p className="mb-2.5 text-[10px] font-black uppercase tracking-widest text-zinc-500">
+        <span className="text-rose-400">{slowCount} slow</span>
+        <span className="mx-1 opacity-30">·</span>
+        {regions.length} regions
+      </p>
+
+      <div className="space-y-1.5">
+        {sorted.map(r => (
+          <div key={r.code} className="flex items-center gap-2">
+            <span className="text-[14px] leading-none">{r.flag}</span>
+            <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-zinc-200">
+              {r.label}
+            </span>
+            {r.isSlow ? (
+              <span className="shrink-0 rounded px-1 py-px text-[9px] font-black uppercase tracking-wider text-rose-400 bg-rose-500/10">
+                SLOW
+              </span>
+            ) : (
+              <span className="shrink-0 text-[9px] font-black uppercase tracking-wider text-metric-ttfb-fast opacity-60">
+                OK
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── InsightCard ──────────────────────────────────────────────────────────────
 
-function InsightCard({ insight, delay }: { insight: Insight; delay: number }) {
+function InsightCard({
+  insight,
+  delay,
+  regionList,
+}: {
+  insight:     Insight
+  delay:       number
+  regionList?: RegionEntry[]
+}) {
   const s    = SEVERITY[insight.severity]
   const Icon = INSIGHT_ICON[insight.id] ?? AlertTriangle
-  const strongTone = s.tone !== 'neutral'
+  const strongTone   = s.tone !== 'neutral'
+  const showRegionPopover = insight.id === 'slow-regions' && (regionList?.length ?? 0) > 0
+  const [regionsOpen, setRegionsOpen] = useState(false)
 
   return (
     <article
-      className={`cs-card group relative flex flex-col overflow-hidden ${s.bg} ${s.bgHover} ${s.ring} ${insight.severity === 'critical' ? s.glow : ''} px-5 py-4 animate-[cs-fade-in_0.45s_ease-out]`}
+      className={`cs-card group relative flex flex-col ${s.bg} ${s.bgHover} ${s.ring} ${insight.severity === 'critical' ? s.glow : ''} px-5 py-4 animate-[cs-fade-in_0.45s_ease-out]`}
       style={{ animationDelay: `${delay}ms` }}
     >
       <div className="cs-card-wash" />
@@ -482,28 +539,36 @@ function InsightCard({ insight, delay }: { insight: Insight; delay: number }) {
         <h3 className="mb-1.5 text-[13px] font-bold leading-snug text-zinc-100">
           {insight.title}
         </h3>
-        <p className="text-[13px] leading-relaxed text-zinc-300/95">
+        <p className="text-[13px] font-[450] leading-relaxed text-zinc-200/95">
           {insight.description}
         </p>
       </div>
 
       {/* Action */}
-      <div className="relative z-10 mt-4">
+      <div
+        className="relative z-10 mt-4"
+        onMouseEnter={() => showRegionPopover && setRegionsOpen(true)}
+        onMouseLeave={() => setRegionsOpen(false)}
+      >
+        {showRegionPopover && (
+          <SlowRegionsPopover regions={regionList!} visible={regionsOpen} />
+        )}
+
         {insight.actionHref ? (
           <Link
             href={insight.actionHref}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 text-[12px] font-bold text-zinc-100/95 transition-all duration-200 hover:border-white/20 hover:bg-white/10"
+            className="group/btn inline-flex h-9 items-center gap-2 rounded-lg border border-white/12 bg-white/5 px-4 text-[12px] font-bold text-zinc-100/95 transition-all duration-200 hover:border-[rgba(34,255,136,0.4)] hover:bg-[rgba(34,255,136,0.08)] hover:text-[var(--brand-primary)]"
           >
             {insight.actionLabel}
-            <ArrowRight className="h-3.5 w-3.5" />
+            <ArrowRight className="h-3.5 w-3.5 transition-all duration-200 group-hover/btn:translate-x-0.5 group-hover/btn:text-[var(--brand-primary)]" />
           </Link>
         ) : (
           <button
             type="button"
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 text-[12px] font-bold text-zinc-200/95 hover:bg-white/8 hover:border-white/15 transition-all duration-200"
+            className="group/btn inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 text-[12px] font-bold text-zinc-200/95 transition-all duration-200 hover:border-[rgba(34,255,136,0.4)] hover:bg-[rgba(34,255,136,0.08)] hover:text-[var(--brand-primary)]"
           >
             {insight.actionLabel}
-            <ArrowRight className="h-3.5 w-3.5" />
+            <ArrowRight className="h-3.5 w-3.5 transition-all duration-200 group-hover/btn:translate-x-0.5 group-hover/btn:text-[var(--brand-primary)]" />
           </button>
         )}
       </div>
@@ -917,9 +982,16 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                 : ''
               }`}
             >
-              {insights.map((insight, i) => (
-                <InsightCard key={insight.id} insight={insight} delay={i * 65} />
-              ))}
+              {insights.map((insight, i) => {
+                let regionList: RegionEntry[] | undefined
+                if (insight.id === 'slow-regions') {
+                  const worstMonitor = [...monitors]
+                    .filter(m => m.slowRegionCount > 0)
+                    .sort((a, b) => b.slowRegionCount - a.slowRegionCount)[0]
+                  regionList = worstMonitor?.regions
+                }
+                return <InsightCard key={insight.id} insight={insight} delay={i * 65} regionList={regionList} />
+              })}
             </div>
           )}
         </section>

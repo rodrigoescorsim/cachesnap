@@ -1,0 +1,49 @@
+<svg viewBox="0 0 370 120" xmlns="http://www.w3.org/2000/svg">
+  <rect width="370" height="120" fill="#061224"/>
+  
+  <g transform="translate(65, 60)">
+    
+    <polygon 
+      points="0,-45 38.97,-22.5 38.97,22.5 0,45 -38.97,22.5 -38.97,-22.5" 
+      fill="none" 
+      stroke="#ffffff" 
+      stroke-width="8" 
+      stroke-linejoin="miter" 
+      stroke-miterlimit="10"/>
+
+    <!-- Linha 1: vértice superior (0,-45) ao inferior (0,45) -->
+    <line 
+      x1="0" y1="-45" 
+      x2="0" y2="45" 
+      stroke="#ffffff" 
+      stroke-width="2.8" 
+      stroke-linecap="round"/>
+
+    <!-- Linha 2: vértice superior-direito (38.97,-22.5) ao inferior-esquerdo (-38.97,22.5) -->
+    <line 
+      x1="38.97" y1="-22.5" 
+      x2="-38.97" y2="22.5" 
+      stroke="#ffffff" 
+      stroke-width="2.8" 
+      stroke-linecap="round"/>
+
+    <!-- Linha 3: vértice superior-esquerdo (-38.97,-22.5) ao inferior-direito (38.97,22.5) -->
+    <line 
+      x1="-38.97" y1="-22.5" 
+      x2="38.97" y2="22.5" 
+      stroke="#ffffff" 
+      stroke-width="2.8" 
+      stroke-linecap="round"/>
+  </g>
+
+  <text 
+    x="125" 
+    y="75" 
+    font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" 
+    font-size="49" 
+    font-weight="500" 
+    letter-spacing="-0.6" 
+    fill="#ffffff">
+    cachesnap
+  </text>
+</svg>
