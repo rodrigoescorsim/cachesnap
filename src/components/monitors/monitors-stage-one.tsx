@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { Logo } from '@/components/logo'
 import { UserDropdown } from '@/components/dashboard/UserDropdown'
-import { type MonitorQuickFilterId } from '@/types/monitor'
+import { monitorHealthScore, type MonitorQuickFilterId } from '@/types/monitor'
 import { GlobalMetricCard } from './global-metric-card'
 import { MonitorsTable } from './monitors-table'
 import { useMonitors } from '@/hooks/use-monitors'
@@ -67,7 +67,8 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
     const col = searchParams.get('sort')
     const dir = searchParams.get('dir')
     if (col && (dir === 'asc' || dir === 'desc')) return [{ id: col, desc: dir === 'desc' }]
-    return []
+    // Worst performers first: highest TTFB Now
+    return [{ id: 'ttfbCurrent', desc: true }]
   })
 
   // ── Live Sync ──────────────────────────────────────────────────────────────
@@ -124,7 +125,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
     setSearchInput('')
     setSearchQuery('')
     setActiveFilter('all')
-    setSorting([])
+    setSorting([{ id: 'ttfbCurrent', desc: true }])
   }, [])
 
   // ── Metrics calculation ──────────────────────────────────────────────────
@@ -140,11 +141,11 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
       ? Number((withCacheData.reduce((sum, m) => sum + m.cacheHitCurrent!, 0) / withCacheData.length).toFixed(1))
       : 0
 
-    // Health score: TTFB < 200ms threshold matches the "healthy" quick-filter
-    const healthyCount = monitors.filter(
-      (m) => m.ttfbCurrent < 200 && (m.cacheHitCurrent === null || m.cacheHitCurrent > 80),
-    ).length
-    const score = Math.round((healthyCount / monitors.length) * 100)
+    // Global health: driven by the weakest monitor so a single bad endpoint is visible
+    const score =
+      monitors.length > 0
+        ? Math.min(...monitors.map((m) => monitorHealthScore(m)))
+        : 0
 
     // Global TTFB trend: average of each monitor's individual current-vs-24h delta
     const ttfbDelta = monitors.length > 0
@@ -323,9 +324,9 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
             <div className="flex items-center gap-3">
               {/* Last updated indicator */}
               {secsAgo !== null && !isLoading && (
-                <span className="text-[10px] font-medium tabular-nums text-zinc-600 transition-opacity duration-300">
+                <span className="text-[10.5px] font-semibold tabular-nums text-zinc-500 transition-opacity duration-300">
                   Updated{' '}
-                  <span className="text-zinc-500">
+                  <span className="text-zinc-400">
                     {secsAgo < 5 ? 'just now' : `${secsAgo}s ago`}
                   </span>
                 </span>

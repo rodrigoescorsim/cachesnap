@@ -40,6 +40,21 @@ export function getCacheHitTier(pct: number): CacheHitTier {
   return 'low'
 }
 
+/**
+ * Per-monitor health 0–100 (pessimistic components so the global summary can use min()).
+ * Aligns with quick-filter "healthy": TTFB < 200 ms and cache unset or > 80%.
+ */
+export function monitorHealthScore(m: Monitor): number {
+  let score = 100
+  if (m.ttfbCurrent >= 200) {
+    score -= Math.min(55, Math.round((m.ttfbCurrent - 200) * 0.4))
+  }
+  if (m.cacheHitCurrent !== null && m.cacheHitCurrent <= 80) {
+    score -= Math.round((80 - m.cacheHitCurrent) * 1.2)
+  }
+  return Math.max(0, Math.min(100, score))
+}
+
 /** Chips da lista Active Monitors (Etapa 3) — um ativo por vez. */
 export type MonitorQuickFilterId =
   | 'all'

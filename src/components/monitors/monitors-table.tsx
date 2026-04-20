@@ -1,6 +1,13 @@
 'use client'
 
-import { useCallback, useMemo, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -29,6 +36,7 @@ import {
   type MonitorQuickFilterId,
   getTtfbTier,
   getCacheHitTier,
+  monitorHealthScore,
   monitorMatchesQuickFilter,
   monitorMatchesSearch,
 } from '@/types/monitor'
@@ -66,18 +74,21 @@ function formatRelativeTime(date: Date): { text: string; isRecent: boolean } {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+const SPARK_W = 60
+const SPARK_H = 18
+
 function Sparkline({ data, delta }: { data: number[]; delta: number }) {
+  const [tip, setTip] = useState<{ idx: number; px: number } | null>(null)
+
   if (data.length < 2) return null
   const min = Math.min(...data)
   const max = Math.max(...data)
   const range = max - min || 1
-  const W = 60
-  const H = 18
 
   const pts = data
     .map((v, i) => {
-      const x = (i / (data.length - 1)) * W
-      const y = H - ((v - min) / range) * (H - 3) - 1.5
+      const x = (i / (data.length - 1)) * SPARK_W
+      const y = SPARK_H - ((v - min) / range) * (SPARK_H - 3) - 1.5
       return `${x.toFixed(1)},${y.toFixed(1)}`
     })
     .join(' ')
@@ -90,23 +101,47 @@ function Sparkline({ data, delta }: { data: number[]; delta: number }) {
         ? 'group-hover/row:[filter:drop-shadow(0_0_5px_rgba(244,63,94,0.55))]'
         : 'group-hover/row:[filter:drop-shadow(0_0_5px_rgba(245,158,11,0.45))]'
 
+  const handleMove = (e: MouseEvent<SVGSVGElement>) => {
+    const svg = e.currentTarget
+    const rect = svg.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const t = SPARK_W <= 0 ? 0 : Math.min(1, Math.max(0, x / SPARK_W))
+    const idx = Math.round(t * (data.length - 1))
+    setTip({ idx, px: (idx / (data.length - 1)) * SPARK_W })
+  }
+
+  const tipMs = tip !== null ? Math.round(data[tip.idx]) : null
+
   return (
-    <svg
-      width={W}
-      height={H}
-      viewBox={`0 0 ${W} ${H}`}
-      aria-hidden="true"
-      className={`shrink-0 opacity-85 transition-[filter,opacity] duration-300 ${glowClass}`}
-    >
-      <polyline
-        points={pts}
-        fill="none"
-        stroke={color}
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <div className="relative inline-flex shrink-0">
+      {tip !== null && tipMs !== null && (
+        <div
+          role="tooltip"
+          className="pointer-events-none absolute bottom-full left-0 z-20 mb-1 min-w-[3rem] -translate-x-1/2 rounded border border-white/[0.12] bg-zinc-950/95 px-1.5 py-0.5 text-center text-[10px] font-semibold tabular-nums text-zinc-200 shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
+          style={{ left: `${tip.px}px` }}
+        >
+          {tipMs} ms
+        </div>
+      )}
+      <svg
+        width={SPARK_W}
+        height={SPARK_H}
+        viewBox={`0 0 ${SPARK_W} ${SPARK_H}`}
+        aria-hidden="true"
+        className={`shrink-0 cursor-crosshair opacity-90 transition-[filter,opacity] duration-300 ${glowClass}`}
+        onMouseMove={handleMove}
+        onMouseLeave={() => setTip(null)}
+      >
+        <polyline
+          points={pts}
+          fill="none"
+          stroke={color}
+          strokeWidth="1.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </div>
   )
 }
 
@@ -136,7 +171,7 @@ function CacheHitBadge({ pct }: { pct: number | null }) {
     : 'cs-badge-cache-miss'
   return (
     <PremiumTooltip content={tip} position="top-center" direction="top">
-      <span className={cls}>{pct.toFixed(1)}%</span>
+      <span className={`${cls} text-[12px] font-semibold`}>{pct.toFixed(1)}%</span>
     </PremiumTooltip>
   )
 }
@@ -147,7 +182,7 @@ function DeltaChip({ value, inverted = false }: { value: number | null; inverted
   const Icon = value < 0 ? ArrowDown : ArrowUp
   return (
     <span
-      className={`inline-flex items-center gap-px text-[10px] font-black tabular-nums leading-none ${
+      className={`inline-flex items-center gap-px text-[11px] font-extrabold tabular-nums leading-none ${
         improved ? 'text-emerald-300' : 'text-metric-bad'
       }`}
     >
@@ -213,7 +248,13 @@ function ActionBtn({
 
 // ─── Skeleton row ─────────────────────────────────────────────────────────────
 
-function SkeletonRow({ delay = 0 }: { delay?: number }) {
+function SkeletonRow({
+  delay = 0,
+  includeHit24hAvg = true,
+}: {
+  delay?: number
+  includeHit24hAvg?: boolean
+}) {
   return (
     <tr
       style={{ animationDelay: `${delay}ms` }}
@@ -241,12 +282,14 @@ function SkeletonRow({ delay = 0 }: { delay?: number }) {
       <td className="cs-table-compact-td !py-3">
         <div className="cs-skeleton h-5 w-14 rounded-full" />
       </td>
-      <td className="cs-table-compact-td !py-3">
-        <div className="flex flex-col gap-[5px]">
-          <div className="cs-skeleton h-3.5 w-11" />
-          <div className="cs-skeleton h-2.5 w-8" />
-        </div>
-      </td>
+      {includeHit24hAvg && (
+        <td className="cs-table-compact-td !py-3">
+          <div className="flex flex-col gap-[5px]">
+            <div className="cs-skeleton h-3.5 w-11" />
+            <div className="cs-skeleton h-2.5 w-8" />
+          </div>
+        </td>
+      )}
       <td className="cs-table-compact-td !py-3">
         <div className="flex justify-end">
           <div className="cs-skeleton h-2.5 w-14" />
@@ -283,115 +326,25 @@ const HEADER_HELP: Record<string, string> = {
 
 // ─── Column definitions ───────────────────────────────────────────────────────
 
-const col = createColumnHelper<Monitor>()
+function buildMonitorColumns(
+  monitorWidthPct: number,
+  includeHit24hAvg: boolean,
+) {
+  const col = createColumnHelper<Monitor>()
 
-const columns = [
-  col.accessor('name', {
-    id: 'monitor',
-    header: () => <MonitorsThTooltip label="Monitor" description={HEADER_HELP.monitor} />,
-    size: 27,
-    enableSorting: true,
-    cell: ({ row }) => {
-      const m = row.original
-      const isActive = m.status === 'active'
-      return (
-        <div className="flex min-w-0 flex-col gap-[3px]">
-          <div className="flex items-center gap-1.5">
-            <span className="truncate text-[13px] font-black tracking-tight text-white/90 transition-colors duration-150 group-hover/row:text-white">
-              {m.name}
-            </span>
-            {isActive ? (
-              <span className="cs-badge cs-badge-success shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px]">
-                <span className="relative flex h-1.5 w-1.5 shrink-0">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                </span>
-                Active
-              </span>
-            ) : (
-              <span className="cs-badge cs-badge-warning shrink-0 !px-1.5 !py-0 !text-[8px]">
-                Paused
-              </span>
-            )}
-          </div>
-          <PremiumTooltip
-            content={
-              <p className="break-all font-mono text-[11px] font-normal leading-snug tracking-normal text-zinc-200">
-                {m.url}
-              </p>
-            }
-            position="top-left"
-            direction="top"
-          >
-            <span className="max-w-[220px] cursor-default truncate font-mono text-[10px] text-zinc-500 transition-colors duration-150 group-hover/row:text-zinc-400">
-              {m.url.replace(/^https?:\/\//, '')}
-            </span>
-          </PremiumTooltip>
-        </div>
-      )
-    },
-  }),
-
-  col.accessor('ttfbCurrent', {
-    header: () => <MonitorsThTooltip label="TTFB Now" description={HEADER_HELP.ttfbNow} />,
-    size: 10,
-    enableSorting: true,
-    cell: ({ getValue, row }) => {
-      const ms = getValue()
-      return (
-        <div className="flex flex-col gap-[3px]">
-          <PremiumTooltip
-            content={
-              <p className="text-[11px] font-normal leading-relaxed tracking-normal">
-                <span className="font-semibold text-white">{ms} ms</span>
-                <span className="ml-1.5 text-zinc-400">{ttfbLabel(ms)}</span>
-              </p>
-            }
-            position="top-center"
-            direction="top"
-          >
-            <span className={`text-[14px] font-black leading-none tabular-nums ${ttfbClass(ms)}`}>
-              {ms}<span className="ml-0.5 text-[9px] font-bold opacity-40">ms</span>
-            </span>
-          </PremiumTooltip>
-          <DeltaChip value={row.original.ttfbCurrentDelta} inverted />
-        </div>
-      )
-    },
-  }),
-
-  col.accessor('ttfbAvg24h', {
-    header: () => <MonitorsThTooltip label="Avg TTFB 24h" description={HEADER_HELP.avgTtfb24h} />,
-    size: 13,
-    enableSorting: true,
-    cell: ({ getValue, row }) => {
-      const ms = getValue()
-      return (
-        <div className="flex items-center gap-2.5">
-          <span className={`text-[13px] font-black tabular-nums leading-none ${ttfbClass(ms)}`}>
-            {ms}<span className="ml-0.5 text-[9px] font-bold opacity-40">ms</span>
-          </span>
-          <Sparkline data={row.original.ttfbSparkline} delta={row.original.ttfbCurrentDelta} />
-        </div>
-      )
-    },
-  }),
-
-  col.accessor('cacheHitCurrent', {
-    header: () => <MonitorsThTooltip label="Cache Hit" description={HEADER_HELP.cacheHit} />,
-    size: 10,
-    enableSorting: true,
-    cell: ({ getValue }) => <CacheHitBadge pct={getValue()} />,
-  }),
-
-  col.accessor('cacheHitAvg24h', {
+  const hit24hAvgColumn = col.accessor('cacheHitAvg24h', {
+    id: 'cacheHitAvg24h',
     header: () => <MonitorsThTooltip label="Hit 24h Avg" description={HEADER_HELP.hit24hAvg} />,
     size: 10,
     enableSorting: true,
     cell: ({ getValue, row }) => {
       const pct = getValue()
       if (pct === null) {
-        return <span className="text-[12px] font-bold tabular-nums text-zinc-700">—</span>
+        return (
+          <span className="text-[12px] font-semibold tabular-nums text-zinc-500/90" aria-label="No data">
+            —
+          </span>
+        )
       }
       const tier = getCacheHitTier(pct)
       const textClass =
@@ -407,71 +360,178 @@ const columns = [
         </div>
       )
     },
-  }),
+  })
 
-  col.accessor('slowRegionCount', {
-    header: () => (
-      <MonitorsThTooltip
-        label={
-          <span className="inline-flex items-center gap-0.5">
-            Regions
-            <span className="ml-0.5 inline-block h-1 w-1 rounded-full bg-zinc-600 opacity-60" aria-hidden />
-          </span>
-        }
-        description={HEADER_HELP.regions}
-      />
-    ),
-    size: 15,
-    enableSorting: true,
-    cell: ({ row }) => {
-      const m = row.original
-      if (m.slowRegionCount === 0) {
+  return [
+    col.accessor('name', {
+      id: 'monitor',
+      header: () => <MonitorsThTooltip label="Monitor" description={HEADER_HELP.monitor} />,
+      size: monitorWidthPct,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const m = row.original
+        const isActive = m.status === 'active'
         return (
-          <div className="flex items-center justify-end gap-1.5">
-            <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 transition-colors duration-150 group-hover/row:text-zinc-500">
-              All clear
-            </span>
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/40 ring-1 ring-emerald-500/20" />
+          <div className="flex min-w-0 flex-col gap-[3px]">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-[13px] font-black tracking-tight text-white/90 transition-colors duration-150 group-hover/row:text-white">
+                {m.name}
+              </span>
+              {isActive ? (
+                <span className="cs-badge cs-badge-success shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px]">
+                  <span className="relative flex h-1.5 w-1.5 shrink-0">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  </span>
+                  Active
+                </span>
+              ) : (
+                <span className="cs-badge cs-badge-warning shrink-0 !px-1.5 !py-0 !text-[8px]">
+                  Paused
+                </span>
+              )}
+            </div>
+            <PremiumTooltip
+              content={
+                <p className="break-all font-mono text-[11px] font-normal leading-snug tracking-normal text-zinc-200">
+                  {m.url}
+                </p>
+              }
+              position="top-left"
+              direction="top"
+            >
+              <span className="max-w-[220px] cursor-default truncate font-mono text-[10.5px] font-medium text-zinc-400 transition-colors duration-150 group-hover/row:text-zinc-300">
+                {m.url.replace(/^https?:\/\//, '')}
+              </span>
+            </PremiumTooltip>
           </div>
         )
-      }
-      const slowOnes = m.regions.filter((r) => r.isSlow)
-      const MAX_VISIBLE = 2
-      const visible = slowOnes.slice(0, MAX_VISIBLE)
-      const overflow = slowOnes.length - MAX_VISIBLE
-      const overflowLabels = slowOnes.slice(MAX_VISIBLE).map((r) => r.label).join(', ')
-      return (
-        <div className="flex flex-wrap items-center justify-end gap-1">
-          {visible.map((r) => (
+      },
+    }),
+
+    col.accessor('ttfbCurrent', {
+      header: () => <MonitorsThTooltip label="TTFB Now" description={HEADER_HELP.ttfbNow} />,
+      size: 10,
+      enableSorting: true,
+      sortingFn: (rowA, rowB, columnId) => {
+        const a = rowA.getValue(columnId) as number
+        const b = rowB.getValue(columnId) as number
+        if (a !== b) return a - b
+        return monitorHealthScore(rowA.original) - monitorHealthScore(rowB.original)
+      },
+      cell: ({ getValue, row }) => {
+        const ms = getValue()
+        return (
+          <div className="flex flex-col gap-[3px]">
             <PremiumTooltip
-              key={r.code}
-              content={`${r.label}: TTFB is above the threshold in this region.`}
+              content={
+                <p className="text-[11px] font-normal leading-relaxed tracking-normal">
+                  <span className="font-semibold text-white">{ms} ms</span>
+                  <span className="ml-1.5 text-zinc-400">{ttfbLabel(ms)}</span>
+                </p>
+              }
               position="top-center"
               direction="top"
             >
-              <span className="cs-badge cs-badge-warning !px-1 !py-[1px] !text-[8px]">
-                {r.flag} {r.label}
+              <span className={`text-[14px] font-black leading-none tabular-nums ${ttfbClass(ms)}`}>
+                {ms}<span className="ml-0.5 text-[9px] font-bold opacity-[0.55]">ms</span>
               </span>
             </PremiumTooltip>
-          ))}
-          {overflow > 0 && (
-            <PremiumTooltip
-              content={`Also slow: ${overflowLabels}`}
-              position="top-center"
-              direction="top"
-            >
-              <span className="cs-badge cs-badge-warning !px-1 !py-[1px] !text-[8px] cursor-help">
-                +{overflow}
+            <DeltaChip value={row.original.ttfbCurrentDelta} inverted />
+          </div>
+        )
+      },
+    }),
+
+    col.accessor('ttfbAvg24h', {
+      header: () => <MonitorsThTooltip label="Avg TTFB 24h" description={HEADER_HELP.avgTtfb24h} />,
+      size: 13,
+      enableSorting: true,
+      cell: ({ getValue, row }) => {
+        const ms = getValue()
+        return (
+          <div className="flex items-center gap-2.5">
+            <span className={`text-[13px] font-black tabular-nums leading-none ${ttfbClass(ms)}`}>
+              {ms}<span className="ml-0.5 text-[9px] font-bold opacity-[0.55]">ms</span>
+            </span>
+            <Sparkline data={row.original.ttfbSparkline} delta={row.original.ttfbCurrentDelta} />
+          </div>
+        )
+      },
+    }),
+
+    col.accessor('cacheHitCurrent', {
+      header: () => <MonitorsThTooltip label="Cache Hit" description={HEADER_HELP.cacheHit} />,
+      size: 10,
+      enableSorting: true,
+      cell: ({ getValue }) => <CacheHitBadge pct={getValue()} />,
+    }),
+
+    ...(includeHit24hAvg ? [hit24hAvgColumn] : []),
+
+    col.accessor('slowRegionCount', {
+      header: () => (
+        <MonitorsThTooltip
+          label={
+            <span className="inline-flex items-center gap-0.5">
+              Regions
+              <span className="ml-0.5 inline-block h-1 w-1 rounded-full bg-zinc-500 opacity-70" aria-hidden />
+            </span>
+          }
+          description={HEADER_HELP.regions}
+        />
+      ),
+      size: 15,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const m = row.original
+        if (m.slowRegionCount === 0) {
+          return (
+            <div className="flex items-center justify-end gap-1.5">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 transition-colors duration-150 group-hover/row:text-zinc-400">
+                All clear
               </span>
-            </PremiumTooltip>
-          )}
-          <span className="text-[9px] font-bold tabular-nums text-zinc-600">
-            {m.slowRegionCount}/{m.totalRegionCount}
-          </span>
-        </div>
-      )
-    },
-  }),
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/40 ring-1 ring-emerald-500/20" />
+            </div>
+          )
+        }
+        const slowOnes = m.regions.filter((r) => r.isSlow)
+        const MAX_VISIBLE = 2
+        const visible = slowOnes.slice(0, MAX_VISIBLE)
+        const overflow = slowOnes.length - MAX_VISIBLE
+        const overflowLabels = slowOnes.slice(MAX_VISIBLE).map((r) => r.label).join(', ')
+        return (
+          <div className="flex flex-wrap items-center justify-end gap-1">
+            {visible.map((r) => (
+              <PremiumTooltip
+                key={r.code}
+                content={`${r.label}: TTFB is above the threshold in this region.`}
+                position="top-center"
+                direction="top"
+              >
+                <span className="cs-badge cs-badge-warning !px-1 !py-[1px] !text-[8px]">
+                  {r.flag} {r.label}
+                </span>
+              </PremiumTooltip>
+            ))}
+            {overflow > 0 && (
+              <PremiumTooltip
+                content={`Also slow: ${overflowLabels}`}
+                position="top-center"
+                direction="top"
+              >
+                <span className="cs-badge cs-badge-warning !px-1 !py-[1px] !text-[8px] cursor-help">
+                  +{overflow}
+                </span>
+              </PremiumTooltip>
+            )}
+            <span className="text-[9px] font-semibold tabular-nums text-zinc-500">
+              {m.slowRegionCount}/{m.totalRegionCount}
+            </span>
+          </div>
+        )
+      },
+    }),
 
   col.accessor('lastCheckedAt', {
     header: () => <MonitorsThTooltip label="Last Check" description={HEADER_HELP.lastCheck} />,
@@ -489,8 +549,8 @@ const columns = [
           direction="top"
         >
           <span
-            className={`block cursor-default text-right text-[11px] font-bold tabular-nums transition-colors duration-150 ${
-              isRecent ? 'text-emerald-400' : 'text-zinc-500 group-hover/row:text-zinc-400'
+            className={`block cursor-default text-right text-[11px] font-semibold tabular-nums transition-colors duration-150 ${
+              isRecent ? 'text-emerald-400' : 'text-zinc-400 group-hover/row:text-zinc-300'
             }`}
           >
             {text}
@@ -526,7 +586,8 @@ const columns = [
       )
     },
   }),
-]
+  ]
+}
 
 // ─── MonitorsTable ────────────────────────────────────────────────────────────
 
@@ -567,6 +628,24 @@ export function MonitorsTable({
       ),
     [monitors, searchQuery, activeFilter],
   )
+
+  const showHit24hAvgColumn = useMemo(() => {
+    if (monitors.length === 0) return true
+    return monitors.some((m) => m.cacheHitAvg24h !== null)
+  }, [monitors])
+
+  const monitorWidthPct = showHit24hAvgColumn ? 27 : 37
+
+  const columns = useMemo(
+    () => buildMonitorColumns(monitorWidthPct, showHit24hAvgColumn),
+    [monitorWidthPct, showHit24hAvgColumn],
+  )
+
+  useEffect(() => {
+    if (!showHit24hAvgColumn && sorting[0]?.id === 'cacheHitAvg24h') {
+      onSortingChange([{ id: 'ttfbCurrent', desc: true }])
+    }
+  }, [showHit24hAvgColumn, sorting, onSortingChange])
 
   const table = useReactTable({
     data: filteredData,
@@ -614,7 +693,7 @@ export function MonitorsTable({
                           : undefined
                       }
                       className={[
-                        'cs-table-compact-th !py-3 !text-[9px] !font-black !tracking-[0.12em] !text-zinc-600',
+                        'cs-table-compact-th !py-3 !text-[9px] !font-black !tracking-[0.12em] !text-zinc-500',
                         'select-none whitespace-nowrap transition-colors duration-150',
                         canSort ? 'cursor-pointer hover:text-zinc-300' : '',
                         isRightAligned ? 'text-right' : '',
@@ -640,7 +719,11 @@ export function MonitorsTable({
           {isLoading && (
             <tbody aria-label="Loading monitors…">
               {Array.from({ length: SKELETON_COUNT }, (_, i) => (
-                <SkeletonRow key={i} delay={i * 40} />
+                <SkeletonRow
+                  key={i}
+                  delay={i * 40}
+                  includeHit24hAvg={showHit24hAvgColumn}
+                />
               ))}
             </tbody>
           )}
@@ -762,14 +845,14 @@ export function MonitorsTable({
         aria-live="polite"
         aria-atomic="true"
       >
-        <span className="inline-flex items-center gap-2 text-[9.5px] font-black uppercase tracking-[0.12em] text-zinc-600">
+        <span className="inline-flex items-center gap-2 text-[9.5px] font-black uppercase tracking-[0.12em] text-zinc-500">
           {isLoading ? (
-            <span className="text-zinc-700">Loading…</span>
+            <span className="text-zinc-600">Loading…</span>
           ) : (
             <>
               {rows.length === 1 ? '1 MONITOR' : `${rows.length} MONITORS`}
               {rows.length < monitors.length && (
-                <span className="ml-1.5 font-medium normal-case tracking-normal text-zinc-700">
+                <span className="ml-1.5 font-medium normal-case tracking-normal text-zinc-500">
                   of {monitors.length}
                 </span>
               )}
@@ -784,7 +867,7 @@ export function MonitorsTable({
             />
           )}
         </span>
-        <span className="text-[9px] font-medium text-zinc-700">
+        <span className="text-[9px] font-medium text-zinc-500">
           ↵ or click row · open details
         </span>
       </div>
