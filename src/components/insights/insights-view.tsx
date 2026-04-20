@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Activity,
   AlertTriangle,
@@ -125,17 +126,29 @@ const INSIGHT_ICON: Record<string, LucideIcon> = {
 type TrendChartThresholds = { warn: number; critical: number }
 
 type HoverState = {
-  svgX:     number
-  svgY:     number
-  value:    number
-  segColor: string
-  idx:      number
+  svgX:       number
+  svgY:       number
+  value:      number
+  segColor:   string
+  idx:        number
+  clockLabel: string
+  /** Viewport coordinates of the hovered point (for fixed tooltip). */
+  tipX:       number
+  tipY:       number
 } | null
 
 function ttfbSegColor(value: number): string {
   if (value > 350) return '#f43f5e'
   if (value > 200) return '#f59e0b'
   return '#34d399'
+}
+
+/** Local wall-clock hour for an hourly sample (e.g. 22h). `nowMs` from event time avoids impure render. */
+function sampleClockHourLabel(nowMs: number, n: number, idx: number): string {
+  if (n < 2) return ''
+  const hoursAgo = (24 * (n - 1 - idx)) / (n - 1)
+  const t        = nowMs - hoursAgo * 3600 * 1000
+  return `${new Date(t).getHours()}h`
 }
 
 function smoothLinePath(pts: Array<[number, number]>): string {
@@ -159,7 +172,7 @@ function TrendChart({
   data,
   color,
   id,
-  height = 88,
+  height = 92,
   unit = '',
   thresholds,
 }: {
@@ -175,15 +188,16 @@ function TrendChart({
   if (data.length < 2) {
     return (
       <div className="flex items-center justify-center" style={{ height }}>
-        <span className="text-[11px] text-zinc-700">Collecting data…</span>
+        <span className="text-[12px] text-zinc-500">Collecting data…</span>
       </div>
     )
   }
 
+  /** viewBox width / height — Y-axis labels live outside the SVG; keep only a slim inner pad. */
   const W = 240
   const H = height
-  const ml = 26
-  const mr = 8
+  const ml = 4
+  const mr = 6
   const pt = 8
   const pb = 10
   const plotW = W - ml - mr
@@ -191,6 +205,15 @@ function TrendChart({
   const min = Math.min(...data)
   const max = Math.max(...data)
   const range = max - min || 1
+
+  /** Five evenly spaced ms ticks, aligned to the chart plot (top = max, bottom = min). */
+  const Y_TICK_COUNT = 5
+  const yTickValues =
+    range === 0
+      ? Array.from({ length: Y_TICK_COUNT }, () => max)
+      : Array.from({ length: Y_TICK_COUNT }, (_, i) =>
+          Math.round(max - (i / (Y_TICK_COUNT - 1)) * (max - min)),
+        )
 
   const pts = data.map((v, i) => {
     const x = ml + (i / (data.length - 1)) * plotW
@@ -202,142 +225,171 @@ function TrendChart({
   const area = [`${ml},${H}`, ...pts.map(([x, y]) => `${x},${y}`), `${ml + plotW},${H}`].join(' ')
   const gid     = `grad-${id}`
   const gridGid = `grid-${id}`
-  const yTicks = [max, Math.round(min + range * 0.5), min]
 
-  function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const relX = (e.clientX - rect.left) / rect.width
-    const idx  = Math.max(0, Math.min(Math.round(relX * (data.length - 1)), data.length - 1))
-    const segC = thresholds ? ttfbSegColor(data[idx]) : color
-    setHovered({ svgX: pts[idx][0], svgY: pts[idx][1], value: data[idx], segColor: segC, idx })
+  function clientPointToSvg(svg: SVGSVGElement, clientX: number, clientY: number) {
+    const p   = svg.createSVGPoint()
+    p.x       = clientX
+    p.y       = clientY
+    const ctm = svg.getScreenCTM()
+    if (!ctm) return { x: 0, y: 0 }
+    return p.matrixTransform(ctm.inverse())
   }
 
-  const hoursFromNow = (idx: number) =>
-    Math.round(((data.length - 1 - idx) / (data.length - 1)) * 24)
+  function svgPointToClient(svg: SVGSVGElement, x: number, y: number) {
+    const p   = svg.createSVGPoint()
+    p.x       = x
+    p.y       = y
+    const ctm = svg.getScreenCTM()
+    if (!ctm) return { x: 0, y: 0 }
+    return p.matrixTransform(ctm)
+  }
 
-  const timeLabel = (idx: number) => {
-    const h = hoursFromNow(idx)
-    return h <= 0 ? 'Now' : `${h}h ago`
+  function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
+    const svg = e.currentTarget
+    const p   = clientPointToSvg(svg, e.clientX, e.clientY)
+    const rel = plotW > 0 ? (p.x - ml) / plotW : 0
+    const idx = Math.max(
+      0,
+      Math.min(Math.round(Math.min(1, Math.max(0, rel)) * (data.length - 1)), data.length - 1),
+    )
+    const segC    = thresholds ? ttfbSegColor(data[idx]) : color
+    const ptCoord = pts[idx]
+    const scr     = svgPointToClient(svg, ptCoord[0], ptCoord[1])
+    setHovered({
+      svgX: ptCoord[0],
+      svgY: ptCoord[1],
+      value:      data[idx],
+      segColor:   segC,
+      idx,
+      clockLabel: sampleClockHourLabel(Date.now(), data.length, idx),
+      tipX:       scr.x,
+      tipY:       scr.y,
+    })
   }
 
   return (
-    <div className="relative pt-1">
-      {/* Value readout strip */}
-      <div
-        className={`pointer-events-none absolute -top-1 left-0 right-0 flex items-center justify-between text-[10px] transition-opacity duration-150 ${hovered ? 'opacity-100' : 'opacity-0'}`}
-      >
-        <span
-          className="font-mono font-semibold tabular-nums tracking-tight"
-          style={{ color: hovered?.segColor ?? color }}
-        >
-          {hovered?.value}{unit}
-        </span>
-        <span className="text-zinc-500">
-          {hovered != null ? timeLabel(hovered.idx) : ''}
-        </span>
-      </div>
+    <div className="relative">
+      {/* Grid: altura da linha = aspect-ratio do SVG; eixo Y estica e ticks em % alinham ao plot. */}
+      <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-stretch gap-1">
+        <div className="relative h-full min-h-0 w-11 shrink-0 self-stretch" aria-hidden>
+          {yTickValues.map((v, i) => {
+            const yTick =
+              pt + (i / (Y_TICK_COUNT - 1)) * (H - pt - pb)
+            const topPct = (100 * yTick) / H
+            return (
+              <span
+                key={i}
+                className="absolute right-0 -translate-y-1/2 font-mono text-[11px] font-medium tabular-nums leading-none text-zinc-400"
+                style={{ top: `${topPct}%` }}
+              >
+                {v}{unit}
+              </span>
+            )
+          })}
+        </div>
 
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
-        className="w-full cursor-crosshair"
-        style={{ height, display: 'block' }}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => setHovered(null)}
-        aria-label="Trend chart"
-        role="img"
-      >
-        <defs>
-          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"   stopColor={color} stopOpacity="0.12" />
-            <stop offset="70%"  stopColor={color} stopOpacity="0.04" />
-            <stop offset="100%" stopColor={color} stopOpacity="0"    />
-          </linearGradient>
-          <pattern id={gridGid} x={ml} y={pt} width={plotW} height={(H - pt - pb) / 4} patternUnits="userSpaceOnUse">
-            <line x1="0" y1="0" x2={plotW} y2="0" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
-          </pattern>
-        </defs>
-
-        <rect x={ml} y={pt} width={plotW} height={H - pt - pb} fill={`url(#${gridGid})`} rx="1" />
-
-        <polygon points={area} fill={`url(#${gid})`} />
-
-        <path
-          d={linePath}
-          fill="none"
-          stroke={color}
-          strokeWidth="1.75"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-
-        {yTicks.map((tick, idx) => (
-          <text
-            key={idx}
-            x={ml - 4}
-            y={pt + (idx * (H - pt - pb)) / (yTicks.length - 1)}
-            textAnchor="end"
-            dominantBaseline={idx === 0 ? 'hanging' : idx === yTicks.length - 1 ? 'alphabetic' : 'middle'}
-            fill="rgba(161,161,170,0.78)"
-            fontSize="8"
-            className="font-mono"
+        <div className="relative min-h-0 min-w-0 overflow-visible">
+          <div
+            className="relative z-0 w-full max-w-full overflow-visible rounded-sm"
+            style={{ aspectRatio: `${W} / ${H}` }}
           >
-            {tick}{unit}
-          </text>
-        ))}
+            <svg
+              viewBox={`0 0 ${W} ${H}`}
+              preserveAspectRatio="xMinYMid meet"
+              className="absolute inset-0 h-full w-full cursor-crosshair"
+              onMouseMove={handleMouseMove}
+              onMouseLeave={() => setHovered(null)}
+              aria-label="Trend chart"
+              role="img"
+            >
+              <defs>
+                <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%"   stopColor={color} stopOpacity="0.12" />
+                  <stop offset="70%"  stopColor={color} stopOpacity="0.04" />
+                  <stop offset="100%" stopColor={color} stopOpacity="0"    />
+                </linearGradient>
+                <pattern id={gridGid} x={ml} y={pt} width={plotW} height={(H - pt - pb) / 4} patternUnits="userSpaceOnUse">
+                  <line x1="0" y1="0" x2={plotW} y2="0" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
+                </pattern>
+              </defs>
 
-        <text
-          x={ml + plotW / 2}
-          y={H - 1}
-          textAnchor="middle"
-          fill="rgba(113,113,122,0.85)"
-          fontSize="7.5"
-          className="font-medium"
-        >
-          last 24 hours
-        </text>
+              <rect x={ml} y={pt} width={plotW} height={H - pt - pb} fill={`url(#${gridGid})`} rx="1" />
 
-        {hovered && (
-          <line
-            x1={hovered.svgX} y1={pt}
-            x2={hovered.svgX} y2={H - pb}
-            stroke="rgba(255,255,255,0.12)"
-            strokeWidth="1"
-            strokeDasharray="3 3"
-            vectorEffect="non-scaling-stroke"
-          />
-        )}
-      </svg>
+              <polygon points={area} fill={`url(#${gid})`} />
 
-      {hovered && (
-        <div
-          className="pointer-events-none absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#0B1220] shadow-md transition-none"
-          style={{
-            left:            `${(hovered.svgX / W) * 100}%`,
-            top:             `${(hovered.svgY / H) * 100}%`,
-            backgroundColor: hovered.segColor,
-          }}
-        />
-      )}
+              <path
+                d={linePath}
+                fill="none"
+                stroke={color}
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
 
-      {hovered && (
-        <div
-          className="pointer-events-none absolute z-20 min-w-[7.5rem] -translate-x-1/2 rounded-lg border border-white/[0.12] bg-[#111d32]/98 px-3 py-2 text-left shadow-2xl ring-1 ring-white/[0.04] backdrop-blur-sm"
-          style={{
-            left:   `${Math.max(14, Math.min(86, (hovered.svgX / W) * 100))}%`,
-            bottom: `calc(${(1 - hovered.svgY / H) * 100}% + 14px)`,
-          }}
-        >
-          <p className="font-mono text-[12px] font-bold tabular-nums text-zinc-100">
-            {hovered.value}
-            <span className="text-[10px] font-semibold text-zinc-500">{unit}</span>
+              {hovered && (
+                <line
+                  x1={hovered.svgX} y1={pt}
+                  x2={hovered.svgX} y2={H - pb}
+                  stroke="rgba(255,255,255,0.12)"
+                  strokeWidth="1"
+                  strokeDasharray="3 3"
+                  vectorEffect="non-scaling-stroke"
+                />
+              )}
+
+              {hovered && (
+                <circle
+                  cx={hovered.svgX}
+                  cy={hovered.svgY}
+                  r={3.25}
+                  fill={hovered.segColor}
+                  stroke="#0B1220"
+                  strokeWidth="2"
+                  vectorEffect="non-scaling-stroke"
+                />
+              )}
+            </svg>
+
+          </div>
+
+          <div className="mt-2 flex justify-between font-mono text-[10px] font-semibold tabular-nums text-zinc-500">
+            <span>24h ago</span>
+            <span className="text-zinc-600">18h</span>
+            <span className="text-zinc-600">12h</span>
+            <span className="text-zinc-600">6h</span>
+            <span>now</span>
+          </div>
+          <p className="mt-1 text-center font-mono text-[10px] tabular-nums text-zinc-500">
+            range {min}{unit} – {max}{unit}
           </p>
-          <p className="mt-0.5 text-[10px] font-medium text-zinc-500">
-            {timeLabel(hovered.idx)} · blended TTFB
+          <p className="mt-0.5 text-center text-[11px] text-zinc-500">
+            Last 24h · one sample per hour
           </p>
         </div>
-      )}
+      </div>
+
+      {hovered &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="pointer-events-none fixed z-[200] min-w-[8.25rem] rounded-lg border border-white/[0.12] bg-[#111d32]/98 px-3 py-2 text-left shadow-2xl ring-1 ring-white/[0.06] backdrop-blur-md"
+            style={{
+              left:      hovered.tipX,
+              top:       hovered.tipY,
+              transform: 'translate(-50%, calc(-100% - 12px))',
+            }}
+          >
+            <p className="font-mono text-[12px] font-bold tabular-nums text-zinc-100">
+              {hovered.value}
+              <span className="text-[11px] font-semibold text-zinc-400">{unit}</span>
+            </p>
+            <p className="mt-0.5 text-[11px] font-medium text-zinc-400">
+              {hovered.clockLabel} · hourly TTFB
+            </p>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }
@@ -422,7 +474,7 @@ function InsightCard({ insight, delay }: { insight: Insight; delay: number }) {
         <h3 className="mb-1.5 text-[13px] font-bold leading-snug text-zinc-100">
           {insight.title}
         </h3>
-        <p className="text-[12px] leading-relaxed text-zinc-400/90">
+        <p className="text-[13px] leading-relaxed text-zinc-300/95">
           {insight.description}
         </p>
       </div>
@@ -432,7 +484,7 @@ function InsightCard({ insight, delay }: { insight: Insight; delay: number }) {
         {insight.actionHref ? (
           <Link
             href={insight.actionHref}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 text-[11px] font-bold text-zinc-200 transition-all duration-200 hover:border-white/20 hover:bg-white/10"
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 text-[12px] font-bold text-zinc-100/95 transition-all duration-200 hover:border-white/20 hover:bg-white/10"
           >
             {insight.actionLabel}
             <ArrowRight className="h-3.5 w-3.5" />
@@ -440,7 +492,7 @@ function InsightCard({ insight, delay }: { insight: Insight; delay: number }) {
         ) : (
           <button
             type="button"
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 text-[11px] font-bold text-zinc-300 hover:bg-white/8 hover:border-white/15 transition-all duration-200"
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 text-[12px] font-bold text-zinc-200/95 hover:bg-white/8 hover:border-white/15 transition-all duration-200"
           >
             {insight.actionLabel}
             <ArrowRight className="h-3.5 w-3.5" />
@@ -482,7 +534,7 @@ function AlertRow({ monitor, rank }: { monitor: Monitor; rank: number }) {
       </div>
 
       {/* Rank */}
-      <span className="w-4 shrink-0 text-center text-[10px] font-black tabular-nums text-zinc-600">
+      <span className="w-4 shrink-0 text-center text-[11px] font-black tabular-nums text-zinc-500">
         {rank}
       </span>
 
@@ -491,10 +543,10 @@ function AlertRow({ monitor, rank }: { monitor: Monitor; rank: number }) {
         <p className="truncate text-[13px] font-semibold tracking-tight text-zinc-100 transition-colors group-hover:text-white">
           {displayName}
         </p>
-        <p className="mt-1 truncate text-[11px] font-medium leading-snug text-zinc-500">
+        <p className="mt-1 truncate text-[12px] font-medium leading-snug text-zinc-400">
           {host}
         </p>
-        <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-snug text-zinc-400">
+        <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] leading-snug text-zinc-300/95">
           {isHighTtfb && (
             <span className={isCritical ? 'font-semibold text-rose-400/95' : 'text-amber-400/90'}>
               {monitor.ttfbCurrent} ms TTFB
@@ -506,7 +558,7 @@ function AlertRow({ monitor, rank }: { monitor: Monitor; rank: number }) {
             </span>
           )}
           {hasSlowR && (
-            <span className="text-zinc-500">
+            <span className="text-zinc-400">
               {monitor.slowRegionCount} slow {monitor.slowRegionCount === 1 ? 'region' : 'regions'}
             </span>
           )}
@@ -521,7 +573,7 @@ function AlertRow({ monitor, rank }: { monitor: Monitor; rank: number }) {
           {isCritical && <span className={`inline-block h-1.5 w-1.5 rounded-full ${s.dot} animate-pulse`} />}
           {s.label}
         </span>
-        <ArrowRight className="h-3.5 w-3.5 text-zinc-700 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-zinc-500" />
+        <ArrowRight className="h-3.5 w-3.5 text-zinc-500 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-zinc-400" />
       </div>
     </Link>
   )
@@ -557,11 +609,11 @@ function MonitorQuickCard({ monitor, rank }: { monitor: Monitor; rank: number })
             <p className="truncate text-[12px] font-bold leading-tight text-zinc-200 transition-colors group-hover:text-white">
               {monitor.name || safeHostname(monitor.url)}
             </p>
-            <p className="mt-1 truncate text-[10px] leading-snug text-zinc-600">
+            <p className="mt-1 truncate text-[11px] leading-snug text-zinc-400">
               {safeHostname(monitor.url)}
             </p>
           </div>
-          <span className="mt-0.5 shrink-0 rounded-md bg-white/[0.06] px-2 py-0.5 text-[9px] font-black tabular-nums text-zinc-500 ring-1 ring-inset ring-white/[0.06]">
+          <span className="mt-0.5 shrink-0 rounded-md bg-white/[0.06] px-2 py-0.5 text-[10px] font-black tabular-nums text-zinc-400 ring-1 ring-inset ring-white/[0.06]">
             #{rank}
           </span>
         </div>
@@ -569,31 +621,31 @@ function MonitorQuickCard({ monitor, rank }: { monitor: Monitor; rank: number })
         {/* Metrics */}
         <div className="grid grid-cols-2 items-end gap-x-4 gap-y-1">
           <div>
-            <p className="text-[9px] font-black uppercase tracking-wider text-zinc-600">TTFB</p>
+            <p className="text-[10px] font-black uppercase tracking-wider text-zinc-500">TTFB</p>
             <div className="mt-1 flex items-baseline gap-1">
               <p className={`text-[20px] font-black tabular-nums leading-none ${ttfbClass}`}>
                 {monitor.ttfbCurrent}
               </p>
-              <span className="text-[9px] font-semibold text-zinc-600">ms</span>
+              <span className="text-[10px] font-semibold text-zinc-500">ms</span>
             </div>
             {monitor.ttfbCurrentDelta !== 0 && (
-              <p className={`mt-1 text-[9px] font-bold tabular-nums ${deltaColor}`}>
+              <p className={`mt-1 text-[10px] font-bold tabular-nums ${deltaColor}`}>
                 {deltaSign}{monitor.ttfbCurrentDelta.toFixed(1)}%
               </p>
             )}
           </div>
           <div>
-            <p className="text-[9px] font-black uppercase tracking-wider text-zinc-600">Cache</p>
+            <p className="text-[10px] font-black uppercase tracking-wider text-zinc-500">Cache</p>
             <div className="mt-1 flex items-baseline gap-1">
               {monitor.cacheHitCurrent !== null ? (
                 <>
                   <p className="text-[20px] font-black tabular-nums leading-none text-zinc-300">
                     {monitor.cacheHitCurrent}
                   </p>
-                  <span className="text-[9px] font-semibold text-zinc-600">%</span>
+                  <span className="text-[10px] font-semibold text-zinc-500">%</span>
                 </>
               ) : (
-                <p className="text-[13px] font-bold text-zinc-700">N/A</p>
+                <p className="text-[13px] font-bold text-zinc-600">N/A</p>
               )}
             </div>
           </div>
@@ -749,18 +801,17 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
 
         {/* ── Page hero ─────────────────────────────────────────────────────── */}
         <div className="flex items-start justify-between animate-[cs-fade-in_0.3s_ease-out]">
-          <div>
-            <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.22em] text-zinc-500">
-              Advisor view
-            </p>
+          <div className="min-w-0 flex-1 pr-4">
             <h1 className="text-[36px] font-black tracking-tight text-zinc-50 leading-none sm:text-[40px]">
               Insights
             </h1>
-            <p className="mt-2.5 max-w-md text-[13px] leading-relaxed text-zinc-500">
-              {isLoading
-                ? 'Gathering a clear picture of your monitors…'
-                : `A steady read across ${activeCount} live path${activeCount !== 1 ? 's' : ''} — signals refresh as your edge changes.`}
-            </p>
+            {isLoading && (
+              <div className="mt-2.5">
+                <p className="max-w-md text-[14px] leading-relaxed text-zinc-400">
+                  Gathering a clear picture of your monitors…
+                </p>
+              </div>
+            )}
           </div>
 
           {!isLoading && (
@@ -773,7 +824,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                 {healthLabel}
               </span>
               {criticalCount > 0 && (
-                <span className="text-[10px] font-bold text-rose-500/80">
+                <span className="text-[11px] font-bold text-rose-500/80">
                   {criticalCount} critical {criticalCount === 1 ? 'issue' : 'issues'}
                 </span>
               )}
@@ -791,6 +842,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               subtitle={isLoading ? 'Calculating…' : `${healthLabel} — ${activeCount} active monitors`}
               icon={HeartPulse}
               valueClassName="text-[28px] sm:text-[32px] font-black"
+              subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
               badge={{
                 text:         healthLabel,
                 className:    `${healthBadgeCls} !py-0.5 !px-1.5 !text-[9px]`,
@@ -804,6 +856,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               value={isLoading ? '…' : `${avgTtfb} ms`}
               subtitle="Average response time across all endpoints"
               icon={Gauge}
+              subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
               valueClassName={
                 avgTtfb < 200 ? 'text-metric-ttfb-fast'
                 : avgTtfb > 350 ? 'text-metric-ttfb-slow'
@@ -820,6 +873,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               title="Avg Cache Hit"
               value={isLoading ? '…' : `${avgHit}%`}
               subtitle="Global CDN cache efficiency"
+              subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
               icon={Activity}
               trend={{
                 value: avgHit >= 80 ? 'Good' : avgHit >= 60 ? 'Fair' : 'Low',
@@ -867,10 +921,10 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 
             {/* TTFB 24h trend */}
-            <article className="cs-card cs-card-glass animate-[cs-fade-in_0.5s_ease-out] p-5">
+            <article className="cs-card cs-card-glass relative z-0 !overflow-visible animate-[cs-fade-in_0.5s_ease-out] p-5">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="cs-metric-card-label mb-0 border-0 !text-[9px]">TTFB Trend (24h)</p>
+                  <p className="cs-metric-card-label mb-0 border-0 !text-[10px] text-zinc-400">TTFB Trend (24h)</p>
                   <p
                     className={`mt-1.5 text-[24px] font-black tabular-nums leading-none ${
                       avgTtfb < 200 ? 'text-metric-ttfb-fast'
@@ -881,12 +935,12 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                     {isLoading ? '…' : `${avgTtfb}ms`}
                   </p>
                 </div>
-                <div className="rounded-lg border border-white/5 bg-white/5 p-2 text-zinc-500">
+                <div className="rounded-lg border border-white/5 bg-white/5 p-2 text-zinc-400">
                   <BarChart3 className="h-4 w-4" />
                 </div>
               </div>
 
-              <div className="mt-5">
+              <div className="mt-5 overflow-visible">
                 {ttfbTrend.length >= 2 ? (
                   <>
                     <TrendChart
@@ -897,16 +951,9 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                       unit="ms"
                       thresholds={{ warn: 200, critical: 350 }}
                     />
-                    <div className="mt-2.5 flex items-center justify-between text-[10px] font-medium">
-                      <span className="text-zinc-700">24h ago</span>
-                      <span className="font-mono text-zinc-600 tabular-nums">
-                        range {Math.min(...ttfbTrend)}ms - {Math.max(...ttfbTrend)}ms
-                      </span>
-                      <span className="text-zinc-700">now</span>
-                    </div>
                   </>
                 ) : (
-                  <div className="flex h-[92px] items-center justify-center text-[11px] text-zinc-700">
+                  <div className="flex h-[92px] items-center justify-center text-[12px] text-zinc-500">
                     Collecting trend data…
                   </div>
                 )}
@@ -920,13 +967,13 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
             >
               <div className="mb-5 flex items-start justify-between gap-2">
                 <div>
-                  <p className="cs-metric-card-label mb-0 border-0 !text-[9px]">Cache Hit Rate</p>
+                  <p className="cs-metric-card-label mb-0 border-0 !text-[10px] text-zinc-400">Cache Hit Rate</p>
                   <p className="mt-1.5 text-[24px] font-black tabular-nums leading-none text-zinc-100">
                     {isLoading ? '…' : `${avgHit}%`}
-                    <span className="ml-1.5 text-[12px] font-semibold text-zinc-600">global avg</span>
+                    <span className="ml-1.5 text-[13px] font-semibold text-zinc-400">global avg</span>
                   </p>
                 </div>
-                <div className="rounded-lg border border-white/5 bg-white/5 p-2 text-zinc-500">
+                <div className="rounded-lg border border-white/5 bg-white/5 p-2 text-zinc-400">
                   <Database className="h-4 w-4" />
                 </div>
               </div>
@@ -942,7 +989,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                       className="h-px w-5"
                       style={{ borderTop: '1px dashed rgba(255,255,255,0.18)' }}
                     />
-                    <span className="text-[9px] font-medium tracking-wide text-zinc-500">
+                    <span className="text-[10px] font-medium tracking-wide text-zinc-400">
                       Target 80%
                     </span>
                   </div>
@@ -964,7 +1011,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
 
                     return (
                       <div key={m.id} className="flex items-center gap-3">
-                        <span className="w-24 shrink-0 truncate text-[10px] font-medium leading-snug text-zinc-400 sm:w-28">
+                        <span className="w-24 shrink-0 truncate text-[11px] font-medium leading-snug text-zinc-300 sm:w-28">
                           {m.name || safeHostname(m.url)}
                         </span>
                         <div className="relative min-h-[1.125rem] flex-1 py-0.5">
@@ -984,16 +1031,16 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                             />
                           </div>
                         </div>
-                        <span className="w-[2.75rem] shrink-0 text-right font-mono text-[11px] font-semibold tabular-nums tracking-tight text-zinc-200">
+                        <span className="w-[2.75rem] shrink-0 text-right font-mono text-[12px] font-semibold tabular-nums tracking-tight text-zinc-100">
                           {hit}
-                          <span className="text-[9px] font-medium text-zinc-500">%</span>
+                          <span className="text-[10px] font-medium text-zinc-400">%</span>
                         </span>
                       </div>
                     )
                   })}
                 </div>
               ) : (
-                <div className="flex h-[80px] items-center justify-center text-[11px] text-zinc-700">
+                <div className="flex h-[80px] items-center justify-center text-[12px] text-zinc-500">
                   No cache data available
                 </div>
               )}
@@ -1020,7 +1067,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
             {alertMonitors.length > 0 && (
               <Link
                 href="/monitors?filter=degraded"
-                className="text-[11px] font-semibold text-zinc-600 transition-colors hover:text-zinc-300"
+                className="text-[12px] font-semibold text-zinc-500 transition-colors hover:text-zinc-300"
               >
                 View all alerts →
               </Link>
@@ -1046,9 +1093,9 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                   <CheckCircle2 className="h-7 w-7 text-emerald-500/60" />
                 </div>
                 <div>
-                  <p className="text-[13px] font-semibold text-zinc-500">No active alerts</p>
-                  <p className="mt-0.5 text-[11px] text-zinc-700">
-                    All endpoints are within healthy thresholds.
+                  <p className="text-[14px] font-semibold text-zinc-300">All clear</p>
+                  <p className="mt-0.5 text-[12px] leading-relaxed text-zinc-400">
+                    No active alerts — every endpoint is within healthy thresholds.
                   </p>
                 </div>
               </div>
@@ -1062,7 +1109,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
             <h2 className="cs-view-section-title">Slowest Monitors</h2>
             <Link
               href="/monitors?sort=ttfbCurrent&dir=desc"
-              className="text-[11px] font-semibold text-zinc-600 transition-colors hover:text-zinc-300"
+              className="text-[12px] font-semibold text-zinc-500 transition-colors hover:text-zinc-300"
             >
               View all →
             </Link>
@@ -1095,8 +1142,8 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
           ) : (
             <div className="cs-card flex flex-col items-center gap-3 py-12 text-center">
               <Activity className="h-8 w-8 text-zinc-700" />
-              <p className="text-[12px] font-semibold text-zinc-600">No monitors yet</p>
-              <Link href="/monitors/new" className="cs-btn-primary mt-1 h-8 px-4 text-[11px]">
+              <p className="text-[13px] font-semibold text-zinc-400">No monitors yet</p>
+              <Link href="/monitors/new" className="cs-btn-primary mt-1 h-8 px-4 text-[12px]">
                 + Create Monitor
               </Link>
             </div>

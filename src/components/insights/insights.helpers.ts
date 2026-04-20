@@ -31,10 +31,46 @@ export function safeHostname(url: string): string {
 
 // ─── aggregateTtfbTrend ───────────────────────────────────────────────────────
 
+/** One sample per clock hour over the 24h window: index 0 = 24h ago, 24 = now. */
+export const TTFB_TREND_HOURLY_POINTS = 25
+
 /**
- * Aggregates per-monitor TTFB sparklines into a single global trend array.
- * Positions shorter than the longest sparkline use the monitor's last known value.
- * Returns [] when no sparkline data is available.
+ * Leading zeros in sparklines are treated as missing; we back-fill from the first
+ * positive sample so hourly resampling stays stable.
+ */
+function backfillThenForwardTtfb(raw: number[]): number[] {
+  if (!raw.length) return []
+  const firstPos = raw.findIndex(v => v > 0)
+  if (firstPos === -1) return raw.map(() => 0)
+  const seed = raw[firstPos]
+  const out = raw.map((v, i) => (i < firstPos ? seed : v))
+  let last = seed
+  for (let i = 0; i < out.length; i++) {
+    if (out[i] > 0) last = out[i]
+    else out[i] = last
+  }
+  return out
+}
+
+function resampleToHourly(series: number[]): number[] {
+  const n = series.length
+  if (n === 0) return []
+  if (n === 1) return Array.from({ length: TTFB_TREND_HOURLY_POINTS }, () => Math.round(series[0]))
+
+  return Array.from({ length: TTFB_TREND_HOURLY_POINTS }, (_, h) => {
+    const t = (h / 24) * (n - 1)
+    const i0 = Math.floor(t)
+    const i1 = Math.min(i0 + 1, n - 1)
+    const frac = t - i0
+    return Math.round(series[i0] * (1 - frac) + series[i1] * frac)
+  })
+}
+
+/**
+ * Aggregates per-monitor TTFB sparklines into a single global trend, then
+ * resamples to **hourly** resolution ({@link TTFB_TREND_HOURLY_POINTS} samples:
+ * 24h ago through now). Shorter sparklines use each monitor's last known value
+ * at missing indices before averaging.
  */
 export function aggregateTtfbTrend(monitors: Monitor[]): number[] {
   if (!monitors.length) return []
@@ -42,14 +78,19 @@ export function aggregateTtfbTrend(monitors: Monitor[]): number[] {
   const maxLen = Math.max(...monitors.map(m => m.ttfbSparkline.length))
   if (maxLen === 0) return []
 
-  return Array.from({ length: maxLen }, (_, i) => {
+  const raw = Array.from({ length: maxLen }, (_, i) => {
     const vals = monitors
       .map(m => m.ttfbSparkline[i] ?? m.ttfbSparkline.at(-1) ?? 0)
       .filter(v => v > 0)
     return vals.length
       ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length)
       : 0
-  }).filter(v => v > 0)
+  })
+
+  const filled = backfillThenForwardTtfb(raw)
+  if (filled.every(v => v <= 0)) return []
+
+  return resampleToHourly(filled)
 }
 
 // ─── deriveInsights ───────────────────────────────────────────────────────────

@@ -66,35 +66,43 @@ describe('aggregateTtfbTrend', () => {
     expect(aggregateTtfbTrend(monitors)).toEqual([])
   })
 
-  it('returns the sparkline values for a single monitor', () => {
+  it('returns 25 hourly samples for a single monitor (24h window)', () => {
     const monitors = [makeMonitor({ ttfbSparkline: [100, 120, 110] })]
-    expect(aggregateTtfbTrend(monitors)).toEqual([100, 120, 110])
+    const result = aggregateTtfbTrend(monitors)
+    expect(result).toHaveLength(25)
+    expect(result[0]).toBe(100)
+    expect(result[24]).toBe(110)
   })
 
-  it('averages values at each position across monitors', () => {
+  it('averages across monitors then resamples to hourly points', () => {
     const monitors = [
       makeMonitor({ ttfbSparkline: [100, 200] }),
       makeMonitor({ ttfbSparkline: [200, 200] }),
     ]
-    expect(aggregateTtfbTrend(monitors)).toEqual([150, 200])
+    const result = aggregateTtfbTrend(monitors)
+    expect(result).toHaveLength(25)
+    expect(result[0]).toBe(150)
+    expect(result[24]).toBe(200)
   })
 
-  it('pads shorter sparklines with their last value', () => {
-    // monitor B is shorter — its last value (150) is used for position 1
+  it('pads shorter sparklines with their last value before averaging', () => {
     const monitors = [
       makeMonitor({ ttfbSparkline: [100, 100] }),
       makeMonitor({ ttfbSparkline: [150] }),
     ]
     const result = aggregateTtfbTrend(monitors)
-    expect(result[0]).toBe(125)  // (100 + 150) / 2
-    expect(result[1]).toBe(125)  // (100 + 150) / 2
+    expect(result).toHaveLength(25)
+    expect(result[0]).toBe(125)
+    expect(result[24]).toBe(125)
   })
 
-  it('filters out zero values that indicate missing data', () => {
+  it('back-fills leading zeros then yields hourly series without zeros', () => {
     const monitors = [makeMonitor({ ttfbSparkline: [0, 0, 100] })]
     const result = aggregateTtfbTrend(monitors)
-    expect(result).not.toContain(0)
-    expect(result).toEqual([100])
+    expect(result).toHaveLength(25)
+    expect(result.every(v => v > 0)).toBe(true)
+    expect(result[0]).toBe(100)
+    expect(result[24]).toBe(100)
   })
 })
 
