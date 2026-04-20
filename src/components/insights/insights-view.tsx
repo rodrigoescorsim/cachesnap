@@ -109,11 +109,11 @@ const SEVERITY: Record<Severity, SeverityCfg> = {
     bg:        'bg-white/[0.02]',
     bgHover:   'hover:bg-white/[0.04]',
     ring:      '',
-    badge:     'bg-emerald-500/10 text-emerald-300/95 ring-emerald-500/20',
+    badge:     'bg-[rgba(34,255,136,0.1)] text-[#22FF88] ring-[rgba(34,255,136,0.25)] ring-1 ring-inset',
     label:     'STABLE',
-    iconBg:    'bg-emerald-500/10 border border-emerald-500/20',
-    iconColor: 'text-emerald-400',
-    dot:       'bg-emerald-400',
+    iconBg:    'bg-[rgba(34,255,136,0.1)] border border-[rgba(34,255,136,0.2)]',
+    iconColor: 'text-metric-ttfb-fast',
+    dot:       'bg-[var(--brand-primary)]',
     glow:      '',
   },
 }
@@ -596,12 +596,12 @@ function MonitorQuickCard({ monitor, rank }: { monitor: Monitor; rank: number })
     : 'text-metric-ttfb-med'
 
   const sparkColor =
-    monitor.ttfbCurrent < 200 ? '#34d399'
+    monitor.ttfbCurrent < 200 ? '#22FF88'
     : monitor.ttfbCurrent > 350 ? '#f43f5e'
     : '#f59e0b'
 
   const deltaSign  = monitor.ttfbCurrentDelta > 0 ? '+' : ''
-  const deltaColor = monitor.ttfbCurrentDelta <= 0 ? 'text-emerald-500' : 'text-rose-500'
+  const deltaColor = monitor.ttfbCurrentDelta <= 0 ? 'text-metric-ttfb-fast' : 'text-rose-500'
 
   return (
     <Link
@@ -708,7 +708,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
 
   const healthLabel    = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'Healthy' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'Degraded' : 'Critical'
   const healthBadgeCls = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'cs-badge-success' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'cs-badge-warning' : 'cs-badge-error'
-  const healthDotCls   = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'bg-emerald-400' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'bg-amber-400' : 'bg-rose-400'
+  const healthDotCls   = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'bg-[var(--brand-primary)]' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'bg-amber-400' : 'bg-rose-400'
 
   const insights  = useMemo(() => deriveInsights(monitors), [monitors])
   const ttfbTrend = useMemo(() => aggregateTtfbTrend(monitors), [monitors])
@@ -775,12 +775,15 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                   key={item.label}
                   href={item.href}
                   aria-current={item.isActive ? 'page' : undefined}
-                  className={`relative px-1 py-1 text-[13px] font-semibold tracking-tight transition-colors duration-200 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px after:rounded-full after:transition-opacity after:duration-200 ${
-                    item.isActive
-                      ? 'text-emerald-300 after:bg-emerald-400/70 after:opacity-100'
-                      : 'text-zinc-500 hover:text-zinc-200 after:bg-white/30 after:opacity-0 hover:after:opacity-100'
+                  className={`relative px-1 py-1 text-[13px] font-semibold tracking-tight transition-colors duration-200 ${
+                    item.isActive ? 'text-zinc-50' : 'text-zinc-500 hover:text-zinc-200'
                   }`}
                 >
+                  <span
+                    className={`absolute bottom-0 left-0 right-0 h-px rounded-full transition-opacity duration-200 ${item.isActive ? 'opacity-100' : 'opacity-0'}`}
+                    style={{ background: 'var(--brand-primary)' }}
+                    aria-hidden
+                  />
                   {item.label}
                 </Link>
               ),
@@ -1019,8 +1022,8 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                         <div className="relative min-h-[1.125rem] flex-1 py-0.5">
                           <div className="relative h-2.5 overflow-visible rounded-full bg-white/[0.06] ring-1 ring-inset ring-white/[0.04]">
                             <div
-                              className="pointer-events-none absolute top-1/2 z-10 h-4 w-px -translate-y-1/2 bg-emerald-400/25"
-                              style={{ left: '80%' }}
+                              className="pointer-events-none absolute top-1/2 z-10 h-4 w-px -translate-y-1/2"
+                              style={{ background: 'rgba(34,255,136,0.25)', left: '80%' }}
                               aria-hidden
                             />
                             <div
@@ -1091,8 +1094,8 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               </div>
             ) : (
               <div className="flex flex-col items-center gap-2.5 py-12 text-center">
-                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3">
-                  <CheckCircle2 className="h-7 w-7 text-emerald-500/60" />
+                <div className="rounded-2xl p-3" style={{ border: '1px solid rgba(34,255,136,0.2)', background: 'rgba(34,255,136,0.08)' }}>
+                  <CheckCircle2 className="h-7 w-7 text-metric-ttfb-fast opacity-60" />
                 </div>
                 <div>
                   <p className="text-[14px] font-semibold text-zinc-300">All clear</p>

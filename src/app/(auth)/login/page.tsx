@@ -28,7 +28,7 @@ export default function LoginPage() {
             type="email"
             autoComplete="email"
             required
-            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium"
+            className="cs-input w-full h-10 px-3 py-2 text-sm font-medium"
           />
           {state?.errors?.email && (
             <p className="mt-1 text-xs text-red-500">{state.errors.email[0]}</p>
@@ -45,7 +45,7 @@ export default function LoginPage() {
             type="password"
             autoComplete="current-password"
             required
-            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-medium"
+            className="cs-input w-full h-10 px-3 py-2 text-sm font-medium"
           />
           {state?.errors?.password && (
             <p className="mt-1 text-xs text-red-500">{state.errors.password[0]}</p>
@@ -55,7 +55,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-zinc-900 hover:bg-zinc-200 disabled:opacity-50 transition-all shadow-lg shadow-white/5 active:scale-[0.98]"
+          className="cs-btn-primary w-full h-[42px] disabled:opacity-50"
         >
           {pending ? 'Signing in…' : 'Sign in'}
         </button>

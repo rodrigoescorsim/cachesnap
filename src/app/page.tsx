@@ -11,8 +11,7 @@ export default async function RootPage() {
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden bg-background text-foreground">
       {/* Background Glow */}
-      <div className="absolute top-0 left-1/2 -ml-[40rem] w-[80rem] h-[40rem] opacity-30 pointer-events-none" style={{ background: 'radial-gradient(ellipse at top, #10b981 0%, transparent 70%)' }}></div>
-      <div className="absolute top-0 right-0 w-[40rem] h-[40rem] opacity-20 pointer-events-none" style={{ background: 'radial-gradient(ellipse at top right, #3b82f6 0%, transparent 70%)' }}></div>
+      <div className="absolute top-0 left-1/2 -ml-[40rem] w-[80rem] h-[40rem] opacity-25 pointer-events-none" style={{ background: 'radial-gradient(ellipse at top, var(--brand-primary) 0%, transparent 70%)' }}></div>
       
       {/* Nav */}
       <header className="border-b border-zinc-800/50 backdrop-blur-md relative z-10 w-full">
@@ -27,10 +26,7 @@ export default async function RootPage() {
             >
               Sign in
             </Link>
-            <Link
-              href="/signup"
-              className="rounded-lg bg-white px-4 py-1.5 text-sm font-bold text-zinc-900 hover:bg-zinc-200 transition-all shadow-sm shadow-white/10"
-            >
+            <Link href="/signup" className="cs-btn-primary rounded-lg px-4 py-1.5 text-sm">
               Get started free
             </Link>
           </div>
@@ -41,13 +37,13 @@ export default async function RootPage() {
         {/* Hero */}
         <section className="mx-auto max-w-6xl px-4 sm:px-6 pt-24 pb-20">
           <div className="flex flex-col items-center text-center gap-8">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium" style={{ borderColor: 'rgba(34,255,136,0.25)', background: 'rgba(34,255,136,0.08)', color: 'var(--brand-primary)' }}>
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--brand-primary)' }} />
               5 global regions · Real-time probes every 5 min
             </div>
 
             <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white max-w-3xl leading-[1.1] drop-shadow-sm">
-              Know exactly where your site is <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">slow</span>
+              Know exactly where your site is <span className="text-transparent bg-clip-text" style={{ backgroundImage: 'linear-gradient(to right, var(--brand-primary), #34d399)' }}>slow</span>
             </h1>
 
             <p className="text-lg text-zinc-400 max-w-2xl leading-relaxed">
@@ -85,7 +81,7 @@ export default async function RootPage() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-lg font-bold text-white">stripe.com</span>
-                    <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
+                    <span className="cs-badge cs-badge-success rounded-full px-2.5 py-0.5 text-xs font-semibold">
                       Healthy
                     </span>
                     <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-400">
@@ -103,7 +99,7 @@ export default async function RootPage() {
                     <p className="text-[10px] uppercase tracking-widest font-semibold text-zinc-500 mt-0.5">Avg TTFB</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-emerald-400">94%</p>
+                    <p className="text-2xl font-bold text-metric-ttfb-fast">94%</p>
                     <p className="text-[10px] uppercase tracking-widest font-semibold text-zinc-500 mt-0.5">Cache hit</p>
                   </div>
                   <div className="text-center">
@@ -144,9 +140,9 @@ export default async function RootPage() {
                   </thead>
                   <tbody className="divide-y divide-zinc-800/50">
                     {[
-                      { region: 'São Paulo', flag: '🇧🇷', ttfb: '38ms', p95: '54ms', cache: 'HIT', uptime: '100%', http: 'H2', ttfbColor: 'text-emerald-400' },
-                      { region: 'Frankfurt', flag: '🇩🇪', ttfb: '41ms', p95: '58ms', cache: 'HIT', uptime: '100%', http: 'H2', ttfbColor: 'text-emerald-400' },
-                      { region: 'New York', flag: '🇺🇸', ttfb: '44ms', p95: '63ms', cache: 'HIT', uptime: '99.9%', http: 'H2', ttfbColor: 'text-emerald-400' },
+                      { region: 'São Paulo', flag: '🇧🇷', ttfb: '38ms', p95: '54ms', cache: 'HIT', uptime: '100%', http: 'H2', ttfbColor: 'text-metric-ttfb-fast' },
+                      { region: 'Frankfurt', flag: '🇩🇪', ttfb: '41ms', p95: '58ms', cache: 'HIT', uptime: '100%', http: 'H2', ttfbColor: 'text-metric-ttfb-fast' },
+                      { region: 'New York', flag: '🇺🇸', ttfb: '44ms', p95: '63ms', cache: 'HIT', uptime: '99.9%', http: 'H2', ttfbColor: 'text-metric-ttfb-fast' },
                       { region: 'Tokyo', flag: '🇯🇵', ttfb: '68ms', p95: '91ms', cache: 'MISS', uptime: '100%', http: 'H2', ttfbColor: 'text-orange-400' },
                       { region: 'Sydney', flag: '🇦🇺', ttfb: '72ms', p95: '98ms', cache: 'HIT', uptime: '100%', http: 'H2', ttfbColor: 'text-orange-400' },
                     ].map(row => (
@@ -161,7 +157,7 @@ export default async function RootPage() {
                         <td className="px-5 py-3.5 text-right">
                           <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-wide ${
                             row.cache === 'HIT'
-                              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                              ? 'cs-badge-cache-hit'
                               : 'bg-orange-500/10 border-orange-500/20 text-orange-400'
                           }`}>
                             {row.cache}
@@ -185,7 +181,7 @@ export default async function RootPage() {
                   <p className="text-xs font-semibold text-zinc-300">Week-over-week trend</p>
                   <p className="text-[11px] text-zinc-500 mt-0.5">Comparing last 7 days vs previous 7 days</p>
                 </div>
-                <div className="flex items-center gap-1.5 text-emerald-400 font-semibold text-sm">
+                <div className="flex items-center gap-1.5 font-semibold text-sm text-metric-ttfb-fast">
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
                   </svg>

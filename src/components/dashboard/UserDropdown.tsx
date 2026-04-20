@@ -59,15 +59,15 @@ export function UserDropdown({ email, logoutAction, variant = 'default', avatarT
         aria-label="Account menu"
         className={
           isMonitorsBadge
-            ? 'group inline-flex items-center justify-center rounded-full transition-transform duration-200 hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617]'
-            : 'group flex max-w-full items-center gap-2.5 rounded-lg py-0.5 pl-1 pr-2 transition-[background-color,transform] duration-200 ease-out hover:bg-white/[0.04] active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#020617]'
+            ? 'group inline-flex items-center justify-center rounded-full transition-transform duration-200 hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(34,255,136,0.3)] focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+            : 'group flex max-w-full items-center gap-2.5 rounded-lg py-0.5 pl-1 pr-2 transition-[background-color,transform] duration-200 ease-out hover:bg-white/[0.04] active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(34,255,136,0.3)] focus-visible:ring-offset-2 focus-visible:ring-offset-background'
         }
       >
         <span
           className={
             isMonitorsBadge
-              ? 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-zinc-900 text-[11px] font-black text-emerald-400 shadow-[inset_0_0_12px_rgba(16,185,129,0.1)] ring-1 ring-white/5 transition-transform group-hover:scale-105'
-              : 'flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500/20 via-teal-500/8 to-slate-900/90 text-[9px] font-semibold tracking-wide text-cyan-100/90 ring-1 ring-white/[0.12] transition-transform duration-200 ease-out group-hover:scale-[1.04] group-hover:ring-cyan-400/25 group-active:scale-[0.96]'
+              ? 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-zinc-900 text-[11px] font-black ring-1 ring-white/5 transition-transform group-hover:scale-105'
+              : 'flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface text-[9px] font-semibold tracking-wide text-zinc-300 ring-1 ring-white/[0.12] transition-transform duration-200 ease-out group-hover:scale-[1.04] group-hover:ring-[rgba(34,255,136,0.25)] group-active:scale-[0.96]'
           }
           aria-hidden
         >

@@ -192,13 +192,14 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
                   href={item.href}
                   aria-current={item.isActive ? 'page' : undefined}
                   className={`relative px-1 py-1 text-[13px] font-semibold tracking-tight transition-colors duration-200 ${
-                    item.isActive ? 'text-emerald-300' : 'text-zinc-500 hover:text-zinc-200'
-                  } after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px after:rounded-full after:transition-opacity after:duration-200 ${
-                    item.isActive
-                      ? 'after:bg-emerald-400/70 after:opacity-100'
-                      : 'after:bg-white/30 after:opacity-0 hover:after:opacity-100'
+                    item.isActive ? 'text-zinc-50' : 'text-zinc-500 hover:text-zinc-200'
                   }`}
                 >
+                  <span
+                    className={`absolute bottom-0 left-0 right-0 h-px rounded-full transition-opacity duration-200 ${item.isActive ? 'opacity-100' : 'opacity-0'}`}
+                    style={{ background: 'var(--brand-primary)' }}
+                    aria-hidden
+                  />
                   {item.label}
                 </Link>
               ),
@@ -268,7 +269,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
               text: healthScore >= GLOBAL_HEALTH.HEALTHY ? 'STABLE' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'DEGRADED' : 'CRITICAL', 
               className: `${healthScore >= GLOBAL_HEALTH.HEALTHY ? 'cs-badge-success' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'cs-badge-warning' : 'cs-badge-error'} !py-0.5 !px-1.5 !text-[9px]`,
               withPulseDot: !isLoading,
-              dotClassName: healthScore >= GLOBAL_HEALTH.HEALTHY ? 'bg-emerald-400' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'bg-amber-400' : 'bg-rose-500'
+              dotClassName: healthScore >= GLOBAL_HEALTH.HEALTHY ? 'bg-[var(--brand-primary)]' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'bg-amber-400' : 'bg-rose-500'
             }}
             progress={isLoading ? 0 : healthScore}
             animationDelayMs={210}
@@ -285,7 +286,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
               >
                 Filter Monitors
               </label>
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500 transition-colors group-focus-within/search-box:text-emerald-400" />
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500 transition-colors group-focus-within/search-box:text-metric-ttfb-fast" />
               <input
                 id="monitor-search-input"
                 type="text"
@@ -357,8 +358,8 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
               >
                 {liveSync && (
                   <span className="relative flex h-1.5 w-1.5 shrink-0">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--brand-primary)] opacity-60" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--brand-primary)]" />
                   </span>
                 )}
                 Live Sync

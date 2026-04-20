@@ -6,31 +6,31 @@
 :root {
   --background: #0B1220;
   --foreground: #F8FAFC;
-  --surface: #0F172A;
+  --surface: #132238;
   --border: #1F2A3A;
 
   /* Semantic Colors */
-  --brand-primary: #3B82F6;
-  --brand-success: #22C55E;
+  --brand-primary: #22FF88;
+  --brand-primary-dark: #10B981;
+  --brand-primary-rgb: 34, 255, 136;
+  --brand-success: #22FF88;
   --brand-error: #f43f5e;
   --brand-warning: #F59E0B;
   --brand-info: #0EA5E9;
 
   /* Specialized Surfaces */
-  --surface-muted: #132238;
+  --surface-muted: #1F2A3A;
   --surface-danger: #120d0a;
   --surface-dropdown: rgba(17, 29, 50, 0.98);
   --tooltip-surface: #111d32;
 
-  /* Metric Status Colors (Refined) */
-  --metric-fast: #34d399;
-  /* emerald-400 */
+  /* Metric Status Colors */
+  --metric-fast: #22FF88;
   --metric-med: #f59e0b;
-  /* amber-500 */
   /**
    * Slow / critical metrics (Tailwind rose-500). `--metric-slow` é o tom principal;
    * as variáveis `*-rgb` alimentam bordas/fundo/sombra sem color-mix no sRGB, que
-   * empurrava o vermelho para um rosa “quente” em fundos escuros.
+   * empurrava o vermelho para um rosa "quente" em fundos escuros.
    */
   --metric-slow: #f43f5e;
   --metric-slow-rgb: 244, 63, 94;
@@ -48,6 +48,7 @@
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-border: var(--border);
+  --color-primary: var(--brand-primary);
 
   /* --font-inter vem de next/font/google em layout.tsx; fallback se a variável não existir */
   --font-sans: var(--font-inter), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
@@ -84,7 +85,7 @@ body {
 @layer utilities {
   @keyframes flash-highlight {
     0% {
-      background-color: rgba(16, 185, 129, 0.25);
+      background-color: rgba(34, 255, 136, 0.18);
     }
 
     100% {
@@ -116,8 +117,13 @@ body {
   /* PREMIUM COMPONENT SYSTEM */
 
   .cs-card {
-    @apply rounded-xl border border-border bg-surface transition-all duration-300 hover:border-zinc-700 hover:shadow-xl hover:bg-surface/80;
+    @apply rounded-xl border border-border bg-surface transition-all duration-300 hover:border-zinc-700 hover:bg-surface/80;
     position: relative;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+
+  .cs-card:hover {
+    box-shadow: 0 0 24px -6px rgba(var(--brand-primary-rgb), 0.1), 0 4px 16px rgba(0, 0, 0, 0.4);
   }
 
   /** Glass surface: use with `.cs-card` (overrides solid fill). */
@@ -127,7 +133,12 @@ body {
 
   /** Form sections: subtle ring when a child control is focused (inset — works with .cs-card overflow). */
   .cs-card-focus {
-    @apply transition-[border-color,box-shadow] duration-200 focus-within:border-emerald-500/25 focus-within:ring-2 focus-within:ring-inset focus-within:ring-emerald-500/15;
+    @apply transition-[border-color,box-shadow] duration-200;
+  }
+
+  .cs-card-focus:focus-within {
+    border-color: rgba(var(--brand-primary-rgb), 0.25);
+    box-shadow: 0 0 0 4px rgba(var(--brand-primary-rgb), 0.08) inset;
   }
 
   .cs-card-wash {
@@ -135,7 +146,7 @@ body {
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: linear-gradient(225deg, rgba(76, 201, 255, 0.02), transparent, rgba(0, 136, 255, 0.03));
+    background: linear-gradient(225deg, rgba(34, 255, 136, 0.015), transparent, rgba(34, 255, 136, 0.02));
   }
 
   .cs-danger-card {
@@ -150,11 +161,12 @@ body {
   }
 
   .cs-section-header {
-    @apply text-[11px] font-black text-white/50 uppercase tracking-[0.12em] border-l-[3px] border-emerald-500/40 pl-2.5 leading-none mb-6 relative z-10;
+    @apply text-[11px] font-black text-white/50 uppercase tracking-[0.12em] pl-2.5 leading-none mb-6 relative z-10;
+    border-left: 3px solid rgba(var(--brand-primary-rgb), 0.4);
   }
 
   /**
-   * Título de bloco principal (Live Activity, Trends “Global Performance…”, Monitors).
+   * Título de bloco principal (Live Activity, Trends "Global Performance…", Monitors).
    * Mesmo tom e escala que `live-activity-header` + Trends em `page.tsx`.
    */
   .cs-view-section-title {
@@ -166,8 +178,13 @@ body {
   }
 
   .cs-input {
-    @apply bg-white/[0.04] border border-white/[0.08] text-white transition-all duration-200 relative z-10 rounded-lg px-4 text-sm focus:outline-none focus:border-emerald-500/40 focus:ring-4 focus:ring-emerald-500/10;
+    @apply bg-white/[0.04] border border-white/[0.08] text-white transition-all duration-200 relative z-10 rounded-lg px-4 text-sm focus:outline-none;
     color-scheme: dark;
+  }
+
+  .cs-input:focus {
+    border-color: rgba(var(--brand-primary-rgb), 0.4);
+    box-shadow: 0 0 0 4px rgba(var(--brand-primary-rgb), 0.08);
   }
 
   /* Chrome/Edge aplicam fundo claro em autofill (comum em type=url); alinha ao --surface do design system. */
@@ -190,7 +207,14 @@ body {
   }
 
   .cs-btn-primary {
-    @apply relative overflow-hidden inline-flex items-center justify-center rounded-lg px-5 py-2 text-sm font-bold text-white transition-all duration-300 border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 hover:border-emerald-500/50 hover:shadow-[0_0_30px_-5px_rgba(16,185,129,0.25)] active:scale-[0.98] cursor-pointer;
+    @apply relative overflow-hidden inline-flex items-center justify-center rounded-lg px-5 py-2 text-sm font-bold transition-all duration-300 active:scale-[0.98] cursor-pointer;
+    background-color: var(--brand-primary);
+    color: #0B1220;
+  }
+
+  .cs-btn-primary:hover {
+    background-color: #3DFFAA;
+    box-shadow: 0 0 30px -5px rgba(var(--brand-primary-rgb), 0.45);
   }
 
   .cs-btn-action {
@@ -202,8 +226,13 @@ body {
   }
 
   .cs-input-premium {
-    @apply bg-white/[0.03] border border-white/10 text-white transition-all duration-300 relative z-10 rounded-xl px-4 text-base focus:outline-none focus:border-cyan-500/50 focus:ring-4 focus:ring-cyan-500/10 focus:scale-[1.01] placeholder:text-zinc-600;
+    @apply bg-white/[0.03] border border-white/10 text-white transition-all duration-300 relative z-10 rounded-xl px-4 text-base focus:outline-none focus:scale-[1.01] placeholder:text-zinc-600;
     color-scheme: dark;
+  }
+
+  .cs-input-premium:focus {
+    border-color: rgba(var(--brand-primary-rgb), 0.5);
+    box-shadow: 0 0 0 4px rgba(var(--brand-primary-rgb), 0.1);
   }
 
   .cs-input-premium:-webkit-autofill,
@@ -250,7 +279,10 @@ body {
   }
 
   .cs-status-pill.saved {
-    @apply bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-emerald-500/5;
+    border-color: rgba(var(--brand-primary-rgb), 0.3);
+    color: var(--brand-primary);
+    background-color: rgba(var(--brand-primary-rgb), 0.08);
+    box-shadow: 0 0 20px -4px rgba(var(--brand-primary-rgb), 0.2);
   }
 
   .cs-status-pill.error {
@@ -260,13 +292,13 @@ body {
   /* Semantic tints — colors from :root --brand-* (single source for theme tweaks). */
   .cs-tint-success {
     @apply rounded-lg border;
-    border-color: color-mix(in srgb, var(--brand-success) 22%, transparent);
-    background-color: color-mix(in srgb, var(--brand-success) 12%, transparent);
-    color: color-mix(in srgb, var(--brand-success) 58%, #f8fafc);
+    border-color: rgba(var(--brand-primary-rgb), 0.22);
+    background-color: rgba(var(--brand-primary-rgb), 0.1);
+    color: var(--brand-primary);
   }
 
   .cs-tint-success:hover {
-    background-color: color-mix(in srgb, var(--brand-success) 18%, transparent);
+    background-color: rgba(var(--brand-primary-rgb), 0.16);
   }
 
   .cs-tint-warning {
@@ -313,7 +345,8 @@ body {
   }
 
   .cs-select-option.active {
-    @apply text-emerald-400 bg-emerald-500/5;
+    color: var(--brand-primary);
+    background-color: rgba(var(--brand-primary-rgb), 0.07);
   }
 
   @keyframes cs-fade-in {
@@ -392,7 +425,12 @@ body {
   }
 
   .cs-badge-success {
-    @apply bg-emerald-500/20 text-emerald-300 ring-emerald-400/30 border-emerald-400/20 shadow-[0_0_12px_-3px_rgba(16,185,129,0.3)];
+    @apply ring-1 ring-inset border;
+    background-color: rgba(var(--brand-primary-rgb), 0.12);
+    color: var(--brand-primary);
+    border-color: rgba(var(--brand-primary-rgb), 0.25);
+    --tw-ring-color: rgba(var(--brand-primary-rgb), 0.3);
+    box-shadow: 0 0 12px -3px rgba(var(--brand-primary-rgb), 0.25);
   }
 
   .cs-badge-warning {
@@ -417,7 +455,9 @@ body {
   }
 
   .cs-badge-flat-success {
-    @apply bg-emerald-500/10 text-emerald-500/80 ring-emerald-500/20;
+    color: var(--brand-primary);
+    background-color: rgba(var(--brand-primary-rgb), 0.1);
+    --tw-ring-color: rgba(var(--brand-primary-rgb), 0.2);
   }
 
   .cs-badge-flat-danger {
@@ -467,9 +507,9 @@ body {
     background-color: var(--tooltip-surface);
   }
 
-  /* TTFB column tiers — semantic aliases (same Tailwind output as before; colors trace to --metric-* in :root). */
+  /* TTFB column tiers — semantic aliases (colors trace to --metric-* in :root). */
   .text-metric-ttfb-fast {
-    @apply text-emerald-400;
+    color: var(--metric-fast);
   }
 
   .text-metric-ttfb-med {
@@ -487,7 +527,7 @@ body {
   }
 
   .bg-metric-layer-fast {
-    @apply bg-emerald-500/[0.04] dark:bg-emerald-500/[0.08];
+    background-color: rgba(var(--brand-primary-rgb), 0.05);
   }
 
   .bg-metric-layer-med {
@@ -503,7 +543,12 @@ body {
    * (Primitives only — @apply cannot reference other .cs-* utilities in Tailwind v4.)
    */
   .cs-badge-cache-hit {
-    @apply inline-flex items-center justify-center gap-1 rounded-md border border-emerald-400/20 min-h-[22px] min-w-[60px] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ring-1 ring-inset ring-emerald-400/30 bg-emerald-500/20 text-emerald-300 shadow-[0_0_12px_-3px_rgba(16,185,129,0.3)] transition-all duration-300;
+    @apply inline-flex items-center justify-center gap-1 rounded-md min-h-[22px] min-w-[60px] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ring-1 ring-inset transition-all duration-300;
+    border: 1px solid rgba(var(--brand-primary-rgb), 0.25);
+    background-color: rgba(var(--brand-primary-rgb), 0.12);
+    color: var(--brand-primary);
+    --tw-ring-color: rgba(var(--brand-primary-rgb), 0.3);
+    box-shadow: 0 0 12px -3px rgba(var(--brand-primary-rgb), 0.25);
   }
 
   .cs-badge-cache-miss {
@@ -527,7 +572,7 @@ body {
     @apply inline-flex min-h-[22px] min-w-[60px] max-w-[9.5rem] items-center justify-center text-balance rounded-md border border-[#64748b]/30 bg-[#475569]/35 px-2 py-0.5 text-[10px] font-bold leading-tight tracking-normal text-[#94a3b8] ring-1 ring-inset ring-[#64748b]/40;
   }
 
-  /** Trends cache hit &lt; 50%. */
+  /** Trends cache hit < 50%. */
   .cs-badge-cache-hit-rate-low {
     @apply inline-flex min-h-[22px] min-w-[60px] items-center justify-center rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ring-1 ring-inset;
     border: 1px solid var(--metric-slow-border);

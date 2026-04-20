@@ -245,7 +245,7 @@ const MONITOR_HEADER_STATUS_BADGE =
 
 /** Active monitor dot — soft mint glow + pulse (“system alive”). */
 const MONITOR_HEADER_ACTIVE_DOT =
-  'bg-emerald-500 [box-shadow:0_0_8px_rgba(16,185,129,0.5)]'
+  'bg-[var(--brand-primary)] [box-shadow:0_0_8px_rgba(34,255,136,0.5)]'
 
 const VALID_ALERT_TYPES = ['down', 'anomaly', 'anycast', 'zombie_cache'] as const satisfies readonly AlertType[]
 
@@ -280,7 +280,7 @@ function redirectDisplay(redirectAvg: number | string | null): { text: string; t
   }
 
   if (value === 0) {
-    return { text: '0', tone: 'text-emerald-600 dark:text-emerald-400' }
+    return { text: '0', tone: 'text-metric-ttfb-fast' }
   }
 
   if (value <= 2) {
@@ -399,7 +399,7 @@ function serverTimingDisplay(ms: number | null): { text: string; tone: string; t
 }
 
 function trendColor(pct: number): string {
-  if (pct <= -5) return 'text-emerald-500'   // faster — good
+  if (pct <= -5) return 'text-metric-ttfb-fast'   // faster — good
   if (pct >= 10) return 'text-red-500'        // slower — bad
   return 'text-zinc-400'                      // stable
 }
@@ -899,10 +899,10 @@ export default async function MonitorDetailPage({
                   className={MONITOR_HEADER_STATUS_BADGE}
                 >
                   <span className="relative flex h-2 w-2 shrink-0">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--brand-primary)] opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--brand-primary)]" />
                   </span>
-                  <span className="text-emerald-700 dark:text-emerald-400">Live Sync</span>
+                  <span className="text-metric-ttfb-fast">Live Sync</span>
                 </Link>
               </PremiumTooltip>
             </div>
@@ -942,13 +942,13 @@ export default async function MonitorDetailPage({
                   <PremiumTooltip content={`Weighted performance score based on availability and latency during the last ${range}`}>
                     <p className="cs-metric-card-label">Health Score</p>
                   </PremiumTooltip>
-                  <Activity className={`h-4 w-4 ${healthScore > 90 ? 'text-emerald-400' : 'text-amber-400'}`} />
+                  <Activity className={`h-4 w-4 ${healthScore > 90 ? 'text-metric-ttfb-fast' : 'text-amber-400'}`} />
                 </div>
                 <div className="flex items-baseline gap-2 mt-1.5">
                   <span className="text-[26px] font-bold text-white tracking-tight">{healthScore}/<span className="text-zinc-600">100</span></span>
                   {hasHistory && healthDelta !== 0 && (
                     <PremiumTooltip content={`${healthDelta > 0 ? '+' : ''}${healthDelta}% compared to the prior period`} position="top-center" direction="top">
-                      <span className={`text-[11px] font-bold cursor-help ${healthDelta > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      <span className={`text-[11px] font-bold cursor-help ${healthDelta > 0 ? 'text-metric-ttfb-fast' : 'text-red-400'}`}>
                         {healthDelta > 0 ? '↑' : '↓'} {Math.abs(healthDelta)}%
                       </span>
                     </PremiumTooltip>
@@ -970,13 +970,13 @@ export default async function MonitorDetailPage({
                   <PremiumTooltip content={`Global average Time to First Byte during the last ${range}`}>
                     <p className="cs-metric-card-label">Global TTFB</p>
                   </PremiumTooltip>
-                  <Zap className={`h-4 w-4 ${avgTtfb < 200 ? 'text-emerald-400' : avgTtfb < 500 ? 'text-amber-400' : 'text-red-400'}`} />
+                  <Zap className={`h-4 w-4 ${avgTtfb < 200 ? 'text-metric-ttfb-fast' : avgTtfb < 500 ? 'text-amber-400' : 'text-red-400'}`} />
                 </div>
                 <div className="flex items-baseline gap-2 mt-1.5">
                   <span className="text-[26px] font-bold text-white tracking-tight">{avgTtfb}<span className="text-lg ml-0.5 text-zinc-500">ms</span></span>
                   {hasHistory && ttfbDelta !== 0 && (
                     <PremiumTooltip content={`${ttfbDelta > 0 ? '+' : '-'}${Math.abs(ttfbDelta)}ms compared to the prior period`} position="top-center" direction="top">
-                      <span className={`text-[11px] font-bold cursor-help ${ttfbDelta <= 0 ? 'text-emerald-400' : 'text-amber-500'}`}>
+                      <span className={`text-[11px] font-bold cursor-help ${ttfbDelta <= 0 ? 'text-metric-ttfb-fast' : 'text-amber-500'}`}>
                         {ttfbDelta <= 0 ? '↓' : '↑'} {Math.abs(ttfbDelta)}ms
                       </span>
                     </PremiumTooltip>
@@ -992,19 +992,19 @@ export default async function MonitorDetailPage({
               scroll={false}
               className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
             >
-              <div className="cs-card-wash opacity-60 bg-gradient-to-br from-emerald-500/5 to-transparent" />
+              <div className="cs-card-wash opacity-60" />
               <div className="relative z-10">
                 <div className="flex items-start justify-between">
                   <PremiumTooltip content={`Percentage of requests successfully served from CDN edge cache during the last ${range}`}>
                     <p className="cs-metric-card-label">Cache Hit Rate</p>
                   </PremiumTooltip>
-                  <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                  <ShieldCheck className="h-4 w-4 text-metric-ttfb-fast" />
                 </div>
                 <div className="flex items-baseline gap-2 mt-1.5">
                   <span className="text-[26px] font-bold text-white tracking-tight">{globalHitRate}<span className="text-lg ml-0.5 text-zinc-500">%</span></span>
                   {hasHistory && cacheDelta !== 0 && (
                     <PremiumTooltip content={`${cacheDelta > 0 ? '+' : ''}${cacheDelta}% compared to the prior period`} position="top-center" direction="top">
-                      <span className={`text-[11px] font-bold cursor-help ${cacheDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      <span className={`text-[11px] font-bold cursor-help ${cacheDelta >= 0 ? 'text-metric-ttfb-fast' : 'text-red-400'}`}>
                         {cacheDelta >= 0 ? '↑' : '↓'} {Math.abs(cacheDelta)}%
                       </span>
                     </PremiumTooltip>

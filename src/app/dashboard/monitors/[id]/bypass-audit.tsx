@@ -73,7 +73,7 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--brand-primary)] animate-pulse" />
             Audit Timeline — Performance Snapshots
           </h2>
           <MonitorDispatchButtons monitorId={id as string} variant="audit" />
@@ -100,11 +100,11 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
                 <button
                   onClick={() => setSelectedHour(h)}
                   className={`shrink-0 flex flex-col items-center justify-center min-w-[100px] h-14 rounded-xl border transition-all duration-300 active:scale-95 ${isActive
-                      ? 'border-emerald-500/30 bg-emerald-500/10 text-white shadow-[0_0_15px_rgba(16,185,129,0.1)]'
+                      ? 'border-[rgba(34,255,136,0.3)] bg-[rgba(34,255,136,0.08)] text-white shadow-[0_0_15px_rgba(34,255,136,0.08)]'
                       : 'border-white/5 bg-white/[0.03] text-zinc-500 hover:bg-white/5 hover:text-zinc-300'
                     }`}
                 >
-                  <span className={`text-[12px] font-black uppercase tracking-tight ${isActive ? 'text-emerald-400' : 'text-zinc-400'}`}>
+                  <span className={`text-[12px] font-black uppercase tracking-tight ${isActive ? 'text-metric-ttfb-fast' : 'text-zinc-400'}`}>
                     {relativeTime}
                   </span>
                   <span className="text-[9px] font-bold uppercase tracking-widest opacity-40">
@@ -140,11 +140,11 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
             <div className="flex items-baseline gap-4">
               {confirmedHits.length > 0 ? (
                 <>
-                  <span className={`text-5xl font-black tracking-tighter ${avgSavingMs > 0 ? 'text-emerald-500 drop-shadow-[0_0_12px_rgba(16,185,129,0.3)]' : 'text-amber-500'}`}>
+                  <span className={`text-5xl font-black tracking-tighter ${avgSavingMs > 0 ? 'text-metric-ttfb-fast drop-shadow-[0_0_12px_rgba(34,255,136,0.3)]' : 'text-amber-500'}`}>
                     {avgSavingMs > 0 ? '-' : '+'}{Math.abs(Math.round(avgSavingMs))}ms
                   </span>
                   <div className="flex flex-col">
-                    <span className={`text-base font-bold ${avgSavingMs > 0 ? 'text-emerald-400' : 'text-amber-500'}`}>
+                    <span className={`text-base font-bold ${avgSavingMs > 0 ? 'text-metric-ttfb-fast' : 'text-amber-500'}`}>
                       {avgSavingMs > 0 ? '-' : '+'}{Math.abs(Math.round(avgSavingPct))}% {avgSavingMs > 0 ? 'Saved' : 'Added'}
                     </span>
                     <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
@@ -172,7 +172,7 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
 
           <div className="flex flex-col sm:items-end gap-1.5 px-6 sm:border-l border-white/5">
             <div className="flex items-center gap-2 font-black text-zinc-400 text-[10px] uppercase tracking-widest">
-              <span className={`h-2 w-2 rounded-full ${confirmedHits.length > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-700'}`} />
+              <span className={`h-2 w-2 rounded-full ${confirmedHits.length > 0 ? 'bg-[var(--brand-primary)] animate-pulse' : 'bg-zinc-700'}`} />
               Edge (HIT) vs Origin (Direct)
             </div>
             <p className="text-[11px] text-zinc-500 max-w-[280px] sm:text-right leading-relaxed font-medium">
@@ -259,10 +259,10 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
                         </div>
                       ) : (
                         <div className="flex flex-col items-end">
-                          <span className={`text-xs font-black flex items-center gap-1 ${isSaving ? 'text-emerald-500' : 'text-amber-500'}`}>
+                          <span className={`text-xs font-black flex items-center gap-1 ${isSaving ? 'text-metric-ttfb-fast' : 'text-amber-500'}`}>
                             {isSaving ? '-' : '+'}{Math.abs(Math.round(itemSaving))}ms
                           </span>
-                          <span className={`text-[9px] font-black uppercase tracking-widest ${isSaving ? 'text-emerald-600' : 'text-amber-600'}`}>
+                          <span className={`text-[9px] font-black uppercase tracking-widest ${isSaving ? 'text-metric-ttfb-fast opacity-60' : 'text-amber-600'}`}>
                             {isSaving ? 'Faster at Edge' : 'Latency Penalty'}
                           </span>
                         </div>

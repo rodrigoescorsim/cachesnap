@@ -149,13 +149,13 @@ export function MonitorSidebarRail({
                     title={narrow ? label : undefined}
                     className={`group flex items-center rounded-lg py-2 text-xs font-bold transition-all duration-300 ${linkPad} ${
                       isActive
-                        ? 'border border-emerald-500/25 bg-emerald-500/10 text-white shadow-[0_0_15px_rgba(16,185,129,0.1)]'
+                        ? 'border border-[rgba(34,255,136,0.25)] bg-[rgba(34,255,136,0.08)] text-white shadow-[0_0_15px_rgba(34,255,136,0.08)]'
                         : 'border border-transparent text-zinc-500 hover:bg-white/5 hover:text-white'
                     }`}
                   >
                     <Icon
                       className={`${iconClass} shrink-0 transition-colors duration-300 ${
-                        isActive ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.4)]' : 'text-zinc-500 group-hover:text-zinc-300'
+                        isActive ? 'text-metric-ttfb-fast drop-shadow-[0_0_8px_rgba(34,255,136,0.4)]' : 'text-zinc-500 group-hover:text-zinc-300'
                       }`}
                       aria-hidden
                     />
@@ -179,13 +179,13 @@ export function MonitorSidebarRail({
                     title={narrow ? label : undefined}
                     className={`group flex items-center rounded-lg py-2 text-xs font-bold transition-all duration-300 ${linkPad} ${
                       isActive
-                        ? 'border border-emerald-500/25 bg-emerald-500/10 text-white shadow-[0_0_15px_rgba(16,185,129,0.1)]'
+                        ? 'border border-[rgba(34,255,136,0.25)] bg-[rgba(34,255,136,0.08)] text-white shadow-[0_0_15px_rgba(34,255,136,0.08)]'
                         : 'border border-transparent text-zinc-500 hover:bg-white/5 hover:text-white'
                     }`}
                   >
                     <Icon
                       className={`${iconClass} shrink-0 transition-colors duration-300 ${
-                        isActive ? 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.4)]' : 'text-zinc-400 group-hover:text-zinc-300'
+                        isActive ? 'text-metric-ttfb-fast drop-shadow-[0_0_8px_rgba(34,255,136,0.4)]' : 'text-zinc-400 group-hover:text-zinc-300'
                       }`}
                       aria-hidden
                     />

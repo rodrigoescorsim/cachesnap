@@ -161,7 +161,7 @@ describe('deriveInsights', () => {
 
     it('targets the worst-TTFB monitor', () => {
       const monitors = [
-        makeMonitor({ id: 'slow', url: 'https://slow.com', ttfbCurrent: 600 }),
+        makeMonitor({ id: 'slow', url: 'https://slow.com', ttfbCurrent: TTFB_CRITICAL + 1 }),
         makeMonitor({ id: 'fast', url: 'https://fast.com', ttfbCurrent: 150 }),
       ]
       const insight = deriveInsights(monitors).find(i => i.id === 'critical-ttfb')!

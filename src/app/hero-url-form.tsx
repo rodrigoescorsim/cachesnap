@@ -23,12 +23,9 @@ export function HeroUrlForm() {
         onChange={e => setUrl(e.target.value)}
         placeholder="https://yoursite.com"
         required
-        className="flex-1 min-w-0 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 placeholder-zinc-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+        className="cs-input flex-1 min-w-0 h-12 rounded-xl px-4 py-3 text-sm font-medium"
       />
-      <button
-        type="submit"
-        className="rounded-xl bg-green-500 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-green-600 transition-colors whitespace-nowrap"
-      >
+      <button type="submit" className="cs-btn-primary h-12 rounded-xl px-6 text-sm font-semibold whitespace-nowrap">
         Test now
       </button>
     </form>

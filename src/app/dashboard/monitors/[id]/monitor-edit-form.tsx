@@ -159,7 +159,7 @@ export function MonitorEditForm({
       <div className={`cs-status-pill ${status !== 'idle' ? 'visible' : ''} ${status}`}>
         <div className="flex items-center gap-2">
           {status === 'saving' && <div className="w-1.5 h-1.5 rounded-full bg-white/20 animate-pulse" />}
-          {status === 'saved' && <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />}
+          {status === 'saved' && <div className="w-1.5 h-1.5 rounded-full bg-[var(--brand-primary)] shadow-[0_0_8px_rgba(34,255,136,0.5)]" />}
           {status === 'error' && <div className="w-1.5 h-1.5 rounded-full bg-red-400" />}
           {status === 'saving' ? 'Saving changes...' : 
            status === 'saved' ? 'All changes saved ✓' : 
@@ -234,7 +234,7 @@ export function MonitorEditForm({
                   type="checkbox"
                   checked={values.notify_email_enabled}
                   onChange={(e) => handleInputChange('notify_email_enabled', e.target.checked)}
-                  className="h-[18px] w-[18px] rounded border-white/10 bg-white/[0.03] cursor-pointer appearance-none border transition-all checked:bg-emerald-500 checked:border-emerald-500 checked:shadow-[0_0_10px_rgba(16,185,129,0.3)]"
+                  className="h-[18px] w-[18px] rounded border-white/10 bg-white/[0.03] cursor-pointer appearance-none border transition-all checked:bg-[var(--brand-primary)] checked:border-[var(--brand-primary)] checked:shadow-[0_0_10px_rgba(34,255,136,0.3)]"
                   style={{
                     backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='black' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3E%3C/svg%3E")`,
                     backgroundSize: '100% 100%', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
@@ -262,7 +262,7 @@ export function MonitorEditForm({
                   type="checkbox"
                   checked={values.notify_slack_enabled}
                   onChange={(e) => handleInputChange('notify_slack_enabled', e.target.checked)}
-                  className="h-[18px] w-[18px] rounded border-white/10 bg-white/[0.03] cursor-pointer appearance-none border transition-all checked:bg-emerald-500 checked:border-emerald-500 checked:shadow-[0_0_10px_rgba(16,185,129,0.3)]"
+                  className="h-[18px] w-[18px] rounded border-white/10 bg-white/[0.03] cursor-pointer appearance-none border transition-all checked:bg-[var(--brand-primary)] checked:border-[var(--brand-primary)] checked:shadow-[0_0_10px_rgba(34,255,136,0.3)]"
                   style={{
                     backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='black' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3E%3C/svg%3E")`,
                     backgroundSize: '100% 100%', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',

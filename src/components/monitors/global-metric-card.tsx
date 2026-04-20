@@ -30,7 +30,7 @@ type GlobalMetricCardProps = {
 
 const toneClassMap: Record<MetricTone, string> = {
   neutral: 'text-zinc-400',
-  success: 'text-emerald-300',
+  success: 'text-metric-ttfb-fast',
   warning: 'text-amber-400',
   danger: 'text-rose-500',
 }
@@ -57,7 +57,7 @@ export function GlobalMetricCard({
 
       <div className="relative z-10 flex items-start justify-between gap-2">
         <p className="cs-metric-card-label mb-0 border-0 !text-[9px]">{title}</p>
-        <div className="rounded border border-white/5 bg-white/5 p-1 text-zinc-500 transition-all duration-300 group-hover:text-emerald-400">
+        <div className="rounded border border-white/5 bg-white/5 p-1 text-zinc-500 transition-all duration-300 group-hover:text-metric-ttfb-fast">
           <Icon className="h-3 w-3" />
         </div>
       </div>
@@ -70,8 +70,8 @@ export function GlobalMetricCard({
           <span className={`cs-badge ${badge.className ?? 'cs-badge-success'}`}>
             {badge.withPulseDot ? (
               <span className="relative flex h-2 w-2">
-                <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${badge.dotClassName ?? 'bg-emerald-400'}`} />
-                <span className={`relative inline-flex h-2 w-2 rounded-full ${badge.dotClassName ?? 'bg-emerald-400'}`} />
+                <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${badge.dotClassName ?? 'bg-[var(--brand-primary)]'}`} />
+                <span className={`relative inline-flex h-2 w-2 rounded-full ${badge.dotClassName ?? 'bg-[var(--brand-primary)]'}`} />
               </span>
             ) : null}
             {badge.text}
@@ -87,8 +87,8 @@ export function GlobalMetricCard({
       {typeof progress === 'number' ? (
         <div className="relative z-10 mt-4 h-2 overflow-hidden rounded-full bg-white/5">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-cyan-400 shadow-[0_0_12px_rgba(16,185,129,0.4)] transition-all duration-700"
-            style={{ width: `${Math.max(0, Math.min(progress, 100))}%` }}
+            className="h-full rounded-full transition-all duration-700"
+            style={{ background: 'linear-gradient(to right, var(--brand-primary-dark), var(--brand-primary))', boxShadow: '0 0 12px rgba(34,255,136,0.35)', width: `${Math.max(0, Math.min(progress, 100))}%` }}
           />
         </div>
       ) : null}

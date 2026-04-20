@@ -116,8 +116,8 @@ export function MonitorDispatchButtons({
               cooldown > 0
                 ? 'px-6 border-white/10 bg-white/5 text-zinc-500 cursor-not-allowed'
                 : (isCompact || isAudit)
-                  ? 'px-6 border-emerald-500/30 bg-emerald-500/5 text-emerald-400 font-bold text-xs hover:bg-emerald-500/10 hover:border-emerald-500/50 hover:shadow-[0_0_20px_rgba(16,185,129,0.1)]'
-                  : 'px-3 border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:border-emerald-500/40 hover:bg-emerald-500/20'
+                  ? 'px-6 border-[rgba(34,255,136,0.3)] bg-[rgba(34,255,136,0.05)] text-metric-ttfb-fast font-bold text-xs hover:bg-[rgba(34,255,136,0.1)] hover:border-[rgba(34,255,136,0.5)] hover:shadow-[0_0_20px_rgba(34,255,136,0.1)]'
+                  : 'px-3 border-[rgba(34,255,136,0.2)] bg-[rgba(34,255,136,0.1)] text-metric-ttfb-fast hover:border-[rgba(34,255,136,0.4)] hover:bg-[rgba(34,255,136,0.2)]'
             }`}
           >
             <svg

@@ -47,14 +47,13 @@ export function getTtfbColorClass(ms: number, type: 'monitor' | 'global' = 'moni
 }
 
 export function getCacheColor(pct: number, type: 'monitor' | 'global' = 'monitor') {
-  const t = type === 'global' ? GLOBAL_CACHE : MONITOR_CACHE
-  if (pct >= t.GOOD) return 'text-emerald-400'
-  if (pct >= (type === 'global' ? t.FAIR : t.LOW)) return 'text-amber-400'
+  if (pct >= (type === 'global' ? GLOBAL_CACHE.GOOD : MONITOR_CACHE.GOOD)) return 'text-metric-ttfb-fast'
+  if (pct >= (type === 'global' ? GLOBAL_CACHE.FAIR : MONITOR_CACHE.LOW))  return 'text-amber-400'
   return 'text-rose-500'
 }
 
 export function getHealthColor(score: number) {
-  if (score >= GLOBAL_HEALTH.HEALTHY)  return 'text-emerald-400'
+  if (score >= GLOBAL_HEALTH.HEALTHY)  return 'text-metric-ttfb-fast'
   if (score >= GLOBAL_HEALTH.DEGRADED) return 'text-amber-400'
   return 'text-rose-500'
 }
