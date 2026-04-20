@@ -24,11 +24,11 @@ import { useMonitors } from '@/hooks/use-monitors'
 const LIVE_SYNC_INTERVAL_MS = 30_000
 
 const NAV_ITEMS = [
-  { label: 'Overview', href: '/dashboard', isActive: false, isDisabled: false },
-  { label: 'Monitors', href: '/monitors', isActive: true, isDisabled: false },
-  { label: 'Diagnostics', href: '', isActive: false, isDisabled: true },
-  { label: 'Alerts', href: '', isActive: false, isDisabled: true },
-  { label: 'Settings', href: '', isActive: false, isDisabled: true },
+  { label: 'Monitors',    href: '/monitors', isActive: true,  isDisabled: false },
+  { label: 'Insights',    href: '/insights', isActive: false, isDisabled: false },
+  { label: 'Diagnostics', href: '',          isActive: false, isDisabled: true  },
+  { label: 'Alerts',      href: '',          isActive: false, isDisabled: true  },
+  { label: 'Settings',    href: '',          isActive: false, isDisabled: true  },
 ]
 
 const QUICK_FILTERS: ReadonlyArray<{ id: MonitorQuickFilterId; label: string }> = [

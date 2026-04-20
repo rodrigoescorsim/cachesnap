@@ -48,7 +48,8 @@ npm run dev
 
 Endpoints:
 
-- Dashboard: `http://localhost:3000`
+- Monitors (main): `http://localhost:3000/monitors`
+- Insights (advisor): `http://localhost:3000/insights`
 - Rust API: `http://localhost:3001`
 - Healthcheck: `http://localhost:3001/health`
 

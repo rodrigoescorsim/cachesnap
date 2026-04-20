@@ -17,8 +17,8 @@ type AppHeaderProps = {
 
 export function AppHeader({ userEmail, logoutAction }: AppHeaderProps) {
   const pathname = usePathname()
-  const overviewActive = pathname === '/dashboard'
   const monitorsRouteActive = pathname === '/monitors' || pathname.startsWith('/dashboard/monitors')
+  const insightsActive = pathname === '/insights' || pathname.startsWith('/insights')
 
   return (
     <header className="sticky top-0 z-50 border-b border-[#1e2937] bg-[#020617]/96 shadow-[0_1px_0_0_rgba(0,0,0,0.45)] backdrop-blur-md supports-[backdrop-filter]:bg-[#020617]/92">
@@ -43,21 +43,6 @@ export function AppHeader({ userEmail, logoutAction }: AppHeaderProps) {
             aria-label="Main"
           >
             <Link
-              href="/dashboard"
-              className={`relative inline-block px-1 py-1 text-[13px] font-semibold tracking-tight transition-colors duration-200 ease-out ${
-                overviewActive
-                  ? 'text-zinc-50'
-                  : 'text-zinc-500 hover:text-cyan-200/85'
-              } after:pointer-events-none after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px after:rounded-full after:transition-opacity after:duration-200 after:ease-out ${
-                overviewActive
-                  ? 'after:bg-gradient-to-r after:from-cyan-400/70 after:via-teal-400/50 after:to-cyan-500/55 after:opacity-100'
-                  : 'after:bg-cyan-400/40 after:opacity-0 hover:after:opacity-100'
-              }`}
-            >
-              Overview
-            </Link>
-
-            <Link
               href="/monitors"
               className={`relative inline-block px-1 py-1 text-[13px] font-semibold tracking-tight transition-colors duration-200 ease-out ${
                 monitorsRouteActive
@@ -70,6 +55,21 @@ export function AppHeader({ userEmail, logoutAction }: AppHeaderProps) {
               }`}
             >
               Monitors
+            </Link>
+
+            <Link
+              href="/insights"
+              className={`relative inline-block px-1 py-1 text-[13px] font-semibold tracking-tight transition-colors duration-200 ease-out ${
+                insightsActive
+                  ? 'text-zinc-50'
+                  : 'text-zinc-500 hover:text-cyan-200/85'
+              } after:pointer-events-none after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px after:rounded-full after:transition-opacity after:duration-200 after:ease-out ${
+                insightsActive
+                  ? 'after:bg-gradient-to-r after:from-cyan-400/70 after:via-teal-400/50 after:to-cyan-500/55 after:opacity-100'
+                  : 'after:bg-cyan-400/40 after:opacity-0 hover:after:opacity-100'
+              }`}
+            >
+              Insights
             </Link>
           </nav>
         </div>
