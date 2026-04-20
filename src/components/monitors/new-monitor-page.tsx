@@ -52,31 +52,38 @@ export function NewMonitorPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[460px] pb-24 pt-0">
-      <div className="mb-6 text-center">
-        <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-cyan-400">
-          <Zap className="h-3 w-3 fill-cyan-400" />
+    <div className="mx-auto max-w-[460px] pb-24 pt-8 sm:pt-10 animate-[cs-fade-in_0.4s_ease-out]">
+      <div className="mb-8 text-center">
+        <div 
+          className="mb-5 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.15em]"
+          style={{ 
+            borderColor: 'rgba(var(--brand-primary-rgb), 0.25)', 
+            backgroundColor: 'rgba(var(--brand-primary-rgb), 0.08)',
+            color: 'var(--brand-primary)'
+          }}
+        >
+          <Zap className="h-3 w-3" style={{ fill: 'var(--brand-primary)' }} />
           Lightning Fast Setup
         </div>
-        <h1 className="mb-2 text-2xl font-black tracking-tight text-white">
+        <h1 className="mb-2.5 text-[32px] font-black tracking-tight text-white leading-none">
           Add New Monitor
         </h1>
-        <p className="px-4 text-[13px] leading-relaxed text-zinc-400 opacity-70">
-          Paste your URL and in less than <span className="font-semibold text-white">60 seconds</span> see latency by region, cache status (HIT/MISS), and actionable insights.
+        <p className="px-4 text-[14px] leading-relaxed text-zinc-400">
+          Paste your URL and in less than <span className="font-bold text-zinc-100">10 seconds</span> see latency by region, cache status (HIT/MISS), and actionable insights.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="cs-card cs-card-focus relative p-7 shadow-2xl sm:p-9">
-        <div className="pointer-events-none absolute inset-x-0 -top-10 -z-10 h-20 bg-cyan-500/5 opacity-20 blur-[80px]" />
-        <div className="cs-card-wash opacity-40" />
+      <form onSubmit={handleSubmit} className="cs-card cs-card-focus relative p-8 shadow-2xl sm:p-10">
+        <div className="pointer-events-none absolute inset-x-0 -top-12 -z-10 h-24 opacity-20 blur-[100px]" style={{ backgroundColor: 'var(--brand-primary)' }} />
+        <div className="cs-card-wash opacity-60" />
 
-        <div className="relative z-10 space-y-6">
-          <div className="space-y-2.5">
-            <label htmlFor="url" className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
-              Monitor URL <span className="text-cyan-500">*</span>
+        <div className="relative z-10 space-y-7">
+          <div className="space-y-3">
+            <label htmlFor="url" className="text-[11px] font-black uppercase tracking-widest text-zinc-500">
+              Monitor URL <span style={{ color: 'var(--brand-primary)' }}>*</span>
             </label>
             <div className="group relative">
-              <div className="absolute left-3 top-1/2 z-20 -translate-y-1/2 text-zinc-500 transition-colors group-focus-within:text-cyan-400">
+              <div className="absolute left-4 top-1/2 z-20 -translate-y-1/2 text-zinc-500 transition-colors group-focus-within:text-[var(--brand-primary)]">
                 <Globe className="h-4 w-4" />
               </div>
               <input
@@ -85,47 +92,46 @@ export function NewMonitorPage() {
                 type="url"
                 placeholder="https://api.yourbase.com/v1/health"
                 required
-                className={`cs-input h-10 w-full !pl-[40px] pr-4 text-sm font-medium tracking-tight ${
-                  errors.url ? 'bg-red-500/5 border-red-500/40' : ''
+                className={`cs-input h-11 w-full !pl-[44px] pr-4 text-[13px] font-semibold tracking-tight ${
+                  errors.url ? 'cs-input-error' : ''
                 }`}
               />
             </div>
-            <p className="px-1 text-[10px] font-medium leading-normal text-zinc-500 opacity-70">
+            <p className="px-1 text-[11px] font-medium leading-relaxed text-zinc-500">
               CacheSnap will probe this URL from multiple global regions. Bypass checks are automatic.
             </p>
             {errors.url ? <p className="cs-error-msg mt-1.5">{errors.url}</p> : null}
           </div>
 
-          <div className="space-y-2.5">
-            <label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
-              Friendly Name <span className="ml-1 opacity-40">(optional)</span>
+          <div className="space-y-3">
+            <label htmlFor="name" className="text-[11px] font-black uppercase tracking-widest text-zinc-500">
+              Friendly Name <span className="ml-1 opacity-40 font-bold">(optional)</span>
             </label>
             <input
               id="name"
               name="name"
               type="text"
               placeholder="e.g. Production Frontend • API Health"
-              className="cs-input h-10 w-full text-sm"
+              className="cs-input h-11 w-full text-[13px] font-semibold"
             />
-            <p className="px-1 text-[10px] font-medium text-zinc-500 opacity-70">
+            <p className="px-1 text-[11px] font-medium text-zinc-500">
               Helpful name to identify this monitor in your list.
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 pt-3 sm:flex-row">
+          <div className="flex flex-col gap-3.5 pt-4 sm:flex-row">
             <button
               type="submit"
               disabled={isPending}
-              className="cs-btn-action h-10 flex-[2.5] px-0 text-xs font-bold leading-none"
+              className="cs-btn-primary h-11 flex-[2.5] px-0 text-[13px] font-black uppercase tracking-wider"
             >
-              <div className="cs-card-wash opacity-20" />
               <div className="relative z-10 flex items-center justify-center gap-1.5">
                 {isPending ? (
                   <span className="animate-pulse">Creating...</span>
                 ) : (
                   <>
                     <span>Create Monitor</span>
-                    <ChevronRight className="h-3.5 w-3.5" />
+                    <ChevronRight className="h-4 w-4" strokeWidth={3} />
                   </>
                 )}
               </div>
@@ -133,13 +139,13 @@ export function NewMonitorPage() {
             <button
               type="button"
               onClick={() => router.back()}
-              className="cs-btn-outline h-10 flex-1 border-white/5 bg-white/[0.02] px-0 text-xs font-bold leading-none text-zinc-400"
+              className="cs-btn-outline h-11 flex-1 !rounded-lg border-white/10 bg-white/[0.03] px-0 text-[13px] font-bold text-zinc-400"
             >
               Cancel
             </button>
           </div>
 
-          <p className="px-4 text-center text-[10px] font-medium italic leading-normal text-zinc-500 opacity-60">
+          <p className="px-6 text-center text-[11px] font-medium italic leading-relaxed text-zinc-500 opacity-60">
             After creation you will instantly get a global performance map, cache breakdown, and smart recommendations.
           </p>
         </div>
