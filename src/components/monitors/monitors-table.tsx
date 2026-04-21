@@ -4,12 +4,15 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
+  useTransition,
   type MouseEvent,
   type ReactNode,
 } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { createPortal } from 'react-dom'
 import {
   useReactTable,
   getCoreRowModel,
@@ -25,12 +28,15 @@ import {
   ArrowUp,
   ArrowUpDown,
   Eye,
+  MoreVertical,
   Pause,
   Pencil,
   Play,
   RefreshCw,
   Search,
+  Trash2,
 } from 'lucide-react'
+import { MonitorDeleteConfirm } from '@/app/dashboard/monitors/[id]/monitor-delete-confirm'
 import {
   type Monitor,
   type MonitorQuickFilterId,
@@ -218,31 +224,159 @@ function MonitorsThTooltip({ label, description }: { label: ReactNode; descripti
   )
 }
 
-function ActionBtn({
-  children,
-  label,
-  href,
-  onClick,
+function RowActionsDropdown({
+  monitor,
+  onDelete,
+  onView,
+  isOpen,
+  setIsOpen,
+  onOptimisticToggle,
 }: {
-  children: React.ReactNode
-  label: string
-  href?: string
-  onClick?: () => void
+  monitor: Monitor
+  onDelete: (id: string) => void
+  onView: (id: string) => void
+  isOpen: boolean
+  setIsOpen: (id: string | null) => void
+  onOptimisticToggle: (id: string, status: 'active' | 'paused') => void
 }) {
-  const base =
-    'flex h-[22px] w-[22px] items-center justify-center rounded border border-white/[0.06] bg-white/[0.02] text-zinc-500 transition-all duration-150 hover:border-white/10 hover:bg-white/[0.07] hover:text-white active:scale-95'
-  
-  if (href) {
-    return (
-      <Link href={href} aria-label={label} title={label} className={base}>
-        {children}
-      </Link>
-    )
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const isPaused = monitor.status === 'paused'
+
+  const updateCoords = useCallback(() => {
+    if (!triggerRef.current) return
+    const rect = triggerRef.current.getBoundingClientRect()
+    setCoords({
+      top: rect.top,
+      left: rect.right,
+    })
+  }, [])
+
+  const handleToggleActive = () => {
+    const nextStatus = isPaused ? 'active' : 'paused'
+    onOptimisticToggle(monitor.id, nextStatus)
+    
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/api/monitors/${monitor.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_active: isPaused }),
+        })
+        if (res.ok) {
+          router.refresh()
+          setIsOpen(null)
+        }
+      } catch (err) {
+        console.error('Failed to toggle monitor status', err)
+      }
+    })
   }
+
+  useEffect(() => {
+    if (!isOpen) return
+    updateCoords()
+    
+    const handleDown = (e: MouseEvent | globalThis.MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.cs-row-actions-dropdown-panel') &&
+          !(e.target as HTMLElement).closest('.cs-row-actions-trigger')) {
+        setIsOpen(null)
+      }
+    }
+    window.addEventListener('mousedown', handleDown)
+    window.addEventListener('scroll', updateCoords, true)
+    window.addEventListener('resize', updateCoords)
+    
+    return () => {
+      window.removeEventListener('mousedown', handleDown)
+      window.removeEventListener('scroll', updateCoords, true)
+      window.removeEventListener('resize', updateCoords)
+    }
+  }, [isOpen, updateCoords, setIsOpen])
+
+  const menu = isOpen && coords && typeof document !== 'undefined' ? createPortal(
+    <div 
+      className="cs-row-actions-dropdown-panel fixed z-[9999] w-40 overflow-hidden rounded-xl border border-slate-500/25 bg-[#172033] p-1.5 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.06)_inset] animate-in fade-in zoom-in-95 duration-150"
+      style={{
+        top: coords.top - 6,
+        left: coords.left,
+        transform: 'translate(-100%, -100%)',
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        onClick={() => {
+          onView(monitor.id)
+          setIsOpen(null)
+        }}
+        className="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[11px] font-bold text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+      >
+        <Eye className="h-3.5 w-3.5 text-slate-500 transition-colors group-hover:text-zinc-200" />
+        View details
+      </button>
+      
+      <button
+        disabled={isPending}
+        onClick={handleToggleActive}
+        className="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[11px] font-bold text-zinc-300 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-50"
+      >
+        {isPaused ? (
+          <>
+            <Play className="h-3.5 w-3.5 text-emerald-400/80 transition-colors group-hover:text-emerald-400" />
+            Resume
+          </>
+        ) : (
+          <>
+            <Pause className="h-3.5 w-3.5 text-amber-500/80 transition-colors group-hover:text-amber-400" />
+            Pause
+          </>
+        )}
+      </button>
+
+      <button
+        onClick={() => {
+          router.push(`/dashboard/monitors/${monitor.id}?tab=settings`)
+          setIsOpen(null)
+        }}
+        className="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[11px] font-bold text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+      >
+        <Pencil className="h-3.5 w-3.5 text-slate-500 transition-colors group-hover:text-zinc-200" />
+        Edit
+      </button>
+
+      <div className="my-1.5 border-t border-slate-600/30" />
+
+      <button
+        onClick={() => {
+          onDelete(monitor.id)
+          setIsOpen(null)
+        }}
+        className="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[11px] font-bold text-red-400 transition-colors hover:bg-red-500/10 hover:text-red-300"
+      >
+        <Trash2 className="h-3.5 w-3.5 text-red-500/70 transition-colors group-hover:text-red-400" />
+        Remove
+      </button>
+    </div>,
+    document.body
+  ) : null
+
   return (
-    <button type="button" aria-label={label} title={label} onClick={onClick} className={base}>
-      {children}
-    </button>
+    <div className="relative flex items-center justify-end">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          setIsOpen(isOpen ? null : monitor.id)
+        }}
+        className="cs-row-actions-trigger flex h-7 w-7 items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.02] text-zinc-500 transition-all hover:border-white/10 hover:bg-white/[0.07] hover:text-white active:scale-95"
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
+      {menu}
+    </div>
   )
 }
 
@@ -329,6 +463,11 @@ const HEADER_HELP: Record<string, string> = {
 function buildMonitorColumns(
   monitorWidthPct: number,
   includeHit24hAvg: boolean,
+  onDelete: (id: string) => void,
+  onView: (id: string) => void,
+  activeDropdownId: string | null,
+  setActiveDropdownId: (id: string | null) => void,
+  onOptimisticToggle: (id: string, status: 'active' | 'paused') => void,
 ) {
   const col = createColumnHelper<Monitor>()
 
@@ -569,20 +708,14 @@ function buildMonitorColumns(
       const m = row.original
       const isPaused = m.status === 'paused'
       return (
-        <div
-          className="flex items-center justify-end gap-1 opacity-0 transition-opacity duration-200 group-hover/row:opacity-100"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <ActionBtn label="View details" href={`/dashboard/monitors/${m.id}`}>
-            <Eye className="h-3 w-3" />
-          </ActionBtn>
-          <ActionBtn label={isPaused ? 'Resume monitor' : 'Pause monitor'}>
-            {isPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-          </ActionBtn>
-          <ActionBtn label="Edit monitor">
-            <Pencil className="h-3 w-3" />
-          </ActionBtn>
-        </div>
+        <RowActionsDropdown
+          monitor={m}
+          onDelete={onDelete}
+          onView={onView}
+          isOpen={activeDropdownId === m.id}
+          setIsOpen={setActiveDropdownId}
+          onOptimisticToggle={onOptimisticToggle}
+        />
       )
     },
   }),
@@ -620,25 +753,47 @@ export function MonitorsTable({
   onSortingChange,
 }: MonitorsTableProps) {
   const router = useRouter()
+  const [deleteMonitorId, setDeleteMonitorId] = useState<string | null>(null)
+  const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null)
+  const [optimisticStatus, setOptimisticStatus] = useState<Record<string, 'active' | 'paused'>>({})
+
+  // Clear optimistic status when underlying data updates (prop monitors change or refetch occurs)
+  useEffect(() => {
+    setOptimisticStatus({})
+  }, [monitors])
+
+  const displayMonitors = useMemo(() => {
+    return monitors.map((m) =>
+      optimisticStatus[m.id] ? { ...m, status: optimisticStatus[m.id] } : m,
+    )
+  }, [monitors, optimisticStatus])
 
   const filteredData = useMemo(
     () =>
-      monitors.filter(
+      displayMonitors.filter(
         (m) => monitorMatchesSearch(m, searchQuery) && monitorMatchesQuickFilter(m, activeFilter),
       ),
-    [monitors, searchQuery, activeFilter],
+    [displayMonitors, searchQuery, activeFilter],
   )
 
   const showHit24hAvgColumn = useMemo(() => {
-    if (monitors.length === 0) return true
-    return monitors.some((m) => m.cacheHitAvg24h !== null)
-  }, [monitors])
+    if (displayMonitors.length === 0) return true
+    return displayMonitors.some((m) => m.cacheHitAvg24h !== null)
+  }, [displayMonitors])
 
   const monitorWidthPct = showHit24hAvgColumn ? 27 : 37
 
   const columns = useMemo(
-    () => buildMonitorColumns(monitorWidthPct, showHit24hAvgColumn),
-    [monitorWidthPct, showHit24hAvgColumn],
+    () => buildMonitorColumns(
+      monitorWidthPct, 
+      showHit24hAvgColumn, 
+      (id) => setDeleteMonitorId(id),
+      (id) => router.push(`/dashboard/monitors/${id}`),
+      activeDropdownId,
+      setActiveDropdownId,
+      (id, status) => setOptimisticStatus((prev) => ({ ...prev, [id]: status }))
+    ),
+    [monitorWidthPct, showHit24hAvgColumn, router, activeDropdownId],
   )
 
   useEffect(() => {
@@ -769,6 +924,13 @@ export function MonitorsTable({
             </tbody>
           )}
         </table>
+
+        {deleteMonitorId && (
+          <MonitorDeleteConfirm
+            monitorId={deleteMonitorId}
+            onClose={() => setDeleteMonitorId(null)}
+          />
+        )}
 
         {/* Error state */}
         {isError && !isLoading && (

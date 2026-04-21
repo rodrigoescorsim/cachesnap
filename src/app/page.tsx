@@ -6,7 +6,7 @@ import { Logo } from '@/components/logo'
 
 export default async function RootPage() {
   const user = await getSession()
-  if (user) redirect('/dashboard')
+  if (user) redirect('/monitors')
 
   return (
     <div className="min-h-screen flex flex-col relative overflow-hidden bg-background text-foreground">
@@ -70,7 +70,7 @@ export default async function RootPage() {
               <span className="h-3 w-3 rounded-full bg-green-500/80" />
               <div className="ml-3 flex-1 max-w-md rounded-md border border-zinc-700/50 bg-zinc-800/80 px-3 py-1 text-xs text-zinc-400 text-center flex items-center justify-center gap-2">
                 <svg className="w-3 h-3 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                app.cachesnap.com/dashboard/monitors/…
+                app.cachesnap.com/monitors/…
               </div>
             </div>
 

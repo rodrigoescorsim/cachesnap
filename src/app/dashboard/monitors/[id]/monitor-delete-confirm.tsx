@@ -52,7 +52,7 @@ export function MonitorDeleteConfirm({
         const res = await fetch(`/api/monitors/${monitorId}`, { method: 'DELETE' })
         if (res.ok) {
           onClose()
-          router.push('/dashboard')
+          router.push('/monitors')
           router.refresh()
         } else {
           setError('Failed to delete monitor')

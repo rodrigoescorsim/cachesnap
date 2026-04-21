@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import sql from '@/lib/db'
 import { RealTimeHub } from './real-time-hub'
@@ -114,6 +115,7 @@ function securityTone(securityScore: number | null): string {
 export default async function DashboardPage() {
   const user = await getSession()
   if (!user) return null
+  redirect('/monitors')
 
   const monitors = await getMonitorSummaries(user.id)
   console.log(`[DASHBOARD DEBUG] User ${user.id} fetching monitors. Found ${monitors.length}.`)

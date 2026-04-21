@@ -47,7 +47,7 @@ export async function signup(
   `
 
   await createSession(user.id)
-  redirect('/dashboard')
+  redirect('/monitors')
 }
 
 export async function login(
@@ -80,7 +80,7 @@ export async function login(
   }
 
   await createSession(user.id)
-  redirect('/dashboard')
+  redirect('/monitors')
 }
 
 export async function logout(): Promise<void> {
