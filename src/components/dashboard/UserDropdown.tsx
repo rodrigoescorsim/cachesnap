@@ -74,7 +74,7 @@ export function UserDropdown({ email, logoutAction, variant = 'default', avatarT
           {avatarText ?? initials}
         </span>
         {!isMonitorsBadge && (
-          <span className="hidden max-w-[min(220px,28vw)] truncate text-left text-[11px] font-medium text-zinc-500 transition-colors duration-200 ease-out group-hover:text-zinc-300 md:inline">
+          <span className="hidden lg:block max-w-[140px] xl:max-w-[200px] truncate text-left text-[11px] font-medium text-zinc-500 transition-colors duration-200 ease-out group-hover:text-zinc-300">
             {email}
           </span>
         )}

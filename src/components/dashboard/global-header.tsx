@@ -26,8 +26,8 @@ const NAV_ITEMS = [
     match: (p: string) => p === '/insights' || p.startsWith('/insights/'),
   },
   { label: 'Diagnostics', href: '', disabled: true, match: () => false },
-  { label: 'Alerts',      href: '', disabled: true, match: () => false },
-  { label: 'Settings',    href: '', disabled: true, match: () => false },
+  { label: 'Alerts', href: '', disabled: true, match: () => false },
+  { label: 'Settings', href: '', disabled: true, match: () => false },
 ]
 
 export function GlobalHeader({ userEmail, logoutAction }: GlobalHeaderProps) {
@@ -38,7 +38,7 @@ export function GlobalHeader({ userEmail, logoutAction }: GlobalHeaderProps) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/96 shadow-[0_1px_0_0_rgba(0,0,0,0.45)] backdrop-blur-md supports-[backdrop-filter]:bg-background/92">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8 lg:px-12">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-5 sm:px-8 lg:px-12">
 
         {/* Left: Logo + Desktop Nav */}
         <div className="flex items-center gap-9">
@@ -73,9 +73,8 @@ export function GlobalHeader({ userEmail, logoutAction }: GlobalHeaderProps) {
                   key={item.label}
                   href={item.href}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`relative inline-block px-1 py-1 text-[14px] font-medium tracking-tight transition-colors duration-200 ease-out ${
-                    isActive ? 'text-[#F8FAFC]' : 'text-[#94A3B8] hover:text-[#F8FAFC]'
-                  }`}
+                  className={`relative inline-block px-1 py-1 text-[14px] font-medium tracking-tight transition-colors duration-200 ease-out ${isActive ? 'text-[#F8FAFC]' : 'text-[#94A3B8] hover:text-[#F8FAFC]'
+                    }`}
                 >
                   <span
                     className={`absolute bottom-0 left-0 right-0 h-px rounded-full transition-opacity duration-200 ${isActive ? 'opacity-100' : 'opacity-0'}`}
@@ -138,11 +137,10 @@ export function GlobalHeader({ userEmail, logoutAction }: GlobalHeaderProps) {
                       href={item.href}
                       onClick={() => setMobileOpen(false)}
                       aria-current={isActive ? 'page' : undefined}
-                      className={`flex items-center rounded-lg px-3 py-2.5 text-[14px] font-medium transition-colors duration-200 ${
-                        isActive
-                          ? 'bg-white/[0.04] text-[#F8FAFC]'
-                          : 'text-[#94A3B8] hover:bg-white/[0.03] hover:text-[#F8FAFC]'
-                      }`}
+                      className={`flex items-center rounded-lg px-3 py-2.5 text-[14px] font-medium transition-colors duration-200 ${isActive
+                        ? 'bg-white/[0.04] text-[#F8FAFC]'
+                        : 'text-[#94A3B8] hover:bg-white/[0.03] hover:text-[#F8FAFC]'
+                        }`}
                     >
                       {isActive && (
                         <span className="mr-2.5 h-1.5 w-1.5 rounded-full" style={{ background: '#22FF88' }} aria-hidden />

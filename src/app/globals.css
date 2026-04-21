@@ -64,6 +64,7 @@
   --spacing-8: 32px;
   --spacing-10: 40px;
   --spacing-12: 48px;
+  --spacing-13: 52px;
   --spacing-14: 56px;
   --spacing-16: 64px;
   --spacing-9: 36px;
@@ -98,17 +99,20 @@ body {
   }
 
   @keyframes cs-shimmer {
-    from { background-position: -200% center; }
-    to   { background-position:  200% center; }
+    from {
+      background-position: -200% center;
+    }
+
+    to {
+      background-position: 200% center;
+    }
   }
 
   .cs-skeleton {
-    background: linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.03) 0%,
-      rgba(255, 255, 255, 0.07) 50%,
-      rgba(255, 255, 255, 0.03) 100%
-    );
+    background: linear-gradient(90deg,
+        rgba(255, 255, 255, 0.03) 0%,
+        rgba(255, 255, 255, 0.07) 50%,
+        rgba(255, 255, 255, 0.03) 100%);
     background-size: 200% 100%;
     animation: cs-shimmer 1.8s ease-in-out infinite;
     border-radius: 4px;
