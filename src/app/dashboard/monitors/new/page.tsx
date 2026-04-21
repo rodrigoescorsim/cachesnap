@@ -1,5 +1,5 @@
-import { NewMonitorPage } from '@/components/monitors/new-monitor-page'
+import { redirect } from 'next/navigation'
 
 export default function DashboardNewMonitorRoute() {
-  return <NewMonitorPage />
+  redirect('/monitors/new')
 }

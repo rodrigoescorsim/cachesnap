@@ -12,8 +12,7 @@ import {
   HeartPulse,
   Search,
 } from 'lucide-react'
-import { Logo } from '@/components/logo'
-import { UserDropdown } from '@/components/dashboard/UserDropdown'
+import { GlobalHeader } from '@/components/dashboard/global-header'
 import { monitorHealthScore, type MonitorQuickFilterId } from '@/types/monitor'
 import { GlobalMetricCard } from './global-metric-card'
 import { MonitorsTable } from './monitors-table'
@@ -28,14 +27,6 @@ import {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const LIVE_SYNC_INTERVAL_MS = 30_000
-
-const NAV_ITEMS = [
-  { label: 'Monitors',    href: '/monitors', isActive: true,  isDisabled: false },
-  { label: 'Insights',    href: '/insights', isActive: false, isDisabled: false },
-  { label: 'Diagnostics', href: '',          isActive: false, isDisabled: true  },
-  { label: 'Alerts',      href: '',          isActive: false, isDisabled: true  },
-  { label: 'Settings',    href: '',          isActive: false, isDisabled: true  },
-]
 
 const QUICK_FILTERS: ReadonlyArray<{ id: MonitorQuickFilterId; label: string }> = [
   { id: 'all', label: 'All' },
@@ -165,59 +156,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
 
   return (
     <div className="min-h-full bg-background">
-      {/* ── Header ────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="mx-auto flex h-[56px] w-full max-w-6xl items-center justify-between gap-2 px-4 sm:gap-4 sm:px-8 lg:px-12">
-          <Link
-            href="/monitors"
-            className="inline-flex items-center transition-transform duration-200 hover:scale-[1.01]"
-            aria-label="CacheSnap home"
-          >
-            <Logo variant="header" className="h-8 w-auto sm:h-[2.2rem]" />
-          </Link>
-
-          <nav className="hidden items-center gap-5 lg:flex" aria-label="Main Navigation">
-            {NAV_ITEMS.map((item) =>
-              item.isDisabled ? (
-                <span
-                  key={item.label}
-                  aria-disabled="true"
-                  className="relative cursor-not-allowed px-1 py-1 text-[13px] font-semibold tracking-tight text-zinc-600"
-                >
-                  {item.label}
-                </span>
-              ) : (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  aria-current={item.isActive ? 'page' : undefined}
-                  className={`relative px-1 py-1 text-[13px] font-semibold tracking-tight transition-colors duration-200 ${
-                    item.isActive ? 'text-zinc-50' : 'text-zinc-500 hover:text-zinc-200'
-                  }`}
-                >
-                  <span
-                    className={`absolute bottom-0 left-0 right-0 h-px rounded-full transition-opacity duration-200 ${item.isActive ? 'opacity-100' : 'opacity-0'}`}
-                    style={{ background: 'var(--brand-primary)' }}
-                    aria-hidden
-                  />
-                  {item.label}
-                </Link>
-              ),
-            )}
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <UserDropdown email={userEmail} logoutAction={logoutAction} variant="monitorsBadge" avatarText="RS" />
-            <Link
-              href="/monitors/new"
-              className="cs-btn-primary h-9 gap-2 px-4 text-[13px] font-bold"
-              aria-label="Create a new monitor"
-            >
-              <span>+ Create Monitor</span>
-            </Link>
-          </div>
-        </div>
-      </header>
+      <GlobalHeader userEmail={userEmail} logoutAction={logoutAction} />
 
       <main className="mx-auto w-full max-w-6xl space-y-3.5 px-4 pb-8 pt-3 sm:px-8 lg:px-12">
         {/* ── Global Summary ───────────────────────────────────────────────── */}

@@ -4,16 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { BarChart3, Check, ChevronRight, Globe, Lightbulb, Map, X, Zap } from 'lucide-react'
-import { Logo } from '@/components/logo'
-import { UserDropdown } from '@/components/dashboard/UserDropdown'
-
-const NAV_ITEMS = [
-  { label: 'Monitors',    href: '/monitors', isActive: true,  isDisabled: false },
-  { label: 'Insights',    href: '/insights', isActive: false, isDisabled: false },
-  { label: 'Diagnostics', href: '',          isActive: false, isDisabled: true  },
-  { label: 'Alerts',      href: '',          isActive: false, isDisabled: true  },
-  { label: 'Settings',    href: '',          isActive: false, isDisabled: true  },
-]
+import { GlobalHeader } from '@/components/dashboard/global-header'
 
 type UrlStatus = 'idle' | 'validating' | 'valid' | 'invalid'
 
@@ -104,52 +95,7 @@ export function NewMonitorPage({ userEmail, logoutAction }: NewMonitorPageProps)
 
   return (
     <div className="min-h-screen bg-background">
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="mx-auto flex h-[56px] w-full max-w-6xl items-center justify-between gap-2 px-4 sm:gap-4 sm:px-8 lg:px-12">
-          <Link
-            href="/monitors"
-            className="inline-flex items-center transition-transform duration-200 hover:scale-[1.01]"
-            aria-label="CacheSnap home"
-          >
-            <Logo variant="header" className="h-8 w-auto sm:h-[2.2rem]" />
-          </Link>
-
-          <nav className="hidden items-center gap-5 lg:flex" aria-label="Main Navigation">
-            {NAV_ITEMS.map(item =>
-              item.isDisabled ? (
-                <span
-                  key={item.label}
-                  aria-disabled="true"
-                  className="relative cursor-not-allowed px-1 py-1 text-[13px] font-semibold tracking-tight text-zinc-600"
-                >
-                  {item.label}
-                </span>
-              ) : (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  aria-current={item.isActive ? 'page' : undefined}
-                  className={`relative px-1 py-1 text-[13px] font-semibold tracking-tight transition-colors duration-200 ${
-                    item.isActive ? 'text-zinc-400' : 'text-zinc-500 hover:text-zinc-200'
-                  }`}
-                >
-                  <span
-                    className={`absolute bottom-0 left-0 right-0 h-px rounded-full transition-opacity duration-200 ${item.isActive ? 'opacity-30' : 'opacity-0'}`}
-                    style={{ background: 'var(--brand-primary)' }}
-                    aria-hidden
-                  />
-                  {item.label}
-                </Link>
-              ),
-            )}
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <UserDropdown email={userEmail} logoutAction={logoutAction} variant="monitorsBadge" avatarText="RS" />
-          </div>
-        </div>
-      </header>
+      <GlobalHeader userEmail={userEmail} logoutAction={logoutAction} />
 
     <div className="mx-auto max-w-[460px] pb-24 pt-8 sm:pt-10 animate-[cs-fade-in_0.4s_ease-out]">
       <div className="mb-8 text-center">
