@@ -8,7 +8,7 @@
  * Sign out: tom neutro com hover vermelho suave (ação destrutiva sem gritar).
  */
 import { useEffect, useRef, useState } from 'react'
-import { LogOut } from 'lucide-react'
+import { Building2, CreditCard, LogOut } from 'lucide-react'
 
 function emailInitials(email: string): string {
   const local = email.split('@')[0] ?? email
@@ -92,6 +92,36 @@ export function UserDropdown({ email, logoutAction, variant = 'default', avatarT
             </p>
           </div>
           <div className="p-2">
+            <button
+              type="button"
+              disabled
+              role="menuitem"
+              aria-disabled="true"
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium text-slate-500 opacity-60 cursor-not-allowed"
+            >
+              <CreditCard className="h-4 w-4 shrink-0" strokeWidth={2} />
+              <span className="flex-1">Billing</span>
+              <span className="rounded px-1.5 py-px text-[9px] font-black uppercase tracking-wider text-slate-600 bg-white/5">
+                Soon
+              </span>
+            </button>
+
+            <button
+              type="button"
+              disabled
+              role="menuitem"
+              aria-disabled="true"
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium text-slate-500 opacity-60 cursor-not-allowed"
+            >
+              <Building2 className="h-4 w-4 shrink-0" strokeWidth={2} />
+              <span className="flex-1">Organization Settings</span>
+              <span className="rounded px-1.5 py-px text-[9px] font-black uppercase tracking-wider text-slate-600 bg-white/5">
+                Soon
+              </span>
+            </button>
+
+            <div className="my-1.5 border-t border-slate-600/30" />
+
             <form action={logoutAction}>
               <button
                 type="submit"
