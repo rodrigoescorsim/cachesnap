@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import type { SortingState } from '@tanstack/react-table'
 import {
-  Activity,
   ArrowDown,
   ArrowUp,
   Gauge,
@@ -78,20 +77,6 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
     refetchInterval: liveSync ? LIVE_SYNC_INTERVAL_MS : false,
   })
 
-  // ── "Last updated" counter ─────────────────────────────────────────────────
-  const [secsAgo, setSecsAgo] = useState<number | null>(null)
-  // Track previous dataUpdatedAt to restart the 1s ticker only when it changes
-  const prevUpdatedAt = useRef(0)
-
-  useEffect(() => {
-    if (!dataUpdatedAt || dataUpdatedAt === prevUpdatedAt.current) return
-    prevUpdatedAt.current = dataUpdatedAt
-    const tick = () => setSecsAgo(Math.round((Date.now() - dataUpdatedAt) / 1000))
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [dataUpdatedAt])
-
   // ── Debounce search ────────────────────────────────────────────────────────
   useEffect(() => {
     const t = setTimeout(() => setSearchQuery(searchInput), 300)
@@ -117,6 +102,20 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
     }
   }, [searchQuery, activeFilter, sorting, router, pathname, searchParams])
 
+  // ── Optimistic state ───────────────────────────────────────────────────────
+  const [optimisticStatus, setOptimisticStatus] = useState<Record<string, 'active' | 'paused'>>({})
+
+  // Clear optimistic status when underlying data updates (prop monitors change or refetch occurs)
+  useEffect(() => {
+    setOptimisticStatus({})
+  }, [monitors])
+
+  const displayMonitors = useMemo(() => {
+    return monitors.map((m) =>
+      optimisticStatus[m.id] ? { ...m, status: optimisticStatus[m.id] } : m,
+    )
+  }, [monitors, optimisticStatus])
+
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleClearFilters = useCallback(() => {
     setSearchInput('')
@@ -127,30 +126,30 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
 
   // ── Metrics calculation ──────────────────────────────────────────────────
   const { activeCount, avgTtfb, avgHit, healthScore, ttfbDelta } = useMemo(() => {
-    if (!monitors.length) return { activeCount: 0, avgTtfb: 0, avgHit: 0, healthScore: 0, ttfbDelta: 0 }
+    if (!displayMonitors.length) return { activeCount: 0, avgTtfb: 0, avgHit: 0, healthScore: 0, ttfbDelta: 0 }
     
-    const active = monitors.filter((m) => m.status === 'active')
-    const avgTtfb = Math.round(monitors.reduce((sum, m) => sum + m.ttfbCurrent, 0) / monitors.length)
+    const active = displayMonitors.filter((m) => m.status === 'active')
+    const avgTtfb = Math.round(displayMonitors.reduce((sum, m) => sum + m.ttfbCurrent, 0) / displayMonitors.length)
 
     // Exclude monitors with no cache data (null) from the average
-    const withCacheData = monitors.filter((m) => m.cacheHitCurrent !== null)
+    const withCacheData = displayMonitors.filter((m) => m.cacheHitCurrent !== null)
     const avgHit = withCacheData.length > 0
       ? Number((withCacheData.reduce((sum, m) => sum + m.cacheHitCurrent!, 0) / withCacheData.length).toFixed(1))
       : 0
 
     // Global health Score: percentage of monitors which are NOT slow/critical
-    const slowCount = monitors.filter(m => m.ttfbCurrent >= 500).length
-    const score = monitors.length > 0 ? Math.round(((monitors.length - slowCount) / monitors.length) * 100) : 0
+    const slowCount = displayMonitors.filter(m => m.ttfbCurrent >= 500).length
+    const score = displayMonitors.length > 0 ? Math.round(((displayMonitors.length - slowCount) / displayMonitors.length) * 100) : 0
 
     // Global TTFB trend: average of each monitor's individual current-vs-24h delta
-    const ttfbDelta = monitors.length > 0
+    const ttfbDelta = displayMonitors.length > 0
       ? Math.round(
-          monitors.reduce((sum, m) => sum + m.ttfbCurrentDelta, 0) / monitors.length * 10,
+          displayMonitors.reduce((sum, m) => sum + m.ttfbCurrentDelta, 0) / displayMonitors.length * 10,
         ) / 10
       : 0
 
     return { activeCount: active.length, avgTtfb, avgHit, healthScore: score, ttfbDelta }
-  }, [monitors])
+  }, [displayMonitors])
 
   const ttfbImproved = ttfbDelta < 0
 
@@ -166,15 +165,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
           </div>
         </section>
 
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <GlobalMetricCard
-            title="Active Monitors"
-            value={isLoading ? '...' : String(activeCount)}
-            subtitle="All monitors reporting"
-            icon={Activity}
-            badge={{ text: 'LIVE', className: 'cs-badge-success', withPulseDot: true }}
-            animationDelayMs={30}
-          />
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           <GlobalMetricCard
             title="Avg TTFB (Current)"
             value={isLoading ? '...' : `${avgTtfb} ms`}
@@ -186,7 +177,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
               tone: ttfbImproved ? 'success' : 'danger',
               icon: ttfbImproved ? ArrowDown : ArrowUp,
             }}
-            animationDelayMs={90}
+            animationDelayMs={30}
           />
           <GlobalMetricCard
             title="Avg Cache Hit (Current)"
@@ -196,7 +187,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
             valueClassName={getCacheColor(avgHit, 'global')}
             trend={{ value: '3.1%', tone: 'success', icon: ArrowUp }}
             metaBadge={{ text: 'HIT', className: 'cs-badge-cache-hit' }}
-            animationDelayMs={150}
+            animationDelayMs={90}
           />
           <GlobalMetricCard
             title="Health Score"
@@ -211,7 +202,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
               dotClassName: healthScore >= GLOBAL_HEALTH.HEALTHY ? 'bg-[var(--brand-primary)]' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'bg-amber-400' : 'bg-rose-500'
             }}
             progress={isLoading ? 0 : healthScore}
-            animationDelayMs={210}
+            animationDelayMs={150}
           />
         </section>
 
@@ -269,13 +260,10 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
             <h2 className="cs-view-section-title">Monitors List</h2>
 
             <div className="flex items-center gap-3">
-              {/* Last updated indicator */}
-              {secsAgo !== null && !isLoading && (
-                <span className="text-[10.5px] font-semibold tabular-nums text-zinc-500 transition-opacity duration-300">
-                  Updated{' '}
-                  <span className="text-zinc-400">
-                    {secsAgo < 5 ? 'just now' : `${secsAgo}s ago`}
-                  </span>
+              {/* Active monitors count */}
+              {!isLoading && (
+                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 transition-opacity duration-300">
+                  <span className="text-zinc-400">{activeCount}</span> Active Monitors
                 </span>
               )}
 
@@ -320,6 +308,8 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
             activeFilter={activeFilter}
             sorting={sorting}
             onSortingChange={setSorting}
+            optimisticStatus={optimisticStatus}
+            onOptimisticToggle={(id, status) => setOptimisticStatus((prev) => ({ ...prev, [id]: status }))}
           />
         </section>
       </main>

@@ -738,6 +738,8 @@ interface MonitorsTableProps {
   activeFilter?: MonitorQuickFilterId
   sorting: SortingState
   onSortingChange: OnChangeFn<SortingState>
+  optimisticStatus: Record<string, 'active' | 'paused'>
+  onOptimisticToggle: (id: string, status: 'active' | 'paused') => void
 }
 
 export function MonitorsTable({
@@ -751,16 +753,12 @@ export function MonitorsTable({
   activeFilter = 'all',
   sorting,
   onSortingChange,
+  optimisticStatus,
+  onOptimisticToggle,
 }: MonitorsTableProps) {
   const router = useRouter()
   const [deleteMonitorId, setDeleteMonitorId] = useState<string | null>(null)
   const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null)
-  const [optimisticStatus, setOptimisticStatus] = useState<Record<string, 'active' | 'paused'>>({})
-
-  // Clear optimistic status when underlying data updates (prop monitors change or refetch occurs)
-  useEffect(() => {
-    setOptimisticStatus({})
-  }, [monitors])
 
   const displayMonitors = useMemo(() => {
     return monitors.map((m) =>
@@ -791,9 +789,9 @@ export function MonitorsTable({
       (id) => router.push(`/dashboard/monitors/${id}`),
       activeDropdownId,
       setActiveDropdownId,
-      (id, status) => setOptimisticStatus((prev) => ({ ...prev, [id]: status }))
+      onOptimisticToggle
     ),
-    [monitorWidthPct, showHit24hAvgColumn, router, activeDropdownId],
+    [monitorWidthPct, showHit24hAvgColumn, router, activeDropdownId, onOptimisticToggle],
   )
 
   useEffect(() => {
