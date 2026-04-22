@@ -118,6 +118,32 @@ body {
     border-radius: 4px;
   }
 
+  .cs-container-adaptive {
+    @apply mx-auto w-full px-5 sm:px-8 lg:px-12;
+    max-width: 1152px;
+    /* Standard (6xl) - Laptop/1080p */
+
+    /* Desktop Standard (1440p / 1600p displays) */
+    @media (min-width: 1600px) {
+      max-width: 1280px;
+      /* 7xl */
+    }
+
+    /* Ultra-wide & 4K Displays (2k/4k monitors) */
+    @media (min-width: 2560px) {
+      max-width: 1600px;
+      /* High-density large display */
+    }
+  }
+
+  /** 
+   * Utility to prevent text lines from getting too long on large containers.
+   * Based on typographic best practices (approx 75-85 chars). 
+   */
+  .cs-text-prose {
+    max-width: 72ch;
+  }
+
   /* PREMIUM COMPONENT SYSTEM */
 
   .cs-card {

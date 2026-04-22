@@ -11,7 +11,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="min-h-full flex flex-col">
       <GlobalHeader userEmail={user.email} logoutAction={logout} />
 
-      <main className="flex-1 mx-auto w-full max-w-6xl px-5 sm:px-8 lg:px-12 pt-[26px] pb-8">
+      <main className="cs-container-adaptive flex-1 pt-[26px] pb-8">
         {children}
       </main>
     </div>

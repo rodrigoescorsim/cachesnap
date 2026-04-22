@@ -158,7 +158,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
     <div className="min-h-full bg-background">
       <GlobalHeader userEmail={userEmail} logoutAction={logoutAction} />
 
-      <main className="mx-auto w-full max-w-6xl space-y-3.5 px-4 pb-8 pt-3 sm:px-8 lg:px-12">
+      <main className="cs-container-adaptive space-y-3.5 pb-8 pt-3">
         {/* ── Global Summary ───────────────────────────────────────────────── */}
         <section>
           <div className="mb-2.5 flex items-center justify-between">

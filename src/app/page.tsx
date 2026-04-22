@@ -15,7 +15,7 @@ export default async function RootPage() {
       
       {/* Nav */}
       <header className="border-b border-zinc-800/50 backdrop-blur-md relative z-10 w-full">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 flex items-center justify-between h-14">
+        <div className="cs-container-adaptive flex items-center justify-between h-14">
           <Link href="/" className="transition-opacity hover:opacity-80">
             <Logo className="h-11" />
           </Link>
@@ -35,7 +35,7 @@ export default async function RootPage() {
 
       <main className="flex-1 relative z-10">
         {/* Hero */}
-        <section className="mx-auto max-w-6xl px-4 sm:px-6 pt-24 pb-20">
+        <section className="cs-container-adaptive pt-24 pb-20">
           <div className="flex flex-col items-center text-center gap-8">
             <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium" style={{ borderColor: 'rgba(34,255,136,0.25)', background: 'rgba(34,255,136,0.08)', color: 'var(--brand-primary)' }}>
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--brand-primary)' }} />
@@ -199,7 +199,7 @@ export default async function RootPage() {
       </main>
 
       <footer className="border-t border-border py-12 relative z-10 bg-surface/50">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 flex items-center justify-between">
+        <div className="cs-container-adaptive flex items-center justify-between">
           <span className="text-xs text-zinc-500 font-medium">CacheSnap — Edge Performance Monitoring</span>
           <div className="flex items-center gap-6">
             <Link href="/login" className="text-xs font-medium text-zinc-500 hover:text-zinc-300 transition-colors">

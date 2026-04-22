@@ -804,7 +804,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
     <div className="min-h-full bg-background">
       <GlobalHeader userEmail={userEmail} logoutAction={logoutAction} />
 
-      <main className="mx-auto w-full max-w-6xl space-y-4 px-4 pb-10 pt-4 sm:px-8 lg:px-12">
+      <main className="cs-container-adaptive space-y-4 pb-10 pt-4">
 
         {/* ── Page hero ─────────────────────────────────────────────────────── */}
         <div className="flex items-start justify-between animate-[cs-fade-in_0.3s_ease-out]">

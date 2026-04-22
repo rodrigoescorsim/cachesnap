@@ -38,7 +38,7 @@ export function GlobalHeader({ userEmail, logoutAction }: GlobalHeaderProps) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/96 shadow-[0_1px_0_0_rgba(0,0,0,0.45)] backdrop-blur-md supports-[backdrop-filter]:bg-background/92">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-5 sm:px-8 lg:px-12">
+      <div className="cs-container-adaptive flex h-14 items-center justify-between">
 
         {/* Left: Logo + Desktop Nav */}
         <div className="flex items-center gap-9">
@@ -116,7 +116,7 @@ export function GlobalHeader({ userEmail, logoutAction }: GlobalHeaderProps) {
       {mobileOpen && (
         <div className="border-t border-border bg-background/98 md:hidden">
           <nav
-            className="mx-auto max-w-6xl px-5 py-3 sm:px-8"
+            className="cs-container-adaptive py-3"
             aria-label="Mobile navigation"
           >
             <ul className="flex flex-col gap-1">
