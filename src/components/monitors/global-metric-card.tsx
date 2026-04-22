@@ -44,13 +44,6 @@ const toneClassMap: Record<MetricTone, string> = {
   danger: 'text-rose-500',
 }
 
-const toneBgClassMap: Record<MetricTone, string> = {
-  neutral: 'bg-zinc-400',
-  success: 'bg-metric-ttfb-fast',
-  warning: 'bg-amber-400',
-  danger: 'bg-rose-500',
-}
-
 export function GlobalMetricCard({
   title,
   value,
@@ -146,12 +139,15 @@ export function GlobalMetricCard({
         </div>
       )}
 
-      {/* Status Footer */}
+      {/* Status Footer: label uses tone; context is neutral detail */}
       {statusFooter && (
-        <div className="relative z-10 mt-3 flex items-center justify-between">
-          <span className="text-[11px] font-medium text-zinc-500">
-            {statusFooter.context}
+        <div className="relative z-10 mt-3 flex flex-col gap-1">
+          <span
+            className={`text-[10px] font-black tracking-widest ${toneClassMap[statusFooter.tone]}`}
+          >
+            {statusFooter.label}
           </span>
+          <p className="text-[11px] font-medium leading-snug text-zinc-500">{statusFooter.context}</p>
         </div>
       )}
     </article>

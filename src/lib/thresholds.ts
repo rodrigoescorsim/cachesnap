@@ -21,9 +21,10 @@ export const GLOBAL_TTFB = {
   SLOW:     500, // ms
 }
 
+/** Global cache card: same bands as footer copy (GOOD / DEGRADED / CRITICAL). */
 export const GLOBAL_CACHE = {
-  GOOD:     80,  // %
-  FAIR:     60,  // %
+  GOOD:     85,  // % — product target; matches footer “target”
+  FAIR:     70,  // % — degraded band
 }
 
 export const GLOBAL_HEALTH = {

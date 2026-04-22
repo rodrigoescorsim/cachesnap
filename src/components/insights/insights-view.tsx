@@ -9,6 +9,7 @@ import {
   ArrowDown,
   ArrowRight,
   ArrowUp,
+  Minus,
   BarChart3,
   CheckCircle2,
   Clock,
@@ -41,6 +42,16 @@ import {
   MONITOR_TTFB,
 } from '@/lib/thresholds'
 import { calculateTrend } from '@/lib/metrics-math'
+import {
+  GLOBAL_CACHE_TREND_TOOLTIP,
+  GLOBAL_CACHE_VALUE_TOOLTIP,
+  GLOBAL_TTFB_TREND_TOOLTIP,
+  GLOBAL_TTFB_VALUE_TOOLTIP,
+  globalCacheFooterContext,
+  globalCacheFooterPill,
+  globalTtfbFooterContext,
+  globalTtfbFooterPill,
+} from '@/lib/global-metric-copy'
 
 // ─── Severity styles ──────────────────────────────────────────────────────────
 
@@ -782,7 +793,12 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
     }
   }, [monitors])
 
-  const ttfbImproved = ttfbDelta < 0
+  const ttfbPill = globalTtfbFooterPill(liveTtfb)
+  const cachePill = globalCacheFooterPill(liveHit)
+  const ttfbTrendTone = ttfbDelta < 0 ? 'success' : ttfbDelta > 0 ? 'danger' : 'neutral'
+  const ttfbTrendIcon = ttfbDelta < 0 ? ArrowDown : ttfbDelta > 0 ? ArrowUp : Minus
+  const hitTrendTone = hitDelta > 0 ? 'success' : hitDelta < 0 ? 'danger' : 'neutral'
+  const hitTrendIcon = hitDelta > 0 ? ArrowUp : hitDelta < 0 ? ArrowDown : Minus
 
   const healthLabel = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'Stable' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'Degraded' : 'Critical'
   const healthDesc  = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'Excellent' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'Fair' : 'Poor'
@@ -887,43 +903,51 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
             <GlobalMetricCard
               title="Global Avg. TTFB"
               value={isLoading ? '…' : `${liveTtfb}ms`}
-              valueTooltip="This is the average speed across all your monitored sites right now."
+              valueTooltip={GLOBAL_TTFB_VALUE_TOOLTIP}
               subtitle=""
               icon={Gauge}
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
               valueClassName={getTtfbColorClass(liveTtfb, 'global')}
               trend={{
                 value: `${Math.abs(ttfbDelta)}%`,
-                tone:  ttfbImproved ? 'success' : 'danger',
-                icon:  ttfbImproved ? ArrowDown : ArrowUp,
-                tooltip: "Shows if your sites are faster or slower than your usual performance today."
+                tone: ttfbTrendTone,
+                icon: ttfbTrendIcon,
+                tooltip: GLOBAL_TTFB_TREND_TOOLTIP,
               }}
-              statusFooter={{
-                label: liveTtfb < 200 ? 'GOOD' : liveTtfb < 500 ? 'DEGRADED' : 'CRITICAL',
-                tone: liveTtfb < 200 ? 'success' : liveTtfb < 500 ? 'warning' : 'danger',
-                context: liveTtfb < 200 ? 'Optimal response time' : `Latency above baseline (+${Math.abs(ttfbDelta)}%)`
-              }}
+              statusFooter={
+                isLoading
+                  ? undefined
+                  : {
+                      label: ttfbPill.label,
+                      tone: ttfbPill.tone,
+                      context: globalTtfbFooterContext(liveTtfb, ttfbDelta),
+                    }
+              }
               animationDelayMs={70}
             />
             <GlobalMetricCard
               title="Global Cache Hit"
               value={isLoading ? '…' : `${liveHit}%`}
-              valueTooltip="Shows how much of your site is being delivered fast via cache."
+              valueTooltip={GLOBAL_CACHE_VALUE_TOOLTIP}
               subtitle=""
               valueClassName={getCacheColor(liveHit, 'global')}
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
               icon={ArrowUp}
               trend={{
                 value: `${Math.abs(hitDelta)}%`,
-                tone:  hitDelta >= 0 ? 'success' : 'danger',
-                icon:  hitDelta >= 0 ? ArrowUp : ArrowDown,
-                tooltip: "Indicates if your server's edge efficiency improved or declined today."
+                tone: hitTrendTone,
+                icon: hitTrendIcon,
+                tooltip: GLOBAL_CACHE_TREND_TOOLTIP,
               }}
-              statusFooter={{
-                label: liveHit >= 85 ? 'GOOD' : liveHit >= 70 ? 'DEGRADED' : 'CRITICAL',
-                tone: liveHit >= 85 ? 'success' : liveHit >= 70 ? 'warning' : 'danger',
-                context: liveHit >= 85 ? 'Excellent edge efficiency' : 'Cache hit below target (85%)'
-              }}
+              statusFooter={
+                isLoading
+                  ? undefined
+                  : {
+                      label: cachePill.label,
+                      tone: cachePill.tone,
+                      context: globalCacheFooterContext(liveHit),
+                    }
+              }
               animationDelayMs={140}
             />
           </div>
