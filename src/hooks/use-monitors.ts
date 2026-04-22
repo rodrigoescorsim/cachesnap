@@ -1,8 +1,16 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, type QueryClient } from '@tanstack/react-query'
 import type { Monitor } from '@/types/monitor'
 import { type MonitorSummaryRow, toMonitor } from '@/lib/monitor-transforms'
+
+/** React Query key for `/api/monitors/summary` (list + aggregates for global metrics). */
+export const MONITORS_QUERY_KEY = ['monitors'] as const
+
+/** Call after create/delete so Monitors / Insights global metrics refetch immediately. */
+export function invalidateMonitorsSummary(queryClient: QueryClient): Promise<void> {
+  return queryClient.invalidateQueries({ queryKey: MONITORS_QUERY_KEY })
+}
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
 
@@ -33,7 +41,7 @@ export interface UseMonitorsResult {
 
 export function useMonitors({ refetchInterval = false }: UseMonitorsOptions = {}): UseMonitorsResult {
   const { data, isLoading, isFetching, isError, dataUpdatedAt, refetch } = useQuery({
-    queryKey: ['monitors'],
+    queryKey: MONITORS_QUERY_KEY,
     queryFn: fetchMonitorSummary,
     staleTime: 5_000,
     refetchInterval,

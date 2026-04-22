@@ -1,26 +1,26 @@
 'use client'
 
-import Link from 'next/link'
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import type { SortingState } from '@tanstack/react-table'
 import {
   ArrowDown,
   ArrowUp,
   Gauge,
-  HeartPulse,
+  Activity,
+  HelpCircle,
   Minus,
   Search,
 } from 'lucide-react'
 import { GlobalHeader } from '@/components/dashboard/global-header'
 import { monitorHealthScore, type MonitorQuickFilterId } from '@/types/monitor'
+import { PremiumTooltip } from '@/components/premium-tooltip'
 import { GlobalMetricCard } from './global-metric-card'
 import { MonitorsTable } from './monitors-table'
 import { useMonitors } from '@/hooks/use-monitors'
 import {
   GLOBAL_HEALTH,
   getTtfbColorClass,
-  getHealthColor,
   getCacheColor,
 } from '@/lib/thresholds'
 import { calculateTrend } from '@/lib/metrics-math'
@@ -29,9 +29,9 @@ import {
   GLOBAL_CACHE_VALUE_TOOLTIP,
   GLOBAL_TTFB_TREND_TOOLTIP,
   GLOBAL_TTFB_VALUE_TOOLTIP,
-  globalCacheFooterContext,
+  globalCacheFooterContextCompact,
   globalCacheFooterPill,
-  globalTtfbFooterContext,
+  globalTtfbFooterContextCompact,
   globalTtfbFooterPill,
 } from '@/lib/global-metric-copy'
 
@@ -139,8 +139,20 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
   // ── Metrics calculation ──────────────────────────────────────────────────
 
   // ── Global metrics ────────────────────────────────────────────────────────
-  const { activeCount, liveTtfb, liveHit, avgTtfb24h, avgHit24h, healthScore, ttfbDelta, hitDelta } = useMemo(() => {
-    if (!displayMonitors.length) return { activeCount: 0, liveTtfb: 0, liveHit: 0, avgTtfb24h: 0, avgHit24h: 0, healthScore: 0, ttfbDelta: 0, hitDelta: 0 }
+  const { activeCount, liveTtfb, liveHit, avgTtfb24h, avgHit24h, degradedMonitors, criticalMonitors, ttfbDelta, hitDelta } = useMemo(() => {
+    if (!displayMonitors.length) {
+      return {
+        activeCount: 0,
+        liveTtfb: 0,
+        liveHit: 0,
+        avgTtfb24h: 0,
+        avgHit24h: 0,
+        degradedMonitors: [] as { id: string; name: string }[],
+        criticalMonitors: [] as { id: string; name: string }[],
+        ttfbDelta: 0,
+        hitDelta: 0,
+      }
+    }
 
     const active  = displayMonitors.filter((m) => m.status === 'active')
     
@@ -164,24 +176,29 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
       ? Number((withCache24h.reduce((sum, m) => sum + m.cacheHitAvg24h!, 0) / withCache24h.length).toFixed(1))
       : 0
 
-    // Global health Score: weighted average of individual monitor health scores
-    const score = displayMonitors.length > 0 
-      ? Math.round(displayMonitors.reduce((sum, m) => sum + monitorHealthScore(m), 0) / displayMonitors.length) 
-      : 0
+    // Per active monitor: same 0–100 score as elsewhere; lists for System status card + tooltip
+    const degradedMonitors: { id: string; name: string }[] = []
+    const criticalMonitors: { id: string; name: string }[] = []
+    for (const m of active) {
+      const s = monitorHealthScore(m)
+      if (s < GLOBAL_HEALTH.DEGRADED) criticalMonitors.push({ id: m.id, name: m.name })
+      else if (s < GLOBAL_HEALTH.HEALTHY) degradedMonitors.push({ id: m.id, name: m.name })
+    }
 
     // Network-wide Trends (Real-time vs 24h Baseline)
     const ttfbDelta = calculateTrend(liveTtfb, avgTtfb24h)
     const hitDelta  = calculateTrend(liveHit, avgHit24h)
 
-    return { 
-      activeCount: active.length, 
-      liveTtfb, 
-      liveHit, 
-      avgTtfb24h, 
-      avgHit24h, 
-      healthScore: score, 
+    return {
+      activeCount: active.length,
+      liveTtfb,
+      liveHit,
+      avgTtfb24h,
+      avgHit24h,
+      degradedMonitors,
+      criticalMonitors,
       ttfbDelta,
-      hitDelta
+      hitDelta,
     }
   }, [displayMonitors])
 
@@ -197,77 +214,85 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
       <GlobalHeader userEmail={userEmail} logoutAction={logoutAction} />
 
       <main className="cs-container-adaptive space-y-3.5 pb-8 pt-3">
-        {/* ── Global Summary ───────────────────────────────────────────────── */}
-        <section>
+        {/* ── Global summary: design-system cards; compact metrics; list stays primary ── */}
+        <section aria-label="Global summary">
           <div className="mb-2.5 flex items-center justify-between">
             <h2 className="cs-view-section-title">Global Summary</h2>
           </div>
-        </section>
 
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <GlobalMetricCard
-            title="Global Resilience Score"
-            value={isLoading ? '...' : `${healthScore}/100`}
-            subtitle={isLoading ? 'Calculating health...' : `${healthScore >= GLOBAL_HEALTH.HEALTHY ? 'Excellent' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'Fair' : 'Poor'} system-wide resilience`}
-            icon={HeartPulse}
-            valueClassName={getHealthColor(healthScore)}
-            badge={{ 
-              text: healthScore >= GLOBAL_HEALTH.HEALTHY ? 'STABLE' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'DEGRADED' : 'CRITICAL', 
-              className: `${healthScore >= GLOBAL_HEALTH.HEALTHY ? 'cs-badge-success' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'cs-badge-warning' : 'cs-badge-error'}`,
-              withPulseDot: !isLoading,
-              dotClassName: healthScore >= GLOBAL_HEALTH.HEALTHY ? 'bg-[var(--brand-primary)]' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'bg-amber-400' : 'bg-rose-500'
-            }}
-            progress={isLoading ? 0 : healthScore}
-            animationDelayMs={30}
-          />
-          <GlobalMetricCard
-            title="Global Avg. TTFB"
-            value={isLoading ? '...' : `${liveTtfb}ms`}
-            valueTooltip={GLOBAL_TTFB_VALUE_TOOLTIP}
-            subtitle=""
-            icon={Gauge}
-            valueClassName={getTtfbColorClass(liveTtfb, 'global')}
-            trend={{
-              value: `${Math.abs(ttfbDelta)}%`,
-              tone: ttfbTrendTone,
-              icon: ttfbTrendIcon,
-              tooltip: GLOBAL_TTFB_TREND_TOOLTIP,
-            }}
-            statusFooter={
-              isLoading
-                ? undefined
-                : {
-                    label: ttfbPill.label,
-                    tone: ttfbPill.tone,
-                    context: globalTtfbFooterContext(liveTtfb, ttfbDelta),
-                  }
-            }
-            animationDelayMs={90}
-          />
-          <GlobalMetricCard
-            title="Global Cache Hit"
-            value={isLoading ? '...' : `${liveHit}%`}
-            valueTooltip={GLOBAL_CACHE_VALUE_TOOLTIP}
-            subtitle=""
-            icon={ArrowUp}
-            valueClassName={getCacheColor(liveHit, 'global')}
-            trend={{
-              value: `${Math.abs(hitDelta)}%`,
-              tone: hitTrendTone,
-              icon: hitTrendIcon,
-              tooltip: GLOBAL_CACHE_TREND_TOOLTIP,
-            }}
-            statusFooter={
-              isLoading
-                ? undefined
-                : {
-                    label: cachePill.label,
-                    tone: cachePill.tone,
-                    context: globalCacheFooterContext(liveHit),
-                  }
-            }
-            animationDelayMs={150}
-          />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:items-stretch [&>article]:min-w-0">
+            <GlobalMetricCard
+              variant="compact"
+              metricGroup="insight"
+              title="System status"
+              value=""
+              subtitle=""
+              icon={Activity}
+              systemStatus={
+                isLoading
+                  ? 'loading'
+                  : {
+                      degraded: degradedMonitors.length,
+                      critical: criticalMonitors.length,
+                      degradedMonitors,
+                      criticalMonitors,
+                    }
+              }
+              animationDelayMs={0}
+            />
+            <GlobalMetricCard
+              variant="compact"
+              metricGroup="monitor"
+              title="Avg. TTFB"
+              value={isLoading ? '...' : `${liveTtfb}ms`}
+              valueTooltip={GLOBAL_TTFB_VALUE_TOOLTIP}
+              subtitle=""
+              icon={Gauge}
+              valueClassName={getTtfbColorClass(liveTtfb, 'global')}
+              trend={{
+                value: `${Math.abs(ttfbDelta)}%`,
+                tone: ttfbTrendTone,
+                icon: ttfbTrendIcon,
+                tooltip: GLOBAL_TTFB_TREND_TOOLTIP,
+              }}
+              statusFooter={
+                isLoading
+                  ? undefined
+                  : {
+                      label: ttfbPill.label,
+                      tone: ttfbPill.tone,
+                      context: globalTtfbFooterContextCompact(liveTtfb, ttfbDelta),
+                    }
+              }
+              animationDelayMs={0}
+            />
+            <GlobalMetricCard
+              variant="compact"
+              metricGroup="monitor"
+              title="Cache hit"
+              value={isLoading ? '...' : `${liveHit}%`}
+              valueTooltip={GLOBAL_CACHE_VALUE_TOOLTIP}
+              subtitle=""
+              icon={ArrowUp}
+              valueClassName={getCacheColor(liveHit, 'global')}
+              trend={{
+                value: `${Math.abs(hitDelta)}%`,
+                tone: hitTrendTone,
+                icon: hitTrendIcon,
+                tooltip: GLOBAL_CACHE_TREND_TOOLTIP,
+              }}
+              statusFooter={
+                isLoading
+                  ? undefined
+                  : {
+                      label: cachePill.label,
+                      tone: cachePill.tone,
+                      context: globalCacheFooterContextCompact(liveHit),
+                    }
+              }
+              animationDelayMs={0}
+            />
+          </div>
         </section>
 
         {/* ── Search & Filter bar ──────────────────────────────────────────── */}
@@ -285,11 +310,51 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
                 id="monitor-search-input"
                 type="text"
                 aria-label="Filter Monitors"
-                className="cs-input-premium h-11 w-full !pl-11 pr-5 text-[13px] placeholder:text-zinc-600 focus:scale-[1.002]"
+                className="cs-input-premium h-11 w-full !pl-11 !pr-12 text-[13px] placeholder:text-zinc-600 focus:scale-[1.002]"
                 placeholder="Ex: microsoft, cache miss, TTFB > 300ms…"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
               />
+              <div className="absolute right-4 top-1/2 z-20 -translate-y-1/2">
+                <PremiumTooltip
+                  position="top-right"
+                  content={
+                    <div className="w-56 space-y-3 p-1">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                        Smart Search Tips
+                      </p>
+                      <div className="space-y-2.5">
+                        <div className="space-y-1">
+                          <p className="text-[9px] font-bold text-metric-ttfb-fast uppercase">Latency</p>
+                          <div className="flex gap-1.5">
+                            <code className="rounded bg-white/5 px-1 py-0.5 text-[10px] text-zinc-300">ttfb &gt; 300</code>
+                            <code className="rounded bg-white/5 px-1 py-0.5 text-[10px] text-zinc-300">&lt; 150</code>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[9px] font-bold text-amber-400 uppercase">Cache</p>
+                          <div className="flex gap-1.5">
+                            <code className="rounded bg-white/5 px-1 py-0.5 text-[10px] text-zinc-300">hit &gt; 90</code>
+                            <code className="rounded bg-white/5 px-1 py-0.5 text-[10px] text-zinc-300">miss</code>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[9px] font-bold text-zinc-400 uppercase">Status</p>
+                          <div className="flex gap-1.5">
+                            <code className="rounded bg-white/5 px-1 py-0.5 text-[10px] text-zinc-300">active</code>
+                            <code className="rounded bg-white/5 px-1 py-0.5 text-[10px] text-zinc-300">paused</code>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="border-t border-white/5 pt-2 text-[9px] leading-relaxed text-zinc-500">
+                        Combine terms with commas for advanced filtering.
+                      </p>
+                    </div>
+                  }
+                >
+                  <HelpCircle className="h-4 w-4 cursor-help text-zinc-500 transition-colors hover:text-zinc-300" />
+                </PremiumTooltip>
+              </div>
             </div>
 
             <div

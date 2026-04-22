@@ -14,13 +14,26 @@ export type PremiumTooltipPosition =
 const TOOLTIP_WIDTH = 'min(320px, calc(100vw - 2rem))' as const
 const GAP_PX = 8
 
-function tooltipFixedStyle(trigger: DOMRect, position: PremiumTooltipPosition): React.CSSProperties {
+function tooltipFixedStyle(
+  trigger: DOMRect,
+  position: PremiumTooltipPosition,
+  interactive: boolean,
+  /** `hug` sizes the panel to content (capped at 320px); `wide` keeps the standard full strip width. */
+  panelSizing: 'wide' | 'hug',
+): React.CSSProperties {
   const base: React.CSSProperties = {
     position: 'fixed',
     zIndex: 99999,
-    pointerEvents: 'none',
-    width: TOOLTIP_WIDTH,
+    pointerEvents: interactive ? 'auto' : 'none',
     maxWidth: 'calc(100vw - 2rem)',
+    ...(panelSizing === 'hug'
+      ? {
+          width: 'max-content',
+          maxWidth: 'min(320px, calc(100vw - 2rem))',
+        }
+      : {
+          width: TOOLTIP_WIDTH,
+        }),
   }
 
   switch (position) {
@@ -77,21 +90,39 @@ export function PremiumTooltip({
   content,
   position = 'top-center',
   direction: _direction = 'top',
+  /** When true, panel accepts clicks (e.g. links) and stays open while the cursor is over the panel. */
+  interactive = false,
+  panelSizing = 'wide',
 }: {
   children: React.ReactNode
   content: React.ReactNode
   position?: PremiumTooltipPosition
   direction?: 'top' | 'bottom'
+  interactive?: boolean
+  panelSizing?: 'wide' | 'hug'
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [open, setOpen] = useState(false)
   const [fixedStyle, setFixedStyle] = useState<React.CSSProperties>({})
+
+  const clearCloseTimer = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
+  }, [])
+
+  const scheduleClose = useCallback(() => {
+    clearCloseTimer()
+    closeTimerRef.current = setTimeout(() => setOpen(false), interactive ? 120 : 0)
+  }, [clearCloseTimer, interactive])
 
   const updatePosition = useCallback(() => {
     const el = hostRef.current
     if (!el) return
-    setFixedStyle(tooltipFixedStyle(el.getBoundingClientRect(), position))
-  }, [position])
+    setFixedStyle(tooltipFixedStyle(el.getBoundingClientRect(), position, interactive, panelSizing))
+  }, [position, interactive, panelSizing])
 
   useLayoutEffect(() => {
     if (!open) return
@@ -104,22 +135,50 @@ export function PremiumTooltip({
     }
   }, [open, updatePosition])
 
-  const onEnter = () => {
+  useLayoutEffect(() => () => clearCloseTimer(), [clearCloseTimer])
+
+  const onEnterHost = () => {
+    clearCloseTimer()
     const el = hostRef.current
-    if (el) setFixedStyle(tooltipFixedStyle(el.getBoundingClientRect(), position))
+    if (el) setFixedStyle(tooltipFixedStyle(el.getBoundingClientRect(), position, interactive, panelSizing))
     setOpen(true)
   }
 
-  const onLeave = () => setOpen(false)
+  const onLeaveHost = () => {
+    if (!interactive) {
+      setOpen(false)
+      return
+    }
+    scheduleClose()
+  }
+
+  const onEnterPanel = () => {
+    if (!interactive) return
+    clearCloseTimer()
+  }
+
+  const onLeavePanel = () => {
+    if (!interactive) return
+    scheduleClose()
+  }
 
   const panel =
     open && typeof document !== 'undefined' ? (
       <div
+        data-premium-tooltip-panel
         style={fixedStyle}
         className="opacity-100 transition-opacity duration-200 ease-out"
-        aria-hidden
+        aria-hidden={interactive ? undefined : true}
+        onMouseEnter={interactive ? onEnterPanel : undefined}
+        onMouseLeave={interactive ? onLeavePanel : undefined}
       >
-        <div className="cs-tooltip-panel">{content}</div>
+        <div
+          className={
+            panelSizing === 'hug' ? 'cs-tooltip-panel cs-tooltip-panel--hug' : 'cs-tooltip-panel'
+          }
+        >
+          {content}
+        </div>
       </div>
     ) : null
 
@@ -127,8 +186,8 @@ export function PremiumTooltip({
     <div
       ref={hostRef}
       className="relative inline-flex items-center"
-      onMouseEnter={onEnter}
-      onMouseLeave={onLeave}
+      onMouseEnter={onEnterHost}
+      onMouseLeave={onLeaveHost}
     >
       {children}
       {panel ? createPortal(panel, document.body) : null}

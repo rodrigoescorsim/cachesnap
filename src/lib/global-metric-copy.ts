@@ -39,6 +39,23 @@ export function globalCacheFooterContext(liveHit: number): string {
   return `Well below ${GLOBAL_CACHE.GOOD}% target — cache effectiveness is weak.`
 }
 
+/** Shorter footer lines for compact dashboard strips (e.g. Monitors overview). */
+export function globalTtfbFooterContextCompact(liveTtfb: number, ttfbDelta: number): string {
+  if (liveTtfb < GLOBAL_TTFB.FAST) {
+    return `Under ${GLOBAL_TTFB.FAST}ms aggregate.`
+  }
+  const abs = Math.abs(ttfbDelta)
+  if (ttfbDelta < 0) return `${abs}% below pooled 24h average.`
+  if (ttfbDelta > 0) return `${abs}% above pooled 24h average.`
+  return 'Matches pooled 24h average.'
+}
+
+export function globalCacheFooterContextCompact(liveHit: number): string {
+  if (liveHit >= GLOBAL_CACHE.GOOD) return 'On target.'
+  if (liveHit >= GLOBAL_CACHE.FAIR) return `Below ${GLOBAL_CACHE.GOOD}% target.`
+  return `Far below ${GLOBAL_CACHE.GOOD}% target.`
+}
+
 export const GLOBAL_TTFB_VALUE_TOOLTIP =
   "Simple mean across active monitors: each value is that monitor's latest TTFB averaged across regions. Paused monitors are excluded."
 

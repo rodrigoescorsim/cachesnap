@@ -2,7 +2,9 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { useState, useTransition, useEffect, useRef } from 'react'
+import { invalidateMonitorsSummary } from '@/hooks/use-monitors'
 import { BarChart3, Check, ChevronRight, Globe, Lightbulb, Map, X, Zap } from 'lucide-react'
 import { GlobalHeader } from '@/components/dashboard/global-header'
 
@@ -30,6 +32,7 @@ type NewMonitorPageProps = {
 
 export function NewMonitorPage({ userEmail, logoutAction }: NewMonitorPageProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [isPending, startTransition] = useTransition()
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [urlValue, setUrlValue] = useState('')
@@ -84,6 +87,7 @@ export function NewMonitorPage({ userEmail, logoutAction }: NewMonitorPageProps)
       })
 
       if (res.ok) {
+        await invalidateMonitorsSummary(queryClient)
         router.refresh()
         router.push('/monitors')
       } else {

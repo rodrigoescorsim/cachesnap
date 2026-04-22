@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   globalCacheFooterContext,
+  globalCacheFooterContextCompact,
   globalCacheFooterPill,
   globalTtfbFooterContext,
+  globalTtfbFooterContextCompact,
   globalTtfbFooterPill,
 } from './global-metric-copy'
 
@@ -30,5 +32,17 @@ describe('globalCacheFooterContext', () => {
   it('mentions target when below good band', () => {
     expect(globalCacheFooterContext(82)).toContain('85%')
     expect(globalCacheFooterContext(50)).toContain('85%')
+  })
+})
+
+describe('compact footer copy', () => {
+  it('globalTtfbFooterContextCompact stays short', () => {
+    expect(globalTtfbFooterContextCompact(400, -9).length).toBeLessThan(80)
+    expect(globalTtfbFooterContextCompact(250, 0)).toContain('300')
+  })
+
+  it('globalCacheFooterContextCompact stays short', () => {
+    expect(globalCacheFooterContextCompact(82)).toBe('Below 85% target.')
+    expect(globalCacheFooterContextCompact(90)).toBe('On target.')
   })
 })

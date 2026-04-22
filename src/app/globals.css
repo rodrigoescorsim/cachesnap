@@ -537,6 +537,13 @@ body {
     background-color: var(--tooltip-surface);
   }
 
+  /** Narrow lists / short copy: panel width follows content (outer also uses max-content). */
+  .cs-tooltip-panel.cs-tooltip-panel--hug {
+    width: max-content;
+    max-width: min(320px, calc(100vw - 2rem));
+    box-sizing: border-box;
+  }
+
   /* TTFB column tiers — semantic aliases (colors trace to --metric-* in :root). */
   .text-metric-ttfb-fast {
     color: var(--metric-fast);

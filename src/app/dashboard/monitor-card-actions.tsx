@@ -2,7 +2,9 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { useState, useTransition } from 'react'
+import { invalidateMonitorsSummary } from '@/hooks/use-monitors'
 
 interface Props {
   monitorId: string
@@ -11,6 +13,7 @@ interface Props {
 
 export function MonitorCardActions({ monitorId, monitorLabel }: Props) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -35,6 +38,7 @@ export function MonitorCardActions({ monitorId, monitorLabel }: Props) {
           setError('Failed to delete monitor')
           return
         }
+        await invalidateMonitorsSummary(queryClient)
         setConfirmOpen(false)
         router.refresh()
       } catch {

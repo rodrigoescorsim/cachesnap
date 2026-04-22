@@ -2,8 +2,10 @@
 
 import { FormEvent, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { createPortal } from 'react-dom'
 import { Trash2 } from 'lucide-react'
+import { invalidateMonitorsSummary } from '@/hooks/use-monitors'
 
 export function MonitorDeleteConfirm({
   monitorId,
@@ -13,6 +15,7 @@ export function MonitorDeleteConfirm({
   onClose: () => void
 }) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [isPending, startTransition] = useTransition()
   const [confirmValue, setConfirmValue] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -51,6 +54,7 @@ export function MonitorDeleteConfirm({
       try {
         const res = await fetch(`/api/monitors/${monitorId}`, { method: 'DELETE' })
         if (res.ok) {
+          await invalidateMonitorsSummary(queryClient)
           onClose()
           router.push('/monitors')
           router.refresh()
