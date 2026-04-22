@@ -24,7 +24,7 @@ import type { LucideIcon } from 'lucide-react'
 import { GlobalHeader } from '@/components/dashboard/global-header'
 import { GlobalMetricCard } from '@/components/monitors/global-metric-card'
 import { useMonitors } from '@/hooks/use-monitors'
-import type { Monitor } from '@/types/monitor'
+import { monitorHealthScore, type Monitor } from '@/types/monitor'
 import {
   type Severity,
   type Insight,
@@ -40,6 +40,7 @@ import {
   getCacheColor,
   MONITOR_TTFB,
 } from '@/lib/thresholds'
+import { calculateTrend } from '@/lib/metrics-math'
 
 // ─── Severity styles ──────────────────────────────────────────────────────────
 
@@ -735,32 +736,56 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
   const { monitors, isLoading } = useMonitors({ refetchInterval: 60_000 })
 
   // ── Global metrics ────────────────────────────────────────────────────────
-  const { activeCount, avgTtfb, avgHit, healthScore, ttfbDelta } = useMemo(() => {
-    if (!monitors.length) return { activeCount: 0, avgTtfb: 0, avgHit: 0, healthScore: 0, ttfbDelta: 0 }
+  const { activeCount, liveTtfb, liveHit, avgTtfb24h, avgHit24h, healthScore, ttfbDelta, hitDelta } = useMemo(() => {
+    if (!monitors.length) return { activeCount: 0, liveTtfb: 0, liveHit: 0, avgTtfb24h: 0, avgHit24h: 0, healthScore: 0, ttfbDelta: 0, hitDelta: 0 }
 
     const active  = monitors.filter(m => m.status === 'active')
-    const avgTtfb = Math.round(monitors.reduce((s, m) => s + m.ttfbCurrent, 0) / monitors.length)
+    
+    // Live Average (Current sample from all active monitors)
+    const liveTtfb = active.length > 0
+      ? Math.round(active.reduce((s, m) => s + m.ttfbCurrent, 0) / active.length)
+      : 0
 
-    const cm     = monitors.filter(m => m.cacheHitCurrent !== null)
-    const avgHit = cm.length
+    const cm     = active.filter(m => m.cacheHitCurrent !== null)
+    const liveHit = cm.length
       ? Number((cm.reduce((s, m) => s + m.cacheHitCurrent!, 0) / cm.length).toFixed(1))
       : 0
 
-    const healthyCount = monitors.filter(
-      m => m.ttfbCurrent < MONITOR_TTFB.SLOW && (m.cacheHitCurrent === null || m.cacheHitCurrent > 80),
-    ).length
-    const healthScore = Math.round((healthyCount / monitors.length) * 100)
+    // 24H Average (Historical average from all active monitors)
+    const avgTtfb24h = active.length > 0
+      ? Math.round(active.reduce((s, m) => s + m.ttfbAvg24h, 0) / active.length)
+      : 0
+    
+    const cm24h = active.filter(m => m.cacheHitAvg24h !== null)
+    const avgHit24h = cm24h.length
+      ? Number((cm24h.reduce((s, m) => s + m.cacheHitAvg24h!, 0) / cm24h.length).toFixed(1))
+      : 0
 
-    const ttfbDelta = Math.round(
-      (monitors.reduce((s, m) => s + m.ttfbCurrentDelta, 0) / monitors.length) * 10,
-    ) / 10
+    // Global health Score: weighted average of individual monitor health scores
+    const healthScore = monitors.length > 0 
+      ? Math.round(monitors.reduce((sum, m) => sum + monitorHealthScore(m), 0) / monitors.length) 
+      : 0
 
-    return { activeCount: active.length, avgTtfb, avgHit, healthScore, ttfbDelta }
+    // Network-wide Trends (Real-time vs 24h Baseline)
+    const ttfbDelta = calculateTrend(liveTtfb, avgTtfb24h)
+    const hitDelta  = calculateTrend(liveHit, avgHit24h)
+
+    return { 
+      activeCount: active.length, 
+      liveTtfb, 
+      liveHit, 
+      avgTtfb24h, 
+      avgHit24h, 
+      healthScore, 
+      ttfbDelta,
+      hitDelta
+    }
   }, [monitors])
 
   const ttfbImproved = ttfbDelta < 0
 
-  const healthLabel    = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'Healthy' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'Degraded' : 'Critical'
+  const healthLabel = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'Stable' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'Degraded' : 'Critical'
+  const healthDesc  = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'Excellent' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'Fair' : 'Poor'
   const healthBadgeCls = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'cs-badge-success' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'cs-badge-warning' : 'cs-badge-error'
   const healthDotCls   = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'bg-[var(--brand-primary)]' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'bg-amber-400' : 'bg-rose-400'
 
@@ -844,15 +869,15 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
           <h2 className="cs-view-section-title mb-3">Global Health Overview</h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <GlobalMetricCard
-              title="Health Score"
+              title="Global Resilience Score"
               value={isLoading ? '…' : `${healthScore}/100`}
-              subtitle={isLoading ? 'Calculating…' : `${healthLabel} — ${activeCount} active monitors`}
+              subtitle={isLoading ? 'Calculating health...' : `${healthDesc} system-wide resilience`}
               icon={HeartPulse}
-              valueClassName={`text-[28px] sm:text-[32px] font-black ${getHealthColor(healthScore)}`}
+              valueClassName={getHealthColor(healthScore)}
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
               badge={{
                 text:         healthLabel,
-                className:    `${healthBadgeCls} !py-0.5 !px-1.5 !text-[9px]`,
+                className:    `${healthBadgeCls}`,
                 withPulseDot: !isLoading,
                 dotClassName: healthDotCls,
               }}
@@ -860,31 +885,45 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               animationDelayMs={0}
             />
             <GlobalMetricCard
-              title="Avg TTFB (Global)"
-              value={isLoading ? '…' : `${avgTtfb} ms`}
-              subtitle="Average response time across all endpoints"
+              title="Global Avg. TTFB"
+              value={isLoading ? '…' : `${liveTtfb}ms`}
+              valueTooltip="This is the average speed across all your monitored sites right now."
+              subtitle=""
               icon={Gauge}
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
-              valueClassName={getTtfbColorClass(avgTtfb, 'global')}
+              valueClassName={getTtfbColorClass(liveTtfb, 'global')}
               trend={{
                 value: `${Math.abs(ttfbDelta)}%`,
                 tone:  ttfbImproved ? 'success' : 'danger',
                 icon:  ttfbImproved ? ArrowDown : ArrowUp,
+                tooltip: "Shows if your sites are faster or slower than your usual performance today."
+              }}
+              statusFooter={{
+                label: liveTtfb < 200 ? 'GOOD' : liveTtfb < 500 ? 'DEGRADED' : 'CRITICAL',
+                tone: liveTtfb < 200 ? 'success' : liveTtfb < 500 ? 'warning' : 'danger',
+                context: liveTtfb < 200 ? 'Optimal response time' : `Latency above baseline (+${Math.abs(ttfbDelta)}%)`
               }}
               animationDelayMs={70}
             />
             <GlobalMetricCard
-              title="Avg Cache Hit"
-              value={isLoading ? '…' : `${avgHit}%`}
-              subtitle="Global CDN cache efficiency"
-              valueClassName={getCacheColor(avgHit, 'global')}
+              title="Global Cache Hit"
+              value={isLoading ? '…' : `${liveHit}%`}
+              valueTooltip="Shows how much of your site is being delivered fast via cache."
+              subtitle=""
+              valueClassName={getCacheColor(liveHit, 'global')}
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
-              icon={Activity}
+              icon={ArrowUp}
               trend={{
-                value: avgHit >= 80 ? 'Good' : avgHit >= 60 ? 'Fair' : 'Low',
-                tone:  avgHit >= 80 ? 'success' : avgHit >= 60 ? 'warning' : 'danger',
+                value: `${Math.abs(hitDelta)}%`,
+                tone:  hitDelta >= 0 ? 'success' : 'danger',
+                icon:  hitDelta >= 0 ? ArrowUp : ArrowDown,
+                tooltip: "Indicates if your server's edge efficiency improved or declined today."
               }}
-              metaBadge={{ text: 'HIT', className: 'cs-badge-cache-hit' }}
+              statusFooter={{
+                label: liveHit >= 85 ? 'GOOD' : liveHit >= 70 ? 'DEGRADED' : 'CRITICAL',
+                tone: liveHit >= 85 ? 'success' : liveHit >= 70 ? 'warning' : 'danger',
+                context: liveHit >= 85 ? 'Excellent edge efficiency' : 'Cache hit below target (85%)'
+              }}
               animationDelayMs={140}
             />
           </div>
@@ -938,9 +977,9 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                 <div>
                   <p className="cs-metric-card-label mb-0 border-0 !text-[10px] text-zinc-400">TTFB Trend (24h)</p>
                   <p
-                    className={`mt-1.5 text-[24px] font-black tabular-nums leading-none ${getTtfbColorClass(avgTtfb, 'global')}`}
+                    className={`mt-1.5 text-[24px] font-black tabular-nums leading-none ${getTtfbColorClass(liveTtfb, 'global')}`}
                   >
-                    {isLoading ? '…' : `${avgTtfb}ms`}
+                    {isLoading ? '…' : `${liveTtfb}ms`}
                   </p>
                 </div>
                 <div className="rounded-lg border border-white/5 bg-white/5 p-2 text-zinc-400">
@@ -957,7 +996,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                       id="ttfb"
                       height={92}
                       unit="ms"
-                  thresholds={{ warn: GLOBAL_TTFB.FAST, critical: GLOBAL_TTFB.SLOW }}
+                      thresholds={{ warn: GLOBAL_TTFB.FAST, critical: GLOBAL_TTFB.SLOW }}
                     />
                   </>
                 ) : (
@@ -976,8 +1015,8 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               <div className="mb-5 flex items-start justify-between gap-2">
                 <div>
                   <p className="cs-metric-card-label mb-0 border-0 !text-[10px] text-zinc-400">Cache Hit Rate</p>
-                  <p className="mt-1.5 text-[24px] font-black tabular-nums leading-none text-zinc-100">
-                    {isLoading ? '…' : `${avgHit}%`}
+                  <p className={`mt-1.5 text-[24px] font-black tabular-nums leading-none ${getCacheColor(liveHit, 'global')}`}>
+                    {isLoading ? '…' : `${liveHit}%`}
                     <span className="ml-1.5 text-[13px] font-semibold text-zinc-400">global avg</span>
                   </p>
                 </div>

@@ -22,6 +22,7 @@ import {
   getHealthColor,
   getCacheColor,
 } from '@/lib/thresholds'
+import { calculateTrend } from '@/lib/metrics-math'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -125,30 +126,52 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
   }, [])
 
   // ── Metrics calculation ──────────────────────────────────────────────────
-  const { activeCount, avgTtfb, avgHit, healthScore, ttfbDelta } = useMemo(() => {
-    if (!displayMonitors.length) return { activeCount: 0, avgTtfb: 0, avgHit: 0, healthScore: 0, ttfbDelta: 0 }
-    
-    const active = displayMonitors.filter((m) => m.status === 'active')
-    const avgTtfb = Math.round(displayMonitors.reduce((sum, m) => sum + m.ttfbCurrent, 0) / displayMonitors.length)
 
-    // Exclude monitors with no cache data (null) from the average
-    const withCacheData = displayMonitors.filter((m) => m.cacheHitCurrent !== null)
-    const avgHit = withCacheData.length > 0
+  // ── Global metrics ────────────────────────────────────────────────────────
+  const { activeCount, liveTtfb, liveHit, avgTtfb24h, avgHit24h, healthScore, ttfbDelta, hitDelta } = useMemo(() => {
+    if (!displayMonitors.length) return { activeCount: 0, liveTtfb: 0, liveHit: 0, avgTtfb24h: 0, avgHit24h: 0, healthScore: 0, ttfbDelta: 0, hitDelta: 0 }
+
+    const active  = displayMonitors.filter((m) => m.status === 'active')
+    
+    // Live Average (Current sample from all active monitors)
+    const liveTtfb = active.length > 0
+      ? Math.round(active.reduce((sum, m) => sum + m.ttfbCurrent, 0) / active.length)
+      : 0
+
+    const withCacheData = active.filter((m) => m.cacheHitCurrent !== null)
+    const liveHit = withCacheData.length > 0
       ? Number((withCacheData.reduce((sum, m) => sum + m.cacheHitCurrent!, 0) / withCacheData.length).toFixed(1))
       : 0
 
-    // Global health Score: percentage of monitors which are NOT slow/critical
-    const slowCount = displayMonitors.filter(m => m.ttfbCurrent >= 500).length
-    const score = displayMonitors.length > 0 ? Math.round(((displayMonitors.length - slowCount) / displayMonitors.length) * 100) : 0
-
-    // Global TTFB trend: average of each monitor's individual current-vs-24h delta
-    const ttfbDelta = displayMonitors.length > 0
-      ? Math.round(
-          displayMonitors.reduce((sum, m) => sum + m.ttfbCurrentDelta, 0) / displayMonitors.length * 10,
-        ) / 10
+    // 24H Average (Historical average from all active monitors)
+    const avgTtfb24h = active.length > 0
+      ? Math.round(active.reduce((sum, m) => sum + m.ttfbAvg24h, 0) / active.length)
+      : 0
+    
+    const withCache24h = active.filter((m) => m.cacheHitAvg24h !== null)
+    const avgHit24h = withCache24h.length > 0
+      ? Number((withCache24h.reduce((sum, m) => sum + m.cacheHitAvg24h!, 0) / withCache24h.length).toFixed(1))
       : 0
 
-    return { activeCount: active.length, avgTtfb, avgHit, healthScore: score, ttfbDelta }
+    // Global health Score: weighted average of individual monitor health scores
+    const score = displayMonitors.length > 0 
+      ? Math.round(displayMonitors.reduce((sum, m) => sum + monitorHealthScore(m), 0) / displayMonitors.length) 
+      : 0
+
+    // Network-wide Trends (Real-time vs 24h Baseline)
+    const ttfbDelta = calculateTrend(liveTtfb, avgTtfb24h)
+    const hitDelta  = calculateTrend(liveHit, avgHit24h)
+
+    return { 
+      activeCount: active.length, 
+      liveTtfb, 
+      liveHit, 
+      avgTtfb24h, 
+      avgHit24h, 
+      healthScore: score, 
+      ttfbDelta,
+      hitDelta
+    }
   }, [displayMonitors])
 
   const ttfbImproved = ttfbDelta < 0
@@ -167,41 +190,58 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
 
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           <GlobalMetricCard
-            title="Avg TTFB (Current)"
-            value={isLoading ? '...' : `${avgTtfb} ms`}
-            subtitle="Average across all endpoints"
-            icon={Gauge}
-            valueClassName={getTtfbColorClass(avgTtfb, 'global')}
-            trend={{
-              value: `${Math.abs(ttfbDelta)}%`,
-              tone: ttfbImproved ? 'success' : 'danger',
-              icon: ttfbImproved ? ArrowDown : ArrowUp,
-            }}
-            animationDelayMs={30}
-          />
-          <GlobalMetricCard
-            title="Avg Cache Hit (Current)"
-            value={isLoading ? '...' : `${avgHit}%`}
-            subtitle="Global distribution efficiency"
-            icon={ArrowUp}
-            valueClassName={getCacheColor(avgHit, 'global')}
-            trend={{ value: '3.1%', tone: 'success', icon: ArrowUp }}
-            metaBadge={{ text: 'HIT', className: 'cs-badge-cache-hit' }}
-            animationDelayMs={90}
-          />
-          <GlobalMetricCard
-            title="Health Score"
+            title="Global Resilience Score"
             value={isLoading ? '...' : `${healthScore}/100`}
-            subtitle="Global edge resilience"
+            subtitle={isLoading ? 'Calculating health...' : `${healthScore >= GLOBAL_HEALTH.HEALTHY ? 'Excellent' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'Fair' : 'Poor'} system-wide resilience`}
             icon={HeartPulse}
-            valueClassName={`text-[24px] sm:text-[28px] font-black ${getHealthColor(healthScore)}`}
+            valueClassName={getHealthColor(healthScore)}
             badge={{ 
               text: healthScore >= GLOBAL_HEALTH.HEALTHY ? 'STABLE' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'DEGRADED' : 'CRITICAL', 
-              className: `${healthScore >= GLOBAL_HEALTH.HEALTHY ? 'cs-badge-success' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'cs-badge-warning' : 'cs-badge-error'} !py-0.5 !px-1.5 !text-[9px]`,
+              className: `${healthScore >= GLOBAL_HEALTH.HEALTHY ? 'cs-badge-success' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'cs-badge-warning' : 'cs-badge-error'}`,
               withPulseDot: !isLoading,
               dotClassName: healthScore >= GLOBAL_HEALTH.HEALTHY ? 'bg-[var(--brand-primary)]' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'bg-amber-400' : 'bg-rose-500'
             }}
             progress={isLoading ? 0 : healthScore}
+            animationDelayMs={30}
+          />
+          <GlobalMetricCard
+            title="Global Avg. TTFB"
+            value={isLoading ? '...' : `${liveTtfb}ms`}
+            valueTooltip="This is the average speed across all your monitored sites right now."
+            subtitle=""
+            icon={Gauge}
+            valueClassName={getTtfbColorClass(liveTtfb, 'global')}
+            trend={{
+              value: `${Math.abs(ttfbDelta)}%`,
+              tone: ttfbImproved ? 'success' : 'danger',
+              icon: ttfbImproved ? ArrowDown : ArrowUp,
+              tooltip: "Shows if your sites are faster or slower than your usual performance today."
+            }}
+            statusFooter={{
+              label: liveTtfb < 200 ? 'GOOD' : liveTtfb < 500 ? 'DEGRADED' : 'CRITICAL',
+              tone: liveTtfb < 200 ? 'success' : liveTtfb < 500 ? 'warning' : 'danger',
+              context: liveTtfb < 200 ? 'Optimal response time' : `Latency above baseline (+${Math.abs(ttfbDelta)}%)`
+            }}
+            animationDelayMs={90}
+          />
+          <GlobalMetricCard
+            title="Global Cache Hit"
+            value={isLoading ? '...' : `${liveHit}%`}
+            valueTooltip="Shows how much of your site is being delivered fast via cache."
+            subtitle=""
+            icon={ArrowUp}
+            valueClassName={getCacheColor(liveHit, 'global')}
+            trend={{ 
+              value: `${Math.abs(hitDelta)}%`, 
+              tone: hitDelta >= 0 ? 'success' : 'danger', 
+              icon: hitDelta >= 0 ? ArrowUp : ArrowDown,
+              tooltip: "Indicates if your server's edge efficiency improved or declined today."
+            }}
+            statusFooter={{
+              label: liveHit >= 85 ? 'GOOD' : liveHit >= 70 ? 'DEGRADED' : 'CRITICAL',
+              tone: liveHit >= 85 ? 'success' : liveHit >= 70 ? 'warning' : 'danger',
+              context: liveHit >= 85 ? 'Excellent edge efficiency' : 'Cache hit below target (85%)'
+            }}
             animationDelayMs={150}
           />
         </section>
