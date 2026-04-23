@@ -109,6 +109,8 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
                     actual_ms: payload.ttfb_ms,
                     baseline_ms: Some(cfg.alert_threshold_ms as f64),
                     deviation_factor: None,
+                    delta_pct: None,
+                    comparator: None,
                 }));
             }
             Err(e) => error!("Failed to register DOWN alert: {}", e),
@@ -194,6 +196,8 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
                                 actual_ms: Some(actual_ttfb),
                                 baseline_ms: Some(avg),
                                 deviation_factor: Some(deviation_factor),
+                                delta_pct: None,
+                                comparator: None,
                             }));
                         }
                         Err(e) => error!("Failed to register ANOMALY alert: {}", e),

@@ -1,6 +1,7 @@
 use crate::{
     alerts::notifier::{self, AlertNotification},
     diagnosis::engine::{self, DiagnosisInput},
+    trend,
     AppState,
 };
 use std::time::Duration;
@@ -39,6 +40,11 @@ pub async fn run(state: AppState) {
         }
 
         info!("General alerts audit cycle completed.");
+
+        // Trend alerts: run detector after general audit
+        if let Err(e) = trend::detector::run_cycle(&state).await {
+            error!("Trend detector cycle error: {}", e);
+        }
     }
 }
 
@@ -120,7 +126,7 @@ async fn check_cache_hit(state: &AppState, monitor: &MonitorAlertConfig, region:
         SELECT
             (SUM(hit_count)::float / NULLIF(SUM(total_count), 0)) * 100 AS hit_pct,
             SUM(total_count) AS sample_count
-        FROM cache_hits_hourly
+        FROM probe_results_hourly
         WHERE monitor_id = $1 AND region = $2 AND bucket > NOW() - INTERVAL '24 hours'
         "#,
     )
@@ -249,6 +255,8 @@ async fn save_and_notify(
         actual_ms: Some(actual),
         baseline_ms: baseline,
         deviation_factor: None,
+        delta_pct: None,
+        comparator: None,
     }));
 
     Ok(())

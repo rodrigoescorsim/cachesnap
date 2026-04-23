@@ -152,6 +152,9 @@ interface Alert {
   deviation_factor: number | null
   diagnosis: string | null
   action: string | null
+  delta_pct: number | null
+  comparator: string | null
+  scope: string | null
   created_at: Date
 }
 
@@ -250,12 +253,23 @@ const MONITOR_HEADER_STATUS_BADGE =
 const MONITOR_HEADER_ACTIVE_DOT =
   'bg-[var(--brand-primary)] [box-shadow:0_0_8px_rgba(34,255,136,0.5)]'
 
-const VALID_ALERT_TYPES = ['down', 'anomaly', 'anycast', 'zombie_cache', 'cache_hit_low'] as const satisfies readonly AlertType[]
+const VALID_ALERT_TYPES = [
+  'down', 'anomaly', 'anycast', 'zombie_cache', 'cache_hit_low',
+  'cache_hit_trend_drop_region', 'cache_hit_trend_drop_global',
+  'ttfb_trend_up_region', 'ttfb_trend_up_global',
+  'ttfb_trend_down_region', 'ttfb_trend_down_global',
+] as const satisfies readonly AlertType[]
 
 const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   down: 'Offline',
   anomaly: 'Anomaly',
   anycast: 'Anycast',
+  cache_hit_trend_drop_region: 'Cache Hit ↓ (region)',
+  cache_hit_trend_drop_global: 'Cache Hit ↓ (global)',
+  ttfb_trend_up_region: 'TTFB ↑ (region)',
+  ttfb_trend_up_global: 'TTFB ↑ (global)',
+  ttfb_trend_down_region: 'TTFB ↓ (region)',
+  ttfb_trend_down_global: 'TTFB ↓ (global)',
   zombie_cache: 'Zombie cache',
   cache_hit_low: 'Cache hit low',
 }
@@ -543,13 +557,21 @@ export default async function MonitorDetailPage({
     alert_down_enabled: boolean; alert_anomaly_enabled: boolean;
     alert_anycast_enabled: boolean; alert_zombie_cache_enabled: boolean;
     alert_cache_hit_enabled: boolean; alert_cache_hit_threshold_pct: number;
+    alert_cache_hit_trend_enabled: boolean; alert_cache_hit_trend_threshold_pct: number; alert_cache_hit_trend_comparators: string[];
+    alert_ttfb_trend_enabled: boolean; alert_ttfb_trend_threshold_pct: number; alert_ttfb_trend_comparators: string[];
+    alert_ttfb_trend_direction: string; alert_trend_min_samples: number; alert_trend_cooldown_minutes: number;
+    alert_trend_require_consecutive: boolean; alert_trend_global_enabled: boolean; alert_trend_global_threshold_factor: number;
   }[]>`
     SELECT id, url, name, is_active, check_interval_seconds, audit_interval_seconds,
            notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
            alert_threshold_ms, alert_sensitivity,
            alert_down_enabled, alert_anomaly_enabled,
            alert_anycast_enabled, alert_zombie_cache_enabled,
-           alert_cache_hit_enabled, alert_cache_hit_threshold_pct
+           alert_cache_hit_enabled, alert_cache_hit_threshold_pct,
+           alert_cache_hit_trend_enabled, alert_cache_hit_trend_threshold_pct, alert_cache_hit_trend_comparators,
+           alert_ttfb_trend_enabled, alert_ttfb_trend_threshold_pct, alert_ttfb_trend_comparators,
+           alert_ttfb_trend_direction, alert_trend_min_samples, alert_trend_cooldown_minutes,
+           alert_trend_require_consecutive, alert_trend_global_enabled, alert_trend_global_threshold_factor
     FROM monitors WHERE id = ${id} AND user_id = ${user.id} LIMIT 1
   `
   if (!monitor) notFound()
@@ -650,14 +672,16 @@ export default async function MonitorDetailPage({
 
   const alerts = filteredAlertType
     ? await sql<Alert[]>`
-        SELECT id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, diagnosis, action, created_at
+        SELECT id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, diagnosis, action,
+               delta_pct, comparator, scope, created_at
         FROM alerts
         WHERE monitor_id = ${id} AND alert_type = ${filteredAlertType}
         ORDER BY created_at DESC
         LIMIT 100
       `
     : await sql<Alert[]>`
-        SELECT id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, diagnosis, action, created_at
+        SELECT id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, diagnosis, action,
+               delta_pct, comparator, scope, created_at
         FROM alerts
         WHERE monitor_id = ${id}
         ORDER BY created_at DESC
@@ -1573,6 +1597,18 @@ export default async function MonitorDetailPage({
                 alertZombieCacheEnabled={monitor.alert_zombie_cache_enabled}
                 alertCacheHitEnabled={monitor.alert_cache_hit_enabled}
                 alertCacheHitThresholdPct={monitor.alert_cache_hit_threshold_pct}
+                alertCacheHitTrendEnabled={monitor.alert_cache_hit_trend_enabled}
+                alertCacheHitTrendThresholdPct={monitor.alert_cache_hit_trend_threshold_pct}
+                alertCacheHitTrendComparators={(monitor.alert_cache_hit_trend_comparators ?? ['prev_hour']) as import('./monitor-edit-form').TrendComparator[]}
+                alertTtfbTrendEnabled={monitor.alert_ttfb_trend_enabled}
+                alertTtfbTrendThresholdPct={monitor.alert_ttfb_trend_threshold_pct}
+                alertTtfbTrendComparators={(monitor.alert_ttfb_trend_comparators ?? ['prev_hour']) as import('./monitor-edit-form').TrendComparator[]}
+                alertTtfbTrendDirection={(monitor.alert_ttfb_trend_direction ?? 'worsening') as 'worsening' | 'both'}
+                alertTrendMinSamples={monitor.alert_trend_min_samples}
+                alertTrendCooldownMinutes={monitor.alert_trend_cooldown_minutes}
+                alertTrendRequireConsecutive={monitor.alert_trend_require_consecutive}
+                alertTrendGlobalEnabled={monitor.alert_trend_global_enabled}
+                alertTrendGlobalThresholdFactor={monitor.alert_trend_global_threshold_factor}
               />
             </div>
           )}
@@ -2068,14 +2104,18 @@ export default async function MonitorDetailPage({
                                     </code>
                                   </td>
                                   <td className="px-4 py-3 text-right text-xs tabular-nums text-zinc-400">
-                                    {alert.alert_type === 'cache_hit_low'
-                                      ? (alert.baseline_ms != null ? `${alert.baseline_ms.toFixed(0)}%` : '—')
-                                      : formatMs(alert.baseline_ms)}
+                                    {alert.delta_pct != null
+                                      ? <span className={alert.delta_pct < 0 ? 'text-red-400' : 'text-amber-400'}>{alert.delta_pct > 0 ? '+' : ''}{alert.delta_pct.toFixed(1)}%</span>
+                                      : alert.alert_type === 'cache_hit_low'
+                                        ? (alert.baseline_ms != null ? `${alert.baseline_ms.toFixed(0)}%` : '—')
+                                        : formatMs(alert.baseline_ms)}
                                   </td>
                                   <td className="px-4 py-3 text-right text-xs tabular-nums font-semibold text-zinc-700 dark:text-zinc-300">
-                                    {alert.alert_type === 'cache_hit_low'
-                                      ? (alert.actual_ms != null ? `${alert.actual_ms.toFixed(1)}%` : '—')
-                                      : formatMs(alert.actual_ms)}
+                                    {alert.comparator != null
+                                      ? <span className="text-[10px] font-normal text-zinc-500 uppercase tracking-tight">{alert.comparator.replace(/_/g, ' ')}</span>
+                                      : alert.alert_type === 'cache_hit_low'
+                                        ? (alert.actual_ms != null ? `${alert.actual_ms.toFixed(1)}%` : '—')
+                                        : formatMs(alert.actual_ms)}
                                   </td>
                                   <td className="px-4 py-3 text-right">
                                     <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-black tracking-tighter ${severityColor}`}>

@@ -7,6 +7,7 @@ mod models;
 mod redis;
 mod routes;
 mod scheduler;
+mod trend;
 mod utils;
 
 use anyhow::Result;
@@ -79,6 +80,7 @@ async fn main() -> Result<()> {
     tokio::spawn(scheduler::runner::start(state.clone()));
     tokio::spawn(baseline::calculator::run(state.clone()));
     tokio::spawn(alerts::worker::run(state.clone()));
+    tokio::spawn(trend::baseline_computer::run(state.clone()));
 
     let allowed_origin: HeaderValue = config
         .app_url

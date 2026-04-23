@@ -4,6 +4,8 @@ import { getSession } from '@/lib/auth'
 import { unauthorized } from '@/lib/api-auth'
 import sql from '@/lib/db'
 
+const VALID_COMPARATORS = ['prev_hour', 'same_hour_prev_day', 'day_avg'] as const
+
 const updateSchema = z.object({
   name: z.string().max(100).optional(),
   check_interval_seconds: z.number().int().min(1).optional(),
@@ -21,6 +23,19 @@ const updateSchema = z.object({
   alert_zombie_cache_enabled: z.boolean().optional(),
   alert_cache_hit_enabled: z.boolean().optional(),
   alert_cache_hit_threshold_pct: z.number().min(0).max(100).optional(),
+  // Trend alerts
+  alert_cache_hit_trend_enabled: z.boolean().optional(),
+  alert_cache_hit_trend_threshold_pct: z.number().min(1).max(100).optional(),
+  alert_cache_hit_trend_comparators: z.array(z.enum(VALID_COMPARATORS)).min(1).optional(),
+  alert_ttfb_trend_enabled: z.boolean().optional(),
+  alert_ttfb_trend_threshold_pct: z.number().min(1).max(100).optional(),
+  alert_ttfb_trend_comparators: z.array(z.enum(VALID_COMPARATORS)).min(1).optional(),
+  alert_ttfb_trend_direction: z.enum(['worsening', 'both']).optional(),
+  alert_trend_min_samples: z.number().int().min(1).max(60).optional(),
+  alert_trend_cooldown_minutes: z.number().int().min(15).max(1440).optional(),
+  alert_trend_require_consecutive: z.boolean().optional(),
+  alert_trend_global_enabled: z.boolean().optional(),
+  alert_trend_global_threshold_factor: z.number().min(1.0).max(5.0).optional(),
 })
 
 export async function GET(
@@ -37,6 +52,10 @@ export async function GET(
            alert_threshold_ms, alert_sensitivity, alert_down_enabled, alert_anomaly_enabled,
            alert_anycast_enabled, alert_zombie_cache_enabled,
            alert_cache_hit_enabled, alert_cache_hit_threshold_pct,
+           alert_cache_hit_trend_enabled, alert_cache_hit_trend_threshold_pct, alert_cache_hit_trend_comparators,
+           alert_ttfb_trend_enabled, alert_ttfb_trend_threshold_pct, alert_ttfb_trend_comparators,
+           alert_ttfb_trend_direction, alert_trend_min_samples, alert_trend_cooldown_minutes,
+           alert_trend_require_consecutive, alert_trend_global_enabled, alert_trend_global_threshold_factor,
            created_at
     FROM monitors WHERE id = ${id} AND user_id = ${user.id} LIMIT 1
   `
@@ -70,17 +89,24 @@ export async function PATCH(
     alert_down_enabled, alert_anomaly_enabled,
     alert_anycast_enabled, alert_zombie_cache_enabled,
     alert_cache_hit_enabled, alert_cache_hit_threshold_pct,
+    alert_cache_hit_trend_enabled, alert_cache_hit_trend_threshold_pct, alert_cache_hit_trend_comparators,
+    alert_ttfb_trend_enabled, alert_ttfb_trend_threshold_pct, alert_ttfb_trend_comparators,
+    alert_ttfb_trend_direction, alert_trend_min_samples, alert_trend_cooldown_minutes,
+    alert_trend_require_consecutive, alert_trend_global_enabled, alert_trend_global_threshold_factor,
   } = parsed.data
 
-  if (
-    name === undefined && check_interval_seconds === undefined && audit_interval_seconds === undefined &&
-    is_active === undefined && notify_email === undefined && notify_email_enabled === undefined &&
-    notify_slack_webhook === undefined && notify_slack_enabled === undefined &&
-    alert_threshold_ms === undefined && alert_sensitivity === undefined &&
-    alert_down_enabled === undefined && alert_anomaly_enabled === undefined &&
-    alert_anycast_enabled === undefined && alert_zombie_cache_enabled === undefined &&
-    alert_cache_hit_enabled === undefined && alert_cache_hit_threshold_pct === undefined
-  ) {
+  const allUndefined = [
+    name, check_interval_seconds, audit_interval_seconds, is_active,
+    notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
+    alert_threshold_ms, alert_sensitivity, alert_down_enabled, alert_anomaly_enabled,
+    alert_anycast_enabled, alert_zombie_cache_enabled, alert_cache_hit_enabled, alert_cache_hit_threshold_pct,
+    alert_cache_hit_trend_enabled, alert_cache_hit_trend_threshold_pct, alert_cache_hit_trend_comparators,
+    alert_ttfb_trend_enabled, alert_ttfb_trend_threshold_pct, alert_ttfb_trend_comparators,
+    alert_ttfb_trend_direction, alert_trend_min_samples, alert_trend_cooldown_minutes,
+    alert_trend_require_consecutive, alert_trend_global_enabled, alert_trend_global_threshold_factor,
+  ].every(v => v === undefined)
+
+  if (allUndefined) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
   }
 
@@ -102,7 +128,19 @@ export async function PATCH(
       alert_anycast_enabled       = COALESCE(${alert_anycast_enabled ?? null}, alert_anycast_enabled),
       alert_zombie_cache_enabled  = COALESCE(${alert_zombie_cache_enabled ?? null}, alert_zombie_cache_enabled),
       alert_cache_hit_enabled     = COALESCE(${alert_cache_hit_enabled ?? null}, alert_cache_hit_enabled),
-      alert_cache_hit_threshold_pct = COALESCE(${alert_cache_hit_threshold_pct ?? null}, alert_cache_hit_threshold_pct)
+      alert_cache_hit_threshold_pct        = COALESCE(${alert_cache_hit_threshold_pct ?? null}, alert_cache_hit_threshold_pct),
+      alert_cache_hit_trend_enabled        = COALESCE(${alert_cache_hit_trend_enabled ?? null}, alert_cache_hit_trend_enabled),
+      alert_cache_hit_trend_threshold_pct  = COALESCE(${alert_cache_hit_trend_threshold_pct ?? null}, alert_cache_hit_trend_threshold_pct),
+      alert_cache_hit_trend_comparators    = COALESCE(${alert_cache_hit_trend_comparators ?? null}, alert_cache_hit_trend_comparators),
+      alert_ttfb_trend_enabled             = COALESCE(${alert_ttfb_trend_enabled ?? null}, alert_ttfb_trend_enabled),
+      alert_ttfb_trend_threshold_pct       = COALESCE(${alert_ttfb_trend_threshold_pct ?? null}, alert_ttfb_trend_threshold_pct),
+      alert_ttfb_trend_comparators         = COALESCE(${alert_ttfb_trend_comparators ?? null}, alert_ttfb_trend_comparators),
+      alert_ttfb_trend_direction           = COALESCE(${alert_ttfb_trend_direction ?? null}, alert_ttfb_trend_direction),
+      alert_trend_min_samples              = COALESCE(${alert_trend_min_samples ?? null}, alert_trend_min_samples),
+      alert_trend_cooldown_minutes         = COALESCE(${alert_trend_cooldown_minutes ?? null}, alert_trend_cooldown_minutes),
+      alert_trend_require_consecutive      = COALESCE(${alert_trend_require_consecutive ?? null}, alert_trend_require_consecutive),
+      alert_trend_global_enabled           = COALESCE(${alert_trend_global_enabled ?? null}, alert_trend_global_enabled),
+      alert_trend_global_threshold_factor  = COALESCE(${alert_trend_global_threshold_factor ?? null}, alert_trend_global_threshold_factor)
     WHERE id = ${id} AND user_id = ${user.id}
     RETURNING id, url, name, check_interval_seconds, audit_interval_seconds, is_active,
               notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
@@ -110,6 +148,10 @@ export async function PATCH(
               alert_down_enabled, alert_anomaly_enabled,
               alert_anycast_enabled, alert_zombie_cache_enabled,
               alert_cache_hit_enabled, alert_cache_hit_threshold_pct,
+              alert_cache_hit_trend_enabled, alert_cache_hit_trend_threshold_pct, alert_cache_hit_trend_comparators,
+              alert_ttfb_trend_enabled, alert_ttfb_trend_threshold_pct, alert_ttfb_trend_comparators,
+              alert_ttfb_trend_direction, alert_trend_min_samples, alert_trend_cooldown_minutes,
+              alert_trend_require_consecutive, alert_trend_global_enabled, alert_trend_global_threshold_factor,
               created_at
   `
 

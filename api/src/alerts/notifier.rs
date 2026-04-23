@@ -13,6 +13,9 @@ pub struct AlertNotification {
     pub actual_ms: Option<f64>,
     pub baseline_ms: Option<f64>,
     pub deviation_factor: Option<f64>,
+    // Trend alert context (None for non-trend alerts)
+    pub delta_pct: Option<f64>,
+    pub comparator: Option<String>,
 }
 
 pub async fn notify(state: AppState, notif: AlertNotification) {
@@ -151,7 +154,16 @@ fn build_body_text(n: &AlertNotification, monitor_label: &str) -> String {
     if let Some(a) = &n.action {
         lines.push(format!("Action: {}", a));
     }
-    if let (Some(actual), Some(baseline), Some(factor)) = (n.actual_ms, n.baseline_ms, n.deviation_factor) {
+    // Trend alert: show delta % and absolute values
+    if let (Some(delta), Some(actual), Some(baseline)) = (n.delta_pct, n.actual_ms, n.baseline_ms) {
+        let cmp_label = n.comparator.as_deref().map(comparator_display).unwrap_or("reference");
+        let sign = if delta > 0.0 { "+" } else { "" };
+        if n.alert_type.contains("ttfb") {
+            lines.push(format!("TTFB: {:.0}ms now vs {:.0}ms {} ({}{:.1}%)", actual, baseline, cmp_label, sign, delta));
+        } else {
+            lines.push(format!("Cache hit: {:.1}% now vs {:.1}% {} ({}{:.1}%)", actual, baseline, cmp_label, sign, delta));
+        }
+    } else if let (Some(actual), Some(baseline), Some(factor)) = (n.actual_ms, n.baseline_ms, n.deviation_factor) {
         lines.push(format!("{:.0}ms vs {:.0}ms baseline ({:.1}x slower)", actual, baseline, factor));
     }
     lines.join("\n")
@@ -160,7 +172,15 @@ fn build_body_text(n: &AlertNotification, monitor_label: &str) -> String {
 fn build_email_html(n: &AlertNotification, monitor_label: &str, monitor_url: &str) -> String {
     let diagnosis = n.diagnosis.as_deref().unwrap_or("");
     let action = n.action.as_deref().unwrap_or("");
-    let perf_line = if let (Some(actual), Some(baseline), Some(factor)) = (n.actual_ms, n.baseline_ms, n.deviation_factor) {
+    let perf_line = if let (Some(delta), Some(actual), Some(baseline)) = (n.delta_pct, n.actual_ms, n.baseline_ms) {
+        let cmp_label = n.comparator.as_deref().map(comparator_display).unwrap_or("reference");
+        let sign = if delta > 0.0 { "+" } else { "" };
+        if n.alert_type.contains("ttfb") {
+            format!("<p style='color:#666'>TTFB: {:.0}ms now vs {:.0}ms {} ({}{:.1}%)</p>", actual, baseline, cmp_label, sign, delta)
+        } else {
+            format!("<p style='color:#666'>Cache hit: {:.1}% now vs {:.1}% {} ({}{:.1}%)</p>", actual, baseline, cmp_label, sign, delta)
+        }
+    } else if let (Some(actual), Some(baseline), Some(factor)) = (n.actual_ms, n.baseline_ms, n.deviation_factor) {
         format!("<p style='color:#666'>{:.0}ms vs {:.0}ms baseline ({:.1}x slower)</p>", actual, baseline, factor)
     } else { String::new() };
 
@@ -190,5 +210,14 @@ fn capitalize(s: &str) -> String {
     match c.next() {
         None => String::new(),
         Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+    }
+}
+
+fn comparator_display(c: &str) -> &str {
+    match c {
+        "prev_hour"          => "previous hour",
+        "same_hour_prev_day" => "same time yesterday",
+        "day_avg"            => "24h average",
+        other                => other,
     }
 }

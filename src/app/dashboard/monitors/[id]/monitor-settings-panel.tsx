@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { MonitorEditForm } from './monitor-edit-form'
+import { MonitorEditForm, type TrendComparator } from './monitor-edit-form'
 import { MonitorDeleteConfirm } from './monitor-delete-confirm'
 
 export function MonitorSettingsPanel(props: {
@@ -22,6 +22,18 @@ export function MonitorSettingsPanel(props: {
   alertZombieCacheEnabled: boolean
   alertCacheHitEnabled: boolean
   alertCacheHitThresholdPct: number
+  alertCacheHitTrendEnabled: boolean
+  alertCacheHitTrendThresholdPct: number
+  alertCacheHitTrendComparators: TrendComparator[]
+  alertTtfbTrendEnabled: boolean
+  alertTtfbTrendThresholdPct: number
+  alertTtfbTrendComparators: TrendComparator[]
+  alertTtfbTrendDirection: 'worsening' | 'both'
+  alertTrendMinSamples: number
+  alertTrendCooldownMinutes: number
+  alertTrendRequireConsecutive: boolean
+  alertTrendGlobalEnabled: boolean
+  alertTrendGlobalThresholdFactor: number
 }) {
   const [removeOpen, setRemoveOpen] = useState(false)
 

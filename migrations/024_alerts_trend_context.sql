@@ -1,0 +1,5 @@
+ALTER TABLE alerts
+  ADD COLUMN IF NOT EXISTS comparator   TEXT,
+  ADD COLUMN IF NOT EXISTS scope        TEXT,
+  ADD COLUMN IF NOT EXISTS delta_pct    FLOAT,
+  ADD COLUMN IF NOT EXISTS sample_count INT;
