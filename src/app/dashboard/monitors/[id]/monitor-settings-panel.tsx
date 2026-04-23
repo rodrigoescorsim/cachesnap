@@ -50,7 +50,7 @@ export function MonitorSettingsPanel(props: {
   }, [])
 
   return (
-    <div className="space-y-12 max-w-5xl">
+    <div className="space-y-12">
       <section aria-labelledby="settings-edit-heading">
         <MonitorEditForm {...props} idPrefix="settings" />
       </section>

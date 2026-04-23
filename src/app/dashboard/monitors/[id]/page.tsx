@@ -287,6 +287,55 @@ const SECURITY_HEADERS_LABELS: { key: keyof SecurityHeaders; label: string; desc
   { key: 'corp', label: 'CORP', description: 'Defines which origins can read the resources of your site.' },
 ]
 
+const CSP_VOLATILE_SOURCE_RE = /^(?:'nonce-[^']+'|nonce-\S+|'sha(?:256|384|512)-[^']+'|sha(?:256|384|512)-\S+)$/i
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function normalizeCspValue(value: string): string {
+  const normalizedDirectives = value
+    .split(';')
+    .map(part => part.trim())
+    .filter(Boolean)
+    .map(part => {
+      const tokens = part.split(/\s+/).filter(Boolean)
+      if (tokens.length === 0) return null
+      const [directive, ...sources] = tokens
+      const stableSources = sources
+        .filter(src => !CSP_VOLATILE_SOURCE_RE.test(src))
+        .sort((a, b) => a.localeCompare(b))
+      return [directive.toLowerCase(), ...stableSources].join(' ')
+    })
+    .filter((part): part is string => part !== null)
+    .sort((a, b) => a.localeCompare(b))
+
+  return normalizedDirectives.join('; ')
+}
+
+function normalizeSecurityHeaderValue(
+  key: keyof SecurityHeaders,
+  value: SecurityHeaders[keyof SecurityHeaders] | null | undefined
+): string | number | null {
+  if (value == null) return null
+  if (typeof value === 'number') return value
+  if (typeof value !== 'string') return JSON.stringify(value)
+
+  const trimmed = normalizeWhitespace(value)
+  if (key === 'csp') return normalizeCspValue(trimmed)
+  return trimmed
+}
+
+function buildSecurityComparisonProfile(
+  headers: SecurityHeaders | null | undefined
+): Record<string, string | number | null> {
+  const comparable: Record<string, string | number | null> = {}
+  for (const { key } of SECURITY_HEADERS_LABELS) {
+    comparable[key] = normalizeSecurityHeaderValue(key, headers?.[key])
+  }
+  return comparable
+}
+
 
 function redirectDisplay(redirectAvg: number | string | null): { text: string; tone: string } {
   if (redirectAvg == null) {
@@ -1649,7 +1698,7 @@ export default async function MonitorDetailPage({
                 const profiles = new Map<string, { headers: SecurityHeaders | null; regions: string[]; sampled_at: Date }>()
 
                 securityByRegion.forEach(row => {
-                  const sig = JSON.stringify(row.security_headers || {})
+                  const sig = JSON.stringify(buildSecurityComparisonProfile(row.security_headers))
                   if (!profiles.has(sig)) {
                     profiles.set(sig, { headers: row.security_headers, regions: [], sampled_at: row.sampled_at })
                   }
@@ -1907,7 +1956,9 @@ export default async function MonitorDetailPage({
                                 {SECURITY_HEADERS_LABELS.map(h => {
                                   const mainVal = mainProfile.headers?.[h.key]
                                   const driftVal = prof.headers?.[h.key]
-                                  if (JSON.stringify(mainVal) === JSON.stringify(driftVal)) return null
+                                  const normalizedMainVal = normalizeSecurityHeaderValue(h.key, mainVal)
+                                  const normalizedDriftVal = normalizeSecurityHeaderValue(h.key, driftVal)
+                                  if (JSON.stringify(normalizedMainVal) === JSON.stringify(normalizedDriftVal)) return null
                                   return (
                                     <div key={h.key} className="text-[10px] p-2 bg-white/50 dark:bg-zinc-950/50 rounded border border-red-50 dark:border-red-900/30">
                                       <p className="font-bold text-zinc-600 dark:text-zinc-400 uppercase mb-1">{h.label}</p>

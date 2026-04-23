@@ -279,7 +279,7 @@ export function MonitorEditForm({
       </div>
 
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* GENERAL SECTION */}
         <section className="cs-card cs-card-focus p-6 flex flex-col h-full">
           <div className="cs-card-wash" />
@@ -338,83 +338,115 @@ export function MonitorEditForm({
           <h3 className="cs-section-header">Alert triggers</h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
-            {/* THRESHOLD + SENSITIVITY */}
-            <div className="space-y-5">
-              <div>
-                <label htmlFor={`${p}-alert-threshold`} className="cs-label">
-                  TTFB threshold <span className="opacity-50 ml-1">— alert when above this value</span>
+            {/* LEFT: TTFB THRESHOLD + SPIKE SENSITIVITY (checkbox-gated) */}
+            <div className="space-y-4">
+              {/* Response time limit (TTFB) — checkbox-gated */}
+              <div className="flex items-start gap-3">
+                <CsCheckbox
+                  id={`${p}-alert_ttfb_enabled`}
+                  align="start"
+                  checked={values.alert_down_enabled}
+                  onChange={(e) => handleInputChange('alert_down_enabled', e.target.checked)}
+                />
+                <label htmlFor={`${p}-alert_ttfb_enabled`} className="cursor-pointer select-none flex-1">
+                  <span className="text-xs font-bold text-zinc-200 block">Response time limit (TTFB)</span>
+                  <span className="text-xs text-zinc-400 leading-relaxed">
+                    Alert when Time to First Byte exceeds a specific limit in any region.
+                  </span>
+
+                  <div className={`mt-3 space-y-4 transition-opacity ${values.alert_down_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
+                    <div>
+                      <div className="relative">
+                        <input
+                          id={`${p}-alert-threshold`}
+                          type="number"
+                          min={100}
+                          max={30000}
+                          step={100}
+                          value={values.alert_threshold_ms}
+                          onChange={(e) => handleInputChange('alert_threshold_ms', Number(e.target.value))}
+                          disabled={!values.alert_down_enabled}
+                          className="w-full h-11 cs-input pr-10"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">ms</span>
+                      </div>
+                      {errors.alert_threshold_ms && <span className="cs-error-msg">{errors.alert_threshold_ms}</span>}
+                    </div>
+                  </div>
                 </label>
-                <div className="relative">
-                  <input
-                    id={`${p}-alert-threshold`}
-                    type="number"
-                    min={100}
-                    max={30000}
-                    step={100}
-                    value={values.alert_threshold_ms}
-                    onChange={(e) => handleInputChange('alert_threshold_ms', Number(e.target.value))}
-                    className="w-full h-11 cs-input pr-10"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">ms</span>
-                </div>
-                {errors.alert_threshold_ms && <span className="cs-error-msg">{errors.alert_threshold_ms}</span>}
-                <p className="mt-1.5 text-[11px] text-zinc-600 leading-relaxed">
-                  Fires a <span className="text-zinc-400 font-semibold">Down</span> alert when TTFB exceeds this value. Anomaly detection uses a separate statistical baseline independent of this threshold.
-                </p>
               </div>
 
-              <div>
-                <label className="cs-label">
-                  Anomaly sensitivity <span className="opacity-50 ml-1">— how easily anomalies trigger</span>
+              {/* Spike sensitivity — checkbox-gated */}
+              <div className="flex items-start gap-3">
+                <CsCheckbox
+                  id={`${p}-alert_anomaly_enabled`}
+                  align="start"
+                  checked={values.alert_anomaly_enabled}
+                  onChange={(e) => handleInputChange('alert_anomaly_enabled', e.target.checked)}
+                />
+                <label htmlFor={`${p}-alert_anomaly_enabled`} className="cursor-pointer select-none flex-1">
+                  <span className="text-xs font-bold text-zinc-200 block">Unusual slowdown</span>
+                  <span className="text-xs text-zinc-400 leading-relaxed">
+                    Alert when response time spikes well above your 7-day baseline.
+                  </span>
+
+                  <div className={`mt-3 transition-opacity ${values.alert_anomaly_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
+                    <p className="text-xs font-bold text-zinc-300 mb-2">Sensitivity to sudden spikes</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {([
+                        { value: 1, label: 'Low', sub: 'Fewer alerts' },
+                        { value: 2, label: 'Medium', sub: 'Recommended' },
+                        { value: 3, label: 'High', sub: 'Catches small changes' },
+                      ] as const).map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => handleInputChange('alert_sensitivity', opt.value)}
+                          disabled={!values.alert_anomaly_enabled}
+                          className={`relative flex flex-col items-center gap-0.5 rounded-lg border px-2 py-2.5 text-center transition-all ${
+                            values.alert_sensitivity === opt.value
+                              ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 text-white shadow-[0_0_12px_rgba(34,255,136,0.08)]'
+                              : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
+                          }`}
+                        >
+                          <span className="text-xs font-bold mt-1">{opt.label}</span>
+                          <span className="text-[10px] opacity-60 leading-tight">{opt.sub}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </label>
-                <div className="grid grid-cols-3 gap-2 mt-1">
-                  {([
-                    { value: 1, label: 'Low', sub: '5σ — extreme outliers only' },
-                    { value: 2, label: 'Medium', sub: '3σ — balanced (default)' },
-                    { value: 3, label: 'High', sub: '2σ — catches small deviations' },
-                  ] as const).map(opt => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => handleInputChange('alert_sensitivity', opt.value)}
-                      className={`flex flex-col items-center gap-0.5 rounded-lg border px-2 py-2.5 text-center transition-all ${
-                        values.alert_sensitivity === opt.value
-                          ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 text-white shadow-[0_0_12px_rgba(34,255,136,0.08)]'
-                          : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
-                      }`}
-                    >
-                      <span className="text-xs font-bold">{opt.label}</span>
-                      <span className="text-[10px] opacity-60 leading-tight">{opt.sub}</span>
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
 
-            {/* ALERT TYPE TOGGLES */}
-            <div className="space-y-3">
-              <p className="cs-label">Active alert types</p>
-              <div className="space-y-3">
+            {/* RIGHT: ADDITIONAL ALERT TYPES */}
+            <div className="space-y-4">
+              <div className="space-y-4 pt-1">
+                {/* Site down (Connectivity/Errors) */}
+                <div className="flex items-start gap-3">
+                  <CsCheckbox
+                    id={`${p}-alert_down_right`}
+                    align="start"
+                    checked={values.alert_down_enabled}
+                    onChange={(e) => handleInputChange('alert_down_enabled', e.target.checked)}
+                  />
+                  <label htmlFor={`${p}-alert_down_right`} className="cursor-pointer select-none">
+                    <span className="text-xs font-bold text-zinc-200 block">Site down</span>
+                    <span className="text-xs text-zinc-400 leading-relaxed">
+                      Alert when your site is unreachable or returns 5xx errors.
+                    </span>
+                  </label>
+                </div>
                 {([
                   {
-                    field: 'alert_down_enabled' as const,
-                    label: 'Down',
-                    desc: 'HTTP 5xx errors, connection timeouts, or unreachable origin.',
-                  },
-                  {
-                    field: 'alert_anomaly_enabled' as const,
-                    label: 'Anomaly',
-                    desc: 'TTFB deviates more than 3× from your 7-day regional baseline.',
-                  },
-                  {
                     field: 'alert_anycast_enabled' as const,
-                    label: 'Anycast routing',
-                    desc: 'Probe served from a different PoP than the expected region — routing leak.',
+                    label: 'Region mismatch',
+                    desc: 'Request routed to an unexpected CDN location — possible misconfiguration.',
                   },
                   {
                     field: 'alert_zombie_cache_enabled' as const,
-                    label: 'Zombie cache',
-                    desc: 'Edge content older than 24 h without revalidation.',
+                    label: 'Stale content',
+                    desc: 'CDN is serving content older than 24 h without revalidation.',
                   },
                 ] as const).map(({ field, label, desc }) => (
                   <div key={field} className="flex items-start gap-3">
@@ -425,8 +457,8 @@ export function MonitorEditForm({
                       onChange={(e) => handleInputChange(field, e.target.checked)}
                     />
                     <label htmlFor={`${p}-${field}`} className="cursor-pointer select-none">
-                      <span className="text-xs font-bold text-zinc-300 block">{label}</span>
-                      <span className="text-[11px] text-zinc-600 leading-relaxed">{desc}</span>
+                      <span className="text-xs font-bold text-zinc-200 block">{label}</span>
+                      <span className="text-xs text-zinc-400 leading-relaxed">{desc}</span>
                     </label>
                   </div>
                 ))}
@@ -440,12 +472,12 @@ export function MonitorEditForm({
                     onChange={(e) => handleInputChange('alert_cache_hit_enabled', e.target.checked)}
                   />
                   <label htmlFor={`${p}-alert_cache_hit_enabled`} className="cursor-pointer select-none flex-1">
-                    <span className="text-xs font-bold text-zinc-300 block">Cache hit rate low</span>
-                    <span className="text-[11px] text-zinc-600 leading-relaxed">
-                      24 h rolling average drops below threshold. Requires min. 5 probes.
+                    <span className="text-xs font-bold text-zinc-200 block">Low cache rate</span>
+                    <span className="text-xs text-zinc-400 leading-relaxed">
+                      Alert when fewer requests than expected hit the CDN cache. Based on a 24 h rolling average.
                     </span>
                     <div className={`mt-2 flex items-center gap-2 transition-opacity ${values.alert_cache_hit_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
-                      <span className="text-[11px] text-zinc-500">Alert when below</span>
+                      <span className="text-xs text-zinc-400">Alert if cache rate drops below</span>
                       <div className="relative">
                         <input
                           type="number"
@@ -474,9 +506,8 @@ export function MonitorEditForm({
         <section className="cs-card cs-card-focus p-6 md:col-span-2">
           <div className="cs-card-wash" />
           <h3 className="cs-section-header">Trend alerts</h3>
-          <p className="text-[11px] text-zinc-600 mb-5 relative z-10">
-            Alerts based on hourly windows (1h). Compared to the previous hour, same time yesterday, or 24h average.
-            Distinct from <span className="text-zinc-400 font-semibold">Anomaly</span> (statistical σ-based detection).
+          <p className="text-xs text-zinc-400 mb-5 relative z-10">
+            Get notified when your response time or cache rate shifts significantly — before small regressions become bigger problems. Trends compare hourly windows against a reference point you choose.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
@@ -490,14 +521,14 @@ export function MonitorEditForm({
                   onChange={(e) => handleInputChange('alert_cache_hit_trend_enabled', e.target.checked)}
                 />
                 <label htmlFor={`${p}-alert_cache_hit_trend_enabled`} className="cursor-pointer select-none flex-1">
-                  <span className="text-xs font-bold text-zinc-300 block">Cache hit trend</span>
-                  <span className="text-[11px] text-zinc-600 leading-relaxed">
-                    Alert when cache hit rate drops more than threshold% vs reference window.
+                  <span className="text-xs font-bold text-zinc-200 block">Cache rate drop</span>
+                  <span className="text-xs text-zinc-400 leading-relaxed">
+                    Alert when your CDN cache rate falls significantly compared to a reference window — may indicate a misconfiguration or cache purge.
                   </span>
 
                   <div className={`mt-3 space-y-3 transition-opacity ${values.alert_cache_hit_trend_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-zinc-500">Alert when drops more than</span>
+                      <span className="text-xs text-zinc-400">Alert if cache rate drops more than</span>
                       <div className="relative">
                         <input
                           type="number" min={1} max={100} step={1}
@@ -514,12 +545,12 @@ export function MonitorEditForm({
                     )}
 
                     <div>
-                      <span className="text-[11px] text-zinc-500 block mb-1.5">Compare against</span>
+                      <span className="text-xs text-zinc-400 block mb-1.5">Compare against</span>
                       <div className="flex flex-wrap gap-1.5">
                         {([
-                          { value: 'prev_hour' as TrendComparator, label: 'Prev hour' },
+                          { value: 'prev_hour' as TrendComparator, label: 'Last hour' },
                           { value: 'same_hour_prev_day' as TrendComparator, label: 'Same time yesterday' },
-                          { value: 'day_avg' as TrendComparator, label: '24h average' },
+                          { value: 'day_avg' as TrendComparator, label: '24 h average' },
                         ]).map(opt => {
                           const active = values.alert_cache_hit_trend_comparators.includes(opt.value)
                           return (
@@ -561,14 +592,14 @@ export function MonitorEditForm({
                   onChange={(e) => handleInputChange('alert_ttfb_trend_enabled', e.target.checked)}
                 />
                 <label htmlFor={`${p}-alert_ttfb_trend_enabled`} className="cursor-pointer select-none flex-1">
-                  <span className="text-xs font-bold text-zinc-300 block">TTFB trend</span>
-                  <span className="text-[11px] text-zinc-600 leading-relaxed">
-                    Alert when TTFB changes more than threshold% vs reference window.
+                  <span className="text-xs font-bold text-zinc-200 block">Response time drift</span>
+                  <span className="text-xs text-zinc-400 leading-relaxed">
+                    Alert when your site's response time shifts significantly compared to a reference window — useful for catching gradual slowdowns.
                   </span>
 
                   <div className={`mt-3 space-y-3 transition-opacity ${values.alert_ttfb_trend_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-zinc-500">Alert when changes more than</span>
+                      <span className="text-xs text-zinc-400">Alert if response time changes more than</span>
                       <div className="relative">
                         <input
                           type="number" min={1} max={100} step={1}
@@ -585,11 +616,11 @@ export function MonitorEditForm({
                     )}
 
                     <div>
-                      <span className="text-[11px] text-zinc-500 block mb-1.5">Direction</span>
+                      <span className="text-xs text-zinc-400 block mb-1.5">Alert direction</span>
                       <div className="flex gap-1.5">
                         {([
-                          { value: 'worsening' as const, label: 'Degradation only' },
-                          { value: 'both' as const, label: 'Both directions' },
+                          { value: 'worsening' as const, label: 'Worsening only' },
+                          { value: 'both' as const, label: 'Any direction' },
                         ]).map(opt => (
                           <button
                             key={opt.value}
@@ -609,12 +640,12 @@ export function MonitorEditForm({
                     </div>
 
                     <div>
-                      <span className="text-[11px] text-zinc-500 block mb-1.5">Compare against</span>
+                      <span className="text-xs text-zinc-400 block mb-1.5">Compare against</span>
                       <div className="flex flex-wrap gap-1.5">
                         {([
-                          { value: 'prev_hour' as TrendComparator, label: 'Prev hour' },
+                          { value: 'prev_hour' as TrendComparator, label: 'Last hour' },
                           { value: 'same_hour_prev_day' as TrendComparator, label: 'Same time yesterday' },
-                          { value: 'day_avg' as TrendComparator, label: '24h average' },
+                          { value: 'day_avg' as TrendComparator, label: '24 h average' },
                         ]).map(opt => {
                           const active = values.alert_ttfb_trend_comparators.includes(opt.value)
                           return (
@@ -650,10 +681,10 @@ export function MonitorEditForm({
           {/* ADVANCED SETTINGS — shared between both metrics */}
           {(values.alert_cache_hit_trend_enabled || values.alert_ttfb_trend_enabled) && (
             <div className="mt-6 pt-5 border-t border-white/6 relative z-10">
-              <p className="cs-label mb-3">Advanced noise control</p>
+              <p className="cs-label mb-3">Fine-tuning <span className="text-zinc-600 font-normal normal-case tracking-normal">— optional, reduces false positives</span></p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
-                  <label htmlFor={`${p}-trend-min-samples`} className="text-[11px] text-zinc-500 block mb-1">Min samples / hour</label>
+                  <label htmlFor={`${p}-trend-min-samples`} className="text-xs text-zinc-400 block mb-1">Min data points / hour</label>
                   <input
                     id={`${p}-trend-min-samples`}
                     type="number" min={1} max={60} step={1}
@@ -664,7 +695,7 @@ export function MonitorEditForm({
                   {errors.alert_trend_min_samples && <span className="cs-error-msg">{errors.alert_trend_min_samples}</span>}
                 </div>
                 <div>
-                  <label htmlFor={`${p}-trend-cooldown`} className="text-[11px] text-zinc-500 block mb-1">Cooldown (min)</label>
+                  <label htmlFor={`${p}-trend-cooldown`} className="text-xs text-zinc-400 block mb-1">Quiet period (minutes)</label>
                   <input
                     id={`${p}-trend-cooldown`}
                     type="number" min={15} max={1440} step={15}
@@ -682,7 +713,7 @@ export function MonitorEditForm({
                       onChange={(e) => handleInputChange('alert_trend_require_consecutive', e.target.checked)}
                     />
                     <label htmlFor={`${p}-trend-require-consecutive`} className="text-[11px] text-zinc-400 cursor-pointer select-none leading-tight">
-                      Require 2 consecutive windows
+                      Confirm over 2 windows
                     </label>
                   </div>
                 </div>
@@ -694,7 +725,7 @@ export function MonitorEditForm({
                       onChange={(e) => handleInputChange('alert_trend_global_enabled', e.target.checked)}
                     />
                     <label htmlFor={`${p}-trend-global-enabled`} className="text-[11px] text-zinc-400 cursor-pointer select-none leading-tight">
-                      Global aggregate alert
+                      Also alert on fleet-wide trend
                     </label>
                   </div>
                 </div>
@@ -702,14 +733,14 @@ export function MonitorEditForm({
 
               {values.alert_trend_global_enabled && (
                 <div className="mt-3 flex items-center gap-2">
-                  <span className="text-[11px] text-zinc-500">Global threshold multiplier</span>
+                  <span className="text-xs text-zinc-400">Fleet-wide threshold multiplier</span>
                   <input
                     type="number" min={1.0} max={5.0} step={0.1}
                     value={values.alert_trend_global_threshold_factor}
                     onChange={(e) => handleInputChange('alert_trend_global_threshold_factor', Number(e.target.value))}
                     className={`h-8 w-20 cs-input text-xs text-center ${errors.alert_trend_global_threshold_factor ? 'cs-input-error' : ''}`}
                   />
-                  <span className="text-[10px] text-zinc-600">× base threshold (higher = less sensitive)</span>
+                  <span className="text-[11px] text-zinc-400">× base threshold — higher values mean fewer alerts</span>
                   {errors.alert_trend_global_threshold_factor && (
                     <span className="cs-error-msg">{errors.alert_trend_global_threshold_factor}</span>
                   )}
@@ -722,7 +753,7 @@ export function MonitorEditForm({
         {/* NOTIFICATIONS SECTION */}
         <section className="cs-card cs-card-focus p-6 md:col-span-2">
           <div className="cs-card-wash" />
-          <h3 className="cs-section-header">Notifications</h3>
+          <h3 className="cs-section-header">Where to send alerts</h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
             <div className="space-y-4">
@@ -733,7 +764,7 @@ export function MonitorEditForm({
                   onChange={(e) => handleInputChange('notify_email_enabled', e.target.checked)}
                 />
                 <label htmlFor={`${p}-notify-email-toggle`} className="text-xs font-bold text-zinc-300 cursor-pointer select-none">
-                  Email alerts
+                  Email
                 </label>
               </div>
               <input
@@ -741,10 +772,11 @@ export function MonitorEditForm({
                 value={values.notify_email}
                 onChange={(e) => handleInputChange('notify_email', e.target.value)}
                 disabled={!values.notify_email_enabled}
-                placeholder="alerts@company.com"
+                placeholder="alerts@yourcompany.com"
                 className={`w-full h-11 cs-input ${errors.notify_email ? 'cs-input-error' : ''}`}
               />
               {errors.notify_email && <span className="cs-error-msg">{errors.notify_email}</span>}
+              <p className="text-xs text-zinc-400 leading-relaxed">We'll send a message every time an alert fires or recovers.</p>
             </div>
 
             <div className="space-y-4">
