@@ -1,4 +1,4 @@
-# CacheSnap — Product features
+﻿# CacheSnap — Product features
 
 This document is the **canonical catalog** of what the system offers today: capabilities, differentiators, and alert behavior. User-facing strings are described in **English** (the product’s UI language).
 
@@ -125,44 +125,57 @@ Alerts are created in the Rust **detector** (`api/src/alerts/detector.rs`) immed
 
 If no channel is configured or the API key is missing, alerts are still **stored** and visible in the dashboard; only outbound delivery is skipped.
 
-### 1. Downtime / error (`down`)
+### 1. Downtime / error (` down `)
 
-- **When:** The probe reports an **error** (e.g. timeout) **or** HTTP **status ≥ 500**.
+- **When:** The probe reports an **error** (e.g. timeout), HTTP **status >= 500**, or TTFB exceeds the monitor's configured **`alert_threshold_ms`** (default 1 000 ms).
 - **Metric:** `uptime` (stored `actual_ms` reflects total time where applicable).
 - **Copy:** Diagnosis and action come from the diagnosis engine based on the failure context.
+- **Configurable:** `alert_down_enabled` toggle + `alert_threshold_ms` (100-30 000 ms) per monitor.
 
-### 2. TTFB statistical anomaly (`anomaly`)
+### 2. TTFB statistical anomaly (` nomaly `)
 
-- **When:** Monitor is “up”, a regional **baseline** exists, and current TTFB is statistically far above normal: greater than **max(mean + 3×σ, mean + 500 ms)** (reduces noise on very fast sites).
-- **Metric:** `ttfb_ms`; includes **baseline**, **actual**, and **deviation_factor** (e.g. multiple of normal).
+- **When:** Monitor is up, a regional **baseline** exists, and current TTFB exceeds **max(mean + sigma_factor x stddev, mean + 500 ms)** (the +500 ms floor reduces noise on very fast sites).
+- **Metric:** `ttfb_ms`; includes **baseline**, **actual**, and **deviation_factor** (multiple of normal).
 - **Copy:** Engine-generated diagnosis and recommended action.
+- **Configurable:** `alert_anomaly_enabled` toggle + `alert_sensitivity` per monitor: `1` = Low (5-sigma), `2` = Medium (3-sigma, default), `3` = High (2-sigma).
 
-### 3. Anycast / routing mismatch (`anycast`)
+### 3. Anycast / routing mismatch (` nycast `)
 
 - **When:** Heuristics detect a **routing / POP mismatch** vs the probe region (via `served_by` and related signals).
 - **Metric:** `routing`.
 - **Rate limit:** At most **one** alert of this type per **monitor + region** per **24 hours** (prevents repeated alerts for a persistent condition).
+- **Configurable:** `alert_anycast_enabled` toggle (default off).
 
-### 4. Zombie / stale cache signal (`zombie_cache`)
+### 4. Zombie / stale cache signal (` zombie_cache `)
 
-- **When:** Response **cache age** (`age_s`) exceeds **86 400** seconds (24 hours)—long-lived cached object worth reviewing.
+- **When:** Response **cache age** (`age_s`) exceeds **86 400** seconds (24 hours) - long-lived cached object worth reviewing.
 - **Metric:** `age_s`.
 - **Rate limit:** Same **24-hour** deduplication per **monitor + region**.
+- **Configurable:** `alert_zombie_cache_enabled` toggle (default off).
 
-### 5. SSL certificate expiry (`ssl_expiry`)
+### 5. Cache hit rate low (` cache_hit_low `)
+
+- **When:** The **24-hour rolling average cache hit rate** for a monitor + region falls below the configured threshold and at least **5 probes** have been collected.
+- **Formula:** `(COUNT(*) FILTER (WHERE cache_status ILIKE '%HIT%') / NULLIF(COUNT(*), 0)) x 100` - matches HIT, STALE, REVALIDATED.
+- **Stored fields:** `actual_ms` = observed hit %, `baseline_ms` = configured threshold %.
+- **Diagnosis:** Auto-generated summary (e.g. "Cache hit rate dropped to 62.3% (threshold: 80%)") with recommended action covering TTL, Cache-Control headers, and dynamic content ratio.
+- **Rate limit:** At most **one** alert per **monitor + region** per **24 hours**.
+- **Configurable:** `alert_cache_hit_enabled` toggle (default off) + `alert_cache_hit_threshold_pct` (0-100%, default 80%).
+
+### 6. SSL certificate expiry (` ssl_expiry `)
 
 Non-latency rule: it does **not** use TTFB baselines. It relies on structured SSL data in the ingest payload.
 
 | Aspect | Behavior |
 | :--- | :--- |
 | **Payload field** | `security_headers.ssl.days_remaining` (integer). |
-| **Condition** | Alert fires when **days_remaining &lt; 15** (i.e. **14 days or fewer** remaining). |
+| **Condition** | Alert fires when **days_remaining < 15** (i.e. **14 days or fewer** remaining). |
 | **Severity** | Treated as **critical** in the diagnosis object used for this alert. |
 | **Diagnosis (summary)** | **"SSL Certificate expiring in {N} days"** (English). |
 | **Cause** | **"SSL Certificate will expire in {N} days."** |
 | **Recommended action** | **"Renew your SSL certificate immediately to prevent site downtime and security warnings."** |
 | **Stored metric name** | `days_remaining`; `actual_ms` column holds the numeric days value for this alert type. |
-| **Rate limit** | At most **one** `ssl_expiry` alert per **monitor + region** per **24 hours**. |
+| **Rate limit** | At most **one** `ssl_expiry` alert per **monitor + region** per **7 days** (certificate expiry is persistent; daily reminders would be excessive). |
 
 > **Note:** The dashboard may also show `valid_from` / `valid_to`; the backend rule for this alert uses **`days_remaining`** from the probe payload, not a raw `valid_to` timestamp.
 

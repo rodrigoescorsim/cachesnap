@@ -149,6 +149,8 @@ interface Alert {
   baseline_ms: number | null
   actual_ms: number | null
   deviation_factor: number | null
+  diagnosis: string | null
+  action: string | null
   created_at: Date
 }
 
@@ -247,13 +249,14 @@ const MONITOR_HEADER_STATUS_BADGE =
 const MONITOR_HEADER_ACTIVE_DOT =
   'bg-[var(--brand-primary)] [box-shadow:0_0_8px_rgba(34,255,136,0.5)]'
 
-const VALID_ALERT_TYPES = ['down', 'anomaly', 'anycast', 'zombie_cache'] as const satisfies readonly AlertType[]
+const VALID_ALERT_TYPES = ['down', 'anomaly', 'anycast', 'zombie_cache', 'cache_hit_low'] as const satisfies readonly AlertType[]
 
 const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   down: 'Offline',
   anomaly: 'Anomaly',
   anycast: 'Anycast',
   zombie_cache: 'Zombie cache',
+  cache_hit_low: 'Cache hit low',
 }
 
 const SECURITY_HEADERS_LABELS: { key: keyof SecurityHeaders; label: string; description: string }[] = [
@@ -535,9 +538,17 @@ export default async function MonitorDetailPage({
     id: string; url: string; name: string | null; is_active: boolean; check_interval_seconds: number; audit_interval_seconds: number;
     notify_email: string | null; notify_email_enabled: boolean;
     notify_slack_webhook: string | null; notify_slack_enabled: boolean;
+    alert_threshold_ms: number; alert_sensitivity: number;
+    alert_down_enabled: boolean; alert_anomaly_enabled: boolean;
+    alert_anycast_enabled: boolean; alert_zombie_cache_enabled: boolean;
+    alert_cache_hit_enabled: boolean; alert_cache_hit_threshold_pct: number;
   }[]>`
     SELECT id, url, name, is_active, check_interval_seconds, audit_interval_seconds,
-           notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled
+           notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
+           alert_threshold_ms, alert_sensitivity,
+           alert_down_enabled, alert_anomaly_enabled,
+           alert_anycast_enabled, alert_zombie_cache_enabled,
+           alert_cache_hit_enabled, alert_cache_hit_threshold_pct
     FROM monitors WHERE id = ${id} AND user_id = ${user.id} LIMIT 1
   `
   if (!monitor) notFound()
@@ -638,14 +649,14 @@ export default async function MonitorDetailPage({
 
   const alerts = filteredAlertType
     ? await sql<Alert[]>`
-        SELECT id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, created_at
+        SELECT id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, diagnosis, action, created_at
         FROM alerts
         WHERE monitor_id = ${id} AND alert_type = ${filteredAlertType}
         ORDER BY created_at DESC
         LIMIT 100
       `
     : await sql<Alert[]>`
-        SELECT id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, created_at
+        SELECT id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, diagnosis, action, created_at
         FROM alerts
         WHERE monitor_id = ${id}
         ORDER BY created_at DESC
@@ -1553,6 +1564,14 @@ export default async function MonitorDetailPage({
                 notifyEmailEnabled={monitor.notify_email_enabled}
                 notifySlackWebhook={monitor.notify_slack_webhook}
                 notifySlackEnabled={monitor.notify_slack_enabled}
+                alertThresholdMs={monitor.alert_threshold_ms}
+                alertSensitivity={monitor.alert_sensitivity}
+                alertDownEnabled={monitor.alert_down_enabled}
+                alertAnomalyEnabled={monitor.alert_anomaly_enabled}
+                alertAnycastEnabled={monitor.alert_anycast_enabled}
+                alertZombieCacheEnabled={monitor.alert_zombie_cache_enabled}
+                alertCacheHitEnabled={monitor.alert_cache_hit_enabled}
+                alertCacheHitThresholdPct={monitor.alert_cache_hit_threshold_pct}
               />
             </div>
           )}
@@ -2005,57 +2024,85 @@ export default async function MonitorDetailPage({
                             <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Region</th>
                             <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Event Type</th>
                             <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Metric</th>
-                            <th className="px-4 py-2.5 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Baseline</th>
-                            <th className="px-4 py-2.5 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Actual</th>
+                            <th className="px-4 py-2.5 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Threshold / Baseline</th>
+                            <th className="px-4 py-2.5 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Observed</th>
                             <th className="px-4 py-2.5 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Severity</th>
                           </tr>
                         </thead>
                         <tbody>
                           {alerts.map((alert) => {
-                            const severity = (alert.deviation_factor ?? 0) > 4 ? 'CRITICAL' : (alert.deviation_factor ?? 0) > 2 ? 'WARNING' : 'STATED';
-                            const severityColor = severity === 'CRITICAL' ? 'bg-red-500 text-white' : severity === 'WARNING' ? 'bg-amber-500 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400';
+                            const df = alert.deviation_factor ?? 0
+                            const severity = df > 4 ? 'CRITICAL' : df > 2 ? 'WARNING' : 'INFO'
+                            const severityColor = severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : severity === 'WARNING' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-white/5 text-zinc-500 border border-white/10'
+                            const alertTypeIcon = alert.alert_type === 'down'
+                              ? <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" />
+                              : alert.alert_type === 'anomaly'
+                              ? <Zap className="w-3 h-3 text-amber-500 shrink-0" />
+                              : <AlertCircle className="w-3 h-3 text-zinc-400 shrink-0" />
 
                             return (
-                              <tr key={alert.id} className={MONITOR_TABLE.tbodyRow}>
-                                <td className="px-4 py-3.5">
-                                  <span className="text-[11px] text-zinc-500 font-medium tabular-nums">
-                                    {new Date(alert.created_at).toLocaleString('en-US', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3.5">
-                                  <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                                    {regionLabels[alert.region] ?? alert.region}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3.5">
-                                  <div className="flex items-center gap-2">
-                                    {alert.alert_type === 'anomaly' ? (
-                                      <Zap className="w-3 h-3 text-amber-500" />
-                                    ) : (
-                                      <AlertTriangle className="w-3 h-3 text-red-500" />
-                                    )}
-                                    <span className="text-[11px] font-bold uppercase tracking-tight text-zinc-600 dark:text-zinc-400">
-                                      {ALERT_TYPE_LABELS[alert.alert_type as AlertType] ?? alert.alert_type.replace('_', ' ')}
+                              <>
+                                <tr key={alert.id} className={`${MONITOR_TABLE.tbodyRow} ${alert.diagnosis ? 'border-b-0' : ''}`}>
+                                  <td className="px-4 py-3">
+                                    <span className="text-[11px] text-zinc-500 font-medium tabular-nums">
+                                      {new Date(alert.created_at).toLocaleString('en-US', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                     </span>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3.5">
-                                  <code className="text-[10px] font-mono bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-500">
-                                    {alert.metric}
-                                  </code>
-                                </td>
-                                <td className="px-4 py-3.5 text-right text-xs tabular-nums text-zinc-400">
-                                  {formatMs(alert.baseline_ms)}
-                                </td>
-                                <td className="px-4 py-3.5 text-right text-xs tabular-nums font-semibold text-zinc-700 dark:text-zinc-300">
-                                  {formatMs(alert.actual_ms)}
-                                </td>
-                                <td className="px-4 py-3.5 text-right">
-                                  <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-black tracking-tighter ${severityColor}`}>
-                                    {alert.deviation_factor != null ? `${alert.deviation_factor.toFixed(1)}X` : '-'}
-                                  </span>
-                                </td>
-                              </tr>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                                      {regionLabels[alert.region] ?? alert.region}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <div className="flex items-center gap-2">
+                                      {alertTypeIcon}
+                                      <span className="text-[11px] font-bold uppercase tracking-tight text-zinc-600 dark:text-zinc-400">
+                                        {ALERT_TYPE_LABELS[alert.alert_type as AlertType] ?? alert.alert_type.replace('_', ' ')}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <code className="text-[10px] font-mono bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-500">
+                                      {alert.metric}
+                                    </code>
+                                  </td>
+                                  <td className="px-4 py-3 text-right text-xs tabular-nums text-zinc-400">
+                                    {alert.alert_type === 'cache_hit_low'
+                                      ? (alert.baseline_ms != null ? `${alert.baseline_ms.toFixed(0)}%` : '—')
+                                      : formatMs(alert.baseline_ms)}
+                                  </td>
+                                  <td className="px-4 py-3 text-right text-xs tabular-nums font-semibold text-zinc-700 dark:text-zinc-300">
+                                    {alert.alert_type === 'cache_hit_low'
+                                      ? (alert.actual_ms != null ? `${alert.actual_ms.toFixed(1)}%` : '—')
+                                      : formatMs(alert.actual_ms)}
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-black tracking-tighter ${severityColor}`}>
+                                      {alert.deviation_factor != null ? `${alert.deviation_factor.toFixed(1)}×` : severity}
+                                    </span>
+                                  </td>
+                                </tr>
+                                {(alert.diagnosis || alert.action) && (
+                                  <tr key={`${alert.id}-detail`} className="border-b border-white/5">
+                                    <td colSpan={7} className="px-4 pb-3 pt-0">
+                                      <div className="rounded-lg bg-white/[0.02] border border-white/5 px-3 py-2 space-y-1">
+                                        {alert.diagnosis && (
+                                          <p className="text-[11px] text-zinc-400 leading-relaxed">
+                                            <span className="text-zinc-600 font-bold uppercase tracking-tight text-[9px] mr-2">Cause</span>
+                                            {alert.diagnosis}
+                                          </p>
+                                        )}
+                                        {alert.action && (
+                                          <p className="text-[11px] text-[var(--brand-primary)]/70 leading-relaxed">
+                                            <span className="text-zinc-600 font-bold uppercase tracking-tight text-[9px] mr-2">Fix</span>
+                                            {alert.action}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </>
                             );
                           })}
                         </tbody>

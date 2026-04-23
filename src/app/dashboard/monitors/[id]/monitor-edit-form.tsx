@@ -16,6 +16,14 @@ export interface MonitorEditFormProps {
   notifyEmailEnabled: boolean
   notifySlackWebhook: string | null
   notifySlackEnabled: boolean
+  alertThresholdMs: number
+  alertSensitivity: number
+  alertDownEnabled: boolean
+  alertAnomalyEnabled: boolean
+  alertAnycastEnabled: boolean
+  alertZombieCacheEnabled: boolean
+  alertCacheHitEnabled: boolean
+  alertCacheHitThresholdPct: number
   /** Prefix for input ids when multiple forms could exist */
   idPrefix?: string
 }
@@ -32,6 +40,14 @@ export function MonitorEditForm({
   notifyEmailEnabled,
   notifySlackWebhook,
   notifySlackEnabled,
+  alertThresholdMs,
+  alertSensitivity,
+  alertDownEnabled,
+  alertAnomalyEnabled,
+  alertAnycastEnabled,
+  alertZombieCacheEnabled,
+  alertCacheHitEnabled,
+  alertCacheHitThresholdPct,
   idPrefix = 'settings',
 }: MonitorEditFormProps) {
   const router = useRouter()
@@ -48,6 +64,14 @@ export function MonitorEditForm({
     notify_email_enabled: notifyEmailEnabled,
     notify_slack_webhook: notifySlackWebhook ?? '',
     notify_slack_enabled: notifySlackEnabled,
+    alert_threshold_ms: alertThresholdMs,
+    alert_sensitivity: alertSensitivity,
+    alert_down_enabled: alertDownEnabled,
+    alert_anomaly_enabled: alertAnomalyEnabled,
+    alert_anycast_enabled: alertAnycastEnabled,
+    alert_zombie_cache_enabled: alertZombieCacheEnabled,
+    alert_cache_hit_enabled: alertCacheHitEnabled,
+    alert_cache_hit_threshold_pct: alertCacheHitThresholdPct,
   })
 
   // TRACKING STATE
@@ -58,7 +82,6 @@ export function MonitorEditForm({
 
   // VALIDATION
   const validate = useCallback((field: string, value: any, currentValues: typeof values) => {
-    // Basic required check if enabled
     if (field === 'notify_email' && currentValues.notify_email_enabled) {
       if (!value) return 'Email is required'
       if (!value.includes('@')) return 'Invalid email address'
@@ -67,6 +90,17 @@ export function MonitorEditForm({
       if (!value) return 'Webhook URL is required'
       if (!value.startsWith('http')) return 'Invalid webhook URL'
     }
+    if (field === 'alert_threshold_ms') {
+      const n = Number(value)
+      if (isNaN(n) || n < 100 || n > 30000) return 'Must be between 100 and 30 000 ms'
+    }
+    if (field === 'alert_sensitivity') {
+      if (![1, 2, 3].includes(Number(value))) return 'Invalid sensitivity'
+    }
+    if (field === 'alert_cache_hit_threshold_pct') {
+      const n = Number(value)
+      if (isNaN(n) || n < 0 || n > 100) return 'Must be between 0 and 100%'
+    }
     return null
   }, [])
 
@@ -74,9 +108,16 @@ export function MonitorEditForm({
   const triggerSave = useCallback(async (current: typeof values) => {
     const emailErr = validate('notify_email', current.notify_email, current)
     const slackErr = validate('notify_slack_webhook', current.notify_slack_webhook, current)
-    
-    if (emailErr || slackErr) {
-      setErrors({ notify_email: emailErr, notify_slack_webhook: slackErr })
+    const thresholdErr = validate('alert_threshold_ms', current.alert_threshold_ms, current)
+    const cacheHitErr = validate('alert_cache_hit_threshold_pct', current.alert_cache_hit_threshold_pct, current)
+
+    if (emailErr || slackErr || thresholdErr || cacheHitErr) {
+      setErrors({
+        notify_email: emailErr,
+        notify_slack_webhook: slackErr,
+        alert_threshold_ms: thresholdErr,
+        alert_cache_hit_threshold_pct: cacheHitErr,
+      })
       return
     }
 
@@ -127,10 +168,12 @@ export function MonitorEditForm({
 
     if (!hasChangedCheck) return
 
-    const isTyping = 
-      values.name !== lastSavedValues.current.name || 
+    const isTyping =
+      values.name !== lastSavedValues.current.name ||
       values.notify_email !== lastSavedValues.current.notify_email ||
-      values.notify_slack_webhook !== lastSavedValues.current.notify_slack_webhook
+      values.notify_slack_webhook !== lastSavedValues.current.notify_slack_webhook ||
+      values.alert_threshold_ms !== lastSavedValues.current.alert_threshold_ms ||
+      values.alert_cache_hit_threshold_pct !== lastSavedValues.current.alert_cache_hit_threshold_pct
 
     const delay = isTyping ? 800 : 0
     const timeout = setTimeout(() => triggerSave(values), delay)
@@ -217,6 +260,154 @@ export function MonitorEditForm({
                 ]}
                 onChange={(val) => handleInputChange('audit_interval_seconds', val)}
               />
+            </div>
+          </div>
+        </section>
+
+        {/* ALERTS SECTION */}
+        <section className="cs-card cs-card-focus p-6 md:col-span-2">
+          <div className="cs-card-wash" />
+          <h3 className="cs-section-header">Alert triggers</h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+            {/* THRESHOLD + SENSITIVITY */}
+            <div className="space-y-5">
+              <div>
+                <label htmlFor={`${p}-alert-threshold`} className="cs-label">
+                  TTFB threshold <span className="opacity-50 ml-1">— alert when above this value</span>
+                </label>
+                <div className="relative">
+                  <input
+                    id={`${p}-alert-threshold`}
+                    type="number"
+                    min={100}
+                    max={30000}
+                    step={100}
+                    value={values.alert_threshold_ms}
+                    onChange={(e) => handleInputChange('alert_threshold_ms', Number(e.target.value))}
+                    className="w-full h-11 cs-input pr-10"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">ms</span>
+                </div>
+                {errors.alert_threshold_ms && <span className="cs-error-msg">{errors.alert_threshold_ms}</span>}
+                <p className="mt-1.5 text-[11px] text-zinc-600 leading-relaxed">
+                  Fires a <span className="text-zinc-400 font-semibold">Down</span> alert when TTFB exceeds this value. Anomaly detection uses a separate statistical baseline independent of this threshold.
+                </p>
+              </div>
+
+              <div>
+                <label className="cs-label">
+                  Anomaly sensitivity <span className="opacity-50 ml-1">— how easily anomalies trigger</span>
+                </label>
+                <div className="grid grid-cols-3 gap-2 mt-1">
+                  {([
+                    { value: 1, label: 'Low', sub: '5σ — extreme outliers only' },
+                    { value: 2, label: 'Medium', sub: '3σ — balanced (default)' },
+                    { value: 3, label: 'High', sub: '2σ — catches small deviations' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleInputChange('alert_sensitivity', opt.value)}
+                      className={`flex flex-col items-center gap-0.5 rounded-lg border px-2 py-2.5 text-center transition-all ${
+                        values.alert_sensitivity === opt.value
+                          ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 text-white shadow-[0_0_12px_rgba(34,255,136,0.08)]'
+                          : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
+                      }`}
+                    >
+                      <span className="text-xs font-bold">{opt.label}</span>
+                      <span className="text-[10px] opacity-60 leading-tight">{opt.sub}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* ALERT TYPE TOGGLES */}
+            <div className="space-y-3">
+              <p className="cs-label">Active alert types</p>
+              <div className="space-y-3">
+                {([
+                  {
+                    field: 'alert_down_enabled' as const,
+                    label: 'Down',
+                    desc: 'HTTP 5xx errors, connection timeouts, or unreachable origin.',
+                  },
+                  {
+                    field: 'alert_anomaly_enabled' as const,
+                    label: 'Anomaly',
+                    desc: 'TTFB deviates more than 3× from your 7-day regional baseline.',
+                  },
+                  {
+                    field: 'alert_anycast_enabled' as const,
+                    label: 'Anycast routing',
+                    desc: 'Probe served from a different PoP than the expected region — routing leak.',
+                  },
+                  {
+                    field: 'alert_zombie_cache_enabled' as const,
+                    label: 'Zombie cache',
+                    desc: 'Edge content older than 24 h without revalidation.',
+                  },
+                ] as const).map(({ field, label, desc }) => (
+                  <div key={field} className="flex items-start gap-3">
+                    <input
+                      id={`${p}-${field}`}
+                      type="checkbox"
+                      checked={values[field]}
+                      onChange={(e) => handleInputChange(field, e.target.checked)}
+                      className="mt-0.5 h-[18px] w-[18px] shrink-0 rounded border-white/10 bg-white/[0.03] cursor-pointer appearance-none border transition-all checked:bg-[var(--brand-primary)] checked:border-[var(--brand-primary)] checked:shadow-[0_0_10px_rgba(34,255,136,0.3)]"
+                      style={{
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='black' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3E%3C/svg%3E")`,
+                        backgroundSize: '100% 100%', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
+                      }}
+                    />
+                    <label htmlFor={`${p}-${field}`} className="cursor-pointer select-none">
+                      <span className="text-xs font-bold text-zinc-300 block">{label}</span>
+                      <span className="text-[11px] text-zinc-600 leading-relaxed">{desc}</span>
+                    </label>
+                  </div>
+                ))}
+
+                {/* CACHE HIT RATE — inline threshold */}
+                <div className="flex items-start gap-3">
+                  <input
+                    id={`${p}-alert_cache_hit_enabled`}
+                    type="checkbox"
+                    checked={values.alert_cache_hit_enabled}
+                    onChange={(e) => handleInputChange('alert_cache_hit_enabled', e.target.checked)}
+                    className="mt-0.5 h-[18px] w-[18px] shrink-0 rounded border-white/10 bg-white/[0.03] cursor-pointer appearance-none border transition-all checked:bg-[var(--brand-primary)] checked:border-[var(--brand-primary)] checked:shadow-[0_0_10px_rgba(34,255,136,0.3)]"
+                    style={{
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='black' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3E%3C/svg%3E")`,
+                      backgroundSize: '100% 100%', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
+                    }}
+                  />
+                  <label htmlFor={`${p}-alert_cache_hit_enabled`} className="cursor-pointer select-none flex-1">
+                    <span className="text-xs font-bold text-zinc-300 block">Cache hit rate low</span>
+                    <span className="text-[11px] text-zinc-600 leading-relaxed">
+                      24 h rolling average drops below threshold. Requires min. 5 probes.
+                    </span>
+                    <div className={`mt-2 flex items-center gap-2 transition-opacity ${values.alert_cache_hit_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
+                      <span className="text-[11px] text-zinc-500">Alert when below</span>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={values.alert_cache_hit_threshold_pct}
+                          onChange={(e) => handleInputChange('alert_cache_hit_threshold_pct', Number(e.target.value))}
+                          disabled={!values.alert_cache_hit_enabled}
+                          className={`h-8 w-20 cs-input text-xs pr-6 text-center ${errors.alert_cache_hit_threshold_pct ? 'cs-input-error' : ''}`}
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-500 pointer-events-none">%</span>
+                      </div>
+                      {errors.alert_cache_hit_threshold_pct && (
+                        <span className="cs-error-msg">{errors.alert_cache_hit_threshold_pct}</span>
+                      )}
+                    </div>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
         </section>

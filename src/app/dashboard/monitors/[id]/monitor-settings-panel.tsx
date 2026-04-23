@@ -14,6 +14,14 @@ export function MonitorSettingsPanel(props: {
   notifyEmailEnabled: boolean
   notifySlackWebhook: string | null
   notifySlackEnabled: boolean
+  alertThresholdMs: number
+  alertSensitivity: number
+  alertDownEnabled: boolean
+  alertAnomalyEnabled: boolean
+  alertAnycastEnabled: boolean
+  alertZombieCacheEnabled: boolean
+  alertCacheHitEnabled: boolean
+  alertCacheHitThresholdPct: number
 }) {
   const [removeOpen, setRemoveOpen] = useState(false)
 

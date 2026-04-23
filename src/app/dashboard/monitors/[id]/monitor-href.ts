@@ -10,7 +10,7 @@ export type MonitorTab =
 
 export type PerformanceView = 'real-time' | 'trends' | 'diagnostics' | 'infrastructure'
 
-export type AlertType = 'down' | 'anomaly' | 'anycast' | 'zombie_cache'
+export type AlertType = 'down' | 'anomaly' | 'anycast' | 'zombie_cache' | 'cache_hit_low'
 
 export function buildMonitorHref(
   tab: MonitorTab,
