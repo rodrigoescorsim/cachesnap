@@ -206,18 +206,17 @@ async fn cooldown_active(
     comparator: &str,
     cooldown_minutes: i32,
 ) -> bool {
-    let sql = format!(
-        "SELECT COUNT(*) FROM alerts WHERE monitor_id = $1 AND region = $2 AND alert_type = $3 AND comparator = $4 AND created_at > NOW() - INTERVAL '{} minutes'",
-        cooldown_minutes
-    );
-    let count: i64 = sqlx::query_scalar(&sql)
-        .bind(monitor_id)
-        .bind(region)
-        .bind(alert_type)
-        .bind(comparator)
-        .fetch_one(&state.db)
-        .await
-        .unwrap_or(0);
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM alerts WHERE monitor_id = $1 AND region = $2 AND alert_type = $3 AND comparator = $4 AND created_at > NOW() - ($5 * INTERVAL '1 minute')",
+    )
+    .bind(monitor_id)
+    .bind(region)
+    .bind(alert_type)
+    .bind(comparator)
+    .bind(cooldown_minutes)
+    .fetch_one(&state.db)
+    .await
+    .unwrap_or(0);
     count > 0
 }
 

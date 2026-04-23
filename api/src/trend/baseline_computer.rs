@@ -87,7 +87,7 @@ async fn fetch_hourly(
 ) -> Result<Option<HourlyData>, sqlx::Error> {
     let row = sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<f64>, Option<i64>)>(
         r#"
-        SELECT hit_count, total_count, ttfb_sum_ms, sample_count
+        SELECT hit_count::BIGINT, total_count::BIGINT, ttfb_sum_ms, sample_count::BIGINT
         FROM probe_results_hourly
         WHERE monitor_id = $1 AND region = $2 AND bucket = $3
         LIMIT 1
@@ -117,10 +117,10 @@ async fn fetch_day_avg(
     let (h, t, s, sc) = sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<f64>, Option<i64>)>(
         r#"
         SELECT
-            SUM(hit_count)    AS hit_count,
-            SUM(total_count)  AS total_count,
-            SUM(ttfb_sum_ms)  AS ttfb_sum_ms,
-            SUM(sample_count) AS sample_count
+            SUM(hit_count)::BIGINT    AS hit_count,
+            SUM(total_count)::BIGINT  AS total_count,
+            SUM(ttfb_sum_ms)          AS ttfb_sum_ms,
+            SUM(sample_count)::BIGINT AS sample_count
         FROM probe_results_hourly
         WHERE monitor_id = $1
           AND region = $2
@@ -271,7 +271,7 @@ async fn upsert_global_baselines(
     let fetch_global_bucket = |bucket: chrono::DateTime<chrono::Utc>| {
         sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<f64>, Option<i64>)>(
             r#"
-            SELECT hit_count, total_count, ttfb_sum_ms, sample_count
+            SELECT hit_count::BIGINT, total_count::BIGINT, ttfb_sum_ms, sample_count::BIGINT
             FROM probe_results_hourly
             WHERE monitor_id = $1 AND bucket = $2
             "#,
@@ -297,7 +297,7 @@ async fn upsert_global_baselines(
     // Aggregate queries always return exactly one row (possibly with NULLs), so fetch_one is correct.
     let day_avg_row = sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<f64>, Option<i64>)>(
         r#"
-        SELECT SUM(hit_count), SUM(total_count), SUM(ttfb_sum_ms), SUM(sample_count)
+        SELECT SUM(hit_count)::BIGINT, SUM(total_count)::BIGINT, SUM(ttfb_sum_ms), SUM(sample_count)::BIGINT
         FROM probe_results_hourly
         WHERE monitor_id = $1
           AND bucket >= $2 - INTERVAL '24 hours'
@@ -338,4 +338,82 @@ async fn upsert_global_baselines(
     ).await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_data(hit: i64, total: i64, ttfb_sum: f64, samples: i64) -> HourlyData {
+        HourlyData { hit_count: hit, total_count: total, ttfb_sum_ms: Some(ttfb_sum), sample_count: samples }
+    }
+
+    #[test]
+    fn test_cache_hit_pct_normal() {
+        let d = make_data(75, 100, 0.0, 0);
+        assert!((cache_hit_pct(&d).unwrap() - 75.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_cache_hit_pct_full_hit() {
+        let d = make_data(100, 100, 0.0, 0);
+        assert!((cache_hit_pct(&d).unwrap() - 100.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_cache_hit_pct_zero_hits() {
+        let d = make_data(0, 100, 0.0, 0);
+        assert!((cache_hit_pct(&d).unwrap() - 0.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_cache_hit_pct_zero_total_returns_none() {
+        let d = make_data(0, 0, 0.0, 0);
+        assert!(cache_hit_pct(&d).is_none());
+    }
+
+    #[test]
+    fn test_ttfb_avg_ms_normal() {
+        let d = make_data(0, 0, 1500.0, 10);
+        assert!((ttfb_avg_ms(&d).unwrap() - 150.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_ttfb_avg_ms_single_sample() {
+        let d = make_data(0, 0, 200.0, 1);
+        assert!((ttfb_avg_ms(&d).unwrap() - 200.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_ttfb_avg_ms_zero_samples_returns_none() {
+        let d = make_data(0, 0, 500.0, 0);
+        assert!(ttfb_avg_ms(&d).is_none());
+    }
+
+    #[test]
+    fn test_ttfb_avg_ms_none_sum_returns_none() {
+        let d = HourlyData { hit_count: 0, total_count: 0, ttfb_sum_ms: None, sample_count: 10 };
+        assert!(ttfb_avg_ms(&d).is_none());
+    }
+
+    #[test]
+    fn test_global_cache_hit_pct_weighted() {
+        // Region A: 90/100 = 90%. Region B: 10/100 = 10%.
+        // Weighted global: 100/200 = 50%. NOT (90+10)/2 = 50% (coincidence).
+        // Edge case: Region A: 90/100, Region B: 1/10 → weighted = 91/110 ≈ 82.7%
+        let total_hits = 90i64 + 1;
+        let total_count = 100i64 + 10;
+        let d = HourlyData { hit_count: total_hits, total_count, ttfb_sum_ms: None, sample_count: 0 };
+        let expected = 91.0 / 110.0 * 100.0;
+        assert!((cache_hit_pct(&d).unwrap() - expected).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_global_ttfb_avg_weighted() {
+        // Region A: 10 samples, sum 1000ms → avg 100ms. Region B: 1 sample, sum 900ms → avg 900ms.
+        // Weighted: 1900/11 ≈ 172.7ms. NOT (100+900)/2 = 500ms.
+        let d = make_data(0, 0, 1900.0, 11);
+        let expected = 1900.0 / 11.0;
+        assert!((ttfb_avg_ms(&d).unwrap() - expected).abs() < 1e-9);
+    }
 }

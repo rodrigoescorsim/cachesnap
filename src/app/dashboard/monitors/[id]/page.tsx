@@ -8,6 +8,7 @@ import { AutoRefresh } from './auto-refresh'
 import { TtfbChart, type ChartPoint } from './ttfb-chart'
 import { MonitorHeaderToolbar } from './monitor-header-toolbar'
 import { MonitorSettingsPanel } from './monitor-settings-panel'
+import { type TrendComparator } from './monitor-edit-form'
 import { LiveActivityHeader } from './live-activity-header'
 import { RealTimeHub } from '../../real-time-hub'
 import { extractPop, popToCity, resolveCdnLabel } from '@/lib/edge-helpers'
@@ -1599,10 +1600,10 @@ export default async function MonitorDetailPage({
                 alertCacheHitThresholdPct={monitor.alert_cache_hit_threshold_pct}
                 alertCacheHitTrendEnabled={monitor.alert_cache_hit_trend_enabled}
                 alertCacheHitTrendThresholdPct={monitor.alert_cache_hit_trend_threshold_pct}
-                alertCacheHitTrendComparators={(monitor.alert_cache_hit_trend_comparators ?? ['prev_hour']) as import('./monitor-edit-form').TrendComparator[]}
+                alertCacheHitTrendComparators={(monitor.alert_cache_hit_trend_comparators ?? ['prev_hour']) as TrendComparator[]}
                 alertTtfbTrendEnabled={monitor.alert_ttfb_trend_enabled}
                 alertTtfbTrendThresholdPct={monitor.alert_ttfb_trend_threshold_pct}
-                alertTtfbTrendComparators={(monitor.alert_ttfb_trend_comparators ?? ['prev_hour']) as import('./monitor-edit-form').TrendComparator[]}
+                alertTtfbTrendComparators={(monitor.alert_ttfb_trend_comparators ?? ['prev_hour']) as TrendComparator[]}
                 alertTtfbTrendDirection={(monitor.alert_ttfb_trend_direction ?? 'worsening') as 'worsening' | 'both'}
                 alertTrendMinSamples={monitor.alert_trend_min_samples}
                 alertTrendCooldownMinutes={monitor.alert_trend_cooldown_minutes}
