@@ -1,4 +1,4 @@
-﻿# CacheSnap — Product features
+# CacheSnap — Product features
 
 This document is the **canonical catalog** of what the system offers today: capabilities, differentiators, and alert behavior. User-facing strings are described in **English** (the product’s UI language).
 
@@ -78,7 +78,7 @@ Some probe runs include a **bypass** path that measures the **origin** (or non-e
 
 - **Window:** Rolling **7 days** of successful probes (`error` excluded) per monitor × region.
 - **Refresh:** Recalculated on a **fixed interval** (worker runs on an hourly ticker in `baseline/calculator.rs`).
-- **Fields:** **TTFB mean and standard deviation**, **sample count**, and a simple **cache hit rate** (share of results whose cache status is not MISS/BYPASS/EXPIRED/DYNAMIC).
+- **Fields:** **TTFB mean and standard deviation**, **sample count**, and a **cache hit rate** (share of results whose cache status is in HIT, STALE, REVALIDATED, or UPDATING).
 
 ---
 
@@ -113,7 +113,14 @@ It powers **down** and **anomaly** alerts and supports shared wording for other 
 
 ## Alerts and notifications
 
-Alerts are created in the Rust **detector** (`api/src/alerts/detector.rs`) immediately after a successful ingest. Rows live in the **`alerts`** table; the **notifier** (`api/src/alerts/notifier.rs`) attempts outbound delivery based on **per-monitor** settings.
+Alerts are processed through two paths in the Rust service: **Real-time Detection** (during ingest) for critical failures, and the **Audit Worker** (background loop) for trend-based anomalies. Rows live in the **`alerts`** table; the **notifier** (`api/src/alerts/notifier.rs`) attempts outbound delivery based on **per-monitor** settings.
+
+### Alerting Architecture
+
+| Path | Alert Types | Trigger |
+| :--- | :--- | :--- |
+| **Real-time** | `down`, `anomaly` | Immediately after `POST /api/ingest` |
+| **Audit Worker** | `cache_hit_low`, `ssl_expiry`, `anycast`, `zombie_cache` | Background cycle (`ALERTS_WORKER_INTERVAL_SECS`) |
 
 ### Delivery channels
 
@@ -144,23 +151,23 @@ If no channel is configured or the API key is missing, alerts are still **stored
 - **When:** Heuristics detect a **routing / POP mismatch** vs the probe region (via `served_by` and related signals).
 - **Metric:** `routing`.
 - **Rate limit:** At most **one** alert of this type per **monitor + region** per **24 hours** (prevents repeated alerts for a persistent condition).
-- **Configurable:** `alert_anycast_enabled` toggle (default off).
+- **Configurable:** `alert_anycast_enabled` toggle (default off). Processed by the background **Audit Worker**.
 
 ### 4. Zombie / stale cache signal (` zombie_cache `)
 
 - **When:** Response **cache age** (`age_s`) exceeds **86 400** seconds (24 hours) - long-lived cached object worth reviewing.
 - **Metric:** `age_s`.
 - **Rate limit:** Same **24-hour** deduplication per **monitor + region**.
-- **Configurable:** `alert_zombie_cache_enabled` toggle (default off).
+- **Configurable:** `alert_zombie_cache_enabled` toggle (default off). Processed by the background **Audit Worker**.
 
 ### 5. Cache hit rate low (` cache_hit_low `)
 
 - **When:** The **24-hour rolling average cache hit rate** for a monitor + region falls below the configured threshold and at least **5 probes** have been collected.
-- **Formula:** `(COUNT(*) FILTER (WHERE cache_status ILIKE '%HIT%') / NULLIF(COUNT(*), 0)) x 100` - matches HIT, STALE, REVALIDATED.
+- **Formula:** `(COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING')) / NULLIF(COUNT(*), 0)) x 100`.
 - **Stored fields:** `actual_ms` = observed hit %, `baseline_ms` = configured threshold %.
 - **Diagnosis:** Auto-generated summary (e.g. "Cache hit rate dropped to 62.3% (threshold: 80%)") with recommended action covering TTL, Cache-Control headers, and dynamic content ratio.
 - **Rate limit:** At most **one** alert per **monitor + region** per **24 hours**.
-- **Configurable:** `alert_cache_hit_enabled` toggle (default off) + `alert_cache_hit_threshold_pct` (0-100%, default 80%).
+- **Configurable:** `alert_cache_hit_enabled` toggle (default off) + `alert_cache_hit_threshold_pct` (0-100%, default 80%). Processed by the background **Audit Worker** using TimescaleDB continuous aggregates.
 
 ### 6. SSL certificate expiry (` ssl_expiry `)
 
@@ -177,7 +184,7 @@ Non-latency rule: it does **not** use TTFB baselines. It relies on structured SS
 | **Stored metric name** | `days_remaining`; `actual_ms` column holds the numeric days value for this alert type. |
 | **Rate limit** | At most **one** `ssl_expiry` alert per **monitor + region** per **7 days** (certificate expiry is persistent; daily reminders would be excessive). |
 
-> **Note:** The dashboard may also show `valid_from` / `valid_to`; the backend rule for this alert uses **`days_remaining`** from the probe payload, not a raw `valid_to` timestamp.
+> **Note:** SSL expiry is checked by the **Audit Worker**; it does not add overhead to the ingest path.
 
 ---
 

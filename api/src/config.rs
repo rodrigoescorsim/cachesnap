@@ -90,6 +90,14 @@ fn env_u64(key: &str, default: u64) -> u64 {
         .unwrap_or(default)
 }
 
+/// `0` desativa o comportamento documentado (ex.: throttle desligado).
+fn env_u64_allow_zero(key: &str, default: u64) -> u64 {
+    std::env::var(key)
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(default)
+}
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub database_url: String,
@@ -101,6 +109,8 @@ pub struct Config {
     pub app_url: String,
     pub api_url: String,
     pub probe_dispatch: ProbeDispatchConfig,
+    /// Intervalo entre ciclos do worker de auditoria de alertas (Cache Hit, SSL, Anycast, etc).
+    pub alerts_worker_interval_secs: u64,
 }
 
 impl Config {
@@ -121,6 +131,10 @@ impl Config {
             api_url: std::env::var("API_URL")
                 .unwrap_or_else(|_| "http://localhost:3001".to_string()),
             probe_dispatch: ProbeDispatchConfig::from_env(),
+            alerts_worker_interval_secs: env_u64_allow_zero(
+                "ALERTS_WORKER_INTERVAL_SECS",
+                900,
+            ),
         })
     }
 }

@@ -2,6 +2,7 @@ import { PremiumTooltip } from '@/components/premium-tooltip'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
+import { isCacheHit } from '@/lib/cache-utils'
 import sql from '@/lib/db'
 import { AutoRefresh } from './auto-refresh'
 import { TtfbChart, type ChartPoint } from './ttfb-chart'
@@ -313,11 +314,11 @@ function cacheDisplay(
 ): { text: string; title: string; variant: LiveActivityCacheVariant } {
   const normalizedStatus = status?.toUpperCase() ?? null
 
-  if (normalizedStatus === 'HIT') {
+  if (isCacheHit(normalizedStatus)) {
     return {
-      text: hitPct != null ? `${formatPct(hitPct)}%` : 'HIT',
+      text: hitPct != null ? `${formatPct(hitPct)}%` : normalizedStatus ?? 'HIT',
       variant: 'hit',
-      title: 'Cache hit observed',
+      title: 'Cache hit observed (including STALE/REVALIDATED)',
     }
   }
 
@@ -563,7 +564,7 @@ export default async function MonitorDetailPage({
       region,
       COUNT(*)::int                              AS probe_count,
       ROUND(AVG(ttfb_ms)::numeric, 0)::int            AS ttfb_avg_ms,
-      ROUND(AVG(ttfb_ms) FILTER (WHERE cache_status ILIKE '%HIT%' OR cache_status = 'STALE' OR cache_status = 'REVALIDATED')::numeric, 0)::int AS edge_hit_avg_ms,
+      ROUND(AVG(ttfb_ms) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING'))::numeric, 0)::int AS edge_hit_avg_ms,
       ROUND(AVG(ttfb_ms) FILTER (WHERE (cache_status ILIKE '%MISS%' OR cache_status = 'DYNAMIC' OR cache_status = 'BYPASS' OR cache_status = 'EXPIRED') AND cache_status != 'HIDDEN')::numeric, 0)::int AS origin_miss_avg_ms,
       (
         SELECT ROUND(AVG(origin_ttfb_ms)::numeric, 0)::int 
@@ -590,7 +591,7 @@ export default async function MonitorDetailPage({
       MODE() WITHIN GROUP (ORDER BY cache_status) AS common_cache_status,
       COUNT(*) FILTER (WHERE error IS NOT NULL)::int AS error_count,
       ROUND(
-        100.0 * COUNT(*) FILTER (WHERE cache_status ILIKE '%HIT%') / NULLIF(COUNT(*), 0), 1
+        100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING')) / NULLIF(COUNT(*), 0), 1
       )                                          AS cache_hit_pct,
       ROUND(
         100.0 * COUNT(*) FILTER (WHERE error IS NULL AND status_code < 500)
@@ -607,7 +608,7 @@ export default async function MonitorDetailPage({
   const prevStats = await sql<{ ttfb_avg_ms: number; cache_hit_pct: number; uptime_pct: number }[]>`
     SELECT
       ROUND(AVG(ttfb_ms)::numeric, 0)::int            AS ttfb_avg_ms,
-      ROUND(100.0 * COUNT(*) FILTER (WHERE cache_status ILIKE '%HIT%') / NULLIF(COUNT(*), 0), 1) AS cache_hit_pct,
+      ROUND(100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING')) / NULLIF(COUNT(*), 0), 1) AS cache_hit_pct,
       ROUND(100.0 * COUNT(*) FILTER (WHERE error IS NULL AND status_code < 500) / NULLIF(COUNT(*), 0), 1) AS uptime_pct
     FROM probe_results
     WHERE monitor_id = ${id}
@@ -712,7 +713,7 @@ export default async function MonitorDetailPage({
       ROUND(AVG(tcp_ms)::numeric, 0)                                           AS tcp_avg,
       ROUND(AVG(tls_ms)::numeric, 0)                                           AS tls_avg,
       ROUND(
-        100.0 * COUNT(*) FILTER (WHERE cache_status ILIKE '%HIT%')
+        100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING'))
                / NULLIF(COUNT(*), 0), 0
       )                                                                         AS cache_hit_pct
     FROM probe_results

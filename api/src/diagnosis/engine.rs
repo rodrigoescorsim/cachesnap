@@ -1,4 +1,5 @@
 use serde::Serialize;
+use crate::utils::cache;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq)]
@@ -125,8 +126,8 @@ pub fn diagnose(input: &DiagnosisInput) -> Diagnosis {
     let ttfb = input.ttfb_ms.unwrap_or(0.0);
     let cache = input.cache_status.as_deref().unwrap_or("").to_uppercase();
 
-    // 2. Cache MISS / BYPASS with high TTFB → origin being hit every request
-    if (cache.contains("MISS") || cache.contains("BYPASS")) && ttfb > 200.0 {
+    // 2. Cache MISS / BYPASS / EXPIRED with high TTFB → origin being hit every request
+    if (cache.contains("MISS") || cache.contains("BYPASS") || cache.contains("EXPIRED") || cache.contains("DYNAMIC")) && ttfb > 200.0 {
         let gain = ttfb - 30.0; // estimate: a cache HIT would cost ~30ms
         return Diagnosis {
             severity: "critical".into(),
@@ -176,7 +177,7 @@ pub fn diagnose(input: &DiagnosisInput) -> Diagnosis {
     }
 
     // 5. Cache HIT but slow edge function
-    if cache.contains("HIT") && ttfb > 150.0 {
+    if cache::is_hit(&cache) && ttfb > 150.0 {
         return Diagnosis {
             severity: "warning".into(),
             cause: format!(
@@ -293,6 +294,26 @@ mod tests {
         assert_eq!(d.severity, "critical");
         assert!(d.cause.contains("MISS"));
         assert!(d.estimated_gain_ms.unwrap() > 0.0);
+    }
+
+    #[test]
+    fn treats_stale_and_revalidated_as_hit() {
+        // STALE should be treated as a hit, returning 'ok' severity if TTFB is fine.
+        let d_stale = diagnose(&DiagnosisInput {
+            ttfb_ms: Some(45.0),
+            cache_status: Some("STALE".into()),
+            region: "us-east".into(),
+            ..base_input()
+        });
+        assert_eq!(d_stale.severity, "ok", "STALE should be diagnosed as healthy hit");
+
+        let d_reval = diagnose(&DiagnosisInput {
+            ttfb_ms: Some(50.0),
+            cache_status: Some("REVALIDATED".into()),
+            region: "us-east".into(),
+            ..base_input()
+        });
+        assert_eq!(d_reval.severity, "ok", "REVALIDATED should be diagnosed as healthy hit");
     }
 
     #[test]

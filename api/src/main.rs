@@ -7,6 +7,7 @@ mod models;
 mod redis;
 mod routes;
 mod scheduler;
+mod utils;
 
 use anyhow::Result;
 use axum::{
@@ -77,6 +78,7 @@ async fn main() -> Result<()> {
     // background tasks
     tokio::spawn(scheduler::runner::start(state.clone()));
     tokio::spawn(baseline::calculator::run(state.clone()));
+    tokio::spawn(alerts::worker::run(state.clone()));
 
     let allowed_origin: HeaderValue = config
         .app_url

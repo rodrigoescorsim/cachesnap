@@ -46,7 +46,7 @@ export async function GET() {
         ROUND(AVG(ttfb_ms) FILTER (WHERE ttfb_ms IS NOT NULL AND error IS NULL))::int  AS ttfb_avg_24h,
         ROUND(
           100.0
-          * COUNT(*) FILTER (WHERE cache_status = 'HIT' AND error IS NULL)
+          * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING') AND error IS NULL)
           / NULLIF(COUNT(*) FILTER (WHERE cache_status IS NOT NULL AND error IS NULL), 0),
           1
         )                                                                               AS cache_hit_avg_24h
@@ -62,7 +62,7 @@ export async function GET() {
         ROUND(AVG(ttfb_ms) FILTER (WHERE ttfb_ms IS NOT NULL AND error IS NULL))::int   AS ttfb_current,
         ROUND(
           100.0
-          * COUNT(*) FILTER (WHERE cache_status = 'HIT' AND error IS NULL)
+          * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING') AND error IS NULL)
           / NULLIF(COUNT(*) FILTER (WHERE cache_status IS NOT NULL AND error IS NULL), 0),
           1
         )                                                                                AS cache_hit_current,

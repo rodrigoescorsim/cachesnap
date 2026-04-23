@@ -32,7 +32,7 @@ export async function GET(
       ROUND(AVG(total_ms)::numeric, 1)      AS total_avg_ms,
       COUNT(*) FILTER (WHERE error IS NOT NULL)::int AS error_count,
       ROUND(
-        100.0 * COUNT(*) FILTER (WHERE cache_status = 'HIT') / NULLIF(COUNT(*), 0),
+        100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING')) / NULLIF(COUNT(*), 0),
         1
       )                                     AS cache_hit_pct,
       MAX(time)                             AS last_probe_at

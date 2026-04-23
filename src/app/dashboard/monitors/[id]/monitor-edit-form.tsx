@@ -1,10 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { ChevronDown } from 'lucide-react'
 import { CustomSelect } from '@/components/custom-select'
+import { CsCheckbox } from '@/components/cs-checkbox'
 
 export interface MonitorEditFormProps {
   id: string
@@ -350,16 +349,11 @@ export function MonitorEditForm({
                   },
                 ] as const).map(({ field, label, desc }) => (
                   <div key={field} className="flex items-start gap-3">
-                    <input
+                    <CsCheckbox
                       id={`${p}-${field}`}
-                      type="checkbox"
+                      align="start"
                       checked={values[field]}
                       onChange={(e) => handleInputChange(field, e.target.checked)}
-                      className="mt-0.5 h-[18px] w-[18px] shrink-0 rounded border-white/10 bg-white/[0.03] cursor-pointer appearance-none border transition-all checked:bg-[var(--brand-primary)] checked:border-[var(--brand-primary)] checked:shadow-[0_0_10px_rgba(34,255,136,0.3)]"
-                      style={{
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='black' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3E%3C/svg%3E")`,
-                        backgroundSize: '100% 100%', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
-                      }}
                     />
                     <label htmlFor={`${p}-${field}`} className="cursor-pointer select-none">
                       <span className="text-xs font-bold text-zinc-300 block">{label}</span>
@@ -370,16 +364,11 @@ export function MonitorEditForm({
 
                 {/* CACHE HIT RATE — inline threshold */}
                 <div className="flex items-start gap-3">
-                  <input
+                  <CsCheckbox
                     id={`${p}-alert_cache_hit_enabled`}
-                    type="checkbox"
+                    align="start"
                     checked={values.alert_cache_hit_enabled}
                     onChange={(e) => handleInputChange('alert_cache_hit_enabled', e.target.checked)}
-                    className="mt-0.5 h-[18px] w-[18px] shrink-0 rounded border-white/10 bg-white/[0.03] cursor-pointer appearance-none border transition-all checked:bg-[var(--brand-primary)] checked:border-[var(--brand-primary)] checked:shadow-[0_0_10px_rgba(34,255,136,0.3)]"
-                    style={{
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='black' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3E%3C/svg%3E")`,
-                      backgroundSize: '100% 100%', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
-                    }}
                   />
                   <label htmlFor={`${p}-alert_cache_hit_enabled`} className="cursor-pointer select-none flex-1">
                     <span className="text-xs font-bold text-zinc-300 block">Cache hit rate low</span>
@@ -420,16 +409,10 @@ export function MonitorEditForm({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <input
+                <CsCheckbox
                   id={`${p}-notify-email-toggle`}
-                  type="checkbox"
                   checked={values.notify_email_enabled}
                   onChange={(e) => handleInputChange('notify_email_enabled', e.target.checked)}
-                  className="h-[18px] w-[18px] rounded border-white/10 bg-white/[0.03] cursor-pointer appearance-none border transition-all checked:bg-[var(--brand-primary)] checked:border-[var(--brand-primary)] checked:shadow-[0_0_10px_rgba(34,255,136,0.3)]"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='black' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3E%3C/svg%3E")`,
-                    backgroundSize: '100% 100%', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
-                  }}
                 />
                 <label htmlFor={`${p}-notify-email-toggle`} className="text-xs font-bold text-zinc-300 cursor-pointer select-none">
                   Email alerts
@@ -448,16 +431,10 @@ export function MonitorEditForm({
 
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <input
+                <CsCheckbox
                   id={`${p}-notify-slack-toggle`}
-                  type="checkbox"
                   checked={values.notify_slack_enabled}
                   onChange={(e) => handleInputChange('notify_slack_enabled', e.target.checked)}
-                  className="h-[18px] w-[18px] rounded border-white/10 bg-white/[0.03] cursor-pointer appearance-none border transition-all checked:bg-[var(--brand-primary)] checked:border-[var(--brand-primary)] checked:shadow-[0_0_10px_rgba(34,255,136,0.3)]"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='black' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3E%3C/svg%3E")`,
-                    backgroundSize: '100% 100%', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
-                  }}
                 />
                 <label htmlFor={`${p}-notify-slack-toggle`} className="text-xs font-bold text-zinc-300 cursor-pointer select-none">
                   Slack / Discord Webhook

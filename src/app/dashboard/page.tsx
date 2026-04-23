@@ -50,7 +50,7 @@ async function getMonitorSummaries(userId: string) {
       SELECT
         ROUND(AVG(pr.ttfb_ms)::numeric, 0)::int                      AS ttfb_avg_ms,
         ROUND(
-          100.0 * COUNT(pr.time) FILTER (WHERE pr.cache_status ILIKE '%HIT%')
+          100.0 * COUNT(pr.time) FILTER (WHERE pr.cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING'))
                  / NULLIF(COUNT(pr.time), 0),
           1
         )                                                            AS cache_hit_pct,
