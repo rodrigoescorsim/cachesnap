@@ -953,6 +953,9 @@ export default async function MonitorDetailPage({
   const ttfbDelta = hasHistory ? avgTtfb - prevAvgTtfb : 0;
   const cacheDelta = hasHistory ? globalHitRate - prevGlobalHitRate : 0;
   const liveFreezeStorageKey = `live_updates_frozen_${monitor.id}`
+  const latestDataAt = latestProbes.length > 0
+    ? Math.max(...latestProbes.map(p => p.last_probe_at ? new Date(p.last_probe_at).getTime() : 0))
+    : null;
 
   return (
     <div className="space-y-5">
@@ -1071,6 +1074,7 @@ export default async function MonitorDetailPage({
                     <LiveActivityHeader
                       monitorId={monitor.id}
                       freezeStorageKey={liveFreezeStorageKey}
+                      latestDataAt={latestDataAt}
                     />
 
                     {/* LIVE TAB — Summary cards moved here */}

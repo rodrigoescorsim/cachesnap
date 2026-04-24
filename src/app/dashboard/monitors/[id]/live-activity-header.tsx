@@ -7,6 +7,7 @@ import { MonitorDispatchButtons } from './monitor-dispatch-buttons'
 interface LiveActivityHeaderProps {
   monitorId: string
   freezeStorageKey: string
+  latestDataAt: number | null
 }
 
 /** Hora exata do freeze — HH:mm:ss para leitura rápida e consistência com o pedido. */
@@ -19,9 +20,23 @@ function formatFrozenAtClock(ms: number): string {
   })
 }
 
-export function LiveActivityHeader({ monitorId, freezeStorageKey }: LiveActivityHeaderProps) {
+export function LiveActivityHeader({ monitorId, freezeStorageKey, latestDataAt }: LiveActivityHeaderProps) {
   const [isFrozen, setIsFrozen] = useState(false)
   const [freezeStartedAtMs, setFreezeStartedAtMs] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (isFrozen && latestDataAt && freezeStartedAtMs) {
+      // If the data we're showing is significantly newer than when we "froze",
+      // it means the user navigated away and back, getting fresh server data.
+      // We must auto-thaw to prevent showing an inconsistent "Frozen" label.
+      if (latestDataAt > freezeStartedAtMs + 5000) {
+        window.localStorage.setItem(freezeStorageKey, '0')
+        window.localStorage.removeItem(`${freezeStorageKey}_at`)
+        setIsFrozen(false)
+        setFreezeStartedAtMs(null)
+      }
+    }
+  }, [isFrozen, latestDataAt, freezeStartedAtMs, freezeStorageKey])
 
   useEffect(() => {
     const updateFromStorage = () => {
@@ -37,6 +52,19 @@ export function LiveActivityHeader({ monitorId, freezeStorageKey }: LiveActivity
     const id = window.setInterval(updateFromStorage, 1000)
     return () => window.clearInterval(id)
   }, [freezeStorageKey])
+
+  const handleToggleFreeze = () => {
+    const nextFrozen = !isFrozen
+    setIsFrozen(nextFrozen)
+    window.localStorage.setItem(freezeStorageKey, nextFrozen ? '1' : '0')
+    if (nextFrozen) {
+      window.localStorage.setItem(`${freezeStorageKey}_at`, String(Date.now()))
+      setFreezeStartedAtMs(Date.now())
+    } else {
+      window.localStorage.removeItem(`${freezeStorageKey}_at`)
+      setFreezeStartedAtMs(null)
+    }
+  }
 
   return (
     <div className="mb-3">
@@ -55,6 +83,8 @@ export function LiveActivityHeader({ monitorId, freezeStorageKey }: LiveActivity
             monitorId={monitorId}
             variant="compact"
             freezeStorageKey={freezeStorageKey}
+            isFrozen={isFrozen}
+            onToggleFreeze={handleToggleFreeze}
           />
 
           {/* Tooltip do Frozen cobre “resume”; aqui só reforça quando e com que hora pausou (sem duplicar “Last probe”). */}

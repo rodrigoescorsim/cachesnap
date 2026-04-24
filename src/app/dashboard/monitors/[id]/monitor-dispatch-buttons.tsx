@@ -13,16 +13,19 @@ export function MonitorDispatchButtons({
   monitorId,
   variant = 'default',
   freezeStorageKey,
+  isFrozen,
+  onToggleFreeze,
 }: {
   monitorId: string
   variant?: 'default' | 'compact' | 'audit'
   freezeStorageKey?: string
+  isFrozen?: boolean
+  onToggleFreeze?: () => void
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [cooldown, setCooldown] = useState(0)
   const [error, setError] = useState<string | null>(null)
-  const [isFrozen, setIsFrozen] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   const isCompact = variant === 'compact'
@@ -37,11 +40,6 @@ export function MonitorDispatchButtons({
       if (diff < cooldownPeriod) setCooldown(cooldownPeriod - diff)
     }
   }, [monitorId, variant, cooldownPeriod])
-
-  useEffect(() => {
-    if (!isCompact) return
-    setIsFrozen(window.localStorage.getItem(liveFreezeStorageKey) === '1')
-  }, [liveFreezeStorageKey, isCompact])
 
   useEffect(() => {
     if (cooldown > 0) {
@@ -89,14 +87,19 @@ export function MonitorDispatchButtons({
   }
 
   function toggleFreeze() {
+    if (onToggleFreeze) {
+      onToggleFreeze()
+      return
+    }
+
     const nextFrozen = !isFrozen
-    setIsFrozen(nextFrozen)
+    // Fallback if not controlled externally
     window.localStorage.setItem(liveFreezeStorageKey, nextFrozen ? '1' : '0')
-    // Persist the exact freeze moment so the header can display "View frozen at HH:mm".
     if (nextFrozen) {
       window.localStorage.setItem(`${liveFreezeStorageKey}_at`, String(Date.now()))
     } else {
       window.localStorage.removeItem(`${liveFreezeStorageKey}_at`)
+      router.refresh()
     }
   }
 
