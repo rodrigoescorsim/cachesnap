@@ -12,6 +12,7 @@ import { MonitorSettingsPanel } from './monitor-settings-panel'
 import { type TrendComparator } from './monitor-edit-form'
 import { LiveActivityHeader } from './live-activity-header'
 import { RealTimeHub } from '../../real-time-hub'
+import { ViewSectionHeader, LiveDot } from '@/components/dashboard/dashboard-ui'
 import { extractPop, popToCity, resolveCdnLabel } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
 import { MonitorSidebarRail } from './monitor-sidebar-rail'
@@ -1000,10 +1001,7 @@ export default async function MonitorDetailPage({
                   href={buildMonitorHref('performance', range)}
                   className={MONITOR_HEADER_STATUS_BADGE}
                 >
-                  <span className="relative flex h-2 w-2 shrink-0">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--brand-primary)] opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--brand-primary)]" />
-                  </span>
+                  <LiveDot />
                   <span className="text-metric-ttfb-fast">Live Sync</span>
                 </Link>
               </PremiumTooltip>
@@ -1069,8 +1067,8 @@ export default async function MonitorDetailPage({
           {activeTab === 'performance' && (
             <div>
               {activeView === 'real-time' && (
-                <div className="space-y-10">
-                  <section className="space-y-5">
+                <div className="space-y-8">
+                  <section className="space-y-4">
                     <LiveActivityHeader
                       monitorId={monitor.id}
                       freezeStorageKey={liveFreezeStorageKey}
@@ -1307,60 +1305,28 @@ export default async function MonitorDetailPage({
               )}
 
               {activeView === 'trends' && (
-                <div className="space-y-10">
-                  {/* TRENDS TAB — Summary cards (react to time range selector) */}
-                  {!isCollecting && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between px-1">
-                        <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                          <History className="h-3 w-3" />
-                          {range.toUpperCase()} Summary
-                        </h2>
-                        {/* Time range selector — mirrored here so it's immediately visible above the cards */}
-                        <div className="flex items-center gap-1.5 rounded-lg bg-zinc-100 dark:bg-white/5 p-1 border border-zinc-200 dark:border-white/10">
-                          {['24h', '7d', '30d'].map((r) => (
-                            <Link
-                              key={r}
-                              href={buildViewHref('trends', r)}
-                              className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${range === r
-                                ? 'bg-zinc-100 text-zinc-900 shadow-lg shadow-white/5 ring-1 ring-white/10'
-                                : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
-                                }`}
-                            >
-                              {r}
-                            </Link>
-                          ))}
-                        </div>
+                <div className="space-y-6">
+                  <section className="space-y-4">
+                    <ViewSectionHeader title="Trends Performance">
+                      {/* Time range selector */}
+                      <div className="flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 dark:bg-white/5 px-1.5 border border-zinc-200 dark:border-white/10">
+                        {['24h', '7d', '30d'].map((r) => (
+                          <Link
+                            key={r}
+                            href={buildViewHref('trends', r)}
+                            className={`px-3 h-6 flex items-center justify-center rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${range === r
+                              ? 'bg-zinc-100 text-zinc-900 shadow-lg shadow-white/5 ring-1 ring-white/10'
+                              : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
+                              }`}
+                          >
+                            {r}
+                          </Link>
+                        ))}
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        {/* HEALTH SCORE */}
-                        <Link
-                          href={buildMonitorHref('performance', range, null, '', monitor.id)}
-                          scroll={false}
-                          className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
-                        >
-                          <div className="cs-card-wash opacity-40" />
-                          <div className="relative z-10">
-                            <div className="flex items-start justify-between">
-                              <PremiumTooltip content={`Weighted performance score based on availability and latency during the last ${range}`}>
-                                <p className="cs-metric-card-label">Health Score</p>
-                              </PremiumTooltip>
-                              <Activity className={`h-4 w-4 ${healthScore > 90 ? 'text-metric-ttfb-fast' : 'text-amber-400'}`} />
-                            </div>
-                            <div className="flex items-baseline gap-2 mt-1.5">
-                              <span className="text-[26px] font-bold text-white tracking-tight">{healthScore}/<span className="text-zinc-600">100</span></span>
-                              {hasHistory && healthDelta !== 0 && (
-                                <PremiumTooltip content={`${healthDelta > 0 ? '+' : ''}${healthDelta}% compared to the prior period`} position="top-center" direction="top">
-                                  <span className={`text-[11px] font-bold cursor-help ${healthDelta > 0 ? 'text-metric-ttfb-fast' : 'text-red-400'}`}>
-                                    {healthDelta > 0 ? '↑' : '↓'} {Math.abs(healthDelta)}%
-                                  </span>
-                                </PremiumTooltip>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-zinc-500 mt-1 font-medium">Global edge resilience</p>
-                          </div>
-                        </Link>
+                    </ViewSectionHeader>
 
+                    {!isCollecting && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {/* GLOBAL TTFB */}
                         <Link
                           href={buildViewHref('trends', range, monitor.id)}
@@ -1368,24 +1334,14 @@ export default async function MonitorDetailPage({
                           className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
                         >
                           <div className="cs-card-wash opacity-40" />
-                          <div className="relative z-10">
-                            <div className="flex items-start justify-between">
-                              <PremiumTooltip content={`Global average Time to First Byte during the last ${range}`}>
-                                <p className="cs-metric-card-label">Global TTFB</p>
-                              </PremiumTooltip>
-                              <Zap className={`h-4 w-4 ${avgTtfb < 200 ? 'text-metric-ttfb-fast' : avgTtfb < 500 ? 'text-amber-400' : 'text-red-400'}`} />
+                          <div className="relative z-10 flex items-center justify-between">
+                            <PremiumTooltip content={`Global average Time to First Byte during the last ${range}`}>
+                              <p className="cs-metric-card-label !text-[11px]">Global TTFB</p>
+                            </PremiumTooltip>
+                            <div className="flex items-center gap-3">
+                              <span className="text-[24px] font-bold text-white tracking-tight leading-none">{avgTtfb}<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
+                              <Zap className={`h-5 w-5 ${avgTtfb < 200 ? 'text-metric-ttfb-fast' : avgTtfb < 500 ? 'text-amber-400' : 'text-red-400'}`} />
                             </div>
-                            <div className="flex items-baseline gap-2 mt-1.5">
-                              <span className="text-[26px] font-bold text-white tracking-tight">{avgTtfb}<span className="text-lg ml-0.5 text-zinc-500">ms</span></span>
-                              {hasHistory && ttfbDelta !== 0 && (
-                                <PremiumTooltip content={`${ttfbDelta > 0 ? '+' : '-'}${Math.abs(ttfbDelta)}ms compared to the prior period`} position="top-center" direction="top">
-                                  <span className={`text-[11px] font-bold cursor-help ${ttfbDelta <= 0 ? 'text-metric-ttfb-fast' : 'text-amber-500'}`}>
-                                    {ttfbDelta <= 0 ? '↓' : '↑'} {Math.abs(ttfbDelta)}ms
-                                  </span>
-                                </PremiumTooltip>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-zinc-500 mt-1 font-medium">Latency across {stats.length} regions</p>
                           </div>
                         </Link>
 
@@ -1396,36 +1352,18 @@ export default async function MonitorDetailPage({
                           className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
                         >
                           <div className="cs-card-wash opacity-60" />
-                          <div className="relative z-10">
-                            <div className="flex items-start justify-between">
-                              <PremiumTooltip content={`Percentage of requests successfully served from CDN edge cache during the last ${range}`}>
-                                <p className="cs-metric-card-label">Cache Hit Rate</p>
-                              </PremiumTooltip>
-                              <ShieldCheck className="h-4 w-4 text-metric-ttfb-fast" />
+                          <div className="relative z-10 flex items-center justify-between">
+                            <PremiumTooltip content={`Percentage of requests successfully served from CDN edge cache during the last ${range}`}>
+                              <p className="cs-metric-card-label !text-[11px]">Cache Hit Rate</p>
+                            </PremiumTooltip>
+                            <div className="flex items-center gap-3">
+                              <span className="text-[24px] font-bold text-white tracking-tight leading-none">{globalHitRate}<span className="text-base ml-0.5 text-zinc-500">%</span></span>
+                              <ShieldCheck className="h-5 w-5 text-metric-ttfb-fast" />
                             </div>
-                            <div className="flex items-baseline gap-2 mt-1.5">
-                              <span className="text-[26px] font-bold text-white tracking-tight">{globalHitRate}<span className="text-lg ml-0.5 text-zinc-500">%</span></span>
-                              {hasHistory && cacheDelta !== 0 && (
-                                <PremiumTooltip content={`${cacheDelta > 0 ? '+' : ''}${cacheDelta}% compared to the prior period`} position="top-center" direction="top">
-                                  <span className={`text-[11px] font-bold cursor-help ${cacheDelta >= 0 ? 'text-metric-ttfb-fast' : 'text-red-400'}`}>
-                                    {cacheDelta >= 0 ? '↑' : '↓'} {Math.abs(cacheDelta)}%
-                                  </span>
-                                </PremiumTooltip>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-zinc-500 mt-1 font-medium">Total edge delivery efficiency</p>
                           </div>
                         </Link>
                       </div>
-                    </div>
-                  )}
-
-                  <section>
-                    <div className="mb-4">
-                      <h2 className="cs-view-section-title">
-                        Global Performance • Last {range.toUpperCase()}
-                      </h2>
-                    </div>
+                    )}
                     {stats.length === 0 ? (
                       <p className="text-sm text-zinc-400">Compiling historical insights...</p>
                     ) : (
@@ -1596,21 +1534,15 @@ export default async function MonitorDetailPage({
                   </section>
 
                   {stats.length > 0 && (
-                    <section className="space-y-6">
-                      <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1 mb-6">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        Performance trends
-                      </h2>
+                    <section className="space-y-4">
+                      <ViewSectionHeader title="Performance trends" />
                       <TtfbChart data={chartPoints} range={range} regionMeta={regionMeta} />
                     </section>
                   )}
 
                   {spikes.length > 0 && (
-                    <section className="space-y-6">
-                      <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1 mb-6">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        Recent performance spikes — last 24h
-                      </h2>
+                    <section className="space-y-4">
+                      <ViewSectionHeader title="Recent performance spikes — last 24h" />
                       <div className="rounded-2xl border border-zinc-200 dark:border-white/5 bg-white/[0.02] divide-y divide-zinc-100 dark:divide-white/5 overflow-hidden">
                         {spikes.map((spike, index) => (
                           <div key={index} className="flex items-center justify-between px-4 py-2.5 gap-4">
@@ -1634,11 +1566,8 @@ export default async function MonitorDetailPage({
                   )}
 
                   {weekTrend.length > 0 && (
-                    <section className="space-y-6">
-                      <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1 mb-6">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        Week-over-week performance trend
-                      </h2>
+                    <section className="space-y-4">
+                      <ViewSectionHeader title="Week-over-week performance trend" />
                       <div className="rounded-2xl border border-zinc-200 dark:border-white/5 bg-white/[0.02] divide-y divide-zinc-100 dark:divide-white/5 overflow-hidden">
                         {weekTrend.map(t => (
                           <div key={t.region} className="flex items-center justify-between px-4 py-3 gap-4">
@@ -1663,6 +1592,7 @@ export default async function MonitorDetailPage({
 
               {activeView === 'diagnostics' && (
                 <div className="space-y-4">
+                  <ViewSectionHeader title="Performance Diagnostics" showDot={false} />
                   {waterfallProbes.length > 0 ? (
                     <ProbeWaterfall probes={waterfallProbes} regionLabels={regionLabels} />
                   ) : (
@@ -1672,7 +1602,7 @@ export default async function MonitorDetailPage({
               )}
 
               {activeView === 'infrastructure' && (
-                <div className="space-y-10">
+                <div className="space-y-8">
                   <BypassAudit data={hourlyBypass} regionLabels={regionLabels} />
                 </div>
               )}
@@ -1681,11 +1611,8 @@ export default async function MonitorDetailPage({
 
 
           {activeTab === 'settings' && (
-            <div className="space-y-10 pt-4">
-              <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1 mb-8">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Monitor configuration
-              </h2>
+            <div className="space-y-4">
+              <ViewSectionHeader title="Monitor configuration" showDot={false} />
               <MonitorSettingsPanel
                 id={monitor.id}
                 url={monitor.url}
@@ -1722,11 +1649,8 @@ export default async function MonitorDetailPage({
 
 
           {activeTab === 'security' && (
-            <div className="space-y-10 pt-4">
-              <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1 mb-8">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Security Headers Audit
-              </h2>
+            <div className="space-y-4">
+              <ViewSectionHeader title="Security Headers Audit" showDot={false} />
 
               {!security && securityByRegion.length === 0 && (
                 <p className="text-sm text-zinc-400">No security data yet.</p>
@@ -2039,7 +1963,8 @@ export default async function MonitorDetailPage({
           )}
 
           {activeTab === 'incidents' && (
-            <section className="space-y-6">
+            <section className="space-y-4">
+              <ViewSectionHeader title="Active Incidents & Alerts" showDot={false} />
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">

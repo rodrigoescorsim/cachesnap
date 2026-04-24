@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Pause } from 'lucide-react'
+import { ViewSectionHeader } from '@/components/dashboard/dashboard-ui'
 import { MonitorDispatchButtons } from './monitor-dispatch-buttons'
 
 interface LiveActivityHeaderProps {
@@ -67,18 +68,8 @@ export function LiveActivityHeader({ monitorId, freezeStorageKey, latestDataAt }
   }
 
   return (
-    <div className="mb-3">
-      {/* Título à esquerda; à direita: botões empilhados com label só no estado pausado (menos ruído). */}
-      <div className="flex items-start justify-between gap-3">
-        <h2 className="cs-view-section-title">
-          <span className="relative flex h-2 w-2 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--brand-primary)] opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--brand-primary)]" />
-          </span>
-          Live Activity — Regional Latest
-        </h2>
-
-        <div className="flex shrink-0 flex-col items-end gap-1">
+    <ViewSectionHeader title="Live Performance">
+        <div className="relative flex shrink-0 flex-col items-end justify-center">
           <MonitorDispatchButtons
             monitorId={monitorId}
             variant="compact"
@@ -90,7 +81,7 @@ export function LiveActivityHeader({ monitorId, freezeStorageKey, latestDataAt }
           {/* Tooltip do Frozen cobre “resume”; aqui só reforça quando e com que hora pausou (sem duplicar “Last probe”). */}
           {isFrozen && freezeStartedAtMs != null ? (
             <div
-              className="flex max-w-[100vw] items-center justify-end gap-1 self-end transition-opacity duration-300 ease-out"
+              className="absolute top-[calc(100%-2px)] right-0 flex items-center justify-end gap-1 transition-opacity duration-300 ease-out whitespace-nowrap"
               aria-live="polite"
             >
               <Pause className="h-3 w-3 shrink-0 text-indigo-400/80" aria-hidden />
@@ -100,7 +91,6 @@ export function LiveActivityHeader({ monitorId, freezeStorageKey, latestDataAt }
             </div>
           ) : null}
         </div>
-      </div>
-    </div>
+    </ViewSectionHeader>
   )
 }

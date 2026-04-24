@@ -13,6 +13,8 @@ import {
 import { MonitorCardActions } from './monitor-card-actions'
 import { VisualGlow } from './visual-glow'
 
+import { ViewSectionHeader, LiveDot } from '@/components/dashboard/dashboard-ui'
+
 async function getMonitorSummaries(userId: string) {
   return await sql<MonitorSummary[]>`
     WITH alert_counts AS (
@@ -130,32 +132,24 @@ export default async function DashboardPage() {
 
       {/* Monitor list header */}
       <section className="cs-card cs-card-glass px-8 py-6">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-4 flex-wrap">
-              <h2 className="text-xl font-semibold tracking-tight text-white">
-                Active monitors
-              </h2>
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Live</span>
-              </div>
-              <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-[11px] font-medium text-zinc-500">
-                {monitors.length} total
-              </span>
+        <ViewSectionHeader title="Active monitors" className="!mb-0" showDot={false}>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+              <LiveDot />
+              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Live</span>
             </div>
+            <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-[11px] font-medium text-zinc-500">
+              {monitors.length} total
+            </span>
+            <Link
+              href="/monitors/new"
+              className="cs-btn-primary"
+            >
+              <div className="cs-card-wash opacity-20" />
+              <span className="relative z-10">+ Create monitor</span>
+            </Link>
           </div>
-          <Link
-            href="/monitors/new"
-            className="cs-btn-primary"
-          >
-            <div className="cs-card-wash opacity-20" />
-            <span className="relative z-10">+ Create monitor</span>
-          </Link>
-        </div>
+        </ViewSectionHeader>
       </section>
 
       {/* Monitor cards */}

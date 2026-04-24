@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { GlobalHeader } from '@/components/dashboard/global-header'
+import { ViewSection, ViewSectionHeader, LiveDot } from '@/components/dashboard/dashboard-ui'
 import { GlobalMetricCard } from '@/components/monitors/global-metric-card'
 import { useMonitors } from '@/hooks/use-monitors'
 import { monitorHealthScore, type Monitor } from '@/types/monitor'
@@ -880,9 +881,8 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
           )}
         </div>
 
-        {/* ── A. Global Health Overview ──────────────────────────────────────── */}
-        <section aria-label="Global Health Overview">
-          <h2 className="cs-view-section-title mb-3">Global Health Overview</h2>
+        <ViewSection aria-label="Global Health Overview">
+          <ViewSectionHeader title="Global Health Overview" showDot={false} />
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <GlobalMetricCard
               title="Global Resilience Score"
@@ -951,11 +951,11 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               animationDelayMs={140}
             />
           </div>
-        </section>
+        </ViewSection>
 
         {/* ── B. Insights & Recommendations ─────────────────────────────────── */}
-        <section aria-label="Insights and Recommendations">
-          <h2 className="cs-view-section-title mb-3">Insights &amp; Recommendations</h2>
+        <ViewSection aria-label="Insights & Recommendations">
+          <ViewSectionHeader title="Insights & Recommendations" showDot={false} />
           {isLoading ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {[0, 1, 2].map(i => (
@@ -988,11 +988,11 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               })}
             </div>
           )}
-        </section>
+        </ViewSection>
 
         {/* ── C. Performance Trends ─────────────────────────────────────────── */}
-        <section aria-label="Performance Trends">
-          <h2 className="cs-view-section-title mb-3">Performance Trends</h2>
+        <ViewSection aria-label="Performance Trends">
+        <ViewSectionHeader title="Performance Trends" showDot={false} />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 
             {/* TTFB 24h trend */}
@@ -1117,13 +1117,13 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               )}
             </article>
           </div>
-        </section>
+        </ViewSection>
 
         {/* ── D. Active Alerts ───────────────────────────────────────────────── */}
-        <section aria-label="Active Alerts">
+        <ViewSection aria-label="Active Alerts">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <h2 className="cs-view-section-title">Active Alerts</h2>
+            <ViewSectionHeader title="Active Alerts" showDot={false} />
               {!isLoading && alertMonitors.length > 0 && (
                 <span
                   className={`cs-badge ${criticalCount > 0 ? 'cs-badge-error' : 'cs-badge-warning'} !px-2 !py-0.5 !text-[9px]`}
@@ -1172,12 +1172,12 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               </div>
             )}
           </div>
-        </section>
+        </ViewSection>
 
         {/* ── E. Slowest Monitors ────────────────────────────────────────────── */}
-        <section aria-label="Slowest Monitors">
+        <ViewSection aria-label="Slowest Monitors">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="cs-view-section-title">Slowest Monitors</h2>
+            <ViewSectionHeader title="Slowest Monitors" showDot={false} />
             <Link
               href="/monitors?sort=ttfbCurrent&dir=desc"
               className="text-[12px] font-semibold text-zinc-500 transition-colors hover:text-zinc-300"
@@ -1219,7 +1219,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               </Link>
             </div>
           )}
-        </section>
+        </ViewSection>
 
       </main>
     </div>

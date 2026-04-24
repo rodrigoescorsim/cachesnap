@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import { Clock, Zap, AlertTriangle } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { MonitorDispatchButtons } from './monitor-dispatch-buttons'
+import { ViewSectionHeader } from '@/components/dashboard/dashboard-ui'
 import {
   BRAND_CARD_SURFACE_GRADIENT,
   BRAND_TABLE_SURFACE_GRADIENT,
@@ -71,13 +72,9 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
     <div className="space-y-6">
       {/* Time Explorer */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between px-1">
-          <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--brand-primary)] animate-pulse" />
-            Audit Timeline — Performance Snapshots
-          </h2>
+        <ViewSectionHeader title="Audit Timeline — Performance Snapshots" showDot={false}>
           <MonitorDispatchButtons monitorId={id as string} variant="audit" />
-        </div>
+        </ViewSectionHeader>
 
         <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
           {hours.map((h) => {

@@ -18,6 +18,7 @@ import { PremiumTooltip } from '@/components/premium-tooltip'
 import { GlobalMetricCard } from './global-metric-card'
 import { MonitorsTable } from './monitors-table'
 import { useMonitors } from '@/hooks/use-monitors'
+import { ViewSection, ViewSectionHeader, LiveDot } from '@/components/dashboard/dashboard-ui'
 import {
   GLOBAL_HEALTH,
   getTtfbColorClass,
@@ -215,10 +216,8 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
 
       <main className="cs-container-adaptive space-y-3.5 pb-8 pt-3">
         {/* ── Global summary: design-system cards; compact metrics; list stays primary ── */}
-        <section aria-label="Global summary">
-          <div className="mb-2.5 flex items-center justify-between">
-            <h2 className="cs-view-section-title">Global Summary</h2>
-          </div>
+        <ViewSection aria-label="Global summary">
+          <ViewSectionHeader title="Global Summary" showDot={false} />
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:items-stretch [&>article]:min-w-0">
             <GlobalMetricCard
@@ -293,14 +292,12 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
               animationDelayMs={0}
             />
           </div>
-        </section>
+        </ViewSection>
 
         {/* ── Search & Filter bar ──────────────────────────────────────────── */}
-        <section>
-          <div className="mb-2.5 flex items-center justify-between">
-            <h2 className="cs-view-section-title">Filter Monitors</h2>
-          </div>
-        </section>
+        <ViewSection>
+          <ViewSectionHeader title="Filter Monitors" showDot={false} />
+        </ViewSection>
 
         <article className="cs-card group/search-box cs-card-glass space-y-3.5 !p-6 animate-[cs-fade-in_0.5s_ease-out]">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -385,10 +382,8 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
         </article>
 
         {/* ── Monitors List header ─────────────────────────────────────────── */}
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="cs-view-section-title">Monitors List</h2>
-
+        <ViewSection>
+          <ViewSectionHeader title="Monitors List" showDot={false}>
             <div className="flex items-center gap-3">
               {/* Active monitors count */}
               {!isLoading && (
@@ -413,17 +408,12 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
                     : 'border border-white/5 bg-white/[0.01] text-zinc-500 hover:border-white/10 hover:text-zinc-300'
                 }`}
               >
-                {liveSync && (
-                  <span className="relative flex h-1.5 w-1.5 shrink-0">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--brand-primary)] opacity-60" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--brand-primary)]" />
-                  </span>
-                )}
+                {liveSync && <LiveDot />}
                 Live Sync
               </button>
             </div>
-          </div>
-        </section>
+          </ViewSectionHeader>
+        </ViewSection>
 
         {/* ── Monitors Table ───────────────────────────────────────────────── */}
         <section className="cs-card cs-card-glass animate-[cs-fade-in_0.6s_ease-out] !p-0">
