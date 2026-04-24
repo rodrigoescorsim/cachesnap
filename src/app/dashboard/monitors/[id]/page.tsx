@@ -1139,7 +1139,7 @@ export default async function MonitorDetailPage({
         </div>
       )}
 
-      <div className="grid gap-8 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start">
+      <div className="grid gap-8 border-t border-white/10 pt-5 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start lg:pt-6">
         <MonitorSidebarRail
           monitorId={monitor.id}
           range={range}
@@ -2253,4 +2253,3 @@ function cacheStatusLabel(status: string | null): { text: string; tone: string; 
     title: 'No cache status signal was observed.',
   }
 }
-

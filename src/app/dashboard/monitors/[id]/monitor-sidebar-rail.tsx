@@ -1,17 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
 import {
   Activity,
   AlertCircle,
-  ChevronsLeft,
-  ChevronsRight,
   Layers,
   Lock,
-  PlayCircle,
   Settings,
-  ShieldCheck,
   TrendingUp,
   Zap,
 } from 'lucide-react'
@@ -23,9 +18,8 @@ import {
   type PerformanceView,
 } from './monitor-href'
 
-const STORAGE_KEY = 'cachesnap.monitor-sidebar-rail'
-
-const VALID_PERFORMANCE_VIEWS = ['real-time', 'trends', 'diagnostics', 'infrastructure'] as const
+const MONITORING_VIEWS = ['real-time', 'trends', 'diagnostics'] as const
+const INFRASTRUCTURE_VIEW = 'infrastructure' as const
 
 const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   'real-time': 'Live',
@@ -53,8 +47,7 @@ const TAB_ICONS = {
   incidents: AlertCircle,
 } as const
 
-/** After performance views; settings before alerts. */
-const SECONDARY_TABS = ['security', 'settings', 'incidents'] as const
+const CONFIG_TABS = ['settings', 'incidents'] as const
 
 export interface MonitorSidebarRailProps {
   monitorId: string
@@ -71,131 +64,133 @@ export function MonitorSidebarRail({
   activeView,
   filteredAlertType,
 }: MonitorSidebarRailProps) {
-  const [collapsed, setCollapsed] = useState(false)
-  const [isDesktop, setIsDesktop] = useState(false)
-
-  useEffect(() => {
-    try {
-      const v = localStorage.getItem(STORAGE_KEY)
-      if (v === '1') queueMicrotask(() => setCollapsed(true))
-    } catch {
-      /* ignore */
-    }
-  }, [])
-
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 1024px)')
-    const sync = () => setIsDesktop(mq.matches)
-    sync()
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [])
-
-  const toggle = useCallback(() => {
-    setCollapsed(c => {
-      const next = !c
-      try {
-        localStorage.setItem(STORAGE_KEY, next ? '1' : '0')
-      } catch {
-        /* ignore */
-      }
-      return next
-    })
-  }, [])
-
-  const narrow = collapsed && isDesktop
-  /** Expanded: 150px like original. Collapsed: slightly wider rail for larger icons. */
-  const railWidth = narrow
-    ? 'w-full max-w-[150px] lg:w-16'
-    : 'w-full max-w-[150px] lg:w-[150px]'
-  const linkPad = narrow ? 'justify-center px-1.5' : 'justify-start gap-2 px-2'
-  const iconClass = narrow ? 'h-6 w-6' : 'h-3.5 w-3.5'
+  const railWidth = 'w-full max-w-[150px] lg:w-[150px]'
+  const linkPad = 'justify-start gap-2.5 px-3'
+  const iconClass = 'h-3.5 w-3.5'
+  const sectionLabelClass = 'px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-500/90'
 
   return (
     <aside
-      className={`shrink-0 transition-[width] duration-200 ease-out lg:sticky lg:top-6 ${railWidth}`}
-      data-collapsed={narrow ? '' : undefined}
+      className={`shrink-0 transition-[width] duration-200 ease-out lg:sticky lg:top-20 ${railWidth}`}
     >
-      <div className="flex flex-col gap-1">
-        <div
-          className={`hidden pb-1 lg:flex ${collapsed ? 'justify-center' : 'justify-end'}`}
-        >
-          <button
-            type="button"
-            onClick={toggle}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-zinc-500 transition-colors hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/40"
-            aria-expanded={!narrow}
-            aria-label={narrow ? 'Expand navigation' : 'Collapse navigation'}
-            title={narrow ? 'Expand navigation' : 'Collapse navigation'}
-          >
-            {narrow ? (
-              <ChevronsRight className="h-6 w-6" aria-hidden />
-            ) : (
-              <ChevronsLeft className="h-4 w-4" aria-hidden />
-            )}
-          </button>
-        </div>
+      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(14,34,66,0.68)_0%,rgba(6,20,42,0.82)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-px bg-white/10" />
+        <div className="flex flex-col gap-2 p-2 lg:p-2.5">
+          <nav aria-label="Monitor sections">
+            <div className="space-y-3">
+              <section aria-label="Monitoring navigation" className="space-y-1.5">
+                <p className={sectionLabelClass}>Monitoring</p>
+                <ul className="space-y-2">
+                  {MONITORING_VIEWS.map(v => {
+                    const Icon = PERFORMANCE_VIEW_ICONS[v]
+                    const isActive = activeTab === 'performance' && activeView === v
+                    const label = PERFORMANCE_VIEW_LABELS[v]
+                    return (
+                      <li key={v}>
+                        <Link
+                          href={buildViewHref(v, range, monitorId)}
+                          title={label}
+                          className={`group relative flex items-center rounded-xl py-2.5 text-xs font-bold transition-all duration-200 ease-out ${linkPad} ${
+                            isActive
+                              ? 'border border-emerald-300/20 bg-emerald-400/10 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.20)] motion-safe:animate-[pulse_0.2s_ease-out_1]'
+                              : 'border border-transparent text-zinc-400 hover:bg-white/5 hover:text-white'
+                          }`}
+                        >
+                          <Icon
+                            className={`${iconClass} shrink-0 transition-colors duration-300 ${
+                              isActive ? 'text-metric-ttfb-fast' : 'text-zinc-500 group-hover:text-zinc-300'
+                            }`}
+                            aria-hidden
+                          />
+                          <span className="min-w-0 truncate">{label}</span>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
 
-        <nav aria-label="Monitor sections">
-          <ul className="space-y-0.5">
-            {VALID_PERFORMANCE_VIEWS.map(v => {
-              const Icon = PERFORMANCE_VIEW_ICONS[v]
-              const isActive = activeTab === 'performance' && activeView === v
-              const label = PERFORMANCE_VIEW_LABELS[v]
-              return (
-                <li key={v}>
-                  <Link
-                    href={buildViewHref(v, range, monitorId)}
-                    title={narrow ? label : undefined}
-                    className={`group flex items-center rounded-lg py-2 text-xs font-bold transition-all duration-300 ${linkPad} ${
-                      isActive
-                        ? 'border border-[rgba(34,255,136,0.25)] bg-[rgba(34,255,136,0.08)] text-white shadow-[0_0_15px_rgba(34,255,136,0.08)]'
-                        : 'border border-transparent text-zinc-500 hover:bg-white/5 hover:text-white'
-                    }`}
-                  >
-                    <Icon
-                      className={`${iconClass} shrink-0 transition-colors duration-300 ${
-                        isActive ? 'text-metric-ttfb-fast drop-shadow-[0_0_8px_rgba(34,255,136,0.4)]' : 'text-zinc-500 group-hover:text-zinc-300'
+              <section aria-label="Infrastructure navigation" className="space-y-1.5">
+                <p className={sectionLabelClass}>Infrastructure</p>
+                <ul className="space-y-2">
+                  <li key={INFRASTRUCTURE_VIEW}>
+                    <Link
+                      href={buildViewHref(INFRASTRUCTURE_VIEW, range, monitorId)}
+                      title={PERFORMANCE_VIEW_LABELS[INFRASTRUCTURE_VIEW]}
+                      className={`group relative flex items-center rounded-xl py-2.5 text-xs font-bold transition-all duration-200 ease-out ${linkPad} ${
+                        activeTab === 'performance' && activeView === INFRASTRUCTURE_VIEW
+                          ? 'border border-emerald-300/20 bg-emerald-400/10 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.20)] motion-safe:animate-[pulse_0.2s_ease-out_1]'
+                          : 'border border-transparent text-zinc-400 hover:bg-white/5 hover:text-white'
                       }`}
-                      aria-hidden
-                    />
-                    <span
-                      className={`min-w-0 truncate ${narrow ? 'sr-only' : ''}`}
                     >
-                      {label}
-                    </span>
-                  </Link>
-                </li>
-              )
-            })}
-            {SECONDARY_TABS.map(tab => {
-              const Icon = TAB_ICONS[tab]
-              const isActive = activeTab === tab
-              const label = TAB_LABELS[tab]
-              return (
-                <li key={tab}>
-                  <Link
-                    href={buildMonitorHref(tab, range, tab === 'incidents' ? filteredAlertType : null, '', monitorId)}
-                    title={narrow ? label : undefined}
-                    className={`group flex items-center rounded-lg py-2 text-xs font-bold transition-all duration-300 ${linkPad} ${
-                      isActive
-                        ? 'border border-[rgba(34,255,136,0.25)] bg-[rgba(34,255,136,0.08)] text-white shadow-[0_0_15px_rgba(34,255,136,0.08)]'
-                        : 'border border-transparent text-zinc-500 hover:bg-white/5 hover:text-white'
-                    }`}
-                  >
-                    <Icon
-                      className={`${iconClass} shrink-0 transition-colors duration-300 ${
-                        isActive ? 'text-metric-ttfb-fast drop-shadow-[0_0_8px_rgba(34,255,136,0.4)]' : 'text-zinc-400 group-hover:text-zinc-300'
+                      <Layers
+                        className={`${iconClass} shrink-0 transition-colors duration-300 ${
+                          activeTab === 'performance' && activeView === INFRASTRUCTURE_VIEW
+                            ? 'text-metric-ttfb-fast'
+                            : 'text-zinc-500 group-hover:text-zinc-300'
+                        }`}
+                        aria-hidden
+                      />
+                      <span className="min-w-0 truncate">{PERFORMANCE_VIEW_LABELS[INFRASTRUCTURE_VIEW]}</span>
+                    </Link>
+                  </li>
+
+                  <li key="security">
+                    <Link
+                      href={buildMonitorHref('security', range, null, '', monitorId)}
+                      title={TAB_LABELS.security}
+                      className={`group relative flex items-center rounded-xl py-2.5 text-xs font-bold transition-all duration-200 ease-out ${linkPad} ${
+                        activeTab === 'security'
+                          ? 'border border-emerald-300/20 bg-emerald-400/10 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.20)] motion-safe:animate-[pulse_0.2s_ease-out_1]'
+                          : 'border border-transparent text-zinc-400 hover:bg-white/5 hover:text-white'
                       }`}
-                      aria-hidden
-                    />
-                    <span className={`min-w-0 truncate ${narrow ? 'sr-only' : ''}`}>{label}</span>
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-        </nav>
+                    >
+                      <Lock
+                        className={`${iconClass} shrink-0 transition-colors duration-300 ${
+                          activeTab === 'security' ? 'text-metric-ttfb-fast' : 'text-zinc-400 group-hover:text-zinc-300'
+                        }`}
+                        aria-hidden
+                      />
+                      <span className="min-w-0 truncate">{TAB_LABELS.security}</span>
+                    </Link>
+                  </li>
+                </ul>
+              </section>
+
+              <section aria-label="Configuration navigation" className="space-y-1.5">
+                <p className={sectionLabelClass}>Configuration</p>
+                <ul className="space-y-2">
+                  {CONFIG_TABS.map(tab => {
+                    const Icon = TAB_ICONS[tab]
+                    const isActive = activeTab === tab
+                    const label = TAB_LABELS[tab]
+                    return (
+                      <li key={tab}>
+                        <Link
+                          href={buildMonitorHref(tab, range, tab === 'incidents' ? filteredAlertType : null, '', monitorId)}
+                          title={label}
+                          className={`group relative flex items-center rounded-xl py-2.5 text-xs font-bold transition-all duration-200 ease-out ${linkPad} ${
+                            isActive
+                              ? 'border border-emerald-300/20 bg-emerald-400/10 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.20)] motion-safe:animate-[pulse_0.2s_ease-out_1]'
+                              : 'border border-transparent text-zinc-400 hover:bg-white/5 hover:text-white'
+                          }`}
+                        >
+                          <Icon
+                            className={`${iconClass} shrink-0 transition-colors duration-300 ${
+                              isActive ? 'text-metric-ttfb-fast' : 'text-zinc-400 group-hover:text-zinc-300'
+                            }`}
+                            aria-hidden
+                          />
+                          <span className="min-w-0 truncate">{label}</span>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            </div>
+          </nav>
+        </div>
       </div>
     </aside>
   )
