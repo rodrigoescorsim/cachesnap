@@ -4,10 +4,12 @@ import Link from 'next/link'
 import {
   Activity,
   AlertCircle,
+  BarChart2,
   Layers,
+  LineChart,
   Lock,
+  Radio,
   Settings,
-  TrendingUp,
   Zap,
 } from 'lucide-react'
 import {
@@ -18,19 +20,21 @@ import {
   type PerformanceView,
 } from './monitor-href'
 
-const MONITORING_VIEWS = ['real-time', 'trends', 'diagnostics'] as const
+const MONITORING_VIEWS = ['real-time', 'performance', 'trends'] as const
 const INFRASTRUCTURE_VIEW = 'infrastructure' as const
 
 const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   'real-time': 'Live',
+  performance: 'Performance',
   trends: 'Trends',
   diagnostics: 'Diagnostics',
   infrastructure: 'Edge Audit',
 }
 
 const PERFORMANCE_VIEW_ICONS: Record<PerformanceView, typeof Activity> = {
-  'real-time': Zap,
-  trends: TrendingUp,
+  'real-time': Radio,
+  performance: BarChart2,
+  trends: LineChart,
   diagnostics: Activity,
   infrastructure: Layers,
 }
@@ -64,7 +68,7 @@ export function MonitorSidebarRail({
   activeView,
   filteredAlertType,
 }: MonitorSidebarRailProps) {
-  const railWidth = 'w-full max-w-[142px] lg:w-[142px]'
+  const railWidth = 'w-full max-w-[150px] lg:w-[154px]'
   const linkLayoutClass = 'justify-start gap-2.5'
   const itemBaseClass = 'relative flex items-center rounded-xl px-2.5 py-2.5 text-xs font-bold leading-none transition-all duration-200 ease-out'
   const itemListClass = 'space-y-1.5'
@@ -100,9 +104,8 @@ export function MonitorSidebarRail({
                           className={`group ${itemBaseClass} ${linkLayoutClass} ${itemStateClass(isActive)}`}
                         >
                           <Icon
-                            className={`${iconClass} shrink-0 transition-colors duration-300 ${
-                              isActive ? 'text-metric-ttfb-fast' : 'text-zinc-500 group-hover:text-zinc-300'
-                            }`}
+                            className={`${iconClass} shrink-0 transition-colors duration-300 ${isActive ? 'text-metric-ttfb-fast' : 'text-zinc-500 group-hover:text-zinc-300'
+                              }`}
                             aria-hidden
                           />
                           <span className="min-w-0 truncate">{label}</span>
@@ -124,11 +127,10 @@ export function MonitorSidebarRail({
                       className={`group ${itemBaseClass} ${linkLayoutClass} ${itemStateClass(activeTab === 'performance' && activeView === INFRASTRUCTURE_VIEW)}`}
                     >
                       <Layers
-                        className={`${iconClass} shrink-0 transition-colors duration-300 ${
-                          activeTab === 'performance' && activeView === INFRASTRUCTURE_VIEW
+                        className={`${iconClass} shrink-0 transition-colors duration-300 ${activeTab === 'performance' && activeView === INFRASTRUCTURE_VIEW
                             ? 'text-metric-ttfb-fast'
                             : 'text-zinc-500 group-hover:text-zinc-300'
-                        }`}
+                          }`}
                         aria-hidden
                       />
                       <span className="min-w-0 truncate">{PERFORMANCE_VIEW_LABELS[INFRASTRUCTURE_VIEW]}</span>
@@ -141,9 +143,8 @@ export function MonitorSidebarRail({
                       className={`group ${itemBaseClass} ${linkLayoutClass} ${itemStateClass(activeTab === 'security')}`}
                     >
                       <Lock
-                        className={`${iconClass} shrink-0 transition-colors duration-300 ${
-                          activeTab === 'security' ? 'text-metric-ttfb-fast' : 'text-zinc-400 group-hover:text-zinc-300'
-                        }`}
+                        className={`${iconClass} shrink-0 transition-colors duration-300 ${activeTab === 'security' ? 'text-metric-ttfb-fast' : 'text-zinc-400 group-hover:text-zinc-300'
+                          }`}
                         aria-hidden
                       />
                       <span className="min-w-0 truncate">{TAB_LABELS.security}</span>
@@ -168,9 +169,8 @@ export function MonitorSidebarRail({
                           className={`group ${itemBaseClass} ${linkLayoutClass} ${itemStateClass(isActive)}`}
                         >
                           <Icon
-                            className={`${iconClass} shrink-0 transition-colors duration-300 ${
-                              isActive ? 'text-metric-ttfb-fast' : 'text-zinc-400 group-hover:text-zinc-300'
-                            }`}
+                            className={`${iconClass} shrink-0 transition-colors duration-300 ${isActive ? 'text-metric-ttfb-fast' : 'text-zinc-400 group-hover:text-zinc-300'
+                              }`}
                             aria-hidden
                           />
                           <span className="min-w-0 truncate">{label}</span>

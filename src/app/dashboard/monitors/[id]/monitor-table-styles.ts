@@ -1,7 +1,7 @@
 /**
- * Shared table styling for monitor dashboard (Real-time, Trends, Alerts, …).
  * Change once here to keep behaviour aligned across tables.
  */
+import { MONITOR_TTFB } from '@/lib/thresholds'
 
 /** CacheSnap brand wash on cards (logo cyan → blue). */
 export const BRAND_CARD_SURFACE_GRADIENT =
@@ -47,8 +47,8 @@ export const MONITOR_TABLE = {
 /** Green — fast, amber — medium, red — slow (aggregate TTFB). Maps to .text-metric-ttfb-* in globals.css. */
 export function ttfbColor(ms: number | null): string {
   if (ms == null) return 'text-zinc-400'
-  if (ms <= 200) return 'text-metric-ttfb-fast'
-  if (ms <= 350) return 'text-metric-ttfb-med'
+  if (ms <= MONITOR_TTFB.FAST) return 'text-metric-ttfb-fast'
+  if (ms <= MONITOR_TTFB.SLOW) return 'text-metric-ttfb-med'
   return 'text-metric-ttfb-slow'
 }
 
@@ -56,8 +56,8 @@ export function ttfbColor(ms: number | null): string {
 export function ttfbMetricCellClass(ms: number | null): string {
   const base = `px-3 py-2.5 text-right font-bold tabular-nums ${TTFB_COL_RAIL}`
   if (ms == null) return `${base} text-zinc-400 ${TTFB_LAYER_NEUTRAL}`
-  if (ms <= 200) return `${base} text-metric-ttfb-fast ${TTFB_LAYER_FAST}`
-  if (ms <= 350) return `${base} text-metric-ttfb-med ${TTFB_LAYER_MED}`
+  if (ms <= MONITOR_TTFB.FAST) return `${base} text-metric-ttfb-fast ${TTFB_LAYER_FAST}`
+  if (ms <= MONITOR_TTFB.SLOW) return `${base} text-metric-ttfb-med ${TTFB_LAYER_MED}`
   return `${base} text-metric-ttfb-slow ${TTFB_LAYER_SLOW}`
 }
 
@@ -65,7 +65,7 @@ export function ttfbMetricCellClass(ms: number | null): string {
 export function edgeTtfbMetricCellClass(ms: number | null): string {
   const base = `px-3 py-2.5 text-right font-semibold tabular-nums ${TTFB_COL_RAIL}`
   if (ms == null) return `${base} text-zinc-400 ${TTFB_LAYER_NEUTRAL}`
-  const layer = ms <= 200 ? TTFB_LAYER_FAST : ms <= 350 ? TTFB_LAYER_MED : TTFB_LAYER_SLOW
+  const layer = ms <= MONITOR_TTFB.FAST ? TTFB_LAYER_FAST : ms <= MONITOR_TTFB.SLOW ? TTFB_LAYER_MED : TTFB_LAYER_SLOW
   return `${base} ${ttfbColor(ms)} ${layer}`
 }
 

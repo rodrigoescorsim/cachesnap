@@ -5,30 +5,30 @@
 
 // ─── Individual Monitor Thresholds ──────────────────────────────────────────
 export const MONITOR_TTFB = {
-  FAST:     250, // ms
-  SLOW:     600, // ms
+  FAST: 400, // ms
+  SLOW: 800, // ms
 }
 
 export const MONITOR_CACHE = {
-  GOOD:     80,  // %
-  LOW:      40,  // %
+  GOOD: 80,  // %
+  LOW: 50,  // %
 }
 
 // ─── Global Aggregate Thresholds ──────────────────────────────────────────────
 // Global averages are naturally higher due to regional variance.
 export const GLOBAL_TTFB = {
-  FAST:     300, // ms
-  SLOW:     500, // ms
+  FAST: 500, // ms
+  SLOW: 1000, // ms
 }
 
 /** Global cache card: same bands as footer copy (GOOD / DEGRADED / CRITICAL). */
 export const GLOBAL_CACHE = {
-  GOOD:     85,  // % — product target; matches footer “target”
-  FAIR:     70,  // % — degraded band
+  GOOD: 80,  // % — realistic edge target
+  FAIR: 50,  // % — degraded band
 }
 
 export const GLOBAL_HEALTH = {
-  HEALTHY:  90,  // %
+  HEALTHY: 90,  // %
   DEGRADED: 70,  // %
 }
 
@@ -49,12 +49,12 @@ export function getTtfbColorClass(ms: number, type: 'monitor' | 'global' = 'moni
 
 export function getCacheColor(pct: number, type: 'monitor' | 'global' = 'monitor') {
   if (pct >= (type === 'global' ? GLOBAL_CACHE.GOOD : MONITOR_CACHE.GOOD)) return 'text-metric-ttfb-fast'
-  if (pct >= (type === 'global' ? GLOBAL_CACHE.FAIR : MONITOR_CACHE.LOW))  return 'text-amber-400'
+  if (pct >= (type === 'global' ? GLOBAL_CACHE.FAIR : MONITOR_CACHE.LOW)) return 'text-amber-400'
   return 'text-rose-500'
 }
 
 export function getHealthColor(score: number) {
-  if (score >= GLOBAL_HEALTH.HEALTHY)  return 'text-metric-ttfb-fast'
+  if (score >= GLOBAL_HEALTH.HEALTHY) return 'text-metric-ttfb-fast'
   if (score >= GLOBAL_HEALTH.DEGRADED) return 'text-amber-400'
   return 'text-rose-500'
 }

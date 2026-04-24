@@ -248,6 +248,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
               valueTooltip={GLOBAL_TTFB_VALUE_TOOLTIP}
               subtitle=""
               icon={Gauge}
+              iconClassName="stroke-[2.5]"
               valueClassName={getTtfbColorClass(liveTtfb, 'global')}
               trend={{
                 value: `${Math.abs(ttfbDelta)}%`,

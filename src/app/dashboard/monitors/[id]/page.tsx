@@ -25,7 +25,7 @@ import {
 } from './monitor-href'
 import { TIMING } from './timing-metrics-palette'
 import { getRegions } from '@/lib/regions'
-import { getCacheColor } from '@/lib/thresholds'
+import { getCacheColor, getTtfbColorClass } from '@/lib/thresholds'
 import { VisualGlow } from '../../visual-glow'
 import {
   Activity,
@@ -223,10 +223,11 @@ const TAB_ICONS: Record<MonitorTab, LucideIcon> = {
   incidents: AlertCircle,
 }
 
-const VALID_PERFORMANCE_VIEWS = ['real-time', 'trends', 'diagnostics', 'infrastructure'] as const satisfies readonly PerformanceView[]
+const VALID_PERFORMANCE_VIEWS = ['real-time', 'performance', 'trends', 'diagnostics', 'infrastructure'] as const satisfies readonly PerformanceView[]
 
 const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   'real-time': 'Live',
+  performance: 'Performance',
   trends: 'Trends',
   diagnostics: 'Diagnostics',
   infrastructure: 'Edge Audit',
@@ -1088,7 +1089,7 @@ export default async function MonitorDetailPage({
                             </PremiumTooltip>
                             <div className="flex items-center gap-3">
                               <span className="text-[24px] font-bold text-white tracking-tight leading-none">{liveAvgTtfb}<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
-                              <Gauge className={`h-5 w-5 ${liveAvgTtfb < 200 ? 'text-metric-ttfb-fast' : liveAvgTtfb < 500 ? 'text-amber-400' : 'text-red-400'}`} />
+                              <Gauge className={`h-5 w-5 stroke-[2.5] ${getTtfbColorClass(liveAvgTtfb, 'global')}`} />
                             </div>
                           </div>
                         </Link>
@@ -1301,16 +1302,16 @@ export default async function MonitorDetailPage({
                 </div>
               )}
 
-              {activeView === 'trends' && (
+              {activeView === 'performance' && (
                 <div className="space-y-6">
                   <section className="space-y-4">
-                    <ViewSectionHeader title="Trends Performance">
+                    <ViewSectionHeader title="Period Performance">
                       {/* Time range selector */}
                       <div className="flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 dark:bg-white/5 px-1.5 border border-zinc-200 dark:border-white/10">
                         {['24h', '7d', '30d'].map((r) => (
                           <Link
                             key={r}
-                            href={buildViewHref('trends', r)}
+                            href={buildViewHref('performance', r)}
                             className={`px-3 h-6 flex items-center justify-center rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${range === r
                               ? 'bg-zinc-100 text-zinc-900 shadow-lg shadow-white/5 ring-1 ring-white/10'
                               : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
@@ -1337,7 +1338,7 @@ export default async function MonitorDetailPage({
                             </PremiumTooltip>
                             <div className="flex items-center gap-3">
                               <span className="text-[24px] font-bold text-white tracking-tight leading-none">{avgTtfb}<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
-                              <Gauge className={`h-5 w-5 ${avgTtfb < 200 ? 'text-metric-ttfb-fast' : avgTtfb < 500 ? 'text-amber-400' : 'text-red-400'}`} />
+                              <Gauge className={`h-5 w-5 stroke-[2.5] ${getTtfbColorClass(avgTtfb, 'global')}`} />
                             </div>
                           </div>
                         </Link>
@@ -1530,12 +1531,34 @@ export default async function MonitorDetailPage({
                     )}
                   </section>
 
-                  {stats.length > 0 && (
-                    <section className="space-y-4">
-                      <ViewSectionHeader title="Performance trends" />
+                </div>
+              )}
+
+              {activeView === 'trends' && (
+                <div className="space-y-6">
+                  <section className="space-y-4">
+                    <ViewSectionHeader title="Trends">
+                      <div className="flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 dark:bg-white/5 px-1.5 border border-zinc-200 dark:border-white/10">
+                        {['24h', '7d', '30d'].map((r) => (
+                          <Link
+                            key={r}
+                            href={buildViewHref('trends', r)}
+                            className={`px-3 h-6 flex items-center justify-center rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${range === r
+                              ? 'bg-zinc-100 text-zinc-900 shadow-lg shadow-white/5 ring-1 ring-white/10'
+                              : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
+                              }`}
+                          >
+                            {r}
+                          </Link>
+                        ))}
+                      </div>
+                    </ViewSectionHeader>
+                    {stats.length === 0 ? (
+                      <p className="text-sm text-zinc-400">Compiling historical insights...</p>
+                    ) : (
                       <TtfbChart data={chartPoints} range={range} regionMeta={regionMeta} />
-                    </section>
-                  )}
+                    )}
+                  </section>
 
                   {spikes.length > 0 && (
                     <section className="space-y-4">

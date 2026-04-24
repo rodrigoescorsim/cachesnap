@@ -906,6 +906,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               valueTooltip={GLOBAL_TTFB_VALUE_TOOLTIP}
               subtitle=""
               icon={Gauge}
+              iconClassName="stroke-[2.5]"
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
               valueClassName={getTtfbColorClass(liveTtfb, 'global')}
               trend={{
