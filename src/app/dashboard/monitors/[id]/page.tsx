@@ -25,6 +25,7 @@ import {
 } from './monitor-href'
 import { TIMING } from './timing-metrics-palette'
 import { getRegions } from '@/lib/regions'
+import { getCacheColor } from '@/lib/thresholds'
 import { VisualGlow } from '../../visual-glow'
 import {
   Activity,
@@ -36,6 +37,7 @@ import {
   AlertTriangle,
   TrendingUp,
   Zap,
+  Gauge,
   Fingerprint,
   Settings,
   type LucideIcon,
@@ -1091,7 +1093,7 @@ export default async function MonitorDetailPage({
                             </PremiumTooltip>
                             <div className="flex items-center gap-3">
                               <span className="text-[24px] font-bold text-white tracking-tight leading-none">{liveAvgTtfb}<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
-                              <Zap className={`h-5 w-5 ${liveAvgTtfb < 200 ? 'text-metric-ttfb-fast' : liveAvgTtfb < 500 ? 'text-amber-400' : 'text-red-400'}`} />
+                              <Gauge className={`h-5 w-5 ${liveAvgTtfb < 200 ? 'text-metric-ttfb-fast' : liveAvgTtfb < 500 ? 'text-amber-400' : 'text-red-400'}`} />
                             </div>
                           </div>
                         </Link>
@@ -1109,7 +1111,7 @@ export default async function MonitorDetailPage({
                             </PremiumTooltip>
                             <div className="flex items-center gap-3">
                               <span className="text-[24px] font-bold text-white tracking-tight leading-none">{liveGlobalHitRate}<span className="text-base ml-0.5 text-zinc-500">%</span></span>
-                              <ShieldCheck className="h-5 w-5 text-metric-ttfb-fast" />
+                              <Zap className={`h-5 w-5 fill-current ${getCacheColor(liveGlobalHitRate, 'global')}`} />
                             </div>
                           </div>
                         </Link>
@@ -1340,7 +1342,7 @@ export default async function MonitorDetailPage({
                             </PremiumTooltip>
                             <div className="flex items-center gap-3">
                               <span className="text-[24px] font-bold text-white tracking-tight leading-none">{avgTtfb}<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
-                              <Zap className={`h-5 w-5 ${avgTtfb < 200 ? 'text-metric-ttfb-fast' : avgTtfb < 500 ? 'text-amber-400' : 'text-red-400'}`} />
+                              <Gauge className={`h-5 w-5 ${avgTtfb < 200 ? 'text-metric-ttfb-fast' : avgTtfb < 500 ? 'text-amber-400' : 'text-red-400'}`} />
                             </div>
                           </div>
                         </Link>
@@ -1358,7 +1360,7 @@ export default async function MonitorDetailPage({
                             </PremiumTooltip>
                             <div className="flex items-center gap-3">
                               <span className="text-[24px] font-bold text-white tracking-tight leading-none">{globalHitRate}<span className="text-base ml-0.5 text-zinc-500">%</span></span>
-                              <ShieldCheck className="h-5 w-5 text-metric-ttfb-fast" />
+                              <Zap className={`h-5 w-5 fill-current ${getCacheColor(globalHitRate, 'global')}`} />
                             </div>
                           </div>
                         </Link>

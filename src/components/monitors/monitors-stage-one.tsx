@@ -10,6 +10,7 @@ import {
   Activity,
   HelpCircle,
   Minus,
+  Zap,
   Search,
 } from 'lucide-react'
 import { GlobalHeader } from '@/components/dashboard/global-header'
@@ -272,7 +273,8 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
               value={isLoading ? '...' : `${liveHit}%`}
               valueTooltip={GLOBAL_CACHE_VALUE_TOOLTIP}
               subtitle=""
-              icon={ArrowUp}
+              icon={Zap}
+              iconClassName={`fill-current ${getCacheColor(liveHit, 'global')}`}
               valueClassName={getCacheColor(liveHit, 'global')}
               trend={{
                 value: `${Math.abs(hitDelta)}%`,

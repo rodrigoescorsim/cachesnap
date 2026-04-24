@@ -18,6 +18,7 @@ type GlobalMetricCardProps = {
   icon: LucideIcon
   valueClassName?: string
   subtitleClassName?: string
+  iconClassName?: string
   /** default = full-size card; compact = lighter strip for secondary dashboards. */
   variant?: GlobalMetricCardVariant
   /** Accent when variant is compact (Monitors page overview). */
@@ -179,6 +180,7 @@ export function GlobalMetricCard({
   progress,
   animationDelayMs = 0,
   systemStatus,
+  iconClassName,
 }: GlobalMetricCardProps) {
   const isCompact = variant === 'compact'
   const isSystemStatus = systemStatus !== undefined
@@ -212,7 +214,7 @@ export function GlobalMetricCard({
           </p>
         </div>
         <div className={iconWrapClass}>
-          <Icon className={iconSizeClass} />
+          <Icon className={`${iconSizeClass} ${iconClassName ?? ''}`} />
         </div>
       </div>
 
