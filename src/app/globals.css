@@ -577,6 +577,19 @@ body {
     color: var(--metric-fast);
   }
 
+  /**
+   * Elite performance (ultra fast / perfect cache).
+   * Brighter than primary green with a subtle neon glow.
+   */
+  .text-metric-elite {
+    color: #4CFFB3;
+    @apply animate-[pulse_2s_infinite];
+  }
+
+  .fill-metric-elite {
+    fill: #4CFFB3;
+  }
+
   .text-metric-ttfb-med {
     @apply text-amber-500/90;
   }

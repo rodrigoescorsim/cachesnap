@@ -934,7 +934,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               valueClassName={getCacheColor(liveHit, 'global')}
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
               icon={Zap}
-              iconClassName={`fill-current ${getCacheColor(liveHit, 'global')}`}
+              iconClassName={`fill-current ${getCacheColor(liveHit, 'global')} ${liveHit >= 98 ? 'animate-[pulse_2s_infinite]' : ''}`}
               trend={{
                 value: `${Math.abs(hitDelta)}%`,
                 tone: hitTrendTone,

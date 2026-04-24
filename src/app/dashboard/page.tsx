@@ -73,7 +73,7 @@ async function getMonitorSummaries(userId: string) {
 }
 
 function formatProbeAge(lastProbeAt: Date | null): string {
-  if (!lastProbeAt) return 'Collecting data'
+  if (!lastProbeAt || lastProbeAt.getFullYear() < 2000) return 'Collecting data...'
 
   const elapsedMs = Date.now() - new Date(lastProbeAt).getTime()
   if (elapsedMs < 60_000) return 'Updated: just now'
@@ -83,7 +83,7 @@ function formatProbeAge(lastProbeAt: Date | null): string {
 }
 
 function probeFreshnessTone(lastProbeAt: Date | null): string {
-  if (!lastProbeAt) return 'text-amber-500 dark:text-amber-400'
+  if (!lastProbeAt || lastProbeAt.getFullYear() < 2000) return 'text-amber-500 dark:text-amber-400'
 
   const elapsedMs = Date.now() - new Date(lastProbeAt).getTime()
   if (elapsedMs > 6 * 60 * 60_000) return 'text-amber-500 dark:text-amber-400'

@@ -275,7 +275,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
               valueTooltip={GLOBAL_CACHE_VALUE_TOOLTIP}
               subtitle=""
               icon={Zap}
-              iconClassName={`fill-current ${getCacheColor(liveHit, 'global')}`}
+              iconClassName={`fill-current ${getCacheColor(liveHit, 'global')} ${liveHit >= 98 ? 'animate-[pulse_2s_infinite]' : ''}`}
               valueClassName={getCacheColor(liveHit, 'global')}
               trend={{
                 value: `${Math.abs(hitDelta)}%`,

@@ -52,6 +52,8 @@ import {
   MONITOR_TABLE,
 } from '@/app/dashboard/monitors/[id]/monitor-table-styles'
 
+import { MONITOR_TTFB, MONITOR_CACHE, getTtfbColorClass, getCacheColor, getTtfbTooltip, getCacheTooltip } from '@/lib/thresholds'
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const TTFB_CLASS: Record<string, string> = {
@@ -61,15 +63,18 @@ const TTFB_CLASS: Record<string, string> = {
 }
 
 const TTFB_LABEL: Record<string, string> = {
-  fast: 'Fast — under 150 ms',
-  med:  'Moderate — 150–300 ms',
-  slow: 'Slow — over 300 ms',
+  fast: `Fast — under ${MONITOR_TTFB.FAST} ms`,
+  med:  `Moderate — ${MONITOR_TTFB.FAST}–${MONITOR_TTFB.SLOW} ms`,
+  slow: `Slow — over ${MONITOR_TTFB.SLOW} ms`,
 }
 
 function ttfbClass(ms: number) { return TTFB_CLASS[getTtfbTier(ms)] }
 function ttfbLabel(ms: number) { return TTFB_LABEL[getTtfbTier(ms)] }
 
-function formatRelativeTime(date: Date): { text: string; isRecent: boolean } {
+function formatRelativeTime(date: Date | null | undefined): { text: string; isRecent: boolean } {
+  if (!date || date.getTime() <= 0 || date.getFullYear() < 2000) {
+    return { text: '—', isRecent: false }
+  }
   const diffS = Math.floor((Date.now() - date.getTime()) / 1000)
   if (diffS < 60) return { text: diffS < 5 ? 'just now' : `${diffS}s ago`, isRecent: true }
   const diffM = Math.floor(diffS / 60)
@@ -151,10 +156,8 @@ function Sparkline({ data, delta }: { data: number[]; delta: number }) {
   )
 }
 
-function cacheHitTooltipText(tier: ReturnType<typeof getCacheHitTier>): string {
-  if (tier === 'high') return 'Strong edge cache on the latest check — edge is doing most of the work.'
-  if (tier === 'mid') return 'Moderate cache hit — there is still room to tune headers or TTLs.'
-  return 'Low cache hit — review origin caching, CDN rules, and response headers.'
+function cacheHitTooltipText(pct: number): string {
+  return getCacheTooltip(pct, 'monitor')
 }
 
 function CacheHitBadge({ pct }: { pct: number | null }) {
@@ -169,15 +172,17 @@ function CacheHitBadge({ pct }: { pct: number | null }) {
       </PremiumTooltip>
     )
   }
-  const tier = getCacheHitTier(pct)
-  const tip = cacheHitTooltipText(tier)
-  const cls =
-    tier === 'high' ? 'cs-badge-cache-hit'
-    : tier === 'mid' ? 'cs-badge-cache-dynamic'
+  const tip = cacheHitTooltipText(pct)
+  const cls = getCacheColor(pct, 'monitor') === 'text-metric-elite' ? 'text-metric-elite' : (
+    pct >= MONITOR_CACHE.GOOD ? 'cs-badge-cache-hit'
+    : pct >= MONITOR_CACHE.LOW ? 'cs-badge-cache-dynamic'
     : 'cs-badge-cache-miss'
+  )
+  const textClass = getCacheColor(pct, 'monitor') === 'text-metric-elite' ? 'text-metric-elite' : ''
+  
   return (
     <PremiumTooltip content={tip} position="top-center" direction="top">
-      <span className={`${cls} text-[12px] font-semibold`}>{pct.toFixed(1)}%</span>
+      <span className={`${cls} ${textClass} text-[12px] font-semibold`}>{pct.toFixed(1)}%</span>
     </PremiumTooltip>
   )
 }
@@ -563,12 +568,7 @@ function buildMonitorColumns(
         return (
           <div className="flex flex-col gap-[3px]">
             <PremiumTooltip
-              content={
-                <p className="text-[11px] font-normal leading-relaxed tracking-normal">
-                  <span className="font-semibold text-white">{ms} ms</span>
-                  <span className="ml-1.5 text-zinc-400">{ttfbLabel(ms)}</span>
-                </p>
-              }
+              content={getTtfbTooltip(ms, 'monitor')}
               position="top-center"
               direction="top"
             >
