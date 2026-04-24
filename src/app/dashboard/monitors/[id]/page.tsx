@@ -7,6 +7,8 @@ import { isCacheHit } from '@/lib/cache-utils'
 import sql from '@/lib/db'
 import { AutoRefresh } from './auto-refresh'
 import { TtfbChart, type ChartPoint } from './ttfb-chart'
+import { HourlyPatternChart } from './hourly-pattern-chart'
+import { TtfbHeatmap } from './ttfb-heatmap'
 import { MonitorHeaderToolbar } from './monitor-header-toolbar'
 import { MonitorSettingsPanel } from './monitor-settings-panel'
 import { type TrendComparator } from './monitor-edit-form'
@@ -119,6 +121,22 @@ interface Spike {
   ttfb_avg: number
   prev_avg: number
   spike_ms: number
+}
+
+interface HourlyPoint {
+  hour_of_day: number
+  ttfb_avg: number
+  ttfb_p95: number | null
+  cache_hit_pct: number | null
+  sample_count: number
+}
+
+interface HeatmapCell {
+  dow: number
+  hour_of_day: number
+  ttfb_avg: number | null
+  cache_hit_pct: number | null
+  sample_count: number
 }
 
 interface SecurityHeaders {
@@ -597,9 +615,18 @@ export default async function MonitorDetailPage({
   const viewValue = readFirst(rawSearchParams.view)
   const alertTypeValue = readFirst(rawSearchParams.alert_type)
 
-  const range = rangeValue === '7d' ? '7d' : rangeValue === '30d' ? '30d' : '24h'
-  const dbInterval = range === '7d' ? '7 days' : range === '30d' ? '30 days' : '24 hours'
-  const bucketSize = range === '7d' ? '6 hours' : range === '30d' ? '1 day' : '30 minutes'
+  const range = rangeValue === '7d' ? '7d'
+              : rangeValue === '30d' ? '30d'
+              : rangeValue === '90d' ? '90d'
+              : '24h'
+  const dbInterval = range === '7d'  ? '7 days'
+                   : range === '30d' ? '30 days'
+                   : range === '90d' ? '90 days'
+                   : '24 hours'
+  const bucketSize = range === '7d'  ? '6 hours'
+                   : range === '30d' ? '1 day'
+                   : range === '90d' ? '3 days'
+                   : '30 minutes'
   const activeTab = normalizeTab(tabValue)
   const filteredAlertType = normalizeAlertType(alertTypeValue)
   const activeView: PerformanceView = activeTab === 'performance' ? normalizeView(viewValue) : 'real-time'
@@ -783,18 +810,34 @@ export default async function MonitorDetailPage({
   `
   const security: SecurityHeaders | null = secRow?.security_headers ?? null
 
-  const chartRaw = await sql<{ bucket: Date; region: string; ttfb_avg: number; dns_avg: number | null; tcp_avg: number | null; tls_avg: number | null; cache_hit_pct: number | null }[]>`
+  const chartRaw = await sql<{ bucket: Date; region: string; ttfb_avg: number; ttfb_p95: number | null; dns_avg: number | null; tcp_avg: number | null; tls_avg: number | null; cache_hit_pct: number | null }[]>`
     SELECT
       time_bucket(CAST(${bucketSize} AS interval), time) AS bucket,
       region,
       ROUND(AVG(ttfb_ms)::numeric, 0)                                          AS ttfb_avg,
+      ROUND(
+        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ttfb_ms)::numeric, 0
+      )::int                                                                    AS ttfb_p95,
       ROUND(AVG(dns_ms)::numeric, 0)                                           AS dns_avg,
       ROUND(AVG(tcp_ms)::numeric, 0)                                           AS tcp_avg,
       ROUND(AVG(tls_ms)::numeric, 0)                                           AS tls_avg,
-      ROUND(
-        100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING'))
-               / NULLIF(COUNT(*), 0), 0
-      )                                                                         AS cache_hit_pct
+      CASE
+        WHEN COUNT(*) FILTER (
+          WHERE cache_status IS NOT NULL
+            AND cache_status <> 'HIDDEN'
+        ) = 0 THEN NULL
+        ELSE ROUND(
+          100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING'))
+                 / NULLIF(
+                   COUNT(*) FILTER (
+                     WHERE cache_status IS NOT NULL
+                       AND cache_status <> 'HIDDEN'
+                   ),
+                   0
+                 ),
+          0
+        )
+      END                                                                       AS cache_hit_pct
     FROM probe_results
     WHERE monitor_id = ${id}
       AND time > NOW() - CAST(${dbInterval} AS interval)
@@ -855,6 +898,51 @@ export default async function MonitorDetailPage({
     LIMIT 5
   `
 
+  // Hourly pattern and heatmap queries — only meaningful for ≥ 7d
+  const hourlyPattern = range !== '24h'
+    ? await sql<HourlyPoint[]>`
+        SELECT
+          EXTRACT(HOUR FROM time)::int                                           AS hour_of_day,
+          ROUND(AVG(ttfb_ms)::numeric, 0)::int                                   AS ttfb_avg,
+          ROUND(
+            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ttfb_ms)::numeric, 0
+          )::int                                                                  AS ttfb_p95,
+          ROUND(
+            100.0 * COUNT(*) FILTER (WHERE cache_status IN
+              ('HIT', 'STALE', 'REVALIDATED', 'UPDATING'))
+            / NULLIF(COUNT(*), 0), 0
+          )::int                                                                  AS cache_hit_pct,
+          COUNT(*)::int                                                           AS sample_count
+        FROM probe_results
+        WHERE monitor_id = ${id}
+          AND time > NOW() - CAST(${dbInterval} AS interval)
+          AND ttfb_ms IS NOT NULL
+        GROUP BY hour_of_day
+        ORDER BY hour_of_day
+      `
+    : []
+
+  const heatmapRows = range !== '24h'
+    ? await sql<HeatmapCell[]>`
+        SELECT
+          EXTRACT(DOW FROM time)::int                                            AS dow,
+          EXTRACT(HOUR FROM time)::int                                           AS hour_of_day,
+          ROUND(AVG(ttfb_ms)::numeric, 0)::int                                   AS ttfb_avg,
+          ROUND(
+            100.0 * COUNT(*) FILTER (WHERE cache_status IN
+              ('HIT', 'STALE', 'REVALIDATED', 'UPDATING'))
+            / NULLIF(COUNT(*), 0), 0
+          )::int                                                                  AS cache_hit_pct,
+          COUNT(*)::int                                                           AS sample_count
+        FROM probe_results
+        WHERE monitor_id = ${id}
+          AND time > NOW() - CAST(${dbInterval} AS interval)
+          AND ttfb_ms IS NOT NULL
+        GROUP BY dow, hour_of_day
+        ORDER BY dow, hour_of_day
+      `
+    : []
+
   const securityByRegion = await sql<SecurityByRegion[]>`
     SELECT DISTINCT ON (region)
       region,
@@ -903,6 +991,7 @@ export default async function MonitorDetailPage({
     bucket: row.bucket.toISOString(),
     region: row.region,
     ttfb_avg: Number(row.ttfb_avg),
+    ttfb_p95: row.ttfb_p95 != null ? Number(row.ttfb_p95) : null,
     dns_avg: row.dns_avg != null ? Number(row.dns_avg) : null,
     tcp_avg: row.tcp_avg != null ? Number(row.tcp_avg) : null,
     tls_avg: row.tls_avg != null ? Number(row.tls_avg) : null,
@@ -1547,7 +1636,7 @@ export default async function MonitorDetailPage({
                   <section className="space-y-4">
                     <ViewSectionHeader title="Trends">
                       <div className="flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 dark:bg-white/5 px-1.5 border border-zinc-200 dark:border-white/10">
-                        {['24h', '7d', '30d'].map((r) => (
+                        {['24h', '7d', '30d', '90d'].map((r) => (
                           <Link
                             key={r}
                             href={buildViewHref('trends', r)}
@@ -1564,13 +1653,13 @@ export default async function MonitorDetailPage({
                     {stats.length === 0 ? (
                       <p className="text-sm text-zinc-400">Compiling historical insights...</p>
                     ) : (
-                      <TtfbChart data={chartPoints} range={range} regionMeta={regionMeta} />
+                      <TtfbChart data={chartPoints} range={range} regionMeta={regionMeta} cacheHitThresholdPct={monitor.alert_cache_hit_threshold_pct} />
                     )}
                   </section>
 
                   {spikes.length > 0 && (
                     <section className="space-y-4">
-                      <ViewSectionHeader title="Recent performance spikes — last 24h" />
+                      <ViewSectionHeader title={`Recent performance spikes — ${range === '7d' ? 'last 7 days' : range === '30d' ? 'last 30 days' : range === '90d' ? 'last 90 days' : 'last 24h'}`} />
                       <div className="rounded-2xl border border-zinc-200 dark:border-white/5 bg-white/[0.02] divide-y divide-zinc-100 dark:divide-white/5 overflow-hidden">
                         {spikes.map((spike, index) => (
                           <div key={index} className="flex items-center justify-between px-4 py-2.5 gap-4">
@@ -1596,23 +1685,55 @@ export default async function MonitorDetailPage({
                   {weekTrend.length > 0 && (
                     <section className="space-y-4">
                       <ViewSectionHeader title="Week-over-week performance trend" />
-                      <div className="rounded-2xl border border-zinc-200 dark:border-white/5 bg-white/[0.02] divide-y divide-zinc-100 dark:divide-white/5 overflow-hidden">
-                        {weekTrend.map(t => (
-                          <div key={t.region} className="flex items-center justify-between px-4 py-3 gap-4">
-                            <span className="text-sm text-zinc-700 dark:text-zinc-300 font-medium min-w-[120px]">
-                              {regionLabels[t.region] ?? t.region}
-                            </span>
-                            <div className="flex items-center gap-3 tabular-nums text-sm">
-                              <span className="text-zinc-400 text-xs">{t.previous_avg_ms}ms → {t.current_avg_ms}ms</span>
-                              <span className={`font-semibold ${trendColor(t.change_pct)}`}>
-                                {trendArrow(t.change_pct)}{' '}
-                                {t.change_pct > 0 ? '+' : ''}{t.change_pct}%
-                              </span>
-                            </div>
-                          </div>
-                        ))}
+                      <div className="rounded-2xl border border-border bg-surface p-4 shadow-sm space-y-4">
+                        {(() => {
+                          const maxMs = Math.max(...weekTrend.flatMap(t => [t.current_avg_ms, t.previous_avg_ms]), 1)
+                          return weekTrend.map(t => {
+                            const barColor = t.current_avg_ms < 200
+                              ? 'var(--metric-fast, #22FF88)'
+                              : t.current_avg_ms <= 500
+                              ? 'var(--metric-med, #f59e0b)'
+                              : 'var(--metric-slow, #f43f5e)'
+                            const improved = t.change_pct < 0
+                            return (
+                              <div key={t.region} className="space-y-1.5">
+                                <div className="flex items-center justify-between gap-3">
+                                  <span className="text-[11px] font-medium text-zinc-400 min-w-[110px]">{regionLabels[t.region] ?? t.region}</span>
+                                  <div className="flex items-center gap-2 tabular-nums">
+                                    <span className="text-[11px] text-zinc-500">{t.previous_avg_ms}ms → {t.current_avg_ms}ms</span>
+                                    <span className={`text-[11px] font-bold ${improved ? 'text-emerald-400' : Math.abs(t.change_pct) > 10 ? 'text-red-400' : 'text-amber-400'}`}>
+                                      {improved ? '▼' : '▲'} {Math.abs(t.change_pct)}%
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="space-y-0.5">
+                                  <div className="relative h-2 rounded-full bg-white/5 overflow-hidden">
+                                    <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${(t.current_avg_ms / maxMs) * 100}%`, backgroundColor: barColor }} />
+                                  </div>
+                                  <div className="relative h-1 rounded-full bg-white/5 overflow-hidden">
+                                    <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${(t.previous_avg_ms / maxMs) * 100}%`, backgroundColor: barColor, opacity: 0.35 }} />
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })
+                        })()}
                       </div>
                       <p className="mt-1.5 text-xs text-zinc-400 italic">Comparing last 7 days vs the prior 7 days.</p>
+                    </section>
+                  )}
+
+                  {range !== '24h' && hourlyPattern.length > 0 && (
+                    <section className="space-y-4">
+                      <ViewSectionHeader title="Hourly performance pattern" />
+                      <HourlyPatternChart data={hourlyPattern} range={range} />
+                    </section>
+                  )}
+
+                  {range !== '24h' && heatmapRows.length > 0 && (
+                    <section className="space-y-4">
+                      <ViewSectionHeader title="Weekly performance pattern" />
+                      <TtfbHeatmap data={heatmapRows} />
                     </section>
                   )}
                 </div>

@@ -3,13 +3,15 @@
  * Extracted here so they can be unit-tested without mounting React.
  */
 
+import type { ChartPoint } from './ttfb-chart'
+
 /**
  * Formats a bucket ISO timestamp for X-axis labels.
- * 7d range → "Apr 1", 24h range → "14:30"
+ * 7d/30d/90d range → "Apr 1", 24h range → "14:30"
  */
 export function formatChartLabel(iso: string, range: string): string {
   const d = new Date(iso)
-  if (range === '7d') {
+  if (range === '7d' || range === '30d' || range === '90d') {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
   return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -40,4 +42,32 @@ export function globalBucketAverage<T extends { bucket: string }>(
     const total = points.reduce((acc, p) => acc + (getValue(p) ?? 0), 0)
     return { bucket, value: total / points.length }
   })
+}
+
+/**
+ * Builds an SVG polygon path for the P95 band (avg → p95 fill, traversed back).
+ * Returns null when fewer than 2 points exist or all p95 values are null.
+ */
+export function buildP95BandPath(
+  allBuckets: string[],
+  regionData: Map<string, ChartPoint>,
+  toX: (i: number) => number,
+  toY: (ms: number) => number,
+): string | null {
+  if (allBuckets.length < 2) return null
+
+  const validPoints: Array<{ i: number; avg: number; p95: number }> = []
+  for (let i = 0; i < allBuckets.length; i++) {
+    const p = regionData.get(allBuckets[i])
+    if (p && p.ttfb_p95 != null) {
+      validPoints.push({ i, avg: p.ttfb_avg, p95: p.ttfb_p95 })
+    }
+  }
+  if (validPoints.length < 2) return null
+
+  // Forward pass along avg line, then backward along p95
+  const forward = validPoints.map(({ i, avg }) => `${toX(i)},${toY(avg)}`).join(' L ')
+  const backward = [...validPoints].reverse().map(({ i, p95 }) => `${toX(i)},${toY(p95)}`).join(' L ')
+
+  return `M ${forward} L ${backward} Z`
 }

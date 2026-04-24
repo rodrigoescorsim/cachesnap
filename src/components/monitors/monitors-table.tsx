@@ -795,10 +795,11 @@ export function MonitorsTable({
   )
 
   useEffect(() => {
-    if (!showHit24hAvgColumn && sorting[0]?.id === 'cacheHitAvg24h') {
+    // Only auto-reset if the column actually disappeared while it was being sorted
+    if (!showHit24hAvgColumn && sorting.length > 0 && sorting[0].id === 'cacheHitAvg24h') {
       onSortingChange([{ id: 'ttfbCurrent', desc: true }])
     }
-  }, [showHit24hAvgColumn, sorting, onSortingChange])
+  }, [showHit24hAvgColumn, onSortingChange]) // Removed 'sorting' from dependencies to avoid loop
 
   const table = useReactTable({
     data: filteredData,

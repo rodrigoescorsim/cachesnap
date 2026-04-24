@@ -1,14 +1,14 @@
 'use client'
 
-import Link from 'next/link'
 import { useState, useRef, useMemo } from 'react'
-import { formatChartLabel, niceMax, globalBucketAverage } from './ttfb-chart.helpers'
+import { formatChartLabel, niceMax, globalBucketAverage, buildP95BandPath } from './ttfb-chart.helpers'
 import { TIMING } from './timing-metrics-palette'
 
 export interface ChartPoint {
   bucket: string       // ISO string
   region: string
   ttfb_avg: number
+  ttfb_p95: number | null
   dns_avg: number | null
   tcp_avg: number | null
   tls_avg: number | null
@@ -26,15 +26,25 @@ const PAD = { top: 12, right: 16, bottom: 32, left: 48 }
 const CW = W - PAD.left - PAD.right
 const CH = H - PAD.top  - PAD.bottom
 
-export function TtfbChart({ data, range, regionMeta }: { data: ChartPoint[]; range: string; regionMeta: Record<string, RegionRenderMeta> }) {
+export function TtfbChart({
+  data,
+  range,
+  regionMeta,
+  cacheHitThresholdPct,
+}: {
+  data: ChartPoint[]
+  range: string
+  regionMeta: Record<string, RegionRenderMeta>
+  cacheHitThresholdPct?: number | null
+}) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+  const [showCacheRegions, setShowCacheRegions] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const regions    = useMemo(() => [...new Set(data.map(d => d.region))].sort(), [data])
   const allBuckets = useMemo(() => [...new Set(data.map(d => d.bucket))].sort(), [data])
 
-  // Index data by region for fast lookup
   const byRegion = useMemo(() => {
     const map: Record<string, Map<string, ChartPoint>> = {}
     for (const d of data) {
@@ -63,24 +73,27 @@ export function TtfbChart({ data, range, regionMeta }: { data: ChartPoint[]; ran
   // ── Y projectors ──────────────────────────────────────────────────────────
   const toYTtfb = (ms: number)  => PAD.top + (1 - ms  / niceMaxTtfb) * CH
   const toYNet  = (ms: number)  => PAD.top + (1 - ms  / niceMaxNet)  * CH
-  const toYPct  = (pct: number) => PAD.top + (1 - pct / 100)         * CH
+  const toYCache = (pct: number) => {
+    const min = 0
+    const max = 100
+    const clamped = Math.max(min, Math.min(max, pct))
+    return PAD.top + (1 - (clamped - min) / (max - min)) * CH
+  }
 
   // ── Interaction ──────────────────────────────────────────────────────────
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!containerRef.current || allBuckets.length < 2) return
-    
+
     const rect = containerRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
     setMousePos({ x, y })
 
-    // Find nearest bucket based on local SVG width scaling
-    // We assume the SVG is responsive, so we need to account for its rendered width
-    const svgElement = containerRef.current.querySelector('svg')
+    const svgElement = (e.target as Element | null)?.closest('svg')
     if (!svgElement) return
     const svgRect = svgElement.getBoundingClientRect()
     const relativeX = (e.clientX - svgRect.left) * (W / svgRect.width)
-    
+
     const idx = Math.round(((relativeX - PAD.left) / CW) * (allBuckets.length - 1))
     if (idx >= 0 && idx < allBuckets.length) {
       setHoveredIdx(idx)
@@ -96,6 +109,68 @@ export function TtfbChart({ data, range, regionMeta }: { data: ChartPoint[]; ran
   const globalTcp = globalBucketAverage(allBuckets, data, p => p.tcp_avg)
   const globalTls = globalBucketAverage(allBuckets, data, p => p.tls_avg)
   const hasCacheData = data.some(d => d.cache_hit_pct != null)
+  const isCacheNotReported = !hasCacheData
+  const globalCache = useMemo(() => {
+    return allBuckets.map(bucket => {
+      const bucketValues = data
+        .filter(point => point.bucket === bucket && point.cache_hit_pct != null)
+        .map(point => point.cache_hit_pct as number)
+      if (bucketValues.length === 0) return { bucket, value: null as number | null }
+      const total = bucketValues.reduce((sum, value) => sum + value, 0)
+      return { bucket, value: total / bucketValues.length }
+    })
+  }, [allBuckets, data])
+  const cachePlateauState = useMemo(() => {
+    if (isCacheNotReported) return null
+    const values = globalCache
+      .map(point => point.value)
+      .filter((value): value is number => value != null)
+
+    if (values.length < 5) return null
+
+    const transitions = values.length - 1
+    if (transitions <= 0) return null
+
+    let stableTransitions = 0
+    for (let i = 1; i < values.length; i++) {
+      if (Math.abs(values[i] - values[i - 1]) < 1) stableTransitions += 1
+    }
+
+    const stableRatio = stableTransitions / transitions
+    if (stableRatio <= 0.8) return null
+
+    const average = values.reduce((sum, value) => sum + value, 0) / values.length
+
+    if (average >= 99) {
+      return {
+        label: 'Stable at 100%',
+        className: 'border-emerald-400/30 bg-emerald-500/10 text-emerald-300',
+      }
+    }
+
+    if (average <= 1) {
+      return {
+        label: 'Critical at 0%',
+        className: 'border-red-400/30 bg-red-500/10 text-red-300',
+      }
+    }
+
+    return null
+  }, [globalCache, isCacheNotReported])
+
+  const hoveredBucket = hoveredIdx != null ? allBuckets[hoveredIdx] : null
+  const hoveredGlobalCache = hoveredBucket != null
+    ? globalCache.find(bucket => bucket.bucket === hoveredBucket)?.value ?? null
+    : null
+  const hoveredWorstRegionCache = hoveredBucket != null
+    ? regions
+      .map(region => {
+        const cacheValue = byRegion[region]?.get(hoveredBucket)?.cache_hit_pct
+        return cacheValue != null ? { region, value: cacheValue } : null
+      })
+      .filter((entry): entry is { region: string; value: number } => entry != null)
+      .sort((a, b) => a.value - b.value)[0] ?? null
+    : null
 
   // ── Sub-components ────────────────────────────────────────────────────────
   function XAxisLabels() {
@@ -120,7 +195,7 @@ export function TtfbChart({ data, range, regionMeta }: { data: ChartPoint[]; ran
     )
   }
 
-  function GuideLine({ projector }: { projector: (v: number) => number }) {
+  function GuideLine() {
     if (hoveredIdx === null) return null
     return (
       <line
@@ -137,13 +212,29 @@ export function TtfbChart({ data, range, regionMeta }: { data: ChartPoint[]; ran
     <div className="space-y-6 relative" ref={containerRef} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
       {/* Tooltip */}
       {hoveredIdx !== null && (
-        <div 
+        <div
           className="fixed z-[100] pointer-events-none bg-surface/95 backdrop-blur-xl border border-white/10 p-3 rounded-xl shadow-2xl text-white min-w-[180px]"
           style={{ left: mousePos.x + 20 + (containerRef.current?.getBoundingClientRect().left ?? 0), top: mousePos.y + 20 + (containerRef.current?.getBoundingClientRect().top ?? 0) }}
         >
           <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 border-b border-white/5 pb-1.5 px-0.5">
-            {formatChartLabel(allBuckets[hoveredIdx], range)} {range === '7d' ? '' : 'UTC'}
+            {formatChartLabel(allBuckets[hoveredIdx], range)} {range === '7d' || range === '30d' || range === '90d' ? '' : 'UTC'}
           </p>
+          {(hoveredGlobalCache != null || hoveredWorstRegionCache != null) && (
+            <div className="mb-2 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1.5 text-[10px]">
+              {hoveredGlobalCache != null && (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-zinc-500">Global cache hit</span>
+                  <span className="font-bold text-cyan-300 tabular-nums">{Math.round(hoveredGlobalCache)}%</span>
+                </div>
+              )}
+              {hoveredWorstRegionCache != null && (
+                <div className="mt-1 flex items-center justify-between gap-3">
+                  <span className="text-zinc-500">Worst region</span>
+                  <span className="font-bold text-red-300 tabular-nums">{(regionMeta[hoveredWorstRegionCache.region]?.label ?? hoveredWorstRegionCache.region).split(' ')[0]} {Math.round(hoveredWorstRegionCache.value)}%</span>
+                </div>
+              )}
+            </div>
+          )}
           <div className="space-y-2">
             {regions.map(region => {
               const p = byRegion[region]?.get(allBuckets[hoveredIdx])
@@ -156,8 +247,11 @@ export function TtfbChart({ data, range, regionMeta }: { data: ChartPoint[]; ran
                       {(regionMeta[region]?.label ?? region).split(' ')[0]}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 tabular-nums">
+                  <div className="flex flex-col items-end tabular-nums">
                     <span className="text-[11px] font-bold">{Math.round(p.ttfb_avg)}ms</span>
+                    {p.ttfb_p95 != null && (
+                      <span className="text-[9px] text-zinc-500">p95 {p.ttfb_p95}ms</span>
+                    )}
                     {p.cache_hit_pct != null && (
                       <span className={`text-[9px] font-medium px-1 rounded-sm ${p.cache_hit_pct >= 50 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
                         {Math.round(p.cache_hit_pct)}%
@@ -171,89 +265,168 @@ export function TtfbChart({ data, range, regionMeta }: { data: ChartPoint[]; ran
         </div>
       )}
 
-
       {allBuckets.length < 2 ? (
         <div className="rounded-2xl border border-border bg-surface/30 p-12 text-center">
           <p className="text-sm text-zinc-500 italic font-medium">Analyzing historical patterns...</p>
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-2">
-            {/* Chart 1 — TTFB */}
-            <div className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700">
-              <div className="absolute top-4 right-4 text-[10px] font-bold text-zinc-400 uppercase tracking-tight opacity-40">TTFB</div>
-              <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
-                {/* Horizontal lines */}
-                {[0, Math.round(niceMaxTtfb / 2), niceMaxTtfb].map(v => (
-                  <g key={v}>
-                    <line x1={PAD.left} x2={W - PAD.right} y1={toYTtfb(v)} y2={toYTtfb(v)} stroke="currentColor" strokeOpacity={0.05} strokeWidth={1} />
-                    <text x={PAD.left - 6} y={toYTtfb(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}ms</text>
-                  </g>
-                ))}
-                <XAxisLabels />
-                <GuideLine projector={toYTtfb} />
-                {regions.map(region => {
-                  const m = byRegion[region]
-                  if (!m) return null
-                  const points = allBuckets.map((b, i) => m.has(b) ? `${toX(i)},${toYTtfb(m.get(b)!.ttfb_avg)}` : null).filter(Boolean).join(' ')
-                  return <polyline key={region} points={points} fill="none" stroke={regionMeta[region]?.color ?? '#6b7280'} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={hoveredIdx === null ? 1 : byRegion[region]?.has(allBuckets[hoveredIdx]) ? 1 : 0.2} />
-                })}
-              </svg>
-            </div>
-
-            {/* Chart 2 — Network */}
-            <div className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700">
-              <div className="absolute top-4 right-4 text-[10px] font-bold text-zinc-400 uppercase tracking-tight opacity-40">Network Load</div>
-              <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
-                {[0, Math.round(niceMaxNet / 2), niceMaxNet].map(v => (
-                  <g key={v}>
-                    <line x1={PAD.left} x2={W - PAD.right} y1={toYNet(v)} y2={toYNet(v)} stroke="currentColor" strokeOpacity={0.05} strokeWidth={1} />
-                    <text x={PAD.left - 6} y={toYNet(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}ms</text>
-                  </g>
-                ))}
-                <XAxisLabels />
-                <GuideLine projector={toYNet} />
-                <polyline points={globalDns.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')} fill="none" stroke={TIMING.dns.stroke} strokeWidth={2} strokeDasharray="4 2" strokeOpacity={0.4} />
-                <polyline points={globalTcp.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')} fill="none" stroke={TIMING.tcp.stroke} strokeWidth={2} strokeDasharray="4 2" strokeOpacity={0.4} />
-                <polyline points={globalTls.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')} fill="none" stroke={TIMING.tls.stroke} strokeWidth={2} strokeDasharray="4 2" strokeOpacity={0.4} />
-                {regions.map(region => {
-                  const m = byRegion[region]
-                  if (!m) return null
-                  const points = allBuckets.map((b, i) => m.has(b)
-                    ? `${toX(i)},${toYNet((m.get(b)!.dns_avg ?? 0) + (m.get(b)!.tcp_avg ?? 0) + (m.get(b)!.tls_avg ?? 0))}`
-                    : null).filter(Boolean).join(' ')
-                  return <polyline key={region} points={points} fill="none" stroke={regionMeta[region]?.color ?? '#6b7280'} strokeWidth={1} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={0.2} />
-                })}
-              </svg>
-            </div>
+          <div className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700">
+            <div className="absolute top-4 right-4 text-[10px] font-bold text-zinc-400 uppercase tracking-tight opacity-40">TTFB</div>
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
+              {[0, Math.round(niceMaxTtfb / 2), niceMaxTtfb].map(v => (
+                <g key={v}>
+                  <line x1={PAD.left} x2={W - PAD.right} y1={toYTtfb(v)} y2={toYTtfb(v)} stroke="currentColor" strokeOpacity={0.05} strokeWidth={1} />
+                  <text x={PAD.left - 6} y={toYTtfb(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}ms</text>
+                </g>
+              ))}
+              <XAxisLabels />
+              <GuideLine />
+              {regions.map(region => {
+                const m = byRegion[region]
+                if (!m) return null
+                const bandPath = buildP95BandPath(allBuckets, m, toX, toYTtfb)
+                if (!bandPath) return null
+                return (
+                  <path
+                    key={`band-${region}`}
+                    d={bandPath}
+                    fill={regionMeta[region]?.color ?? '#6b7280'}
+                    fillOpacity={0.08}
+                    stroke="none"
+                  />
+                )
+              })}
+              {regions.map(region => {
+                const m = byRegion[region]
+                if (!m) return null
+                const points = allBuckets.map((b, i) => m.has(b) ? `${toX(i)},${toYTtfb(m.get(b)!.ttfb_avg)}` : null).filter(Boolean).join(' ')
+                return <polyline key={region} points={points} fill="none" stroke={regionMeta[region]?.color ?? '#6b7280'} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={hoveredIdx === null ? 1 : byRegion[region]?.has(allBuckets[hoveredIdx]) ? 1 : 0.2} />
+              })}
+            </svg>
           </div>
 
-          {/* Chart 3 — Cache */}
-          {hasCacheData && (
-            <div className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700">
-              <div className="absolute top-4 right-4 text-[10px] font-bold text-zinc-400 uppercase tracking-tight opacity-40">Cache Stability</div>
-              <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
-                {[0, 50, 100].map(v => (
-                  <g key={v}>
-                    <line x1={PAD.left} x2={W - PAD.right} y1={toYPct(v)} y2={toYPct(v)} stroke="currentColor" strokeOpacity={v === 50 ? 0.15 : 0.05} strokeWidth={1} strokeDasharray={v === 50 ? '4 3' : undefined} />
-                    <text x={PAD.left - 6} y={toYPct(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}%</text>
-                  </g>
-                ))}
-                <XAxisLabels />
-                <GuideLine projector={toYPct} />
-                {regions.map(region => {
-                  const m = byRegion[region]
-                  if (!m) return null
-                  const points = allBuckets.map((b, i) => {
-                    const p = m.get(b)
-                    return p && p.cache_hit_pct != null ? `${toX(i)},${toYPct(p.cache_hit_pct)}` : null
-                  }).filter(Boolean).join(' ')
-                  if (!points) return null
-                  return <polyline key={region} points={points} fill="none" stroke={regionMeta[region]?.color ?? '#6b7280'} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={hoveredIdx === null ? 1 : byRegion[region]?.has(allBuckets[hoveredIdx]) ? 1 : 0.2} />
-                })}
-              </svg>
+          <div className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-tight opacity-70">Cache Hit Rate</div>
+                {isCacheNotReported && (
+                  <span className="inline-flex items-center rounded-full border border-zinc-500/30 bg-zinc-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight text-zinc-300">
+                    Not Reported
+                  </span>
+                )}
+                {!isCacheNotReported && cachePlateauState && (
+                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight ${cachePlateauState.className}`}>
+                    {cachePlateauState.label}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {hasCacheData && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCacheRegions(prev => !prev)}
+                    className={`inline-flex h-7 items-center rounded-full border px-3 text-[10px] font-bold uppercase tracking-tight transition-colors ${showCacheRegions ? 'border-cyan-400/40 bg-cyan-400/10 text-cyan-300' : 'border-border bg-white/5 text-zinc-400 hover:bg-white/10'}`}
+                  >
+                    {showCacheRegions ? 'Hide Regions' : 'Show Regions'}
+                  </button>
+                )}
+              </div>
             </div>
-          )}
+            {isCacheNotReported ? (
+              <div className="mt-1 rounded-xl border border-dashed border-zinc-700/60 bg-zinc-900/20 px-4 py-3 text-[11px] text-zinc-500">
+                Cache header data is not reported for this monitor in the selected window.
+              </div>
+            ) : (
+              <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
+              <rect x={PAD.left} y={toYCache(100)} width={CW} height={toYCache(95) - toYCache(100)} fill="#10b981" fillOpacity={0.08} />
+              <rect x={PAD.left} y={toYCache(95)} width={CW} height={toYCache(90) - toYCache(95)} fill="#f59e0b" fillOpacity={0.08} />
+              <rect x={PAD.left} y={toYCache(90)} width={CW} height={toYCache(0) - toYCache(90)} fill="#ef4444" fillOpacity={0.06} />
+
+              {[0, 25, 50, 75, 90, 95, 100].map(v => (
+                <g key={v}>
+                  <line
+                    x1={PAD.left}
+                    x2={W - PAD.right}
+                    y1={toYCache(v)}
+                    y2={toYCache(v)}
+                    stroke="currentColor"
+                    strokeOpacity={v === 95 ? 0.16 : v % 25 === 0 ? 0.1 : 0.06}
+                    strokeWidth={1}
+                    strokeDasharray={v === 95 ? '4 3' : undefined}
+                  />
+                  <text x={PAD.left - 6} y={toYCache(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}%</text>
+                </g>
+              ))}
+              <XAxisLabels />
+              <GuideLine />
+
+              {cacheHitThresholdPct != null && (
+                <line
+                  x1={PAD.left}
+                  x2={W - PAD.right}
+                  y1={toYCache(cacheHitThresholdPct)}
+                  y2={toYCache(cacheHitThresholdPct)}
+                  stroke="var(--brand-warning, #f59e0b)"
+                  strokeWidth={1.5}
+                  strokeDasharray="6 4"
+                  strokeOpacity={0.6}
+                />
+              )}
+
+              {hasCacheData ? (
+                <>
+                  {showCacheRegions && regions.map(region => {
+                    const m = byRegion[region]
+                    if (!m) return null
+                    const points = allBuckets.map((b, i) => {
+                      const p = m.get(b)
+                      return p && p.cache_hit_pct != null ? `${toX(i)},${toYCache(p.cache_hit_pct)}` : null
+                    }).filter(Boolean).join(' ')
+                    if (!points) return null
+                    return <polyline key={region} points={points} fill="none" stroke={regionMeta[region]?.color ?? '#6b7280'} strokeWidth={1} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={0.3} />
+                  })}
+
+                  <polyline
+                    points={globalCache.map((bucket, i) => bucket.value != null ? `${toX(i)},${toYCache(bucket.value)}` : null).filter(Boolean).join(' ')}
+                    fill="none"
+                    stroke="#22d3ee"
+                    strokeWidth={2.4}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  />
+                </>
+              ) : (
+                <text x={W / 2} y={H / 2} textAnchor="middle" fontSize={10} fill="currentColor" fillOpacity={0.35}>No cache data</text>
+              )}
+              </svg>
+            )}
+          </div>
+
+          <div className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700">
+            <div className="absolute top-4 right-4 text-[10px] font-bold text-zinc-400 uppercase tracking-tight opacity-40">Network Load</div>
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
+              {[0, Math.round(niceMaxNet / 2), niceMaxNet].map(v => (
+                <g key={v}>
+                  <line x1={PAD.left} x2={W - PAD.right} y1={toYNet(v)} y2={toYNet(v)} stroke="currentColor" strokeOpacity={0.05} strokeWidth={1} />
+                  <text x={PAD.left - 6} y={toYNet(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}ms</text>
+                </g>
+              ))}
+              <XAxisLabels />
+              <GuideLine />
+              <polyline points={globalDns.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')} fill="none" stroke={TIMING.dns.stroke} strokeWidth={2} strokeDasharray="4 2" strokeOpacity={0.4} />
+              <polyline points={globalTcp.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')} fill="none" stroke={TIMING.tcp.stroke} strokeWidth={2} strokeDasharray="4 2" strokeOpacity={0.4} />
+              <polyline points={globalTls.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')} fill="none" stroke={TIMING.tls.stroke} strokeWidth={2} strokeDasharray="4 2" strokeOpacity={0.4} />
+              {regions.map(region => {
+                const m = byRegion[region]
+                if (!m) return null
+                const points = allBuckets.map((b, i) => m.has(b)
+                  ? `${toX(i)},${toYNet((m.get(b)!.dns_avg ?? 0) + (m.get(b)!.tcp_avg ?? 0) + (m.get(b)!.tls_avg ?? 0))}`
+                  : null).filter(Boolean).join(' ')
+                return <polyline key={region} points={points} fill="none" stroke={regionMeta[region]?.color ?? '#6b7280'} strokeWidth={1} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={0.2} />
+              })}
+            </svg>
+          </div>
         </div>
       )}
 
