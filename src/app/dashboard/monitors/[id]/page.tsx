@@ -991,12 +991,7 @@ export default async function MonitorDetailPage({
                 </div>
               </PremiumTooltip>
 
-              <PremiumTooltip content="Time elapsed since the last probe batch was received from our edge nodes" position="top-left">
-                <div className={MONITOR_HEADER_STATUS_BADGE}>
-                  <History className="h-3 w-3 text-zinc-500" />
-                  <span className="text-zinc-500 dark:text-zinc-400">Last check: 42s ago</span>
-                </div>
-              </PremiumTooltip>
+
 
               <PremiumTooltip content="Live data stream — Instant Performance updates" position="top-left">
                 <Link
