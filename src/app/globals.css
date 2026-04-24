@@ -554,7 +554,7 @@ body {
 
   /** Monitor overview metric cards — label row (Health / TTFB / Cache / Alerts). */
   .cs-metric-card-label {
-    @apply text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-dashed border-zinc-700 group-hover:border-zinc-500 cursor-help transition-colors;
+    @apply text-[10px] font-black uppercase tracking-[0.15em] text-zinc-500 mb-1 border-b border-zinc-700 group-hover:border-zinc-500 cursor-help transition-colors;
   }
 
   /**

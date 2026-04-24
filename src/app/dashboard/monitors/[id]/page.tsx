@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -2130,8 +2131,8 @@ export default async function MonitorDetailPage({
                               : <AlertCircle className="w-3 h-3 text-zinc-400 shrink-0" />
 
                             return (
-                              <>
-                                <tr key={alert.id} className={`${MONITOR_TABLE.tbodyRow} ${alert.diagnosis ? 'border-b-0' : ''}`}>
+                              <Fragment key={alert.id}>
+                                <tr className={`${MONITOR_TABLE.tbodyRow} ${alert.diagnosis ? 'border-b-0' : ''}`}>
                                   <td className="px-4 py-3">
                                     <span className="text-[11px] text-zinc-500 font-medium tabular-nums">
                                       {new Date(alert.created_at).toLocaleString('en-US', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
@@ -2176,7 +2177,7 @@ export default async function MonitorDetailPage({
                                   </td>
                                 </tr>
                                 {(alert.diagnosis || alert.action) && (
-                                  <tr key={`${alert.id}-detail`} className="border-b border-white/5">
+                                  <tr className="border-b border-white/5">
                                     <td colSpan={7} className="px-4 pb-3 pt-0">
                                       <div className="rounded-lg bg-white/[0.02] border border-white/5 px-3 py-2 space-y-1">
                                         {alert.diagnosis && (
@@ -2195,7 +2196,7 @@ export default async function MonitorDetailPage({
                                     </td>
                                   </tr>
                                 )}
-                              </>
+                              </Fragment>
                             );
                           })}
                         </tbody>

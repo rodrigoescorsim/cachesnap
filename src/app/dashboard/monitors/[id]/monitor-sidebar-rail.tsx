@@ -64,23 +64,31 @@ export function MonitorSidebarRail({
   activeView,
   filteredAlertType,
 }: MonitorSidebarRailProps) {
-  const railWidth = 'w-full max-w-[150px] lg:w-[150px]'
-  const linkPad = 'justify-start gap-2.5 px-3'
+  const railWidth = 'w-full max-w-[142px] lg:w-[142px]'
+  const linkLayoutClass = 'justify-start gap-2.5'
+  const itemBaseClass = 'relative flex items-center rounded-xl px-2.5 py-2.5 text-xs font-bold leading-none transition-all duration-200 ease-out'
+  const itemListClass = 'space-y-1.5'
+  const sectionClass = 'space-y-2.5'
   const iconClass = 'h-3.5 w-3.5'
-  const sectionLabelClass = 'px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-500/90'
+  const sectionLabelClass = 'px-2.5 pb-1 text-[8px] font-black uppercase tracking-[0.15em] text-zinc-500 border-b border-zinc-700'
+  const itemStateClass = (isActive: boolean) =>
+    isActive
+      ? 'border border-emerald-300/20 bg-emerald-400/10 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.20)] motion-safe:animate-[pulse_0.2s_ease-out_1]'
+      : 'border border-transparent text-zinc-300/90 hover:bg-white/5 hover:text-white'
 
   return (
     <aside
       className={`shrink-0 transition-[width] duration-200 ease-out lg:sticky lg:top-20 ${railWidth}`}
     >
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(14,34,66,0.68)_0%,rgba(6,20,42,0.82)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-px bg-white/10" />
+      <div className="relative overflow-hidden rounded-xl bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.3)]">
         <div className="flex flex-col gap-2 p-2 lg:p-2.5">
           <nav aria-label="Monitor sections">
-            <div className="space-y-3">
-              <section aria-label="Monitoring navigation" className="space-y-1.5">
-                <p className={sectionLabelClass}>Monitoring</p>
-                <ul className="space-y-2">
+            <div className="space-y-3.5">
+              <section aria-label="Monitoring navigation" className={sectionClass}>
+                <div>
+                  <p className={sectionLabelClass}>Monitoring</p>
+                </div>
+                <ul className={itemListClass}>
                   {MONITORING_VIEWS.map(v => {
                     const Icon = PERFORMANCE_VIEW_ICONS[v]
                     const isActive = activeTab === 'performance' && activeView === v
@@ -89,12 +97,7 @@ export function MonitorSidebarRail({
                       <li key={v}>
                         <Link
                           href={buildViewHref(v, range, monitorId)}
-                          title={label}
-                          className={`group relative flex items-center rounded-xl py-2.5 text-xs font-bold transition-all duration-200 ease-out ${linkPad} ${
-                            isActive
-                              ? 'border border-emerald-300/20 bg-emerald-400/10 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.20)] motion-safe:animate-[pulse_0.2s_ease-out_1]'
-                              : 'border border-transparent text-zinc-400 hover:bg-white/5 hover:text-white'
-                          }`}
+                          className={`group ${itemBaseClass} ${linkLayoutClass} ${itemStateClass(isActive)}`}
                         >
                           <Icon
                             className={`${iconClass} shrink-0 transition-colors duration-300 ${
@@ -110,18 +113,15 @@ export function MonitorSidebarRail({
                 </ul>
               </section>
 
-              <section aria-label="Infrastructure navigation" className="space-y-1.5">
-                <p className={sectionLabelClass}>Infrastructure</p>
-                <ul className="space-y-2">
+              <section aria-label="Infrastructure navigation" className={sectionClass}>
+                <div>
+                  <p className={sectionLabelClass}>Infrastructure</p>
+                </div>
+                <ul className={itemListClass}>
                   <li key={INFRASTRUCTURE_VIEW}>
                     <Link
                       href={buildViewHref(INFRASTRUCTURE_VIEW, range, monitorId)}
-                      title={PERFORMANCE_VIEW_LABELS[INFRASTRUCTURE_VIEW]}
-                      className={`group relative flex items-center rounded-xl py-2.5 text-xs font-bold transition-all duration-200 ease-out ${linkPad} ${
-                        activeTab === 'performance' && activeView === INFRASTRUCTURE_VIEW
-                          ? 'border border-emerald-300/20 bg-emerald-400/10 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.20)] motion-safe:animate-[pulse_0.2s_ease-out_1]'
-                          : 'border border-transparent text-zinc-400 hover:bg-white/5 hover:text-white'
-                      }`}
+                      className={`group ${itemBaseClass} ${linkLayoutClass} ${itemStateClass(activeTab === 'performance' && activeView === INFRASTRUCTURE_VIEW)}`}
                     >
                       <Layers
                         className={`${iconClass} shrink-0 transition-colors duration-300 ${
@@ -138,12 +138,7 @@ export function MonitorSidebarRail({
                   <li key="security">
                     <Link
                       href={buildMonitorHref('security', range, null, '', monitorId)}
-                      title={TAB_LABELS.security}
-                      className={`group relative flex items-center rounded-xl py-2.5 text-xs font-bold transition-all duration-200 ease-out ${linkPad} ${
-                        activeTab === 'security'
-                          ? 'border border-emerald-300/20 bg-emerald-400/10 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.20)] motion-safe:animate-[pulse_0.2s_ease-out_1]'
-                          : 'border border-transparent text-zinc-400 hover:bg-white/5 hover:text-white'
-                      }`}
+                      className={`group ${itemBaseClass} ${linkLayoutClass} ${itemStateClass(activeTab === 'security')}`}
                     >
                       <Lock
                         className={`${iconClass} shrink-0 transition-colors duration-300 ${
@@ -157,9 +152,11 @@ export function MonitorSidebarRail({
                 </ul>
               </section>
 
-              <section aria-label="Configuration navigation" className="space-y-1.5">
-                <p className={sectionLabelClass}>Configuration</p>
-                <ul className="space-y-2">
+              <section aria-label="Configuration navigation" className={sectionClass}>
+                <div>
+                  <p className={sectionLabelClass}>Configuration</p>
+                </div>
+                <ul className={itemListClass}>
                   {CONFIG_TABS.map(tab => {
                     const Icon = TAB_ICONS[tab]
                     const isActive = activeTab === tab
@@ -168,12 +165,7 @@ export function MonitorSidebarRail({
                       <li key={tab}>
                         <Link
                           href={buildMonitorHref(tab, range, tab === 'incidents' ? filteredAlertType : null, '', monitorId)}
-                          title={label}
-                          className={`group relative flex items-center rounded-xl py-2.5 text-xs font-bold transition-all duration-200 ease-out ${linkPad} ${
-                            isActive
-                              ? 'border border-emerald-300/20 bg-emerald-400/10 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.20)] motion-safe:animate-[pulse_0.2s_ease-out_1]'
-                              : 'border border-transparent text-zinc-400 hover:bg-white/5 hover:text-white'
-                          }`}
+                          className={`group ${itemBaseClass} ${linkLayoutClass} ${itemStateClass(isActive)}`}
                         >
                           <Icon
                             className={`${iconClass} shrink-0 transition-colors duration-300 ${
