@@ -14,9 +14,11 @@ interface Props {
   watchId?: string
   /** How long to wait after the last qualifying message before refreshing. Default: 2000 ms. */
   debounceMs?: number
+  /** Optional storage key to pause refreshes if the value is '1'. */
+  pauseStorageKey?: string
 }
 
-export function RealTimeHub({ userId, watchId, debounceMs = 1_000 }: Props) {
+export function RealTimeHub({ userId, watchId, debounceMs = 1_000, pauseStorageKey }: Props) {
   const router = useRouter()
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -32,6 +34,13 @@ export function RealTimeHub({ userId, watchId, debounceMs = 1_000 }: Props) {
     es.onmessage = (event) => {
       const incomingId = event.data.trim()
       if (!shouldRefresh(incomingId, watchId)) return
+
+      const isFrozen = Boolean(
+        pauseStorageKey &&
+          typeof window !== 'undefined' &&
+          window.localStorage.getItem(pauseStorageKey) === '1'
+      )
+      if (isFrozen) return
 
       // Debounce: batch rapid multi-region updates into a single refresh
       if (timerRef.current) clearTimeout(timerRef.current)

@@ -1,9 +1,8 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
-import { useState, useTransition, useEffect, useRef } from 'react'
+import { useState, useTransition, useRef } from 'react'
 import { invalidateMonitorsSummary } from '@/hooks/use-monitors'
 import { BarChart3, Check, ChevronRight, Globe, Lightbulb, Map, X, Zap } from 'lucide-react'
 import { GlobalHeader } from '@/components/dashboard/global-header'
@@ -39,20 +38,18 @@ export function NewMonitorPage({ userEmail, logoutAction }: NewMonitorPageProps)
   const [urlStatus, setUrlStatus] = useState<UrlStatus>('idle')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => {
-    if (!urlValue.trim()) {
+  const handleUrlChange = (val: string) => {
+    setUrlValue(val)
+    if (!val.trim()) {
       setUrlStatus('idle')
       return
     }
     setUrlStatus('validating')
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      setUrlStatus(isValidUrl(urlValue) ? 'valid' : 'invalid')
+      setUrlStatus(isValidUrl(val) ? 'valid' : 'invalid')
     }, 480)
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-    }
-  }, [urlValue])
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -150,7 +147,7 @@ export function NewMonitorPage({ userEmail, logoutAction }: NewMonitorPageProps)
                 placeholder="https://api.yourbase.com/v1/health"
                 required
                 value={urlValue}
-                onChange={e => setUrlValue(e.target.value)}
+                onChange={e => handleUrlChange(e.target.value)}
                 className={`cs-input h-11 w-full !pl-[44px] !pr-[40px] text-[13px] font-semibold tracking-tight transition-all duration-200 ${
                   errors.url
                     ? 'cs-input-error'

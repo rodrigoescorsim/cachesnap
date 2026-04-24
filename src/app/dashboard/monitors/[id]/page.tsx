@@ -909,6 +909,18 @@ export default async function MonitorDetailPage({
   const totalProbes = stats.reduce((sum, s) => sum + s.probe_count, 0)
   const isCollecting = totalProbes < 3
 
+  // LIVE TAB AGGREGATES (Based on latest probes)
+  const validLiveTtfb = latestProbes.filter(p => p.ttfb_ms !== null);
+  const liveAvgTtfb = validLiveTtfb.length > 0
+    ? Math.round(validLiveTtfb.reduce((acc, p) => acc + (p.ttfb_ms || 0), 0) / validLiveTtfb.length)
+    : 0;
+
+  const validLiveCache = latestProbes.filter(p => p.common_cache_status !== null && p.common_cache_status !== 'HIDDEN');
+  const liveHitCount = validLiveCache.filter(p => isCacheHit(p.common_cache_status?.toUpperCase() ?? null)).length;
+  const liveGlobalHitRate = validLiveCache.length > 0
+    ? Math.round((liveHitCount / validLiveCache.length) * 100)
+    : 0;
+
   // AGGREGATE CALCULATIONS FOR SUMMARY CARDS
   const avgTtfb = stats.length > 0
     ? Math.round(stats.reduce((acc, s) => acc + (s.ttfb_avg_ms || 0), 0) / stats.length)
@@ -944,7 +956,7 @@ export default async function MonitorDetailPage({
 
   return (
     <div className="space-y-5">
-      <RealTimeHub userId={user.id} watchId={monitor.id} />
+      <RealTimeHub userId={user.id} watchId={monitor.id} pauseStorageKey={liveFreezeStorageKey} />
       <AutoRefresh pauseStorageKey={liveFreezeStorageKey} />
       <div className={`${MONITOR_HEADER_CARD} min-w-0`}>
         {/* Uma linha: contexto (esq.) | estado + ações (dir.) — alinhamento tipo SaaS */}
@@ -998,6 +1010,24 @@ export default async function MonitorDetailPage({
               className="flex shrink-0 items-center gap-2 sm:gap-3"
               aria-label="Monitor actions"
             >
+              {/* Active Alerts compact badge */}
+              <PremiumTooltip
+                content={alerts.length > 0 ? `${alerts.length} active alert${alerts.length !== 1 ? 's' : ''} — click to review` : 'No active alerts'}
+                position="top-left"
+              >
+                <Link
+                  href={buildMonitorHref('incidents', range, null, '', monitor.id)}
+                  scroll={false}
+                  className={`inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0 text-[10px] font-bold uppercase tracking-tight transition-all hover:opacity-80 ${alerts.length > 0
+                    ? 'border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500/20'
+                    : 'border-border bg-white/5 text-zinc-500'
+                    }`}
+                >
+                  <AlertTriangle className={`h-3 w-3 shrink-0 ${alerts.length > 0 ? 'text-red-400' : 'text-zinc-500'}`} />
+                  <span>{alerts.length > 0 ? alerts.length : '—'}</span>
+                </Link>
+              </PremiumTooltip>
+
               <div
                 className="h-6 w-px shrink-0 bg-black/[0.08] opacity-30 dark:bg-white/[0.05]"
                 aria-hidden
@@ -1008,124 +1038,7 @@ export default async function MonitorDetailPage({
         </div>
       </div>
 
-      {!isCollecting && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2">
-              <History className="h-3 w-3" />
-              Monitor Overview • Last {range}
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* HEALTH SCORE CARD */}
-            <Link
-              href={buildMonitorHref('performance', range, null, '', monitor.id)}
-              scroll={false}
-              className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
-            >
-              <div className="cs-card-wash opacity-40" />
-              <div className="relative z-10">
-                <div className="flex items-start justify-between">
-                  <PremiumTooltip content={`Weighted performance score based on availability and latency during the last ${range}`}>
-                    <p className="cs-metric-card-label">Health Score</p>
-                  </PremiumTooltip>
-                  <Activity className={`h-4 w-4 ${healthScore > 90 ? 'text-metric-ttfb-fast' : 'text-amber-400'}`} />
-                </div>
-                <div className="flex items-baseline gap-2 mt-1.5">
-                  <span className="text-[26px] font-bold text-white tracking-tight">{healthScore}/<span className="text-zinc-600">100</span></span>
-                  {hasHistory && healthDelta !== 0 && (
-                    <PremiumTooltip content={`${healthDelta > 0 ? '+' : ''}${healthDelta}% compared to the prior period`} position="top-center" direction="top">
-                      <span className={`text-[11px] font-bold cursor-help ${healthDelta > 0 ? 'text-metric-ttfb-fast' : 'text-red-400'}`}>
-                        {healthDelta > 0 ? '↑' : '↓'} {Math.abs(healthDelta)}%
-                      </span>
-                    </PremiumTooltip>
-                  )}
-                </div>
-                <p className="text-[11px] text-zinc-500 mt-1 font-medium">Global edge resilience</p>
-              </div>
-            </Link>
-
-            {/* GLOBAL TTFB CARD */}
-            <Link
-              href={buildViewHref('trends', range, monitor.id)}
-              scroll={false}
-              className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
-            >
-              <div className="cs-card-wash opacity-40" />
-              <div className="relative z-10">
-                <div className="flex items-start justify-between">
-                  <PremiumTooltip content={`Global average Time to First Byte during the last ${range}`}>
-                    <p className="cs-metric-card-label">Global TTFB</p>
-                  </PremiumTooltip>
-                  <Zap className={`h-4 w-4 ${avgTtfb < 200 ? 'text-metric-ttfb-fast' : avgTtfb < 500 ? 'text-amber-400' : 'text-red-400'}`} />
-                </div>
-                <div className="flex items-baseline gap-2 mt-1.5">
-                  <span className="text-[26px] font-bold text-white tracking-tight">{avgTtfb}<span className="text-lg ml-0.5 text-zinc-500">ms</span></span>
-                  {hasHistory && ttfbDelta !== 0 && (
-                    <PremiumTooltip content={`${ttfbDelta > 0 ? '+' : '-'}${Math.abs(ttfbDelta)}ms compared to the prior period`} position="top-center" direction="top">
-                      <span className={`text-[11px] font-bold cursor-help ${ttfbDelta <= 0 ? 'text-metric-ttfb-fast' : 'text-amber-500'}`}>
-                        {ttfbDelta <= 0 ? '↓' : '↑'} {Math.abs(ttfbDelta)}ms
-                      </span>
-                    </PremiumTooltip>
-                  )}
-                </div>
-                <p className="text-[11px] text-zinc-500 mt-1 font-medium">Latency across {stats.length} regions</p>
-              </div>
-            </Link>
-
-            {/* CACHE HIT RATE CARD */}
-            <Link
-              href={buildViewHref('infrastructure', range, monitor.id)}
-              scroll={false}
-              className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
-            >
-              <div className="cs-card-wash opacity-60" />
-              <div className="relative z-10">
-                <div className="flex items-start justify-between">
-                  <PremiumTooltip content={`Percentage of requests successfully served from CDN edge cache during the last ${range}`}>
-                    <p className="cs-metric-card-label">Cache Hit Rate</p>
-                  </PremiumTooltip>
-                  <ShieldCheck className="h-4 w-4 text-metric-ttfb-fast" />
-                </div>
-                <div className="flex items-baseline gap-2 mt-1.5">
-                  <span className="text-[26px] font-bold text-white tracking-tight">{globalHitRate}<span className="text-lg ml-0.5 text-zinc-500">%</span></span>
-                  {hasHistory && cacheDelta !== 0 && (
-                    <PremiumTooltip content={`${cacheDelta > 0 ? '+' : ''}${cacheDelta}% compared to the prior period`} position="top-center" direction="top">
-                      <span className={`text-[11px] font-bold cursor-help ${cacheDelta >= 0 ? 'text-metric-ttfb-fast' : 'text-red-400'}`}>
-                        {cacheDelta >= 0 ? '↑' : '↓'} {Math.abs(cacheDelta)}%
-                      </span>
-                    </PremiumTooltip>
-                  )}
-                </div>
-                <p className="text-[11px] text-zinc-500 mt-1 font-medium">Total edge delivery efficiency</p>
-              </div>
-            </Link>
-
-            {/* ACTIVE ALERTS CARD */}
-            <Link
-              href={buildMonitorHref('incidents', range, null, '', monitor.id)}
-              scroll={false}
-              className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
-            >
-              <div className={`cs-card-wash ${alerts.length > 0 ? 'opacity-40 bg-gradient-to-br from-red-500/10 to-transparent' : 'opacity-40'}`} />
-              <div className="relative z-10">
-                <div className="flex items-start justify-between">
-                  <PremiumTooltip content={`Count of anomalous events or failures detected during the last ${range}`}>
-                    <p className="cs-metric-card-label">Active Alerts</p>
-                  </PremiumTooltip>
-                  <AlertTriangle className={`h-4 w-4 ${alerts.length > 0 ? 'text-red-400' : 'text-emerald-400'}`} />
-                </div>
-                <div className="flex items-baseline gap-2 mt-1.5">
-                  <span className={`text-[26px] font-bold tracking-tight ${alerts.length > 0 ? 'text-red-400' : 'text-white'}`}>
-                    {alerts.length === 0 ? 'Clean' : alerts.length}
-                  </span>
-                </div>
-                <p className="text-[11px] text-zinc-500 mt-1 font-medium">Live anomaly detection</p>
-              </div>
-            </Link>
-          </div>
-        </div>
-      )}
+      {/* Overview cards are now rendered per-tab (Live + Trends only) */}
 
       {isCollecting && (
         <div className="cs-tint-warning p-4 flex items-start gap-4">
@@ -1154,11 +1067,52 @@ export default async function MonitorDetailPage({
             <div>
               {activeView === 'real-time' && (
                 <div className="space-y-10">
-                  <section>
+                  <section className="space-y-5">
                     <LiveActivityHeader
                       monitorId={monitor.id}
                       freezeStorageKey={liveFreezeStorageKey}
                     />
+
+                    {/* LIVE TAB — Summary cards moved here */}
+                    {!isCollecting && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* GLOBAL TTFB */}
+                        <Link
+                          href={buildViewHref('trends', range, monitor.id)}
+                          scroll={false}
+                          className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
+                        >
+                          <div className="cs-card-wash opacity-40" />
+                          <div className="relative z-10 flex items-center justify-between">
+                            <PremiumTooltip content="Global average Time to First Byte across the latest regional probes">
+                              <p className="cs-metric-card-label !text-[11px]">Global TTFB</p>
+                            </PremiumTooltip>
+                            <div className="flex items-center gap-3">
+                              <span className="text-[24px] font-bold text-white tracking-tight leading-none">{liveAvgTtfb}<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
+                              <Zap className={`h-5 w-5 ${liveAvgTtfb < 200 ? 'text-metric-ttfb-fast' : liveAvgTtfb < 500 ? 'text-amber-400' : 'text-red-400'}`} />
+                            </div>
+                          </div>
+                        </Link>
+
+                        {/* CACHE HIT RATE */}
+                        <Link
+                          href={buildViewHref('infrastructure', range, monitor.id)}
+                          scroll={false}
+                          className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
+                        >
+                          <div className="cs-card-wash opacity-60" />
+                          <div className="relative z-10 flex items-center justify-between">
+                            <PremiumTooltip content="Percentage of requests successfully served from CDN edge cache in the latest probes">
+                              <p className="cs-metric-card-label !text-[11px]">Cache Hit Rate</p>
+                            </PremiumTooltip>
+                            <div className="flex items-center gap-3">
+                              <span className="text-[24px] font-bold text-white tracking-tight leading-none">{liveGlobalHitRate}<span className="text-base ml-0.5 text-zinc-500">%</span></span>
+                              <ShieldCheck className="h-5 w-5 text-metric-ttfb-fast" />
+                            </div>
+                          </div>
+                        </Link>
+                      </div>
+                    )}
                     {latestProbes.length === 0 ? (
                       <p className="text-sm text-zinc-400 italic">Listening for incoming probes...</p>
                     ) : (
@@ -1322,7 +1276,7 @@ export default async function MonitorDetailPage({
                                         )
                                       })()}
                                     </td>
-                                    <td className="cs-table-compact-td text-right !text-zinc-600 !text-[10px] tabular-nums">
+                                    <td className="cs-table-compact-td text-right !text-zinc-500 !text-[10px] tabular-nums">
                                       {s.last_probe_at ? (
                                         <PremiumTooltip content={`Probe synchronized at ${new Date(s.last_probe_at).toLocaleString()}`} position="top-right" direction="top">
                                           {new Date(s.last_probe_at).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -1331,7 +1285,7 @@ export default async function MonitorDetailPage({
                                     </td>
                                     {process.env.NODE_ENV === 'development' && (
                                       <td className="px-3 py-2 text-right whitespace-nowrap">
-                                        <span className="text-[9px] font-bold text-zinc-400 font-mono bg-zinc-100 dark:bg-zinc-800/50 px-1 py-0.5 rounded">
+                                        <span className="text-[9px] font-bold !text-zinc-500 font-mono bg-zinc-100 dark:bg-zinc-800/50 px-1 py-0.5 rounded">
                                           {s.probe_version || '—'}
                                         </span>
                                       </td>
@@ -1350,25 +1304,123 @@ export default async function MonitorDetailPage({
 
               {activeView === 'trends' && (
                 <div className="space-y-10">
+                  {/* TRENDS TAB — Summary cards (react to time range selector) */}
+                  {!isCollecting && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between px-1">
+                        <h2 className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                          <History className="h-3 w-3" />
+                          {range.toUpperCase()} Summary
+                        </h2>
+                        {/* Time range selector — mirrored here so it's immediately visible above the cards */}
+                        <div className="flex items-center gap-1.5 rounded-lg bg-zinc-100 dark:bg-white/5 p-1 border border-zinc-200 dark:border-white/10">
+                          {['24h', '7d', '30d'].map((r) => (
+                            <Link
+                              key={r}
+                              href={buildViewHref('trends', r)}
+                              className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${range === r
+                                ? 'bg-zinc-100 text-zinc-900 shadow-lg shadow-white/5 ring-1 ring-white/10'
+                                : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
+                                }`}
+                            >
+                              {r}
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {/* HEALTH SCORE */}
+                        <Link
+                          href={buildMonitorHref('performance', range, null, '', monitor.id)}
+                          scroll={false}
+                          className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
+                        >
+                          <div className="cs-card-wash opacity-40" />
+                          <div className="relative z-10">
+                            <div className="flex items-start justify-between">
+                              <PremiumTooltip content={`Weighted performance score based on availability and latency during the last ${range}`}>
+                                <p className="cs-metric-card-label">Health Score</p>
+                              </PremiumTooltip>
+                              <Activity className={`h-4 w-4 ${healthScore > 90 ? 'text-metric-ttfb-fast' : 'text-amber-400'}`} />
+                            </div>
+                            <div className="flex items-baseline gap-2 mt-1.5">
+                              <span className="text-[26px] font-bold text-white tracking-tight">{healthScore}/<span className="text-zinc-600">100</span></span>
+                              {hasHistory && healthDelta !== 0 && (
+                                <PremiumTooltip content={`${healthDelta > 0 ? '+' : ''}${healthDelta}% compared to the prior period`} position="top-center" direction="top">
+                                  <span className={`text-[11px] font-bold cursor-help ${healthDelta > 0 ? 'text-metric-ttfb-fast' : 'text-red-400'}`}>
+                                    {healthDelta > 0 ? '↑' : '↓'} {Math.abs(healthDelta)}%
+                                  </span>
+                                </PremiumTooltip>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-zinc-500 mt-1 font-medium">Global edge resilience</p>
+                          </div>
+                        </Link>
+
+                        {/* GLOBAL TTFB */}
+                        <Link
+                          href={buildViewHref('trends', range, monitor.id)}
+                          scroll={false}
+                          className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
+                        >
+                          <div className="cs-card-wash opacity-40" />
+                          <div className="relative z-10">
+                            <div className="flex items-start justify-between">
+                              <PremiumTooltip content={`Global average Time to First Byte during the last ${range}`}>
+                                <p className="cs-metric-card-label">Global TTFB</p>
+                              </PremiumTooltip>
+                              <Zap className={`h-4 w-4 ${avgTtfb < 200 ? 'text-metric-ttfb-fast' : avgTtfb < 500 ? 'text-amber-400' : 'text-red-400'}`} />
+                            </div>
+                            <div className="flex items-baseline gap-2 mt-1.5">
+                              <span className="text-[26px] font-bold text-white tracking-tight">{avgTtfb}<span className="text-lg ml-0.5 text-zinc-500">ms</span></span>
+                              {hasHistory && ttfbDelta !== 0 && (
+                                <PremiumTooltip content={`${ttfbDelta > 0 ? '+' : '-'}${Math.abs(ttfbDelta)}ms compared to the prior period`} position="top-center" direction="top">
+                                  <span className={`text-[11px] font-bold cursor-help ${ttfbDelta <= 0 ? 'text-metric-ttfb-fast' : 'text-amber-500'}`}>
+                                    {ttfbDelta <= 0 ? '↓' : '↑'} {Math.abs(ttfbDelta)}ms
+                                  </span>
+                                </PremiumTooltip>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-zinc-500 mt-1 font-medium">Latency across {stats.length} regions</p>
+                          </div>
+                        </Link>
+
+                        {/* CACHE HIT RATE */}
+                        <Link
+                          href={buildViewHref('infrastructure', range, monitor.id)}
+                          scroll={false}
+                          className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
+                        >
+                          <div className="cs-card-wash opacity-60" />
+                          <div className="relative z-10">
+                            <div className="flex items-start justify-between">
+                              <PremiumTooltip content={`Percentage of requests successfully served from CDN edge cache during the last ${range}`}>
+                                <p className="cs-metric-card-label">Cache Hit Rate</p>
+                              </PremiumTooltip>
+                              <ShieldCheck className="h-4 w-4 text-metric-ttfb-fast" />
+                            </div>
+                            <div className="flex items-baseline gap-2 mt-1.5">
+                              <span className="text-[26px] font-bold text-white tracking-tight">{globalHitRate}<span className="text-lg ml-0.5 text-zinc-500">%</span></span>
+                              {hasHistory && cacheDelta !== 0 && (
+                                <PremiumTooltip content={`${cacheDelta > 0 ? '+' : ''}${cacheDelta}% compared to the prior period`} position="top-center" direction="top">
+                                  <span className={`text-[11px] font-bold cursor-help ${cacheDelta >= 0 ? 'text-metric-ttfb-fast' : 'text-red-400'}`}>
+                                    {cacheDelta >= 0 ? '↑' : '↓'} {Math.abs(cacheDelta)}%
+                                  </span>
+                                </PremiumTooltip>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-zinc-500 mt-1 font-medium">Total edge delivery efficiency</p>
+                          </div>
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+
                   <section>
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
+                    <div className="mb-4">
                       <h2 className="cs-view-section-title">
                         Global Performance • Last {range.toUpperCase()}
                       </h2>
-                      <div className="flex items-center gap-1.5 rounded-lg bg-zinc-100 dark:bg-white/5 p-1 border border-zinc-200 dark:border-white/10">
-                        {['24h', '7d', '30d'].map((r) => (
-                          <Link
-                            key={r}
-                            href={buildViewHref(activeView, r)}
-                            className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${range === r
-                                ? 'bg-zinc-100 text-zinc-900 shadow-lg shadow-white/5 ring-1 ring-white/10'
-                                : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
-                              }`}
-                          >
-                            {r}
-                          </Link>
-                        ))}
-                      </div>
                     </div>
                     {stats.length === 0 ? (
                       <p className="text-sm text-zinc-400">Compiling historical insights...</p>
@@ -1750,8 +1802,8 @@ export default async function MonitorDetailPage({
                                   </div>
                                   <div
                                     className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 ${urgent
-                                        ? 'border-red-500/30 bg-red-500/10'
-                                        : 'border-emerald-500/25 bg-emerald-500/[0.07]'
+                                      ? 'border-red-500/30 bg-red-500/10'
+                                      : 'border-emerald-500/25 bg-emerald-500/[0.07]'
                                       }`}
                                   >
                                     <span
@@ -2127,8 +2179,8 @@ export default async function MonitorDetailPage({
                             const alertTypeIcon = alert.alert_type === 'down'
                               ? <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" />
                               : alert.alert_type === 'anomaly'
-                              ? <Zap className="w-3 h-3 text-amber-500 shrink-0" />
-                              : <AlertCircle className="w-3 h-3 text-zinc-400 shrink-0" />
+                                ? <Zap className="w-3 h-3 text-amber-500 shrink-0" />
+                                : <AlertCircle className="w-3 h-3 text-zinc-400 shrink-0" />
 
                             return (
                               <Fragment key={alert.id}>
