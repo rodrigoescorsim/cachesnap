@@ -243,7 +243,7 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
                   <td className="px-4 py-4 text-right">
                     <div className="flex flex-col items-end">
                       {isOriginHit ? (
-                        <PremiumTooltip content="The origin server could not be reached directly as the Edge served a HIT. This makes a comparison impossible for this window.">
+                        <PremiumTooltip content="Origin latency unavailable because all requests were served from cache.">
                           <div className="flex flex-col items-end cursor-help">
                             <span className="text-[11px] font-bold text-zinc-500 italic">Inconclusive</span>
                             <span className="text-[9px] font-black text-zinc-600 uppercase tracking-tighter">Origin Forced HIT</span>

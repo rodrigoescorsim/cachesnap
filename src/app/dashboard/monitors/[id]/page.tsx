@@ -616,17 +616,17 @@ export default async function MonitorDetailPage({
   const alertTypeValue = readFirst(rawSearchParams.alert_type)
 
   const range = rangeValue === '7d' ? '7d'
-              : rangeValue === '30d' ? '30d'
-              : rangeValue === '90d' ? '90d'
-              : '24h'
-  const dbInterval = range === '7d'  ? '7 days'
-                   : range === '30d' ? '30 days'
-                   : range === '90d' ? '90 days'
-                   : '24 hours'
-  const bucketSize = range === '7d'  ? '6 hours'
-                   : range === '30d' ? '1 day'
-                   : range === '90d' ? '3 days'
-                   : '30 minutes'
+    : rangeValue === '30d' ? '30d'
+      : rangeValue === '90d' ? '90d'
+        : '24h'
+  const dbInterval = range === '7d' ? '7 days'
+    : range === '30d' ? '30 days'
+      : range === '90d' ? '90 days'
+        : '24 hours'
+  const bucketSize = range === '7d' ? '6 hours'
+    : range === '30d' ? '1 day'
+      : range === '90d' ? '3 days'
+        : '30 minutes'
   const activeTab = normalizeTab(tabValue)
   const filteredAlertType = normalizeAlertType(alertTypeValue)
   const activeView: PerformanceView = activeTab === 'performance' ? normalizeView(viewValue) : 'real-time'
@@ -1173,15 +1173,15 @@ export default async function MonitorDetailPage({
                         >
                           <div className="cs-card-wash opacity-40" />
                           <div className="relative z-10 flex items-center justify-between">
-                            <PremiumTooltip content="Global average Time to First Byte across the latest regional probes">
+                            <PremiumTooltip content="Average global latency from recent probes">
                               <p className="cs-metric-card-label !text-[11px]">Global TTFB</p>
                             </PremiumTooltip>
-                             <PremiumTooltip content={getTtfbTooltip(liveAvgTtfb, 'global')}>
-                               <div className="flex items-center gap-3">
-                                 <span className={`text-[24px] font-bold tracking-tight leading-none ${getTtfbColorClass(liveAvgTtfb, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{liveAvgTtfb}<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
-                                 <Gauge className={`h-5 w-5 stroke-[2.5] ${getTtfbColorClass(liveAvgTtfb, 'global')}`} />
-                               </div>
-                             </PremiumTooltip>
+                            <PremiumTooltip content={getTtfbTooltip(liveAvgTtfb, 'global')}>
+                              <div className="flex items-center gap-3">
+                                <span className={`text-[24px] font-bold tracking-tight leading-none ${getTtfbColorClass(liveAvgTtfb, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{liveAvgTtfb}<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
+                                <Gauge className={`h-5 w-5 stroke-[2.5] ${getTtfbColorClass(liveAvgTtfb, 'global')}`} />
+                              </div>
+                            </PremiumTooltip>
                           </div>
                         </Link>
 
@@ -1193,15 +1193,15 @@ export default async function MonitorDetailPage({
                         >
                           <div className="cs-card-wash opacity-60" />
                           <div className="relative z-10 flex items-center justify-between">
-                            <PremiumTooltip content="Percentage of requests successfully served from CDN edge cache in the latest probes">
+                            <PremiumTooltip content="Cache hit rate from recent probes">
                               <p className="cs-metric-card-label !text-[11px]">Cache Hit Rate</p>
                             </PremiumTooltip>
-                             <PremiumTooltip content={getCacheTooltip(liveGlobalHitRate, 'global')}>
-                               <div className="flex items-center gap-3">
-                                 <span className={`text-[24px] font-bold tracking-tight leading-none ${getCacheColor(liveGlobalHitRate, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{liveGlobalHitRate}<span className="text-base ml-0.5 text-zinc-500">%</span></span>
-                                 <Zap className={`h-5 w-5 fill-current ${getCacheColor(liveGlobalHitRate, 'global')}`} />
-                               </div>
-                             </PremiumTooltip>
+                            <PremiumTooltip content={getCacheTooltip(liveGlobalHitRate, 'global')}>
+                              <div className="flex items-center gap-3">
+                                <span className={`text-[24px] font-bold tracking-tight leading-none ${getCacheColor(liveGlobalHitRate, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{liveGlobalHitRate}<span className="text-base ml-0.5 text-zinc-500">%</span></span>
+                                <Zap className={`h-5 w-5 fill-current ${getCacheColor(liveGlobalHitRate, 'global')}`} />
+                              </div>
+                            </PremiumTooltip>
                           </div>
                         </Link>
                       </div>
@@ -1218,28 +1218,28 @@ export default async function MonitorDetailPage({
                             <thead>
                               <tr className={MONITOR_TABLE.theadRow}>
                                 <th className="cs-table-compact-th !text-center">
-                                  <PremiumTooltip content="Region where the probe was executed" position="top-center" direction="top">Region</PremiumTooltip>
+                                  <PremiumTooltip content="Geographic region" position="top-center" direction="top">Region</PremiumTooltip>
                                 </th>
                                 <th className="cs-table-compact-th !text-center">
-                                  <PremiumTooltip content="Point of presence (PoP) inferred from response headers" position="top-center" direction="top">Served from</PremiumTooltip>
+                                  <PremiumTooltip content="Edge node location (PoP)" position="top-center" direction="top">Served from</PremiumTooltip>
                                 </th>
                                 <th className="cs-table-compact-th !text-center">
-                                  <PremiumTooltip content="Edge provider identity (explicit header or inferred from response)" position="top-center" direction="top">Served by</PremiumTooltip>
+                                  <PremiumTooltip content="CDN or edge provider" position="top-center" direction="top">Served by</PremiumTooltip>
                                 </th>
                                 <th className="cs-table-compact-th !text-center">
-                                  <PremiumTooltip content="Cache status from headers" position="top-center" direction="top">Cache</PremiumTooltip>
+                                  <PremiumTooltip content="Cache hit or miss" position="top-center" direction="top">Cache</PremiumTooltip>
                                 </th>
                                 <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER}`}>
                                   <PremiumTooltip content="Time to first byte" position="top-center" direction="top">TTFB</PremiumTooltip>
                                 </th>
                                 <th className="cs-table-compact-th !text-center">
-                                  <PremiumTooltip content="Age header (shared cache)" position="top-center" direction="top">Age</PremiumTooltip>
+                                  <PremiumTooltip content="Cache age (seconds)" position="top-center" direction="top">Age</PremiumTooltip>
                                 </th>
                                 <th className="cs-table-compact-th !text-center">
-                                  <PremiumTooltip content="HTTP status code" position="top-center" direction="top">Status</PremiumTooltip>
+                                  <PremiumTooltip content="HTTP response code" position="top-center" direction="top">Status</PremiumTooltip>
                                 </th>
                                 <th className="cs-table-compact-th !text-center">
-                                  <PremiumTooltip content="Last synchronization time" position="top-center" direction="top">Sync</PremiumTooltip>
+                                  <PremiumTooltip content="Time of last check" position="top-center" direction="top">Sync</PremiumTooltip>
                                 </th>
                                 {process.env.NODE_ENV === 'development' && (
                                   <th
@@ -1332,7 +1332,7 @@ export default async function MonitorDetailPage({
                                       </PremiumTooltip>
                                     </td>
                                     <td className={`${ttfbMetricCellClass(s.ttfb_ms)} !px-3 !py-2 text-[13px]`}>
-                                      <PremiumTooltip content="Response time for this specific probe" position="top-right" direction="top"><VisualGlow value={s.ttfb_ms}>{s.ttfb_ms != null ? `${Math.round(s.ttfb_ms)}ms` : '—'}</VisualGlow></PremiumTooltip>
+                                      <PremiumTooltip content="Latency for this check" position="top-right" direction="top"><VisualGlow value={s.ttfb_ms}>{s.ttfb_ms != null ? `${Math.round(s.ttfb_ms)}ms` : '—'}</VisualGlow></PremiumTooltip>
                                     </td>
                                     <td className="cs-table-compact-td text-right">
                                       {age > 0 && ageVisual ? (
@@ -1363,7 +1363,7 @@ export default async function MonitorDetailPage({
                                                 <span className="cs-badge-flat cs-badge-flat-danger">ERR</span>
                                               </PremiumTooltip>
                                             ) : (
-                                              <PremiumTooltip content="Request completed successfully (200 OK)" position="top-right" direction="top"><span className={`cs-badge-flat ${colorClass}`}>{code || '200'}</span></PremiumTooltip>
+                                              <PremiumTooltip content="Successful request" position="top-right" direction="top"><span className={`cs-badge-flat ${colorClass}`}>{code || '200'}</span></PremiumTooltip>
                                             )}
                                           </div>
                                         )
@@ -1480,34 +1480,34 @@ export default async function MonitorDetailPage({
                                       <PremiumTooltip content="Geographic region" position="top-center" direction="top">Region</PremiumTooltip>
                                     </th>
                                     <th className="cs-table-compact-th !text-center">
-                                      <PremiumTooltip content="Point of presence (PoP) inferred from response headers" position="top-center" direction="top">Served from</PremiumTooltip>
+                                      <PremiumTooltip content="Edge node location (PoP)" position="top-center" direction="top">Served from</PremiumTooltip>
                                     </th>
                                     <th className="cs-table-compact-th !text-center">
-                                      <PremiumTooltip content="Edge provider identity (explicit header or inferred from response)" position="top-center" direction="top">Served by</PremiumTooltip>
+                                      <PremiumTooltip content="CDN or edge provider" position="top-center" direction="top">Served by</PremiumTooltip>
                                     </th>
                                     <th className="cs-table-compact-th !text-center">
-                                      <PremiumTooltip content="Cache effectiveness percentage" position="top-center" direction="top">Cache</PremiumTooltip>
+                                      <PremiumTooltip content="Cache efficiency" position="top-center" direction="top">Cache</PremiumTooltip>
                                     </th>
                                     {showSplitTtfb ? (
                                       <>
                                         <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER}`}>
-                                          <PremiumTooltip content="Time to First Byte served from Edge" position="top-center" direction="top">Edge TTFB</PremiumTooltip>
+                                          <PremiumTooltip content="Latency when served from cache" position="top-center" direction="top">Edge TTFB</PremiumTooltip>
                                         </th>
                                         <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER_ORIGIN}`}>
-                                          <PremiumTooltip content="Time to First Byte served from Origin (Bypass)" position="top-center" direction="top">Origin TTFB</PremiumTooltip>
+                                          <PremiumTooltip content="Latency when bypassing cache" position="top-center" direction="top">Origin TTFB</PremiumTooltip>
                                         </th>
                                         <th className={`cs-table-compact-th !text-center border-l border-white/5 ${TH_TTFB_HEADER}`}>
-                                          <PremiumTooltip content="Overall weighted average TTFB" position="top-center" direction="top">Avg TTFB</PremiumTooltip>
+                                          <PremiumTooltip content="Average latency" position="top-center" direction="top">Avg TTFB</PremiumTooltip>
                                         </th>
                                       </>
                                     ) : (
                                       <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER}`}>
-                                        <PremiumTooltip content="Average TTFB" position="top-center" direction="top">Avg TTFB</PremiumTooltip>
+                                        <PremiumTooltip content="Average latency" position="top-center" direction="top">Avg TTFB</PremiumTooltip>
                                       </th>
                                     )}
 
                                     <th className="cs-table-compact-th !text-center whitespace-nowrap">
-                                      <PremiumTooltip content="Min and Max TTFB observed over period" position="top-center" direction="top">Min / Max</PremiumTooltip>
+                                      <PremiumTooltip content="Minimum and maximum latency" position="top-center" direction="top">Min / Max</PremiumTooltip>
                                     </th>
                                     <th className="cs-table-compact-th !text-center">
                                       <PremiumTooltip content="Percentage of successful probes" position="top-center" direction="top">Uptime</PremiumTooltip>
@@ -1583,13 +1583,13 @@ export default async function MonitorDetailPage({
                                       {showSplitTtfb ? (
                                         <>
                                           <td className={`${edgeTtfbMetricCellClass(s.edge_hit_avg_ms)} !text-[13px] !py-2`}>
-                                            <PremiumTooltip content="Avg response time served from CDN Cache" position="top-right" direction="top">{s.edge_hit_avg_ms != null ? `${Math.round(s.edge_hit_avg_ms)}ms` : '—'}</PremiumTooltip>
+                                            <PremiumTooltip content="Average cache latency" position="top-right" direction="top">{s.edge_hit_avg_ms != null ? `${Math.round(s.edge_hit_avg_ms)}ms` : '—'}</PremiumTooltip>
                                           </td>
                                           <td className={`${originTtfbMetricCellClass(s.origin_miss_avg_ms)} !text-[13px] !py-2`}>
-                                            <PremiumTooltip content="Avg response time bypassing cache (Direct from Origin)" position="top-right" direction="top">{s.origin_miss_avg_ms != null ? `${Math.round(s.origin_miss_avg_ms)}ms` : '—'}</PremiumTooltip>
+                                            <PremiumTooltip content="Average origin latency" position="top-right" direction="top">{s.origin_miss_avg_ms != null ? `${Math.round(s.origin_miss_avg_ms)}ms` : '—'}</PremiumTooltip>
                                           </td>
                                           <td className={`${ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2 border-l border-white/5`}>
-                                            <PremiumTooltip content="Overall weighted average response time for this region" position="top-right" direction="top">{s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}</PremiumTooltip>
+                                            <PremiumTooltip content="Average latency for this region" position="top-right" direction="top">{s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}</PremiumTooltip>
                                           </td>
                                         </>
                                       ) : (
@@ -1692,8 +1692,8 @@ export default async function MonitorDetailPage({
                             const barColor = t.current_avg_ms < 200
                               ? 'var(--metric-fast, #22FF88)'
                               : t.current_avg_ms <= 500
-                              ? 'var(--metric-med, #f59e0b)'
-                              : 'var(--metric-slow, #f43f5e)'
+                                ? 'var(--metric-med, #f59e0b)'
+                                : 'var(--metric-slow, #f43f5e)'
                             const improved = t.change_pct < 0
                             return (
                               <div key={t.region} className="space-y-1.5">

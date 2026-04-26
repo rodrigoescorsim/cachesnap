@@ -58,13 +58,13 @@ import { MONITOR_TTFB, MONITOR_CACHE, getTtfbColorClass, getCacheColor, getTtfbT
 
 const TTFB_CLASS: Record<string, string> = {
   fast: 'text-metric-ttfb-fast',
-  med:  'text-metric-ttfb-med',
+  med: 'text-metric-ttfb-med',
   slow: 'text-metric-ttfb-slow',
 }
 
 const TTFB_LABEL: Record<string, string> = {
   fast: `Fast — under ${MONITOR_TTFB.FAST} ms`,
-  med:  `Moderate — ${MONITOR_TTFB.FAST}–${MONITOR_TTFB.SLOW} ms`,
+  med: `Moderate — ${MONITOR_TTFB.FAST}–${MONITOR_TTFB.SLOW} ms`,
   slow: `Slow — over ${MONITOR_TTFB.SLOW} ms`,
 }
 
@@ -175,11 +175,11 @@ function CacheHitBadge({ pct }: { pct: number | null }) {
   const tip = cacheHitTooltipText(pct)
   const cls = getCacheColor(pct, 'monitor') === 'text-metric-elite' ? 'text-metric-elite' : (
     pct >= MONITOR_CACHE.GOOD ? 'cs-badge-cache-hit'
-    : pct >= MONITOR_CACHE.LOW ? 'cs-badge-cache-dynamic'
-    : 'cs-badge-cache-miss'
+      : pct >= MONITOR_CACHE.LOW ? 'cs-badge-cache-dynamic'
+        : 'cs-badge-cache-miss'
   )
   const textClass = getCacheColor(pct, 'monitor') === 'text-metric-elite' ? 'text-metric-elite' : ''
-  
+
   return (
     <PremiumTooltip content={tip} position="top-center" direction="top">
       <span className={`${cls} ${textClass} text-[12px] font-semibold`}>{pct.toFixed(1)}%</span>
@@ -193,9 +193,8 @@ function DeltaChip({ value, inverted = false }: { value: number | null; inverted
   const Icon = value < 0 ? ArrowDown : ArrowUp
   return (
     <span
-      className={`inline-flex items-center gap-px text-[11px] font-extrabold tabular-nums leading-none ${
-        improved ? 'text-emerald-300' : 'text-metric-bad'
-      }`}
+      className={`inline-flex items-center gap-px text-[11px] font-extrabold tabular-nums leading-none ${improved ? 'text-emerald-300' : 'text-metric-bad'
+        }`}
     >
       <Icon className="h-2.5 w-2.5 stroke-[3]" aria-hidden="true" />
       {Math.abs(value).toFixed(1)}%
@@ -262,7 +261,7 @@ function RowActionsDropdown({
   const handleToggleActive = () => {
     const nextStatus = isPaused ? 'active' : 'paused'
     onOptimisticToggle(monitor.id, nextStatus)
-    
+
     startTransition(async () => {
       try {
         const res = await fetch(`/api/monitors/${monitor.id}`, {
@@ -283,17 +282,17 @@ function RowActionsDropdown({
   useEffect(() => {
     if (!isOpen) return
     updateCoords()
-    
+
     const handleDown = (e: MouseEvent | globalThis.MouseEvent) => {
       if (!(e.target as HTMLElement).closest('.cs-row-actions-dropdown-panel') &&
-          !(e.target as HTMLElement).closest('.cs-row-actions-trigger')) {
+        !(e.target as HTMLElement).closest('.cs-row-actions-trigger')) {
         setIsOpen(null)
       }
     }
     window.addEventListener('mousedown', handleDown)
     window.addEventListener('scroll', updateCoords, true)
     window.addEventListener('resize', updateCoords)
-    
+
     return () => {
       window.removeEventListener('mousedown', handleDown)
       window.removeEventListener('scroll', updateCoords, true)
@@ -302,7 +301,7 @@ function RowActionsDropdown({
   }, [isOpen, updateCoords, setIsOpen])
 
   const menu = isOpen && coords && typeof document !== 'undefined' ? createPortal(
-    <div 
+    <div
       className="cs-row-actions-dropdown-panel fixed z-[9999] w-40 overflow-hidden rounded-xl border border-slate-500/25 bg-[#172033] p-1.5 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.06)_inset] animate-in fade-in zoom-in-95 duration-150"
       style={{
         top: coords.top - 6,
@@ -321,7 +320,7 @@ function RowActionsDropdown({
         <Eye className="h-3.5 w-3.5 text-slate-500 transition-colors group-hover:text-zinc-200" />
         View details
       </button>
-      
+
       <button
         disabled={isPending}
         onClick={handleToggleActive}
@@ -447,20 +446,13 @@ function SkeletonRow({
 // ─── Column header help text ──────────────────────────────────────────────────
 
 const HEADER_HELP: Record<string, string> = {
-  monitor:
-    'Monitor name and URL being tracked. Click any row to open detailed performance diagnostics.',
-  ttfbNow:
-    'Time to first byte from the most recent check. Measures how long the server takes to start responding. Lower is better.',
-  avgTtfb24h:
-    'Average time to first byte over the last 24 hours (P50). Typical performance for your site across the day.',
-  cacheHit:
-    'Share of requests served from the edge or CDN on the latest check. Above 90% is excellent.',
-  hit24hAvg:
-    'Average cache hit rate over the last 24 hours. Higher, stable values usually mean a healthier cache setup.',
-  regions:
-    'Performance across geographic regions. "All clear" means every monitored region looks healthy. Open the row for a regional breakdown.',
-  lastCheck:
-    'Time since the last verification. Values under about a minute mean the data is still fresh.',
+  monitor: 'The monitored application and URL. Click to view detailed diagnostics.',
+  ttfbNow: 'Latency from the most recent check. Lower is better.',
+  avgTtfb24h: 'Average latency over the last 24 hours (P50).',
+  cacheHit: 'Percentage of requests served from the CDN in the latest check. Higher is better.',
+  hit24hAvg: 'Average cache efficiency over the last 24 hours.',
+  regions: 'Latency breakdown across geographic regions. "All clear" means no slow regions.',
+  lastCheck: 'Time elapsed since the last data update.',
 }
 
 // ─── Column definitions ───────────────────────────────────────────────────────
@@ -493,8 +485,8 @@ function buildMonitorColumns(
       const tier = getCacheHitTier(pct)
       const textClass =
         tier === 'high' ? 'text-emerald-400'
-        : tier === 'mid' ? 'text-amber-400'
-        : 'text-metric-bad'
+          : tier === 'mid' ? 'text-amber-400'
+            : 'text-metric-bad'
       return (
         <div className="flex flex-col gap-[3px]">
           <span className={`text-[13px] font-black tabular-nums leading-none ${textClass}`}>
@@ -672,53 +664,52 @@ function buildMonitorColumns(
       },
     }),
 
-  col.accessor('lastCheckedAt', {
-    header: () => <MonitorsThTooltip label="Last Check" description={HEADER_HELP.lastCheck} />,
-    size: 9,
-    enableSorting: true,
-    sortingFn: (a, b) =>
-      a.original.lastCheckedAt.getTime() - b.original.lastCheckedAt.getTime(),
-    cell: ({ getValue }) => {
-      const at = getValue()
-      const { text, isRecent } = formatRelativeTime(at)
-      return (
-        <PremiumTooltip
-          content={`Last check at ${at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })}.`}
-          position="top-right"
-          direction="top"
-        >
-          <span
-            className={`block cursor-default text-right text-[11px] font-semibold tabular-nums transition-colors duration-150 ${
-              isRecent ? 'text-emerald-400' : 'text-zinc-400 group-hover/row:text-zinc-300'
-            }`}
+    col.accessor('lastCheckedAt', {
+      header: () => <MonitorsThTooltip label="Last Check" description={HEADER_HELP.lastCheck} />,
+      size: 9,
+      enableSorting: true,
+      sortingFn: (a, b) =>
+        a.original.lastCheckedAt.getTime() - b.original.lastCheckedAt.getTime(),
+      cell: ({ getValue }) => {
+        const at = getValue()
+        const { text, isRecent } = formatRelativeTime(at)
+        return (
+          <PremiumTooltip
+            content={`Last check at ${at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })}.`}
+            position="top-right"
+            direction="top"
           >
-            {text}
-          </span>
-        </PremiumTooltip>
-      )
-    },
-  }),
+            <span
+              className={`block cursor-default text-right text-[11px] font-semibold tabular-nums transition-colors duration-150 ${isRecent ? 'text-emerald-400' : 'text-zinc-400 group-hover/row:text-zinc-300'
+                }`}
+            >
+              {text}
+            </span>
+          </PremiumTooltip>
+        )
+      },
+    }),
 
-  col.display({
-    id: 'actions',
-    header: '',
-    size: 6,
-    enableSorting: false,
-    cell: ({ row }) => {
-      const m = row.original
-      const isPaused = m.status === 'paused'
-      return (
-        <RowActionsDropdown
-          monitor={m}
-          onDelete={onDelete}
-          onView={onView}
-          isOpen={activeDropdownId === m.id}
-          setIsOpen={setActiveDropdownId}
-          onOptimisticToggle={onOptimisticToggle}
-        />
-      )
-    },
-  }),
+    col.display({
+      id: 'actions',
+      header: '',
+      size: 6,
+      enableSorting: false,
+      cell: ({ row }) => {
+        const m = row.original
+        const isPaused = m.status === 'paused'
+        return (
+          <RowActionsDropdown
+            monitor={m}
+            onDelete={onDelete}
+            onView={onView}
+            isOpen={activeDropdownId === m.id}
+            setIsOpen={setActiveDropdownId}
+            onOptimisticToggle={onOptimisticToggle}
+          />
+        )
+      },
+    }),
   ]
 }
 
@@ -783,8 +774,8 @@ export function MonitorsTable({
 
   const columns = useMemo(
     () => buildMonitorColumns(
-      monitorWidthPct, 
-      showHit24hAvgColumn, 
+      monitorWidthPct,
+      showHit24hAvgColumn,
       (id) => setDeleteMonitorId(id),
       (id) => router.push(`/dashboard/monitors/${id}`),
       activeDropdownId,
@@ -843,8 +834,8 @@ export function MonitorsTable({
                         header.column.getIsSorted() === 'asc'
                           ? 'ascending'
                           : header.column.getIsSorted() === 'desc'
-                          ? 'descending'
-                          : undefined
+                            ? 'descending'
+                            : undefined
                       }
                       className={[
                         'cs-table-compact-th !py-3 !text-[9px] !font-black !tracking-[0.12em] !text-zinc-500',

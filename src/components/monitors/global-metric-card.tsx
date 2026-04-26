@@ -52,13 +52,13 @@ type GlobalMetricCardProps = {
    * with degraded vs critical active-monitor counts.
    */
   systemStatus?:
-    | 'loading'
-    | {
-        degraded: number
-        critical: number
-        degradedMonitors: ReadonlyArray<{ id: string; name: string }>
-        criticalMonitors: ReadonlyArray<{ id: string; name: string }>
-      }
+  | 'loading'
+  | {
+    degraded: number
+    critical: number
+    degradedMonitors: ReadonlyArray<{ id: string; name: string }>
+    criticalMonitors: ReadonlyArray<{ id: string; name: string }>
+  }
 }
 
 function MonitorBandTooltip({
@@ -243,10 +243,10 @@ export function GlobalMetricCard({
                 <div className="flex flex-col items-end gap-1">
                   {trend.tooltip ? (
                     <PremiumTooltip content={trend.tooltip} position="top-right">
-                    <span className={`cursor-help inline-flex items-center gap-1 ${trendTextClass} font-extrabold tabular-nums ${toneClassMap[trend.tone ?? 'neutral']}`}>
-                      {trend.icon ? <trend.icon className={`${isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} stroke-[3]`} aria-hidden="true" /> : null}
-                      {trend.value}
-                    </span>
+                      <span className={`cursor-help inline-flex items-center gap-1 ${trendTextClass} font-extrabold tabular-nums ${toneClassMap[trend.tone ?? 'neutral']}`}>
+                        {trend.icon ? <trend.icon className={`${isCompact ? 'h-2.5 w-2.5' : 'h-3 w-3'} stroke-[3]`} aria-hidden="true" /> : null}
+                        {trend.value}
+                      </span>
                     </PremiumTooltip>
                   ) : (
                     <span className={`inline-flex items-center gap-1 ${trendTextClass} font-extrabold tabular-nums ${toneClassMap[trend.tone ?? 'neutral']}`}>

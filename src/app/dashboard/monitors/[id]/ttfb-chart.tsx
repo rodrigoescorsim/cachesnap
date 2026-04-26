@@ -46,7 +46,7 @@ function withAlpha(color: string, alpha: number): string {
 const W = 700, H = 180
 const PAD = { top: 12, right: 16, bottom: 32, left: 48 }
 const CW = W - PAD.left - PAD.right
-const CH = H - PAD.top  - PAD.bottom
+const CH = H - PAD.top - PAD.bottom
 
 export function TtfbChart({
   data,
@@ -69,7 +69,7 @@ export function TtfbChart({
   const didInitTtfbDefaultsRef = useRef(false)
   const didInitCacheDefaultsRef = useRef(false)
 
-  const regions    = useMemo(() => [...new Set(data.map(d => d.region))].sort(), [data])
+  const regions = useMemo(() => [...new Set(data.map(d => d.region))].sort(), [data])
   const allBuckets = useMemo(() => [...new Set(data.map(d => d.bucket))].sort(), [data])
   const regionAbbreviations = useMemo(() => {
     const toAbbreviation = (label: string, fallbackRegion: string) => {
@@ -118,14 +118,14 @@ export function TtfbChart({
   }, [data])
 
   // ── Y scales ──────────────────────────────────────────────────────────────
-  const maxTtfb     = Math.max(...data.map(d => d.ttfb_avg), 1)
+  const maxTtfb = Math.max(...data.map(d => d.ttfb_avg), 1)
   const niceMaxTtfb = niceMax(maxTtfb, 100)
 
-  const maxNet      = Math.max(
+  const maxNet = Math.max(
     ...data.map(d => (d.dns_avg ?? 0) + (d.tcp_avg ?? 0) + (d.tls_avg ?? 0)),
     1,
   )
-  const niceMaxNet  = niceMax(maxNet, 50)
+  const niceMaxNet = niceMax(maxNet, 50)
 
   // ── X scale ───────────────────────────────────────────────────────────────
   const toX = (i: number) =>
@@ -134,8 +134,8 @@ export function TtfbChart({
       : PAD.left + (i / (allBuckets.length - 1)) * CW
 
   // ── Y projectors ──────────────────────────────────────────────────────────
-  const toYTtfb = (ms: number)  => PAD.top + (1 - ms  / niceMaxTtfb) * CH
-  const toYNet  = (ms: number)  => PAD.top + (1 - ms  / niceMaxNet)  * CH
+  const toYTtfb = (ms: number) => PAD.top + (1 - ms / niceMaxTtfb) * CH
+  const toYNet = (ms: number) => PAD.top + (1 - ms / niceMaxNet) * CH
   const toYCache = (pct: number) => {
     const min = 0
     const max = 100
@@ -233,7 +233,7 @@ export function TtfbChart({
       .map(point => point.value)
       .filter((value): value is number => value != null)
 
-    if (values.length < 5) return null
+    if (values.length < 3) return null
 
     const transitions = values.length - 1
     if (transitions <= 0) return null
@@ -244,20 +244,20 @@ export function TtfbChart({
     }
 
     const stableRatio = stableTransitions / transitions
-    if (stableRatio <= 0.8) return null
+    if (stableRatio < 0.7) return null
 
     const average = values.reduce((sum, value) => sum + value, 0) / values.length
 
     if (average >= 99) {
       return {
-        label: 'Stable at 100%',
+        label: 'Perfect cache (100%)',
         className: 'border-emerald-300/45 bg-emerald-500/16 text-emerald-200 shadow-[0_0_0_1px_rgba(16,185,129,0.22),0_0_14px_rgba(16,185,129,0.12)]',
       }
     }
 
     if (average <= 1) {
       return {
-        label: 'Critical at 0%',
+        label: 'All misses (0%)',
         className: 'border-red-300/45 bg-red-500/16 text-red-200 shadow-[0_0_0_1px_rgba(248,113,113,0.22),0_0_14px_rgba(239,68,68,0.14)]',
       }
     }
@@ -516,7 +516,7 @@ export function TtfbChart({
                       {cachePlateauState.label}
                     </span>
                     <span className="text-[10px] font-medium tracking-tight text-zinc-400">
-                      No variation in selected window
+                      No variance detected
                     </span>
                   </>
                 )}
@@ -532,7 +532,7 @@ export function TtfbChart({
                       Global
                     </button>
                     <PremiumTooltip
-                      content="Select all regions."
+content="Show all regions."
                       position="bottom-center"
                       panelSizing="hug"
                     >
@@ -590,69 +590,69 @@ export function TtfbChart({
               </div>
             ) : (
               <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
-              <rect x={PAD.left} y={toYCache(100)} width={CW} height={toYCache(95) - toYCache(100)} fill="#10b981" fillOpacity={0.04} />
-              <rect x={PAD.left} y={toYCache(95)} width={CW} height={toYCache(90) - toYCache(95)} fill="#f59e0b" fillOpacity={0.035} />
-              <rect x={PAD.left} y={toYCache(90)} width={CW} height={toYCache(0) - toYCache(90)} fill="#ef4444" fillOpacity={0.03} />
+                <rect x={PAD.left} y={toYCache(100)} width={CW} height={toYCache(95) - toYCache(100)} fill="#10b981" fillOpacity={0.04} />
+                <rect x={PAD.left} y={toYCache(95)} width={CW} height={toYCache(90) - toYCache(95)} fill="#f59e0b" fillOpacity={0.035} />
+                <rect x={PAD.left} y={toYCache(90)} width={CW} height={toYCache(0) - toYCache(90)} fill="#ef4444" fillOpacity={0.03} />
 
-              {[0, 25, 50, 75, 90, 95, 100].map(v => (
-                <g key={v}>
+                {[0, 25, 50, 75, 90, 95, 100].map(v => (
+                  <g key={v}>
+                    <line
+                      x1={PAD.left}
+                      x2={W - PAD.right}
+                      y1={toYCache(v)}
+                      y2={toYCache(v)}
+                      stroke="currentColor"
+                      strokeOpacity={cacheGridOpacity(v)}
+                      strokeWidth={1}
+                      strokeDasharray={v === 95 ? '4 3' : undefined}
+                    />
+                    <text x={PAD.left - 6} y={toYCache(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}%</text>
+                  </g>
+                ))}
+                <XAxisLabels />
+                <GuideLine />
+
+                {cacheHitThresholdPct != null && (
                   <line
                     x1={PAD.left}
                     x2={W - PAD.right}
-                    y1={toYCache(v)}
-                    y2={toYCache(v)}
-                    stroke="currentColor"
-                    strokeOpacity={cacheGridOpacity(v)}
-                    strokeWidth={1}
-                    strokeDasharray={v === 95 ? '4 3' : undefined}
+                    y1={toYCache(cacheHitThresholdPct)}
+                    y2={toYCache(cacheHitThresholdPct)}
+                    stroke="var(--brand-warning, #f59e0b)"
+                    strokeWidth={1.5}
+                    strokeDasharray="6 4"
+                    strokeOpacity={cacheThresholdOpacity}
                   />
-                  <text x={PAD.left - 6} y={toYCache(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}%</text>
-                </g>
-              ))}
-              <XAxisLabels />
-              <GuideLine />
+                )}
 
-              {cacheHitThresholdPct != null && (
-                <line
-                  x1={PAD.left}
-                  x2={W - PAD.right}
-                  y1={toYCache(cacheHitThresholdPct)}
-                  y2={toYCache(cacheHitThresholdPct)}
-                  stroke="var(--brand-warning, #f59e0b)"
-                  strokeWidth={1.5}
-                  strokeDasharray="6 4"
-                  strokeOpacity={cacheThresholdOpacity}
-                />
-              )}
+                {hasCacheData ? (
+                  <>
+                    {regions.map(region => {
+                      if (!selectedCacheRegions.has(region)) return null
+                      const m = byRegion[region]
+                      if (!m) return null
+                      const points = allBuckets.map((b, i) => {
+                        const p = m.get(b)
+                        return p && p.cache_hit_pct != null ? `${toX(i)},${toYCache(p.cache_hit_pct)}` : null
+                      }).filter(Boolean).join(' ')
+                      if (!points) return null
+                      return <polyline key={region} points={points} fill="none" stroke={regionMeta[region]?.color ?? '#6b7280'} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={hoveredIdx === null ? 1 : byRegion[region]?.has(allBuckets[hoveredIdx]) ? 1 : 0.2} />
+                    })}
 
-              {hasCacheData ? (
-                <>
-                  {regions.map(region => {
-                    if (!selectedCacheRegions.has(region)) return null
-                    const m = byRegion[region]
-                    if (!m) return null
-                    const points = allBuckets.map((b, i) => {
-                      const p = m.get(b)
-                      return p && p.cache_hit_pct != null ? `${toX(i)},${toYCache(p.cache_hit_pct)}` : null
-                    }).filter(Boolean).join(' ')
-                    if (!points) return null
-                    return <polyline key={region} points={points} fill="none" stroke={regionMeta[region]?.color ?? '#6b7280'} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={hoveredIdx === null ? 1 : byRegion[region]?.has(allBuckets[hoveredIdx]) ? 1 : 0.2} />
-                  })}
-
-                  {showGlobalCache && (
-                    <polyline
-                      points={globalCache.map((bucket, i) => bucket.value != null ? `${toX(i)},${toYCache(bucket.value)}` : null).filter(Boolean).join(' ')}
-                      fill="none"
-                      stroke="#22d3ee"
-                      strokeWidth={2.4}
-                      strokeLinejoin="round"
-                      strokeLinecap="round"
-                    />
-                  )}
-                </>
-              ) : (
-                <text x={W / 2} y={H / 2} textAnchor="middle" fontSize={10} fill="currentColor" fillOpacity={0.35}>No cache data</text>
-              )}
+                    {showGlobalCache && (
+                      <polyline
+                        points={globalCache.map((bucket, i) => bucket.value != null ? `${toX(i)},${toYCache(bucket.value)}` : null).filter(Boolean).join(' ')}
+                        fill="none"
+                        stroke="#22d3ee"
+                        strokeWidth={2.4}
+                        strokeLinejoin="round"
+                        strokeLinecap="round"
+                      />
+                    )}
+                  </>
+                ) : (
+                  <text x={W / 2} y={H / 2} textAnchor="middle" fontSize={10} fill="currentColor" fillOpacity={0.35}>No cache data</text>
+                )}
               </svg>
             )}
           </div>

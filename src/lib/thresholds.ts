@@ -25,7 +25,7 @@ export const GLOBAL_TTFB = {
 
 /** Global cache card: same bands as footer copy (GOOD / DEGRADED / CRITICAL). */
 export const GLOBAL_CACHE = {
-  PERFECT:  98,  // % — elite cache performance
+  PERFECT: 98,  // % — elite cache performance
   GOOD: 80,  // % — realistic edge target
   FAIR: 50,  // % — degraded band
 }
@@ -67,17 +67,18 @@ export function getHealthColor(score: number) {
 
 export function getTtfbTooltip(ms: number, type: 'monitor' | 'global' = 'monitor'): string {
   const t = type === 'global' ? GLOBAL_TTFB : MONITOR_TTFB
-  if (ms < t.ELITE) return `Elite performance! Ultra-fast response (<${t.ELITE}ms).`
-  if (ms < t.FAST) return `Good performance. Fast response (<${t.FAST}ms).`
-  if (ms > t.SLOW) return `Poor performance. Slow response (>${t.SLOW}ms).`
-  return `Fair performance. Acceptable response (${t.FAST}ms - ${t.SLOW}ms).`
+  if (ms < t.ELITE) return 'Excellent latency: Very fast.'
+  if (ms < t.FAST) return 'Good latency: Fast for most users.'
+  if (ms > t.SLOW) return 'High latency: Above expected range.'
+  return 'Moderate latency: Within normal range.'
 }
 
 export function getCacheTooltip(pct: number, type: 'monitor' | 'global' = 'monitor'): string {
   const t = type === 'global' ? GLOBAL_CACHE : { GOOD: MONITOR_CACHE.GOOD, FAIR: MONITOR_CACHE.LOW, PERFECT: 98 }
-  if (pct >= 100) return "Perfect Cache! 100% of requests served from edge."
-  if (pct >= t.PERFECT) return `Perfect Cache! All requests served from edge (≥${t.PERFECT}%).`
-  if (pct >= t.GOOD) return `Good efficiency. Most content served from CDN (≥${t.GOOD}%).`
-  if (pct >= t.FAIR) return `Fair efficiency. Some requests reaching origin (${t.FAIR}% - ${t.GOOD}%).`
-  return `Critical efficiency. High origin traffic (<${t.FAIR}%).`
+  if (pct >= 100) return '100% cache hit: All requests served from CDN.'
+  if (pct >= t.PERFECT) return 'Very high cache: Almost all requests use CDN.'
+  if (pct >= t.GOOD) return 'Good efficiency: Most requests use CDN.'
+  if (pct >= t.FAIR) return 'Partial efficiency: Many requests still go to origin.'
+  return 'Low efficiency: Most requests go to origin.'
 }
+

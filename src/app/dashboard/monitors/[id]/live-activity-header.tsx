@@ -68,7 +68,7 @@ export function LiveActivityHeader({ monitorId, freezeStorageKey, latestDataAt }
   }
 
   return (
-    <ViewSectionHeader title="Live Performance">
+    <ViewSectionHeader title="Live Network Activity">
         <div className="relative flex shrink-0 flex-col items-end justify-center">
           <MonitorDispatchButtons
             monitorId={monitorId}

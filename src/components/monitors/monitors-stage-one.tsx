@@ -107,10 +107,10 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
       params.set('sort', sorting[0].id)
       params.set('dir', sorting[0].desc ? 'desc' : 'asc')
     }
-    
+
     const currentQs = searchParams.toString()
     const nextQs = params.toString()
-    
+
     if (currentQs !== nextQs) {
       router.replace(`${pathname}${nextQs ? `?${nextQs}` : ''}`, { scroll: false })
     }
@@ -156,8 +156,8 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
       }
     }
 
-    const active  = displayMonitors.filter((m) => m.status === 'active')
-    
+    const active = displayMonitors.filter((m) => m.status === 'active')
+
     // Live Average (Current sample from all active monitors)
     const liveTtfb = active.length > 0
       ? Math.round(active.reduce((sum, m) => sum + m.ttfbCurrent, 0) / active.length)
@@ -172,7 +172,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
     const avgTtfb24h = active.length > 0
       ? Math.round(active.reduce((sum, m) => sum + m.ttfbAvg24h, 0) / active.length)
       : 0
-    
+
     const withCache24h = active.filter((m) => m.cacheHitAvg24h !== null)
     const avgHit24h = withCache24h.length > 0
       ? Number((withCache24h.reduce((sum, m) => sum + m.cacheHitAvg24h!, 0) / withCache24h.length).toFixed(1))
@@ -189,7 +189,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
 
     // Network-wide Trends (Real-time vs 24h Baseline)
     const ttfbDelta = calculateTrend(liveTtfb, avgTtfb24h)
-    const hitDelta  = calculateTrend(liveHit, avgHit24h)
+    const hitDelta = calculateTrend(liveHit, avgHit24h)
 
     return {
       activeCount: active.length,
@@ -232,11 +232,11 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
                 isLoading
                   ? 'loading'
                   : {
-                      degraded: degradedMonitors.length,
-                      critical: criticalMonitors.length,
-                      degradedMonitors,
-                      criticalMonitors,
-                    }
+                    degraded: degradedMonitors.length,
+                    critical: criticalMonitors.length,
+                    degradedMonitors,
+                    criticalMonitors,
+                  }
               }
               animationDelayMs={0}
             />
@@ -260,10 +260,10 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
                 isLoading
                   ? undefined
                   : {
-                      label: ttfbPill.label,
-                      tone: ttfbPill.tone,
-                      context: globalTtfbFooterContextCompact(liveTtfb, ttfbDelta),
-                    }
+                    label: ttfbPill.label,
+                    tone: ttfbPill.tone,
+                    context: globalTtfbFooterContextCompact(liveTtfb, ttfbDelta),
+                  }
               }
               animationDelayMs={0}
             />
@@ -287,10 +287,10 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
                 isLoading
                   ? undefined
                   : {
-                      label: cachePill.label,
-                      tone: cachePill.tone,
-                      context: globalCacheFooterContextCompact(liveHit),
-                    }
+                    label: cachePill.label,
+                    tone: cachePill.tone,
+                    context: globalCacheFooterContextCompact(liveHit),
+                  }
               }
               animationDelayMs={0}
             />
@@ -370,11 +370,10 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
                     type="button"
                     onClick={() => setActiveFilter(filter.id)}
                     aria-pressed={isActive}
-                    className={`inline-flex h-8 min-w-[4.5rem] items-center justify-center rounded-lg px-3.5 text-[9px] font-black uppercase tracking-widest transition-all duration-200 ${
-                      isActive
+                    className={`inline-flex h-8 min-w-[4.5rem] items-center justify-center rounded-lg px-3.5 text-[9px] font-black uppercase tracking-widest transition-all duration-200 ${isActive
                         ? 'cs-badge cs-badge-success !min-h-0 !px-3.5 !py-0'
                         : 'border border-white/5 bg-white/[0.01] text-zinc-500 hover:border-white/10 hover:text-zinc-300'
-                    }`}
+                      }`}
                   >
                     {filter.label}
                   </button>
@@ -405,11 +404,10 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
                     ? 'Live Sync on — refreshes every 30s. Click to disable.'
                     : 'Live Sync off. Click to enable auto-refresh every 30s.'
                 }
-                className={`inline-flex h-7 items-center gap-1.5 rounded-lg px-3 text-[9px] font-black uppercase tracking-widest transition-all duration-200 ${
-                  liveSync
+                className={`inline-flex h-7 items-center gap-1.5 rounded-lg px-3 text-[9px] font-black uppercase tracking-widest transition-all duration-200 ${liveSync
                     ? 'cs-badge cs-badge-success !min-h-0 !px-3 !py-0'
                     : 'border border-white/5 bg-white/[0.01] text-zinc-500 hover:border-white/10 hover:text-zinc-300'
-                }`}
+                  }`}
               >
                 {liveSync && <LiveDot />}
                 Live Sync
@@ -439,3 +437,4 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
     </div>
   )
 }
+

@@ -621,7 +621,7 @@ body {
    * (Primitives only — @apply cannot reference other .cs-* utilities in Tailwind v4.)
    */
   .cs-badge-cache-hit {
-    @apply inline-flex items-center justify-center gap-1 rounded-md min-h-[22px] min-w-[60px] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ring-1 ring-inset transition-all duration-300;
+    @apply inline-flex items-center justify-center gap-1 rounded-md min-h-[22px] min-w-[60px] px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ring-1 ring-inset;
     border: 1px solid rgba(var(--brand-primary-rgb), 0.25);
     background-color: rgba(var(--brand-primary-rgb), 0.12);
     color: var(--brand-primary);
@@ -660,6 +660,6 @@ body {
   }
 
   .cs-badge-cache-dash {
-    @apply inline-flex items-center justify-center gap-1 rounded-md min-h-[22px] min-w-[60px] px-2 py-0.5 text-[10px] font-bold tracking-wide ring-1 ring-inset transition-all bg-white/5 text-zinc-500 ring-white/10;
+    @apply inline-flex items-center justify-center gap-1 rounded-md min-h-[22px] min-w-[60px] px-2 py-0.5 text-[10px] font-bold tracking-wide ring-1 ring-inset bg-white/5 text-zinc-500 ring-white/10;
   }
 }
