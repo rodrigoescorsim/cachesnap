@@ -29,6 +29,7 @@ function makeMonitor(overrides: Partial<Monitor> = {}): Monitor {
     regions:          [],
     slowRegionCount:  0,
     totalRegionCount: 4,
+    errorRegionCount: 0,
     lastCheckedAt:    new Date(),
     ...overrides,
   }
@@ -233,7 +234,7 @@ describe('deriveInsights', () => {
   describe('slow-regions', () => {
     it('fires when a monitor has slow regions', () => {
       const regions = [
-        { code: 'sa-east', label: 'São Paulo', flag: '🇧🇷', isSlow: true },
+        { code: 'sa-east', label: 'São Paulo', flag: '🇧🇷', isSlow: true, isError: false },
       ]
       const monitors = [makeMonitor({ ttfbCurrent: 100, slowRegionCount: 1, regions })]
       const ids = deriveInsights(monitors).map(i => i.id)
@@ -259,7 +260,7 @@ describe('deriveInsights', () => {
         cacheHitCurrent:  CACHE_CRITICAL - 1,
         ttfbCurrentDelta: DELTA_WARN + 1,
         slowRegionCount:  1,
-        regions: [{ code: 'sa', label: 'SA', flag: '🇧🇷', isSlow: true }],
+        regions: [{ code: 'sa', label: 'SA', flag: '🇧🇷', isSlow: true, isError: false }],
       })
       // 3 additional degrading monitors to generate more ttfb-degradation candidates
       const extras = [
@@ -315,8 +316,8 @@ describe('deriveInsights', () => {
         ttfbCurrentDelta: DELTA_WARN + 1,
         slowRegionCount:  2,
         regions: [
-          { code: 'sa', label: 'São Paulo',  flag: '🇧🇷', isSlow: true },
-          { code: 'eu', label: 'Frankfurt',  flag: '🇩🇪', isSlow: true },
+          { code: 'sa', label: 'São Paulo',  flag: '🇧🇷', isSlow: true, isError: false },
+          { code: 'eu', label: 'Frankfurt',  flag: '🇩🇪', isSlow: true, isError: false },
         ],
       })
       const insights = deriveInsights([monitor])

@@ -53,11 +53,13 @@ export function TtfbChart({
   range,
   regionMeta,
   cacheHitThresholdPct,
+  isDown,
 }: {
   data: ChartPoint[]
   range: string
   regionMeta: Record<string, RegionRenderMeta>
   cacheHitThresholdPct?: number | null
+  isDown?: boolean
 }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
@@ -390,7 +392,22 @@ export function TtfbChart({
 
       {allBuckets.length < 2 ? (
         <div className="rounded-2xl border border-border bg-surface/30 p-12 text-center">
-          <p className="text-sm text-zinc-500 italic font-medium">Analyzing historical patterns...</p>
+          {isDown ? (
+            <div className="flex flex-col items-center justify-center space-y-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/10 mb-1">
+                <span className="relative flex h-3 w-3">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500"></span>
+                </span>
+              </div>
+              <p className="text-sm font-bold text-red-400">Site Unreachable</p>
+              <p className="text-xs text-red-300/60 max-w-sm mx-auto">
+                No performance metrics available for this time window due to connection failures.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-500 italic font-medium">Not enough data points in this time window.</p>
+          )}
         </div>
       ) : (
         <div className="space-y-4">

@@ -73,9 +73,10 @@ function makeRow(overrides: Partial<MonitorSummaryRow> = {}): MonitorSummaryRow 
     cache_hit_current: '95.0',
     cache_hit_avg_24h: '93.5',
     cache_hit_delta: '1.5',
-    regions: [{ code: 'sa-east', label: 'São Paulo', flag: '🇧🇷', isSlow: false }],
+    regions: [{ code: 'sa-east', label: 'São Paulo', flag: '🇧🇷', isSlow: false, isError: false }],
     slow_region_count: 0,
     total_region_count: 1,
+    error_region_count: 0,
     last_checked_at: '2026-04-19T10:00:00.000Z',
     sparkline: [100, 110, 120, 115],
     ...overrides,
@@ -136,5 +137,15 @@ describe('toMonitor', () => {
     const m = toMonitor(makeRow({ slow_region_count: '2', total_region_count: '8' }))
     expect(m.slowRegionCount).toBe(2)
     expect(m.totalRegionCount).toBe(8)
+  })
+
+  it('maps error_region_count to errorRegionCount (string from postgres)', () => {
+    const m = toMonitor(makeRow({ error_region_count: '3' }))
+    expect(m.errorRegionCount).toBe(3)
+  })
+
+  it('defaults errorRegionCount to 0 when error_region_count is 0', () => {
+    const m = toMonitor(makeRow({ error_region_count: 0 }))
+    expect(m.errorRegionCount).toBe(0)
   })
 })

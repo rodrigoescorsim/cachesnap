@@ -9,6 +9,7 @@ export interface MonitorRegion {
   flag: string
   label: string
   isSlow: boolean
+  isError: boolean
 }
 
 export interface Monitor {
@@ -27,6 +28,8 @@ export interface Monitor {
   regions: MonitorRegion[]
   slowRegionCount: number
   totalRegionCount: number
+  /** How many regions reported a connection error (timeout, empty reply, DNS fail) on their latest probe. */
+  errorRegionCount: number
   lastCheckedAt: Date
 }
 
@@ -47,7 +50,13 @@ export function getCacheHitTier(pct: number): CacheHitTier {
  * Aligns with quick-filter "healthy": TTFB < FAST threshold and cache unset or > GOOD threshold.
  */
 export function monitorHealthScore(m: Monitor): number {
+  // Full outage: all probed regions are failing — site is unreachable
+  if (m.totalRegionCount > 0 && m.errorRegionCount >= m.totalRegionCount) return 0
   let score = 100
+  // Partial outage penalty: proportional to failing region ratio
+  if (m.errorRegionCount > 0 && m.totalRegionCount > 0) {
+    score -= Math.round((m.errorRegionCount / m.totalRegionCount) * 60)
+  }
   if (m.ttfbCurrent >= MONITOR_TTFB.FAST) {
     score -= Math.min(55, Math.round((m.ttfbCurrent - MONITOR_TTFB.FAST) * 0.4))
   }
@@ -121,9 +130,9 @@ export function monitorMatchesQuickFilter(
   const hit = monitor.cacheHitCurrent
   switch (filter) {
     case 'healthy':
-      return ttfb < MONITOR_TTFB.FAST && (hit === null || hit >= MONITOR_CACHE.GOOD)
+      return monitor.errorRegionCount === 0 && ttfb < MONITOR_TTFB.FAST && (hit === null || hit >= MONITOR_CACHE.GOOD)
     case 'degraded':
-      return ttfb >= MONITOR_TTFB.FAST || (hit !== null && hit < MONITOR_CACHE.GOOD)
+      return monitor.errorRegionCount > 0 || ttfb >= MONITOR_TTFB.FAST || (hit !== null && hit < MONITOR_CACHE.GOOD)
     case 'high-ttfb':
       return ttfb >= MONITOR_TTFB.FAST
     case 'low-cache-hit':

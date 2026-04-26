@@ -71,16 +71,29 @@ const TTFB_LABEL: Record<string, string> = {
 function ttfbClass(ms: number) { return TTFB_CLASS[getTtfbTier(ms)] }
 function ttfbLabel(ms: number) { return TTFB_LABEL[getTtfbTier(ms)] }
 
-function formatRelativeTime(date: Date | null | undefined): { text: string; isRecent: boolean } {
+function formatRelativeTime(date: Date | null | undefined): { text: string; isRecent: boolean; freshness: 'live' | 'stale' | 'offline' } {
   if (!date || date.getTime() <= 0 || date.getFullYear() < 2000) {
-    return { text: '—', isRecent: false }
+    return { text: '—', isRecent: false, freshness: 'offline' }
   }
   const diffS = Math.floor((Date.now() - date.getTime()) / 1000)
-  if (diffS < 60) return { text: diffS < 5 ? 'just now' : `${diffS}s ago`, isRecent: true }
+
+  // Freshness: same calendar day & <1h = live; same day & >1h = stale; different day = offline
+  const now = new Date()
+  const isDifferentDay =
+    date.getUTCFullYear() !== now.getUTCFullYear() ||
+    date.getUTCMonth() !== now.getUTCMonth() ||
+    date.getUTCDate() !== now.getUTCDate()
+  const freshness: 'live' | 'stale' | 'offline' = isDifferentDay
+    ? 'offline'
+    : diffS > 3600
+      ? 'stale'
+      : 'live'
+
+  if (diffS < 60) return { text: diffS < 5 ? 'just now' : `${diffS}s ago`, isRecent: true, freshness }
   const diffM = Math.floor(diffS / 60)
-  if (diffM < 60) return { text: `${diffM}m ago`, isRecent: diffM < 3 }
+  if (diffM < 60) return { text: `${diffM}m ago`, isRecent: diffM < 3, freshness }
   const diffH = Math.floor(diffM / 60)
-  return { text: `${diffH}h ago`, isRecent: false }
+  return { text: `${diffH}h ago`, isRecent: false, freshness }
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -513,19 +526,70 @@ function buildMonitorColumns(
               <span className="truncate text-[13px] font-black tracking-tight text-white/90 transition-colors duration-150 group-hover/row:text-white">
                 {m.name}
               </span>
-              {isActive ? (
-                <span className="cs-badge cs-badge-success shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px]">
-                  <span className="relative flex h-1.5 w-1.5 shrink-0">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              {(() => {
+                const { freshness } = formatRelativeTime(m.lastCheckedAt)
+                const isDown = isActive && m.totalRegionCount > 0 && m.errorRegionCount >= m.totalRegionCount
+                const isDegraded = isActive && m.errorRegionCount > 0 && !isDown
+
+                if (isDown) {
+                  return (
+                    <span className="cs-badge cs-badge-danger shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px] !font-black">
+                      <span className="relative flex h-1.5 w-1.5 shrink-0">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-400" />
+                      </span>
+                      DOWN
+                    </span>
+                  )
+                }
+                if (isDegraded) {
+                  return (
+                    <span className="cs-badge cs-badge-danger shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px]">
+                      <span className="relative flex h-1.5 w-1.5 shrink-0">
+                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-400" />
+                      </span>
+                      DEGRADED
+                    </span>
+                  )
+                }
+                // Show actual sync status instead of misleading "Active" when data is old
+                if (isActive && freshness === 'offline') {
+                  return (
+                    <span className="cs-badge cs-badge-danger shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px]">
+                      <span className="relative flex h-1.5 w-1.5 shrink-0">
+                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-400" />
+                      </span>
+                      Offline
+                    </span>
+                  )
+                }
+                if (isActive && freshness === 'stale') {
+                  return (
+                    <span className="cs-badge cs-badge-warning shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px]">
+                      <span className="relative flex h-1.5 w-1.5 shrink-0">
+                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400" />
+                      </span>
+                      Stale
+                    </span>
+                  )
+                }
+                if (isActive) {
+                  return (
+                    <span className="cs-badge cs-badge-success shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px]">
+                      <span className="relative flex h-1.5 w-1.5 shrink-0">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                      </span>
+                      Active
+                    </span>
+                  )
+                }
+                return (
+                  <span className="cs-badge cs-badge-warning shrink-0 !px-1.5 !py-0 !text-[8px]">
+                    Paused
                   </span>
-                  Active
-                </span>
-              ) : (
-                <span className="cs-badge cs-badge-warning shrink-0 !px-1.5 !py-0 !text-[8px]">
-                  Paused
-                </span>
-              )}
+                )
+              })()}
             </div>
             <PremiumTooltip
               content={
@@ -557,6 +621,15 @@ function buildMonitorColumns(
       },
       cell: ({ getValue, row }) => {
         const ms = getValue()
+        const m = row.original
+        const isDown = m.totalRegionCount > 0 && m.errorRegionCount >= m.totalRegionCount
+        if (isDown) {
+          return (
+            <PremiumTooltip content="Site unreachable — connection failed in all regions" position="top-center" direction="top">
+              <span className="text-[13px] font-black leading-none text-red-400">—</span>
+            </PremiumTooltip>
+          )
+        }
         return (
           <div className="flex flex-col gap-[3px]">
             <PremiumTooltip
@@ -616,7 +689,11 @@ function buildMonitorColumns(
       enableSorting: true,
       cell: ({ row }) => {
         const m = row.original
-        if (m.slowRegionCount === 0) {
+        const errorOnes = m.regions.filter((r) => r.isError)
+        const slowOnes = m.regions.filter((r) => r.isSlow)
+        const hasIssues = errorOnes.length > 0 || slowOnes.length > 0
+
+        if (!hasIssues) {
           return (
             <div className="flex items-center justify-end gap-1.5">
               <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 transition-colors duration-150 group-hover/row:text-zinc-400">
@@ -626,14 +703,36 @@ function buildMonitorColumns(
             </div>
           )
         }
-        const slowOnes = m.regions.filter((r) => r.isSlow)
+
+        // Error regions take priority (red), then slow regions (amber).
+        // Cap combined visible badges to avoid overflow.
         const MAX_VISIBLE = 2
-        const visible = slowOnes.slice(0, MAX_VISIBLE)
-        const overflow = slowOnes.length - MAX_VISIBLE
-        const overflowLabels = slowOnes.slice(MAX_VISIBLE).map((r) => r.label).join(', ')
+        const errorVisible = errorOnes.slice(0, MAX_VISIBLE)
+        const remainingSlots = MAX_VISIBLE - errorVisible.length
+        const slowVisible = slowOnes.slice(0, remainingSlots)
+        const hiddenErrors = errorOnes.length - errorVisible.length
+        const hiddenSlow = slowOnes.length - slowVisible.length
+        const hiddenCount = hiddenErrors + hiddenSlow
+        const hiddenLabels = [
+          ...errorOnes.slice(errorVisible.length).map((r) => `${r.label} (error)`),
+          ...slowOnes.slice(slowVisible.length).map((r) => `${r.label} (slow)`),
+        ].join(', ')
+
         return (
           <div className="flex flex-wrap items-center justify-end gap-1">
-            {visible.map((r) => (
+            {errorVisible.map((r) => (
+              <PremiumTooltip
+                key={r.code}
+                content={`${r.label}: Connection failed — site unreachable from this region.`}
+                position="top-center"
+                direction="top"
+              >
+                <span className="cs-badge cs-badge-danger !px-1 !py-[1px] !text-[8px]">
+                  {r.flag} {r.label}
+                </span>
+              </PremiumTooltip>
+            ))}
+            {slowVisible.map((r) => (
               <PremiumTooltip
                 key={r.code}
                 content={`${r.label}: TTFB is above the threshold in this region.`}
@@ -645,19 +744,21 @@ function buildMonitorColumns(
                 </span>
               </PremiumTooltip>
             ))}
-            {overflow > 0 && (
+            {hiddenCount > 0 && (
               <PremiumTooltip
-                content={`Also slow: ${overflowLabels}`}
+                content={hiddenLabels}
                 position="top-center"
                 direction="top"
               >
                 <span className="cs-badge cs-badge-warning !px-1 !py-[1px] !text-[8px] cursor-help">
-                  +{overflow}
+                  +{hiddenCount}
                 </span>
               </PremiumTooltip>
             )}
             <span className="text-[9px] font-semibold tabular-nums text-zinc-500">
-              {m.slowRegionCount}/{m.totalRegionCount}
+              {errorOnes.length > 0
+                ? `${errorOnes.length + slowOnes.length}/${m.totalRegionCount}`
+                : `${m.slowRegionCount}/${m.totalRegionCount}`}
             </span>
           </div>
         )
@@ -670,18 +771,34 @@ function buildMonitorColumns(
       enableSorting: true,
       sortingFn: (a, b) =>
         a.original.lastCheckedAt.getTime() - b.original.lastCheckedAt.getTime(),
-      cell: ({ getValue }) => {
+      cell: ({ getValue, row }) => {
         const at = getValue()
-        const { text, isRecent } = formatRelativeTime(at)
+        const m = row.original
+        const { text, isRecent, freshness } = formatRelativeTime(at)
+        const isFullyDown = m.totalRegionCount > 0 && m.errorRegionCount >= m.totalRegionCount
+        const colorClass =
+          isFullyDown ? 'text-red-400'
+          : freshness === 'offline' ? 'text-red-400'
+          : freshness === 'stale' ? 'text-amber-400'
+          : isRecent ? 'text-emerald-400'
+          : 'text-zinc-400 group-hover/row:text-zinc-300'
+        const tooltipContent = isFullyDown
+          ? `Site is unreachable — connection failed in all ${m.totalRegionCount} regions`
+          : m.errorRegionCount > 0
+            ? `${m.errorRegionCount} of ${m.totalRegionCount} regions reported a connection error`
+            : freshness === 'offline'
+              ? `Last check on ${at.toLocaleDateString()} — no data today`
+              : freshness === 'stale'
+                ? `Last check over 1h ago at ${at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })}`
+                : `Last check at ${at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })}.`
         return (
           <PremiumTooltip
-            content={`Last check at ${at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })}.`}
+            content={tooltipContent}
             position="top-right"
             direction="top"
           >
             <span
-              className={`block cursor-default text-right text-[11px] font-semibold tabular-nums transition-colors duration-150 ${isRecent ? 'text-emerald-400' : 'text-zinc-400 group-hover/row:text-zinc-300'
-                }`}
+              className={`block cursor-default text-right text-[11px] font-semibold tabular-nums transition-colors duration-150 ${colorClass}`}
             >
               {text}
             </span>

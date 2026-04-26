@@ -85,10 +85,11 @@ pub async fn handler(
         }
     }
 
-    // 2. Rota de Monitoramento Natural (Pureza estatística)
-    // Se for um probe de bypass, inserimos na probe_results apenas se tivermos dados válidos de ttfb
-    // E, idealmente, se não for redundante. Mas para o primeiro dispatch, queremos tudo.
-    if payload.ttfb_ms.is_some() {
+    // 2. Rota de Monitoramento Natural
+    // Persiste tanto probes bem-sucedidos (ttfb presente) quanto falhas (error presente).
+    // Falhas (timeout, empty reply, DNS fail) são métricas valiosas — permitem calcular
+    // uptime/SLA e detectar outages em tempo real.
+    if payload.ttfb_ms.is_some() || payload.error.is_some() {
         let probe_res = sqlx::query(
             r#"
             INSERT INTO probe_results (

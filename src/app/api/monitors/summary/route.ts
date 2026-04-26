@@ -68,7 +68,8 @@ export async function GET() {
         )                                                                                AS cache_hit_current,
         MAX(probe_time)                                                                  AS last_checked_at,
         COUNT(*) FILTER (WHERE ttfb_ms > 300 AND error IS NULL)::int                    AS slow_region_count,
-        COUNT(*)::int                                                                    AS total_region_count
+        COUNT(*)::int                                                                    AS total_region_count,
+        COUNT(*) FILTER (WHERE error IS NOT NULL)::int                                   AS error_region_count
       FROM latest
       GROUP BY monitor_id
     ),
@@ -79,9 +80,10 @@ export async function GET() {
         l.monitor_id,
         jsonb_agg(
           jsonb_build_object(
-            'code',   l.region,
-            'label',  COALESCE(r.label, l.region),
-            'isSlow', (l.ttfb_ms > 300 AND l.error IS NULL)
+            'code',    l.region,
+            'label',   COALESCE(r.label, l.region),
+            'isSlow',  (l.ttfb_ms > 300 AND l.error IS NULL),
+            'isError', (l.error IS NOT NULL)
           )
           ORDER BY l.region
         ) AS regions
@@ -138,6 +140,7 @@ export async function GET() {
       COALESCE(r.regions, '[]'::jsonb)                                                      AS regions,
       COALESCE(c.slow_region_count,  0)                                                     AS slow_region_count,
       COALESCE(c.total_region_count, 0)                                                     AS total_region_count,
+      COALESCE(c.error_region_count, 0)                                                     AS error_region_count,
       c.last_checked_at,
       COALESCE(s.sparkline, ARRAY[]::int[])                                                 AS sparkline
 
@@ -158,7 +161,7 @@ export async function GET() {
   const result = rows.map((row) => ({
     ...row,
     regions: (
-      row.regions as Array<{ code: string; label: string; isSlow: boolean }>
+      row.regions as Array<{ code: string; label: string; isSlow: boolean; isError: boolean }>
     ).map((r) => ({ ...r, flag: FLAG_MAP[r.code] ?? '🌐' })),
   }))
 

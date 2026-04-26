@@ -19,9 +19,10 @@ export interface MonitorSummaryRow {
   cache_hit_current: number | string | null
   cache_hit_avg_24h: number | string | null
   cache_hit_delta: number | string | null
-  regions: Array<{ code: string; label: string; flag: string; isSlow: boolean }>
+  regions: Array<{ code: string; label: string; flag: string; isSlow: boolean; isError: boolean }>
   slow_region_count: number | string
   total_region_count: number | string
+  error_region_count: number | string
   last_checked_at: string | null
   sparkline: Array<number | string>
 }
@@ -59,9 +60,10 @@ export function toMonitor(row: MonitorSummaryRow): Monitor {
     cacheHitCurrent:  toNumOrNull(row.cache_hit_current),
     cacheHitAvg24h:   toNumOrNull(row.cache_hit_avg_24h),
     cacheHitDelta:    toNumOrNull(row.cache_hit_delta),
-    regions:          row.regions ?? [],
-    slowRegionCount:  toNum(row.slow_region_count),
-    totalRegionCount: toNum(row.total_region_count),
+    regions:           row.regions ?? [],
+    slowRegionCount:   toNum(row.slow_region_count),
+    totalRegionCount:  toNum(row.total_region_count),
+    errorRegionCount:  toNum(row.error_region_count),
     // new Date(0) = epoch signals "never probed" — displayed as "–" in the UI
     lastCheckedAt:    row.last_checked_at ? new Date(row.last_checked_at) : new Date(0),
   }

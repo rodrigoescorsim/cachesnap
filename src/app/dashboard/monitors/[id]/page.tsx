@@ -102,7 +102,7 @@ interface LatestProbeRow {
   common_http_version: string | null
   common_cache_status: string | null
   status_code: number | null
-  error: string
+  error: string | null
   max_age_s: number | null
   last_probe_at: Date | null
   probe_version: string | null
@@ -737,6 +737,7 @@ export default async function MonitorDetailPage({
       http_version AS common_http_version,
       cache_status AS common_cache_status,
       status_code,
+      error,
       age_s AS max_age_s,
       time AS last_probe_at,
       probe_version
@@ -1000,7 +1001,52 @@ export default async function MonitorDetailPage({
 
   const monitorDisplayName = monitor.name ?? monitorHostname ?? monitor.url
   const totalProbes = stats.reduce((sum, s) => sum + s.probe_count, 0)
-  const isCollecting = totalProbes < 3
+
+  // Distinguish "truly new monitor" from "monitor went offline".
+  // latestProbes comes from DISTINCT ON (region) without time filter — if it has rows,
+  // the monitor has historical data even when the current range (stats) is empty.
+  const hasAnyHistoricalProbes = latestProbes.length > 0
+  const isCollecting = totalProbes < 3 && !hasAnyHistoricalProbes
+
+  // Detect outage state from the latest probe per region.
+  // Must be computed before isOffline so we can suppress the "Offline" banner
+  // when the site is actively failing (distinct from "sensor has no data").
+  const errorLatestProbes = latestProbes.filter(p => p.error && p.error !== '')
+  const isDown = monitor.is_active && latestProbes.length > 0 && errorLatestProbes.length >= latestProbes.length
+  const isDegraded = monitor.is_active && errorLatestProbes.length > 0 && !isDown
+
+  // Monitor infrastructure offline: has historical probes but none in the current range.
+  // Suppressed when isDown/isDegraded are active — those banners are more specific.
+  const isOffline = totalProbes < 3 && hasAnyHistoricalProbes && !isDown && !isDegraded
+
+  // Determine sync freshness: latest probe timestamp vs now
+  const nowMs = Date.now()
+  const ONE_HOUR_MS = 60 * 60 * 1000
+  /** Check if a probe timestamp is stale (>1h old or from a previous calendar day). */
+  function probeSyncStatus(probeAt: Date | null): 'live' | 'stale' | 'offline' {
+    if (!probeAt) return 'offline'
+    const probeMs = new Date(probeAt).getTime()
+    const diffMs = nowMs - probeMs
+    const probeDate = new Date(probeAt)
+    const todayDate = new Date()
+    const isDifferentDay =
+      probeDate.getUTCFullYear() !== todayDate.getUTCFullYear() ||
+      probeDate.getUTCMonth() !== todayDate.getUTCMonth() ||
+      probeDate.getUTCDate() !== todayDate.getUTCDate()
+    if (isDifferentDay) return 'offline'
+    if (diffMs > ONE_HOUR_MS) return 'stale'
+    return 'live'
+  }
+
+  // Global sync status: worst status across all latest probes
+  const globalSyncStatus = latestProbes.length > 0
+    ? latestProbes.reduce<'live' | 'stale' | 'offline'>((worst, p) => {
+        const s = probeSyncStatus(p.last_probe_at)
+        if (s === 'offline') return 'offline'
+        if (s === 'stale' && worst !== 'offline') return 'stale'
+        return worst
+      }, 'live')
+    : 'offline'
 
   // LIVE TAB AGGREGATES (Based on latest probes)
   const validLiveTtfb = latestProbes.filter(p => p.ttfb_ms !== null);
@@ -1083,15 +1129,37 @@ export default async function MonitorDetailPage({
 
 
 
-              <PremiumTooltip content="Live data stream — Instant Performance updates" position="top-left">
-                <Link
-                  href={buildMonitorHref('performance', range)}
-                  className={MONITOR_HEADER_STATUS_BADGE}
-                >
-                  <LiveDot />
-                  <span className="text-metric-ttfb-fast">Live Sync</span>
-                </Link>
-              </PremiumTooltip>
+              {globalSyncStatus === 'live' ? (
+                <PremiumTooltip content="Live data stream — Instant performance updates" position="top-left">
+                  <Link
+                    href={buildMonitorHref('performance', range)}
+                    className={MONITOR_HEADER_STATUS_BADGE}
+                  >
+                    <LiveDot />
+                    <span className="text-metric-ttfb-fast">Live Sync</span>
+                  </Link>
+                </PremiumTooltip>
+              ) : globalSyncStatus === 'stale' ? (
+                <PremiumTooltip content="Last probe is over 1 hour old" position="top-left">
+                  <Link
+                    href={buildMonitorHref('performance', range)}
+                    className={MONITOR_HEADER_STATUS_BADGE}
+                  >
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" aria-hidden />
+                    <span className="text-amber-400">Delayed</span>
+                  </Link>
+                </PremiumTooltip>
+              ) : (
+                <PremiumTooltip content="No recent probes — monitor may be offline" position="top-left">
+                  <Link
+                    href={buildMonitorHref('performance', range)}
+                    className={MONITOR_HEADER_STATUS_BADGE}
+                  >
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-red-400" aria-hidden />
+                    <span className="text-red-400">Offline</span>
+                  </Link>
+                </PremiumTooltip>
+              )}
             </div>
 
             <div
@@ -1136,6 +1204,51 @@ export default async function MonitorDetailPage({
             <p className="text-xs font-black uppercase tracking-widest text-amber-300/80">Collecting data</p>
             <p className="text-sm text-amber-200/60 mt-1 leading-relaxed">
               We&apos;re running the first probes. Results will appear within 5 minutes. Stats below may not be representative yet.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {isOffline && (
+        <div className="cs-tint-warning p-4 flex items-start gap-4" style={{ borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+          <div className="cs-card-wash" />
+          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-red-400" />
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-red-400/90">Offline</p>
+            <p className="text-sm text-red-300/60 mt-1 leading-relaxed">
+              No probes received in the current period. The monitor may be paused or the backend is unreachable.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {isDown && (
+        <div className="cs-tint-warning p-4 flex items-start gap-4" style={{ borderColor: 'rgba(239, 68, 68, 0.5)', background: 'rgba(239,68,68,0.07)' }}>
+          <div className="cs-card-wash" />
+          <span className="relative mt-1 flex h-2.5 w-2.5 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-70" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-400" />
+          </span>
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-red-300">Site Down — Unreachable</p>
+            <p className="text-sm text-red-300/70 mt-1 leading-relaxed">
+              All {latestProbes.length} probed regions are reporting connection failures. Your site is not responding.
+            </p>
+            {errorLatestProbes[0]?.error && (
+              <p className="mt-1.5 font-mono text-[11px] text-red-400/80">{errorLatestProbes[0].error}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isDegraded && (
+        <div className="cs-tint-warning p-4 flex items-start gap-4" style={{ borderColor: 'rgba(239, 68, 68, 0.35)', background: 'rgba(239,68,68,0.05)' }}>
+          <div className="cs-card-wash" />
+          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-red-400" />
+          <div>
+            <p className="text-xs font-black uppercase tracking-widest text-red-400/90">Degraded — Partial Outage</p>
+            <p className="text-sm text-red-300/60 mt-1 leading-relaxed">
+              {errorLatestProbes.length} of {latestProbes.length} regions are reporting connection failures.
             </p>
           </div>
         </div>
@@ -1331,8 +1444,16 @@ export default async function MonitorDetailPage({
                                         )}
                                       </PremiumTooltip>
                                     </td>
-                                    <td className={`${ttfbMetricCellClass(s.ttfb_ms)} !px-3 !py-2 text-[13px]`}>
-                                      <PremiumTooltip content="Latency for this check" position="top-right" direction="top"><VisualGlow value={s.ttfb_ms}>{s.ttfb_ms != null ? `${Math.round(s.ttfb_ms)}ms` : '—'}</VisualGlow></PremiumTooltip>
+                                    <td className={`${isError ? 'cs-table-compact-td' : ttfbMetricCellClass(s.ttfb_ms)} !px-3 !py-2 text-[13px]`}>
+                                      {isError ? (
+                                        <PremiumTooltip content={s.error ?? 'Connection error'} position="top-right" direction="top">
+                                          <span className="block max-w-[140px] truncate text-[10px] font-bold leading-tight text-red-400">
+                                            {s.error ?? 'Connection error'}
+                                          </span>
+                                        </PremiumTooltip>
+                                      ) : (
+                                        <PremiumTooltip content="Latency for this check" position="top-right" direction="top"><VisualGlow value={s.ttfb_ms}>{s.ttfb_ms != null ? `${Math.round(s.ttfb_ms)}ms` : '—'}</VisualGlow></PremiumTooltip>
+                                      )}
                                     </td>
                                     <td className="cs-table-compact-td text-right">
                                       {age > 0 && ageVisual ? (
@@ -1369,13 +1490,28 @@ export default async function MonitorDetailPage({
                                         )
                                       })()}
                                     </td>
-                                    <td className="cs-table-compact-td text-right !text-zinc-500 !text-[10px] tabular-nums">
-                                      {s.last_probe_at ? (
-                                        <PremiumTooltip content={`Probe synchronized at ${new Date(s.last_probe_at).toLocaleString()}`} position="top-right" direction="top">
-                                          {new Date(s.last_probe_at).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                        </PremiumTooltip>
-                                      ) : '—'}
-                                    </td>
+                                    {(() => {
+                                      const syncStatus = probeSyncStatus(s.last_probe_at)
+                                      const syncColorClass =
+                                        syncStatus === 'offline' ? '!text-red-400'
+                                        : syncStatus === 'stale' ? '!text-amber-400'
+                                        : '!text-zinc-500'
+                                      const syncTooltip =
+                                        syncStatus === 'offline'
+                                          ? `Last probe on ${new Date(s.last_probe_at!).toLocaleDateString()} — no data today`
+                                          : syncStatus === 'stale'
+                                            ? `Last probe over 1h ago at ${new Date(s.last_probe_at!).toLocaleString()}`
+                                            : `Probe synchronized at ${new Date(s.last_probe_at!).toLocaleString()}`
+                                      return (
+                                        <td className={`cs-table-compact-td text-right !text-[10px] tabular-nums ${syncColorClass}`}>
+                                          {s.last_probe_at ? (
+                                            <PremiumTooltip content={syncTooltip} position="top-right" direction="top">
+                                              {new Date(s.last_probe_at).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                            </PremiumTooltip>
+                                          ) : '—'}
+                                        </td>
+                                      )
+                                    })()}
                                     {process.env.NODE_ENV === 'development' && (
                                       <td className="px-3 py-2 text-right whitespace-nowrap">
                                         <span className="text-[9px] font-bold !text-zinc-500 font-mono bg-zinc-100 dark:bg-zinc-800/50 px-1 py-0.5 rounded">
@@ -1653,7 +1789,7 @@ export default async function MonitorDetailPage({
                     {stats.length === 0 ? (
                       <p className="text-sm text-zinc-400">Compiling historical insights...</p>
                     ) : (
-                      <TtfbChart data={chartPoints} range={range} regionMeta={regionMeta} cacheHitThresholdPct={monitor.alert_cache_hit_threshold_pct} />
+                      <TtfbChart data={chartPoints} range={range} regionMeta={regionMeta} cacheHitThresholdPct={monitor.alert_cache_hit_threshold_pct} isDown={isDown} />
                     )}
                   </section>
 
