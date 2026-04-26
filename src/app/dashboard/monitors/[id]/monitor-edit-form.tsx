@@ -681,7 +681,7 @@ export function MonitorEditForm({
           {/* ADVANCED SETTINGS — shared between both metrics */}
           {(values.alert_cache_hit_trend_enabled || values.alert_ttfb_trend_enabled) && (
             <div className="mt-6 pt-5 border-t border-white/6 relative z-10">
-              <p className="cs-label mb-3">Fine-tuning <span className="text-zinc-500 font-normal normal-case tracking-normal">— optional, reduces false positives</span></p>
+              <p className="cs-label mb-3">Fine-tuning <span className="text-zinc-600 font-normal normal-case tracking-normal">— optional, reduces false positives</span></p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <label htmlFor={`${p}-trend-min-samples`} className="text-xs text-zinc-400 block mb-1">Min data points / hour</label>

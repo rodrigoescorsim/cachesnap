@@ -13,7 +13,7 @@ const PAUSE_BTN =
   'inline-flex shrink-0 items-center rounded-lg border py-1 px-2.5 text-xs font-semibold leading-none transition-all disabled:opacity-50'
 
 const MENU_TRIGGER =
-  'inline-flex items-center justify-center rounded-[6px] p-[6px] text-zinc-500 transition-colors hover:bg-black/[0.06] dark:text-zinc-400 dark:hover:bg-[rgba(255,255,255,0.06)]'
+  'inline-flex items-center justify-center rounded-[6px] p-[6px] text-zinc-600 transition-colors hover:bg-black/[0.06] dark:text-zinc-400 dark:hover:bg-[rgba(255,255,255,0.06)]'
 
 export function MonitorHeaderToolbar({
   id,

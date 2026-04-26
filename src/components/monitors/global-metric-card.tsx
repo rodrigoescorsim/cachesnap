@@ -47,6 +47,8 @@ type GlobalMetricCardProps = {
   }
   progress?: number
   animationDelayMs?: number
+  /** Special elite glow effect for perfect metrics (e.g. 100% cache hit or ultra-low TTFB). */
+  isElite?: boolean
   /**
    * Monitors overview: replaces big metric / badge / trend / progress / footer
    * with degraded vs critical active-monitor counts.
@@ -181,6 +183,7 @@ export function GlobalMetricCard({
   animationDelayMs = 0,
   systemStatus,
   iconClassName,
+  isElite = false,
 }: GlobalMetricCardProps) {
   const isCompact = variant === 'compact'
   const isSystemStatus = systemStatus !== undefined
@@ -224,12 +227,12 @@ export function GlobalMetricCard({
           <div className={`relative z-10 flex items-baseline justify-between gap-2 ${isCompact ? 'mt-1.5' : 'mt-2'}`}>
             {valueTooltip ? (
               <PremiumTooltip content={valueTooltip} position="top-left">
-                <p className={`cursor-help ${valueSizeClass} font-black tracking-tighter leading-none ${valueClassName ?? 'text-zinc-100'}`}>
+                <p className={`cursor-help ${valueSizeClass} font-black tracking-tighter leading-none ${isElite ? 'text-metric-elite drop-shadow-[0_0_12px_rgba(34,255,136,0.4)]' : (valueClassName ?? 'text-zinc-100')}`}>
                   {value}
                 </p>
               </PremiumTooltip>
             ) : (
-              <p className={`${valueSizeClass} font-black tracking-tighter leading-none ${valueClassName ?? 'text-zinc-100'}`}>
+              <p className={`${valueSizeClass} font-black tracking-tighter leading-none ${isElite ? 'text-metric-elite drop-shadow-[0_0_12px_rgba(34,255,136,0.4)]' : (valueClassName ?? 'text-zinc-100')}`}>
                 {value}
               </p>
             )}
@@ -291,7 +294,7 @@ export function GlobalMetricCard({
                 <span className={`font-semibold uppercase tracking-wide ${toneClassMap[statusFooter.tone]}`}>
                   {statusFooter.label}
                 </span>
-                <span className="text-zinc-500"> · </span>
+                <span className="text-zinc-600"> · </span>
                 {statusFooter.context}
               </p>
             ) : (
@@ -356,7 +359,7 @@ export function GlobalMetricCard({
                         ? '1 monitor impacted'
                         : `${systemStatus.critical} monitors impacted`}
                     </span>
-                    <span className="text-[11px] text-zinc-500">–</span>
+                    <span className="text-[11px] text-zinc-600">–</span>
                     <MonitorBandTooltip
                       monitors={systemStatus.criticalMonitors}
                       emptyMessage="No active monitors are in the critical health band."
@@ -406,7 +409,7 @@ export function GlobalMetricCard({
                         ? '1 monitor impacted'
                         : `${systemStatus.degraded} monitors impacted`}
                     </span>
-                    <span className="text-[11px] text-zinc-500">–</span>
+                    <span className="text-[11px] text-zinc-600">–</span>
                     <MonitorBandTooltip
                       monitors={systemStatus.degradedMonitors}
                       emptyMessage="No active monitors are in the degraded health band."

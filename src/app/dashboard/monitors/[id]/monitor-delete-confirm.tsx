@@ -159,7 +159,7 @@ export function MonitorDeleteConfirm({
               className={`h-11 px-8 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
                 canDelete && !isPending
                   ? 'bg-red-500 text-white border-b-2 border-red-700 shadow-xl shadow-red-500/20 hover:bg-red-600 hover:-translate-y-0.5 active:translate-y-0 active:border-b-0'
-                  : 'bg-white/5 text-zinc-500 border border-white/5 cursor-not-allowed'
+                  : 'bg-white/5 text-zinc-600 border border-white/5 cursor-not-allowed'
               }`}
             >
               {isPending ? 'Deleting...' : 'Remove permanently'}

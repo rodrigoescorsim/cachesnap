@@ -39,8 +39,6 @@ export interface UseMonitorsResult {
   refetch: () => void
 }
 
-const EMPTY_MONITORS: Monitor[] = []
-
 export function useMonitors({ refetchInterval = false }: UseMonitorsOptions = {}): UseMonitorsResult {
   const { data, isLoading, isFetching, isError, dataUpdatedAt, refetch } = useQuery({
     queryKey: MONITORS_QUERY_KEY,
@@ -50,7 +48,7 @@ export function useMonitors({ refetchInterval = false }: UseMonitorsOptions = {}
   })
 
   return {
-    monitors:      data ?? EMPTY_MONITORS,
+    monitors:      data ?? [],
     isLoading,
     isFetching,
     isError,
