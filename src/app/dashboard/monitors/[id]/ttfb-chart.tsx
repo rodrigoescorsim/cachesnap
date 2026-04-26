@@ -391,7 +391,7 @@ export function TtfbChart({
                   </div>
                   <div className="w-px h-3 bg-white/5" />
                   <div className="flex items-baseline gap-1.5">
-                    <span className={`text-sm font-black tabular-nums transition-colors ${getCacheColor(hoveredGlobalCache ?? 0, 'global')}`}>
+                    <span className={`text-sm font-black tabular-nums transition-colors ${hoveredGlobalCache != null ? getCacheColor(hoveredGlobalCache, 'global') : 'text-zinc-500'}`}>
                       {hoveredGlobalCache != null ? Math.round(hoveredGlobalCache) : '—'}%
                     </span>
                     <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${hoveredRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>cache</span>
