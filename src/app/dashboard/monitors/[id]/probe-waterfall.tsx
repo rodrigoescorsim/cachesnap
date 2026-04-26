@@ -163,11 +163,13 @@ export function ProbeWaterfall({ probes, regionLabels }: { probes: WaterfallProb
 
                   {age && (
                     <span
-                      className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-medium ${
+                      className={`cs-badge ${
                         isZombie
-                          ? 'border-red-500/20 bg-red-500/5 text-red-400'
-                          : 'border-border bg-white/5 text-zinc-500'
-                      }`}
+                          ? 'cs-badge-danger'
+                          : probe.age_s && probe.age_s > 3600
+                          ? 'cs-badge-warning'
+                          : 'cs-badge-muted'
+                      } !py-0 !px-1.5 !text-[9px]`}
                       title={`Cache-Control Age: ${probe.age_s}s${isZombie ? ' — zombie cache detected' : ''}`}
                     >
                       Age {age}{isZombie ? ' ⚠' : ''}

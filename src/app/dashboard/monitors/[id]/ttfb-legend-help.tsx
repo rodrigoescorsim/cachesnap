@@ -40,7 +40,7 @@ export function TtfbLegendHelp() {
         <span
           id="ttfb-unattributed-tooltip"
           role="tooltip"
-          className="absolute left-1/2 top-[calc(100%+4px)] z-50 w-[min(calc(100vw-2rem),18rem)] -translate-x-1/2 rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-left text-[10px] leading-snug text-zinc-600 shadow-lg dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300"
+          className="absolute left-1/2 top-[calc(100%+4px)] z-50 w-[min(calc(100vw-2rem),18rem)] -translate-x-1/2 rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-left text-[10px] leading-snug text-zinc-500 shadow-lg dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300"
         >
           <span className="font-medium text-zinc-700 dark:text-zinc-200">TTFB (unattributed):</span>{' '}
           Part of Time to First Byte not explained by DNS, TCP, TLS, or edge/origin slices from{' '}

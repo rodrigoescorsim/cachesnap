@@ -211,6 +211,10 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
   const hitTrendTone = hitDelta > 0 ? 'success' : hitDelta < 0 ? 'danger' : 'neutral'
   const hitTrendIcon = hitDelta > 0 ? ArrowUp : hitDelta < 0 ? ArrowDown : Minus
 
+  const handleOptimisticToggle = useCallback((id: string, status: 'active' | 'paused') => {
+    setOptimisticStatus((prev) => ({ ...prev, [id]: status }))
+  }, [])
+
   return (
     <div className="min-h-full bg-background">
       <GlobalHeader userEmail={userEmail} logoutAction={logoutAction} />
@@ -310,7 +314,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
                 id="monitor-search-input"
                 type="text"
                 aria-label="Filter Monitors"
-                className="cs-input-premium h-11 w-full !pl-11 !pr-12 text-[13px] placeholder:text-zinc-600 focus:scale-[1.002]"
+                className="cs-input-premium h-11 w-full !pl-11 !pr-12 text-[13px] placeholder:text-zinc-500 focus:scale-[1.002]"
                 placeholder="Ex: microsoft, cache miss, TTFB > 300ms…"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
@@ -430,7 +434,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
             sorting={sorting}
             onSortingChange={setSorting}
             optimisticStatus={optimisticStatus}
-            onOptimisticToggle={(id, status) => setOptimisticStatus((prev) => ({ ...prev, [id]: status }))}
+            onOptimisticToggle={handleOptimisticToggle}
           />
         </section>
       </main>

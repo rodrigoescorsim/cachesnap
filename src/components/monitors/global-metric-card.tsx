@@ -291,7 +291,7 @@ export function GlobalMetricCard({
                 <span className={`font-semibold uppercase tracking-wide ${toneClassMap[statusFooter.tone]}`}>
                   {statusFooter.label}
                 </span>
-                <span className="text-zinc-600"> · </span>
+                <span className="text-zinc-500"> · </span>
                 {statusFooter.context}
               </p>
             ) : (
@@ -356,7 +356,7 @@ export function GlobalMetricCard({
                         ? '1 monitor impacted'
                         : `${systemStatus.critical} monitors impacted`}
                     </span>
-                    <span className="text-[11px] text-zinc-600">–</span>
+                    <span className="text-[11px] text-zinc-500">–</span>
                     <MonitorBandTooltip
                       monitors={systemStatus.criticalMonitors}
                       emptyMessage="No active monitors are in the critical health band."
@@ -406,7 +406,7 @@ export function GlobalMetricCard({
                         ? '1 monitor impacted'
                         : `${systemStatus.degraded} monitors impacted`}
                     </span>
-                    <span className="text-[11px] text-zinc-600">–</span>
+                    <span className="text-[11px] text-zinc-500">–</span>
                     <MonitorBandTooltip
                       monitors={systemStatus.degradedMonitors}
                       emptyMessage="No active monitors are in the degraded health band."

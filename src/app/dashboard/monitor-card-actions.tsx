@@ -51,7 +51,7 @@ export function MonitorCardActions({ monitorId, monitorLabel }: Props) {
     <div className={`relative z-20 flex items-center gap-1 transition-opacity ${confirmOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
       <Link
         href={`/dashboard/monitors/${monitorId}`}
-        className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
+        className="p-1 text-zinc-400 hover:text-zinc-500 dark:hover:text-zinc-200 transition-colors"
         title="Edit monitor"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /><path d="m15 5 4 4" /></svg>
@@ -80,7 +80,7 @@ export function MonitorCardActions({ monitorId, monitorLabel }: Props) {
               type="button"
               onClick={cancelDelete}
               disabled={isPending}
-              className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2.5 py-1 text-[11px] font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50"
+              className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2.5 py-1 text-[11px] font-medium text-zinc-500 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50"
             >
               Cancel
             </button>

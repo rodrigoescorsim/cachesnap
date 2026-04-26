@@ -918,6 +918,8 @@ export function MonitorsTable({
     getSortedRowModel: getSortedRowModel(),
     getRowId: (row) => row.id,
     enableMultiSort: false,
+    autoResetPageIndex: false,
+    autoResetSorting: false,
   })
 
   const handleRowClick = useCallback(
@@ -1052,7 +1054,7 @@ export function MonitorsTable({
               <p className="text-[13px] font-black tracking-tight text-zinc-400">
                 Failed to load monitors
               </p>
-              <p className="mt-1 text-[11px] leading-relaxed text-zinc-600">
+              <p className="mt-1 text-[11px] leading-relaxed text-zinc-500">
                 Something went wrong while fetching your data. Your monitors are still running.
               </p>
             </div>
@@ -1077,13 +1079,13 @@ export function MonitorsTable({
             aria-live="polite"
           >
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.025] shadow-[0_0_24px_-8px_rgba(52,211,153,0.08)]">
-              <Search className="h-5 w-5 text-zinc-600" aria-hidden />
+              <Search className="h-5 w-5 text-zinc-500" aria-hidden />
             </div>
             <div className="max-w-xs text-center">
               <p className="text-[13px] font-black tracking-tight text-zinc-400">
                 No monitors match
               </p>
-              <p className="mt-1 text-[11px] leading-relaxed text-zinc-600">
+              <p className="mt-1 text-[11px] leading-relaxed text-zinc-500">
                 {searchQuery.trim() ? (
                   <>
                     Nothing matched{' '}
@@ -1116,7 +1118,7 @@ export function MonitorsTable({
       >
         <span className="inline-flex items-center gap-2 text-[9.5px] font-black uppercase tracking-[0.12em] text-zinc-500">
           {isLoading ? (
-            <span className="text-zinc-600">Loading…</span>
+            <span className="text-zinc-500">Loading…</span>
           ) : (
             <>
               {rows.length === 1 ? '1 MONITOR' : `${rows.length} MONITORS`}

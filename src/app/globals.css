@@ -586,8 +586,7 @@ body {
    * Brighter than primary green with a subtle neon glow.
    */
   .text-metric-elite {
-    color: #4CFFB3;
-    @apply animate-[pulse_2s_infinite];
+    color: var(--metric-fast);
   }
 
   .fill-metric-elite {

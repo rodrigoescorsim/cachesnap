@@ -50,7 +50,7 @@ export default function SignupPage() {
           {state?.errors?.password && (
             <p className="mt-1 text-xs text-red-500">{state.errors.password[0]}</p>
           )}
-          <p className="mt-1.5 text-[10px] uppercase tracking-wider font-bold text-zinc-600">Minimum 8 characters</p>
+          <p className="mt-1.5 text-[10px] uppercase tracking-wider font-bold text-zinc-500">Minimum 8 characters</p>
         </div>
 
         <button

@@ -155,10 +155,10 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
                     —ms
                   </span>
                   <div className="flex flex-col">
-                    <span className="text-base font-bold text-zinc-600">
+                    <span className="text-base font-bold text-zinc-500">
                       Baseline Pending
                     </span>
-                    <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
+                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
                       Waiting for cache hit
                     </span>
                   </div>
@@ -246,12 +246,12 @@ export function BypassAudit({ data, regionLabels }: BypassAuditProps) {
                         <PremiumTooltip content="Origin latency unavailable because all requests were served from cache.">
                           <div className="flex flex-col items-end cursor-help">
                             <span className="text-[11px] font-bold text-zinc-500 italic">Inconclusive</span>
-                            <span className="text-[9px] font-black text-zinc-600 uppercase tracking-tighter">Origin Forced HIT</span>
+                            <span className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter">Origin Forced HIT</span>
                           </div>
                         </PremiumTooltip>
                       ) : !isValidComparison ? (
                         <div className="flex flex-col items-end">
-                          <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Analysis Pending</span>
+                          <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Analysis Pending</span>
                           <span className="text-[9px] font-bold text-zinc-700 uppercase">Wait for HIT/MISS</span>
                         </div>
                       ) : (

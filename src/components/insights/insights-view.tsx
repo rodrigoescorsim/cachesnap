@@ -365,9 +365,9 @@ function TrendChart({
 
           <div className="mt-2 flex justify-between font-mono text-[10px] font-semibold tabular-nums text-zinc-500">
             <span>24h ago</span>
-            <span className="text-zinc-600">18h</span>
-            <span className="text-zinc-600">12h</span>
-            <span className="text-zinc-600">6h</span>
+            <span className="text-zinc-500">18h</span>
+            <span className="text-zinc-500">12h</span>
+            <span className="text-zinc-500">6h</span>
             <span>now</span>
           </div>
           <p className="mt-1 text-center font-mono text-[10px] tabular-nums text-zinc-500">
@@ -720,7 +720,7 @@ function MonitorQuickCard({ monitor, rank }: { monitor: Monitor; rank: number })
                   <span className="text-[10px] font-semibold text-zinc-500">%</span>
                 </>
               ) : (
-                <p className="text-[13px] font-bold text-zinc-600">N/A</p>
+                <p className="text-[13px] font-bold text-zinc-500">N/A</p>
               )}
             </div>
           </div>

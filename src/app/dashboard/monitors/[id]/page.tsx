@@ -532,19 +532,19 @@ const AGE_ZOMBIE_THRESHOLD_S = 86_400 // same boundary as probe-waterfall zombie
 function ageBadgeVisual(ageSeconds: number): { className: string; tierHint: string } {
   if (ageSeconds <= AGE_RECENT_MAX_S) {
     return {
-      className: 'cs-badge-flat-success',
+      className: 'cs-badge-muted',
       tierHint: 'Recently cached (≤1h)',
     }
   }
   if (ageSeconds <= AGE_ZOMBIE_THRESHOLD_S) {
     return {
-      className: 'cs-badge-flat-warning',
+      className: 'cs-badge-warning',
       tierHint: 'Elevated cache age (>1h, up to 24h)',
     }
   }
   return {
-    className: 'cs-badge-flat-error',
-    tierHint: 'Long-lived in cache (>24h) — review invalidation / TTL',
+    className: 'cs-badge-danger',
+    tierHint: 'Zombie cache (>24h) — review invalidation / TTL',
   }
 }
 
@@ -1107,7 +1107,7 @@ export default async function MonitorDetailPage({
             <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.5px] text-zinc-900 dark:text-zinc-50">
               {monitorDisplayName}
             </h1>
-            <p className="mt-0.5 truncate text-[13px] tracking-tight text-zinc-600 opacity-60 dark:text-zinc-400">
+            <p className="mt-0.5 truncate text-[13px] tracking-tight text-zinc-500 opacity-60 dark:text-zinc-400">
               {monitor.url}
             </p>
           </div>
@@ -1123,7 +1123,7 @@ export default async function MonitorDetailPage({
                     className={`h-2 w-2 shrink-0 rounded-full ${monitor.is_active ? MONITOR_HEADER_ACTIVE_DOT : 'bg-zinc-400 dark:bg-zinc-500'}`}
                     aria-hidden
                   />
-                  <span className="text-zinc-600 dark:text-zinc-300">{monitor.is_active ? 'Active' : 'Paused'}</span>
+                  <span className="text-zinc-500 dark:text-zinc-300">{monitor.is_active ? 'Active' : 'Paused'}</span>
                 </div>
               </PremiumTooltip>
 
@@ -1292,7 +1292,7 @@ export default async function MonitorDetailPage({
                             <PremiumTooltip content={validLiveTtfb.length === 0 ? 'No data available' : getTtfbTooltip(liveAvgTtfb, 'global')}>
                               <div className="flex items-center gap-3">
                                 {validLiveTtfb.length === 0 ? (
-                                  <span className="text-[24px] font-bold tracking-tight leading-none text-zinc-500">—<span className="text-base ml-0.5 text-zinc-600">ms</span></span>
+                                  <span className="text-[24px] font-bold tracking-tight leading-none text-zinc-500">—<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
                                 ) : (
                                   <>
                                     <span className={`text-[24px] font-bold tracking-tight leading-none ${getTtfbColorClass(liveAvgTtfb, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{liveAvgTtfb}<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
@@ -1318,7 +1318,7 @@ export default async function MonitorDetailPage({
                             <PremiumTooltip content={validLiveCache.length === 0 ? 'No data available' : getCacheTooltip(liveGlobalHitRate, 'global')}>
                               <div className="flex items-center gap-3">
                                 {validLiveCache.length === 0 ? (
-                                  <span className="text-[24px] font-bold tracking-tight leading-none text-zinc-500">—<span className="text-base ml-0.5 text-zinc-600">%</span></span>
+                                  <span className="text-[24px] font-bold tracking-tight leading-none text-zinc-500">—<span className="text-base ml-0.5 text-zinc-500">%</span></span>
                                 ) : (
                                   <>
                                     <span className={`text-[24px] font-bold tracking-tight leading-none ${getCacheColor(liveGlobalHitRate, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{liveGlobalHitRate}<span className="text-base ml-0.5 text-zinc-500">%</span></span>
@@ -1470,7 +1470,7 @@ export default async function MonitorDetailPage({
                                     <td className="cs-table-compact-td text-right">
                                       {age > 0 && ageVisual ? (
                                         <PremiumTooltip content={ageBadgeTitle} position="top-right" direction="top">
-                                          <span className={`cs-badge-flat ${ageVisual.className}`}>
+                                          <span className={ageVisual.className}>
                                             {formatCacheAgeShort(age)}
                                           </span>
                                         </PremiumTooltip>
@@ -1580,7 +1580,7 @@ export default async function MonitorDetailPage({
                             <PremiumTooltip content={avgTtfb === 0 ? 'No data available' : getTtfbTooltip(avgTtfb, 'global')}>
                               <div className="flex items-center gap-3">
                                 {avgTtfb === 0 ? (
-                                  <span className="text-[24px] font-bold tracking-tight leading-none text-zinc-500">—<span className="text-base ml-0.5 text-zinc-600">ms</span></span>
+                                  <span className="text-[24px] font-bold tracking-tight leading-none text-zinc-500">—<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
                                 ) : (
                                   <>
                                     <span className={`text-[24px] font-bold tracking-tight leading-none ${getTtfbColorClass(avgTtfb, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{avgTtfb}<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
@@ -1606,7 +1606,7 @@ export default async function MonitorDetailPage({
                             <PremiumTooltip content={globalHitRate === 0 ? 'No data available' : getCacheTooltip(globalHitRate, 'global')}>
                               <div className="flex items-center gap-3">
                                 {globalHitRate === 0 ? (
-                                  <span className="text-[24px] font-bold tracking-tight leading-none text-zinc-500">—<span className="text-base ml-0.5 text-zinc-600">%</span></span>
+                                  <span className="text-[24px] font-bold tracking-tight leading-none text-zinc-500">—<span className="text-base ml-0.5 text-zinc-500">%</span></span>
                                 ) : (
                                   <>
                                     <span className={`text-[24px] font-bold tracking-tight leading-none ${getCacheColor(globalHitRate, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{globalHitRate}<span className="text-base ml-0.5 text-zinc-500">%</span></span>
@@ -2102,7 +2102,7 @@ export default async function MonitorDetailPage({
                                     <span className="text-zinc-400">From</span>{' '}
                                     <span className="font-mono text-zinc-300">{formatCertDate(ssl.valid_from)}</span>
                                   </span>
-                                  <span className="hidden text-zinc-600 sm:inline">→</span>
+                                  <span className="hidden text-zinc-500 sm:inline">→</span>
                                   <span>
                                     <span className="text-zinc-400">Until</span>{' '}
                                     <span className="font-mono text-zinc-300">{formatCertDate(ssl.valid_to)}</span>
@@ -2184,7 +2184,7 @@ export default async function MonitorDetailPage({
                                     if (valStr.length < 160) {
                                       return (
                                         <div className="rounded border border-border bg-white/5 p-2 text-wrap dark:bg-zinc-900/40">
-                                          <code className="block text-[10px] text-zinc-600 dark:text-zinc-400 break-all font-mono leading-relaxed">
+                                          <code className="block text-[10px] text-zinc-500 dark:text-zinc-400 break-all font-mono leading-relaxed">
                                             {valStr}
                                           </code>
                                         </div>
@@ -2194,7 +2194,7 @@ export default async function MonitorDetailPage({
                                       <details className="group">
                                         <summary className="flex items-center gap-1.5 cursor-pointer list-none outline-none">
                                           <div className="min-w-0 flex-1 rounded border border-border bg-white/5 p-2 dark:bg-zinc-900/40">
-                                            <code className="text-[10px] text-zinc-600 dark:text-zinc-400 font-mono block truncate">
+                                            <code className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono block truncate">
                                               {valStr.slice(0, 100)}...
                                             </code>
                                           </div>
@@ -2204,7 +2204,7 @@ export default async function MonitorDetailPage({
                                           </div>
                                         </summary>
                                         <div className="mt-2 rounded border border-border bg-surface/80 p-2 shadow-inner">
-                                          <code className="block text-[10px] text-zinc-600 dark:text-zinc-400 break-all font-mono leading-relaxed">
+                                          <code className="block text-[10px] text-zinc-500 dark:text-zinc-400 break-all font-mono leading-relaxed">
                                             {valStr}
                                           </code>
                                         </div>
@@ -2251,7 +2251,7 @@ export default async function MonitorDetailPage({
                                   if (JSON.stringify(normalizedMainVal) === JSON.stringify(normalizedDriftVal)) return null
                                   return (
                                     <div key={h.key} className="text-[10px] p-2 bg-white/50 dark:bg-zinc-950/50 rounded border border-red-50 dark:border-red-900/30">
-                                      <p className="font-bold text-zinc-600 dark:text-zinc-400 uppercase mb-1">{h.label}</p>
+                                      <p className="font-bold text-zinc-500 dark:text-zinc-400 uppercase mb-1">{h.label}</p>
                                       <div className="grid grid-cols-2 gap-2 italic">
                                         <div><span className="text-zinc-400">Main:</span><br /><span className="text-emerald-600 line-through opacity-50">{String((mainVal || 'Missing'))}</span></div>
                                         <div><span className="text-red-600 font-bold">Drift:</span><br /><span className="text-red-700 dark:text-red-400">{String((driftVal || 'Missing'))}</span></div>
@@ -2436,7 +2436,7 @@ export default async function MonitorDetailPage({
                                   <td className="px-4 py-3">
                                     <div className="flex items-center gap-2">
                                       {alertTypeIcon}
-                                      <span className="text-[11px] font-bold uppercase tracking-tight text-zinc-600 dark:text-zinc-400">
+                                      <span className="text-[11px] font-bold uppercase tracking-tight text-zinc-500 dark:text-zinc-400">
                                         {ALERT_TYPE_LABELS[alert.alert_type as AlertType] ?? alert.alert_type.replace('_', ' ')}
                                       </span>
                                     </div>
@@ -2472,13 +2472,13 @@ export default async function MonitorDetailPage({
                                       <div className="rounded-lg bg-white/[0.02] border border-white/5 px-3 py-2 space-y-1">
                                         {alert.diagnosis && (
                                           <p className="text-[11px] text-zinc-400 leading-relaxed">
-                                            <span className="text-zinc-600 font-bold uppercase tracking-tight text-[9px] mr-2">Cause</span>
+                                            <span className="text-zinc-500 font-bold uppercase tracking-tight text-[9px] mr-2">Cause</span>
                                             {alert.diagnosis}
                                           </p>
                                         )}
                                         {alert.action && (
                                           <p className="text-[11px] text-[var(--brand-primary)]/70 leading-relaxed">
-                                            <span className="text-zinc-600 font-bold uppercase tracking-tight text-[9px] mr-2">Fix</span>
+                                            <span className="text-zinc-500 font-bold uppercase tracking-tight text-[9px] mr-2">Fix</span>
                                             {alert.action}
                                           </p>
                                         )}

@@ -4,6 +4,7 @@ import { useState, useRef, useMemo, useEffect } from 'react'
 import { formatChartLabel, niceMax, globalBucketAverage, buildP95BandPath } from './ttfb-chart.helpers'
 import { TIMING } from './timing-metrics-palette'
 import { PremiumTooltip } from '@/components/premium-tooltip'
+import { getTtfbColorClass, getCacheColor } from '@/lib/thresholds'
 
 export interface ChartPoint {
   bucket: string       // ISO string
@@ -62,6 +63,7 @@ export function TtfbChart({
   isDown?: boolean
 }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+  const [hoveredRegion, setHoveredRegion] = useState<string | null>(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   const [showGlobalTtfb, setShowGlobalTtfb] = useState(true)
   const [selectedTtfbRegions, setSelectedTtfbRegions] = useState<Set<string>>(new Set())
@@ -119,8 +121,34 @@ export function TtfbChart({
     return map
   }, [data])
 
-  // ── Y scales ──────────────────────────────────────────────────────────────
-  const maxTtfb = Math.max(...data.map(d => d.ttfb_avg), 1)
+  // ── Global averages ───────────────────────────────────────────────────────
+  const globalDns = globalBucketAverage(allBuckets, data, p => p.dns_avg)
+  const globalTcp = globalBucketAverage(allBuckets, data, p => p.tcp_avg)
+  const globalTls = globalBucketAverage(allBuckets, data, p => p.tls_avg)
+  const globalTtfb = globalBucketAverage(allBuckets, data, p => p.ttfb_avg)
+  const globalP95 = globalBucketAverage(allBuckets, data, p => p.ttfb_p95)
+  const hasCacheData = data.some(d => d.cache_hit_pct != null)
+  const isCacheNotReported = !hasCacheData
+
+  // ── Y scales (Dynamic based on visible data) ─────────────────────────────
+  const maxTtfb = useMemo(() => {
+    let max = 1
+    if (showGlobalTtfb) {
+      for (const p of globalTtfb) {
+        if (p.value > max) max = p.value
+      }
+    }
+    for (const region of selectedTtfbRegions) {
+      const m = byRegion[region]
+      if (!m) continue
+      for (const p of m.values()) {
+        if (p.ttfb_avg > max) max = p.ttfb_avg
+        if (p.ttfb_p95 != null && p.ttfb_p95 > max) max = p.ttfb_p95
+      }
+    }
+    return max
+  }, [showGlobalTtfb, selectedTtfbRegions, globalTtfb, byRegion])
+
   const niceMaxTtfb = niceMax(maxTtfb, 100)
 
   const maxNet = Math.max(
@@ -170,15 +198,11 @@ export function TtfbChart({
     }
   }
 
-  const handleMouseLeave = () => setHoveredIdx(null)
+  const handleMouseLeave = () => {
+    setHoveredIdx(null)
+    setHoveredRegion(null)
+  }
 
-  // ── Global averages ───────────────────────────────────────────────────────
-  const globalDns = globalBucketAverage(allBuckets, data, p => p.dns_avg)
-  const globalTcp = globalBucketAverage(allBuckets, data, p => p.tcp_avg)
-  const globalTls = globalBucketAverage(allBuckets, data, p => p.tls_avg)
-  const globalTtfb = globalBucketAverage(allBuckets, data, p => p.ttfb_avg)
-  const hasCacheData = data.some(d => d.cache_hit_pct != null)
-  const isCacheNotReported = !hasCacheData
 
   const defaultTtfbRegions = useMemo(() => {
     const ranked = regions
@@ -297,6 +321,16 @@ export function TtfbChart({
       .sort((a, b) => a.value - b.value)[0] ?? null
     : null
 
+  const hoveredWorstRegionTtfb = hoveredBucket != null
+    ? regions
+      .map(region => {
+        const ttfbValue = byRegion[region]?.get(hoveredBucket)?.ttfb_avg
+        return ttfbValue != null ? { region, value: ttfbValue } : null
+      })
+      .filter((entry): entry is { region: string; value: number } => entry != null)
+      .sort((a, b) => b.value - a.value)[0] ?? null
+    : null
+
   // ── Sub-components ────────────────────────────────────────────────────────
   function XAxisLabels() {
     const n = Math.max(allBuckets.length - 1, 1)
@@ -338,50 +372,82 @@ export function TtfbChart({
       {/* Tooltip */}
       {hoveredIdx !== null && (
         <div
-          className="fixed z-[100] pointer-events-none bg-surface/95 backdrop-blur-xl border border-white/10 p-3 rounded-xl shadow-2xl text-white min-w-[180px]"
+          className="fixed z-[100] pointer-events-none bg-surface/95 backdrop-blur-xl border border-white/10 p-3 rounded-xl shadow-2xl text-white min-w-[220px]"
           style={{ left: mousePos.x + 20 + (containerRef.current?.getBoundingClientRect().left ?? 0), top: mousePos.y + 20 + (containerRef.current?.getBoundingClientRect().top ?? 0) }}
         >
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 border-b border-white/5 pb-1.5 px-0.5">
+          <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2 border-b border-white/5 pb-1.5 px-0.5">
             {formatChartLabel(allBuckets[hoveredIdx], range)} {range === '7d' || range === '30d' || range === '90d' ? '' : 'UTC'}
           </p>
-          {(hoveredGlobalCache != null || hoveredWorstRegionCache != null) && (
-            <div className="mb-2 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1.5 text-[10px]">
-              {hoveredGlobalCache != null && (
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-zinc-500">Global cache hit</span>
-                  <span className="font-bold text-cyan-300 tabular-nums">{Math.round(hoveredGlobalCache)}%</span>
+          {hoveredIdx !== null && (
+            <div className={`mb-1.5 px-1.5 py-0.5 flex items-center justify-between border-b border-white/5 pb-1.5 rounded-md transition-all duration-300 ${hoveredRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : ''}`}>
+              <div className="flex flex-col gap-0.5">
+                <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${hoveredRegion === 'global' ? 'text-cyan-300' : 'text-zinc-400'}`}>GLOBAL</span>
+                <div className="flex items-center gap-4 mt-0.5">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className={`text-sm font-black tabular-nums transition-colors ${getTtfbColorClass(globalTtfb[hoveredIdx].value, 'global')}`}>
+                      {Math.round(globalTtfb[hoveredIdx].value)}
+                    </span>
+                    <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${hoveredRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>ms</span>
+                  </div>
+                  <div className="w-px h-3 bg-white/5" />
+                  <div className="flex items-baseline gap-1.5">
+                    <span className={`text-sm font-black tabular-nums transition-colors ${getCacheColor(hoveredGlobalCache ?? 0, 'global')}`}>
+                      {hoveredGlobalCache != null ? Math.round(hoveredGlobalCache) : '—'}%
+                    </span>
+                    <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${hoveredRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>cache</span>
+                  </div>
                 </div>
-              )}
-              {hoveredWorstRegionCache != null && (
-                <div className="mt-1 flex items-center justify-between gap-3">
-                  <span className="text-zinc-500">Worst region</span>
-                  <span className="font-bold text-red-300 tabular-nums">{(regionMeta[hoveredWorstRegionCache.region]?.label ?? hoveredWorstRegionCache.region).split(' ')[0]} {Math.round(hoveredWorstRegionCache.value)}%</span>
-                </div>
-              )}
+              </div>
             </div>
           )}
           <div className="space-y-2">
+            {/* Header row */}
+            <div className="flex items-center justify-between gap-6 border-b border-white/5 pb-1 mb-1">
+              <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Region</span>
+              <div className="flex items-center gap-3">
+                <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">TTFB</span>
+                <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">P95</span>
+                <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">Cache</span>
+              </div>
+            </div>
+
+
             {regions.map(region => {
               const p = byRegion[region]?.get(allBuckets[hoveredIdx])
               if (!p) return null
+              const isHovered = hoveredRegion === region
               return (
-                <div key={region} className="flex items-center justify-between gap-4">
+                <div
+                  key={region}
+                  className="flex items-center justify-between gap-6 px-1 py-0.5 rounded-md transition-all duration-300"
+                  style={isHovered ? {
+                    backgroundColor: `${regionMeta[region]?.color ?? '#6b7280'}15`,
+                    boxShadow: `0 0 15px ${(regionMeta[region]?.color ?? '#6b7280')}08`,
+                    border: `1px solid ${(regionMeta[region]?.color ?? '#6b7280')}30`,
+                  } : {
+                    border: '1px solid transparent'
+                  }}
+                >
                   <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: regionMeta[region]?.color ?? '#6b7280' }} />
-                    <span className="text-[10px] font-medium text-zinc-400 capitalize whitespace-nowrap">
-                      {(regionMeta[region]?.label ?? region).split(' ')[0]}
+                    <div className={`w-1.5 h-1.5 rounded-full transition-transform ${isHovered ? 'scale-125' : ''}`} style={{ backgroundColor: regionMeta[region]?.color ?? '#6b7280' }} />
+                    <span className={`text-[10px] font-bold capitalize whitespace-nowrap transition-colors ${isHovered ? 'text-white' : 'text-zinc-300'}`}>
+                      {regionMeta[region]?.label ?? region}
                     </span>
                   </div>
-                  <div className="flex flex-col items-end tabular-nums">
-                    <span className="text-[11px] font-bold">{Math.round(p.ttfb_avg)}ms</span>
-                    {p.ttfb_p95 != null && (
-                      <span className="text-[9px] text-zinc-500">p95 {p.ttfb_p95}ms</span>
-                    )}
-                    {p.cache_hit_pct != null && (
-                      <span className={`text-[9px] font-medium px-1 rounded-sm ${p.cache_hit_pct >= 50 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-                        {Math.round(p.cache_hit_pct)}%
-                      </span>
-                    )}
+                  <div className="flex items-center gap-3 tabular-nums">
+                    <span className={`w-[42px] text-right text-[11px] font-black transition-colors ${getTtfbColorClass(p.ttfb_avg, 'monitor')}`}>{Math.round(p.ttfb_avg)}ms</span>
+                    <span className={`w-[42px] text-right text-[9px] font-medium transition-colors ${isHovered ? 'text-zinc-200' : 'text-zinc-400'}`}>
+                      {p.ttfb_p95 != null ? `${p.ttfb_p95}ms` : '—'}
+                    </span>
+                    <div className="w-[42px] flex justify-end">
+                      {p.cache_hit_pct != null ? (
+                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md transition-all ${getCacheColor(p.cache_hit_pct, 'monitor').replace('text-', 'bg-').replace('-400', '-500')}/10 ${getCacheColor(p.cache_hit_pct, 'monitor')}`}>
+                          {Math.round(p.cache_hit_pct)}%
+                        </span>
+                      ) : (
+                        <span className="text-[9px] text-zinc-500">—</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               )
@@ -488,13 +554,16 @@ export function TtfbChart({
                 if (!m) return null
                 const bandPath = buildP95BandPath(allBuckets, m, toX, toYTtfb)
                 if (!bandPath) return null
+                const isHovered = hoveredRegion === region
+                const isOtherHovered = hoveredRegion !== null && !isHovered
                 return (
                   <path
                     key={`band-${region}`}
                     d={bandPath}
                     fill={regionMeta[region]?.color ?? '#6b7280'}
-                    fillOpacity={0.08}
+                    fillOpacity={isHovered ? 0.15 : isOtherHovered ? 0.02 : 0.08}
                     stroke="none"
+                    className="transition-all duration-300 pointer-events-none"
                   />
                 )
               })}
@@ -503,17 +572,52 @@ export function TtfbChart({
                 const m = byRegion[region]
                 if (!m) return null
                 const points = allBuckets.map((b, i) => m.has(b) ? `${toX(i)},${toYTtfb(m.get(b)!.ttfb_avg)}` : null).filter(Boolean).join(' ')
-                return <polyline key={region} points={points} fill="none" stroke={regionMeta[region]?.color ?? '#6b7280'} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={hoveredIdx === null ? 1 : byRegion[region]?.has(allBuckets[hoveredIdx]) ? 1 : 0.2} />
+                const isHovered = hoveredRegion === region
+                const isOtherHovered = hoveredRegion !== null && !isHovered
+                return (
+                  <g key={`group-${region}`} onMouseEnter={() => setHoveredRegion(region)} onMouseLeave={() => setHoveredRegion(null)}>
+                    {/* Transparent hit area for easier hovering */}
+                    <polyline
+                      points={points}
+                      fill="none"
+                      stroke="transparent"
+                      strokeWidth={12}
+                      className="cursor-pointer"
+                    />
+                    <polyline
+                      points={points}
+                      fill="none"
+                      stroke={regionMeta[region]?.color ?? '#6b7280'}
+                      strokeWidth={isHovered ? 2.5 : 1.5}
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                      strokeOpacity={isHovered ? 1 : isOtherHovered ? 0.15 : (hoveredIdx === null ? 1 : byRegion[region]?.has(allBuckets[hoveredIdx]) ? 1 : 0.2)}
+                      className="transition-all duration-300 pointer-events-none"
+                    />
+                  </g>
+                )
               })}
               {showGlobalTtfb && (
-                <polyline
-                  points={globalTtfb.map((bucket, i) => `${toX(i)},${toYTtfb(bucket.value)}`).join(' ')}
-                  fill="none"
-                  stroke="#22d3ee"
-                  strokeWidth={2.4}
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                />
+                <g onMouseEnter={() => setHoveredRegion('global')} onMouseLeave={() => setHoveredRegion(null)}>
+                  {/* Hit area for global line */}
+                  <polyline
+                    points={globalTtfb.map((bucket, i) => `${toX(i)},${toYTtfb(bucket.value)}`).join(' ')}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={12}
+                    className="cursor-pointer"
+                  />
+                  <polyline
+                    points={globalTtfb.map((bucket, i) => `${toX(i)},${toYTtfb(bucket.value)}`).join(' ')}
+                    fill="none"
+                    stroke="#22d3ee"
+                    strokeWidth={hoveredRegion === 'global' ? 3.5 : 2.4}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    strokeOpacity={hoveredRegion === 'global' ? 1 : hoveredRegion !== null ? 0.15 : 1}
+                    className="transition-all duration-300 pointer-events-none"
+                  />
+                </g>
               )}
             </svg>
           </div>
@@ -549,7 +653,7 @@ export function TtfbChart({
                       Global
                     </button>
                     <PremiumTooltip
-content="Show all regions."
+                      content="Show all regions."
                       position="bottom-center"
                       panelSizing="hug"
                     >
@@ -653,18 +757,55 @@ content="Show all regions."
                         return p && p.cache_hit_pct != null ? `${toX(i)},${toYCache(p.cache_hit_pct)}` : null
                       }).filter(Boolean).join(' ')
                       if (!points) return null
-                      return <polyline key={region} points={points} fill="none" stroke={regionMeta[region]?.color ?? '#6b7280'} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={hoveredIdx === null ? 1 : byRegion[region]?.has(allBuckets[hoveredIdx]) ? 1 : 0.2} />
+
+                      const isHovered = hoveredRegion === region
+                      const isOtherHovered = hoveredRegion !== null && !isHovered
+
+                      return (
+                        <g key={`cache-group-${region}`} onMouseEnter={() => setHoveredRegion(region)} onMouseLeave={() => setHoveredRegion(null)}>
+                          {/* Hit area */}
+                          <polyline
+                            points={points}
+                            fill="none"
+                            stroke="transparent"
+                            strokeWidth={12}
+                            className="cursor-pointer"
+                          />
+                          <polyline
+                            points={points}
+                            fill="none"
+                            stroke={regionMeta[region]?.color ?? '#6b7280'}
+                            strokeWidth={isHovered ? 2.5 : 1.5}
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                            strokeOpacity={isHovered ? 1 : isOtherHovered ? 0.15 : (hoveredIdx === null ? 1 : byRegion[region]?.has(allBuckets[hoveredIdx]) ? 1 : 0.2)}
+                            className="transition-all duration-300 pointer-events-none"
+                          />
+                        </g>
+                      )
                     })}
 
                     {showGlobalCache && (
-                      <polyline
-                        points={globalCache.map((bucket, i) => bucket.value != null ? `${toX(i)},${toYCache(bucket.value)}` : null).filter(Boolean).join(' ')}
-                        fill="none"
-                        stroke="#22d3ee"
-                        strokeWidth={2.4}
-                        strokeLinejoin="round"
-                        strokeLinecap="round"
-                      />
+                      <g onMouseEnter={() => setHoveredRegion('global')} onMouseLeave={() => setHoveredRegion(null)}>
+                        {/* Hit area for global cache */}
+                        <polyline
+                          points={globalCache.map((bucket, i) => bucket.value != null ? `${toX(i)},${toYCache(bucket.value)}` : null).filter(Boolean).join(' ')}
+                          fill="none"
+                          stroke="transparent"
+                          strokeWidth={12}
+                          className="cursor-pointer"
+                        />
+                        <polyline
+                          points={globalCache.map((bucket, i) => bucket.value != null ? `${toX(i)},${toYCache(bucket.value)}` : null).filter(Boolean).join(' ')}
+                          fill="none"
+                          stroke="#22d3ee"
+                          strokeWidth={hoveredRegion === 'global' ? 3.5 : 2.4}
+                          strokeLinejoin="round"
+                          strokeLinecap="round"
+                          strokeOpacity={hoveredRegion === 'global' ? 1 : (hoveredRegion !== null ? 0.15 : 1)}
+                          className="transition-all duration-300 pointer-events-none"
+                        />
+                      </g>
                     )}
                   </>
                 ) : (
