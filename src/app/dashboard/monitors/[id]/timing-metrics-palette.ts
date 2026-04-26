@@ -46,6 +46,6 @@ export const TIMING = {
     stroke: '#ea580c',
   },
   total: {
-    text: 'text-zinc-500 dark:text-zinc-400',
+    text: 'text-zinc-600 dark:text-zinc-400',
   },
 } as const

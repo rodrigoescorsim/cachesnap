@@ -12,7 +12,7 @@ export default async function InsightsPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center bg-background">
-          <div className="flex items-center gap-3 text-zinc-500">
+          <div className="flex items-center gap-3 text-zinc-600">
             <span className="h-2 w-2 animate-ping rounded-full bg-emerald-500/60" />
             <span className="text-[12px] font-semibold uppercase tracking-widest">Loading…</span>
           </div>

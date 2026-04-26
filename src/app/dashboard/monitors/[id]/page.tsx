@@ -532,18 +532,18 @@ const AGE_ZOMBIE_THRESHOLD_S = 86_400 // same boundary as probe-waterfall zombie
 function ageBadgeVisual(ageSeconds: number): { className: string; tierHint: string } {
   if (ageSeconds <= AGE_RECENT_MAX_S) {
     return {
-      className: 'cs-badge-muted',
+      className: 'cs-badge-flat cs-badge-flat-success',
       tierHint: 'Recently cached (≤1h)',
     }
   }
   if (ageSeconds <= AGE_ZOMBIE_THRESHOLD_S) {
     return {
-      className: 'cs-badge-warning',
+      className: 'cs-badge-flat cs-badge-flat-warning',
       tierHint: 'Elevated cache age (>1h, up to 24h)',
     }
   }
   return {
-    className: 'cs-badge-danger',
+    className: 'cs-badge-flat cs-badge-flat-danger',
     tierHint: 'Zombie cache (>24h) — review invalidation / TTL',
   }
 }
