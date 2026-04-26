@@ -1289,10 +1289,16 @@ export default async function MonitorDetailPage({
                             <PremiumTooltip content="Average global latency from recent probes">
                               <p className="cs-metric-card-label !text-[11px]">Global TTFB</p>
                             </PremiumTooltip>
-                            <PremiumTooltip content={getTtfbTooltip(liveAvgTtfb, 'global')}>
+                            <PremiumTooltip content={validLiveTtfb.length === 0 ? 'No data available' : getTtfbTooltip(liveAvgTtfb, 'global')}>
                               <div className="flex items-center gap-3">
-                                <span className={`text-[24px] font-bold tracking-tight leading-none ${getTtfbColorClass(liveAvgTtfb, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{liveAvgTtfb}<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
-                                <Gauge className={`h-5 w-5 stroke-[2.5] ${getTtfbColorClass(liveAvgTtfb, 'global')}`} />
+                                {validLiveTtfb.length === 0 ? (
+                                  <span className="text-[24px] font-bold tracking-tight leading-none text-zinc-500">—<span className="text-base ml-0.5 text-zinc-600">ms</span></span>
+                                ) : (
+                                  <>
+                                    <span className={`text-[24px] font-bold tracking-tight leading-none ${getTtfbColorClass(liveAvgTtfb, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{liveAvgTtfb}<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
+                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${getTtfbColorClass(liveAvgTtfb, 'global')}`} />
+                                  </>
+                                )}
                               </div>
                             </PremiumTooltip>
                           </div>
@@ -1309,10 +1315,16 @@ export default async function MonitorDetailPage({
                             <PremiumTooltip content="Cache hit rate from recent probes">
                               <p className="cs-metric-card-label !text-[11px]">Cache Hit Rate</p>
                             </PremiumTooltip>
-                            <PremiumTooltip content={getCacheTooltip(liveGlobalHitRate, 'global')}>
+                            <PremiumTooltip content={validLiveCache.length === 0 ? 'No data available' : getCacheTooltip(liveGlobalHitRate, 'global')}>
                               <div className="flex items-center gap-3">
-                                <span className={`text-[24px] font-bold tracking-tight leading-none ${getCacheColor(liveGlobalHitRate, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{liveGlobalHitRate}<span className="text-base ml-0.5 text-zinc-500">%</span></span>
-                                <Zap className={`h-5 w-5 fill-current ${getCacheColor(liveGlobalHitRate, 'global')}`} />
+                                {validLiveCache.length === 0 ? (
+                                  <span className="text-[24px] font-bold tracking-tight leading-none text-zinc-500">—<span className="text-base ml-0.5 text-zinc-600">%</span></span>
+                                ) : (
+                                  <>
+                                    <span className={`text-[24px] font-bold tracking-tight leading-none ${getCacheColor(liveGlobalHitRate, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{liveGlobalHitRate}<span className="text-base ml-0.5 text-zinc-500">%</span></span>
+                                    <Zap className={`h-5 w-5 fill-current ${getCacheColor(liveGlobalHitRate, 'global')}`} />
+                                  </>
+                                )}
                               </div>
                             </PremiumTooltip>
                           </div>
@@ -1565,10 +1577,16 @@ export default async function MonitorDetailPage({
                             <PremiumTooltip content={`Global average Time to First Byte during the last ${range}`}>
                               <p className="cs-metric-card-label !text-[11px]">Global TTFB</p>
                             </PremiumTooltip>
-                            <PremiumTooltip content={getTtfbTooltip(avgTtfb, 'global')}>
+                            <PremiumTooltip content={avgTtfb === 0 ? 'No data available' : getTtfbTooltip(avgTtfb, 'global')}>
                               <div className="flex items-center gap-3">
-                                <span className={`text-[24px] font-bold tracking-tight leading-none ${getTtfbColorClass(avgTtfb, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{avgTtfb}<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
-                                <Gauge className={`h-5 w-5 stroke-[2.5] ${getTtfbColorClass(avgTtfb, 'global')}`} />
+                                {avgTtfb === 0 ? (
+                                  <span className="text-[24px] font-bold tracking-tight leading-none text-zinc-500">—<span className="text-base ml-0.5 text-zinc-600">ms</span></span>
+                                ) : (
+                                  <>
+                                    <span className={`text-[24px] font-bold tracking-tight leading-none ${getTtfbColorClass(avgTtfb, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{avgTtfb}<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
+                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${getTtfbColorClass(avgTtfb, 'global')}`} />
+                                  </>
+                                )}
                               </div>
                             </PremiumTooltip>
                           </div>
@@ -1585,10 +1603,16 @@ export default async function MonitorDetailPage({
                             <PremiumTooltip content={`Percentage of requests successfully served from CDN edge cache during the last ${range}`}>
                               <p className="cs-metric-card-label !text-[11px]">Cache Hit Rate</p>
                             </PremiumTooltip>
-                            <PremiumTooltip content={getCacheTooltip(globalHitRate, 'global')}>
+                            <PremiumTooltip content={globalHitRate === 0 ? 'No data available' : getCacheTooltip(globalHitRate, 'global')}>
                               <div className="flex items-center gap-3">
-                                <span className={`text-[24px] font-bold tracking-tight leading-none ${getCacheColor(globalHitRate, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{globalHitRate}<span className="text-base ml-0.5 text-zinc-500">%</span></span>
-                                <Zap className={`h-5 w-5 fill-current ${getCacheColor(globalHitRate, 'global')}`} />
+                                {globalHitRate === 0 ? (
+                                  <span className="text-[24px] font-bold tracking-tight leading-none text-zinc-500">—<span className="text-base ml-0.5 text-zinc-600">%</span></span>
+                                ) : (
+                                  <>
+                                    <span className={`text-[24px] font-bold tracking-tight leading-none ${getCacheColor(globalHitRate, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{globalHitRate}<span className="text-base ml-0.5 text-zinc-500">%</span></span>
+                                    <Zap className={`h-5 w-5 fill-current ${getCacheColor(globalHitRate, 'global')}`} />
+                                  </>
+                                )}
                               </div>
                             </PremiumTooltip>
                           </div>
