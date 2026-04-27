@@ -436,15 +436,28 @@ export function TtfbChart({
 
   const niceMaxTtfb = niceMax(maxTtfb, 100)
 
-  const maxNet = Math.max(
-    ...data.map(d => {
-      if (networkMetric === 'dns') return d.dns_avg ?? 0
-      if (networkMetric === 'tcp') return d.tcp_avg ?? 0
-      if (networkMetric === 'tls') return d.tls_avg ?? 0
-      return (d.dns_avg ?? 0) + (d.tcp_avg ?? 0) + (d.tls_avg ?? 0)
-    }),
-    1,
-  )
+  const maxNet = useMemo(() => {
+    let max = 1
+    if (showGlobalNet) {
+      for (const p of globalNet) {
+        if (p.value > max) max = p.value
+      }
+    }
+    for (const region of selectedNetRegions) {
+      const m = byRegion[region]
+      if (!m) continue
+      for (const p of m.values()) {
+        let val = 0
+        if (networkMetric === 'dns') val = p.dns_avg ?? 0
+        else if (networkMetric === 'tcp') val = p.tcp_avg ?? 0
+        else if (networkMetric === 'tls') val = p.tls_avg ?? 0
+        else val = (p.dns_avg ?? 0) + (p.tcp_avg ?? 0) + (p.tls_avg ?? 0)
+        if (val > max) max = val
+      }
+    }
+    return max
+  }, [showGlobalNet, selectedNetRegions, globalNet, byRegion, networkMetric])
+
   const niceMaxNet = niceMax(maxNet, 50)
 
   // ── X scale ───────────────────────────────────────────────────────────────
