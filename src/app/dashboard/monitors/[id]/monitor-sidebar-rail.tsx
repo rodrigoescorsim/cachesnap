@@ -5,6 +5,7 @@ import {
   Activity,
   AlertCircle,
   BarChart2,
+  ChevronLeft,
   Layers,
   LineChart,
   Lock,
@@ -88,6 +89,23 @@ export function MonitorSidebarRail({
         <div className="flex flex-col gap-2 p-2 lg:p-2.5">
           <nav aria-label="Monitor sections">
             <div className="space-y-3.5">
+              <section aria-label="Back navigation" className={sectionClass}>
+                <ul className={itemListClass}>
+                  <li>
+                    <Link
+                      href="/monitors"
+                      className={`group ${itemBaseClass} ${linkLayoutClass} ${itemStateClass(false)}`}
+                    >
+                      <ChevronLeft
+                        className={`${iconClass} shrink-0 text-zinc-500 transition-colors duration-300 group-hover:text-zinc-300`}
+                        aria-hidden
+                      />
+                      <span className="min-w-0 truncate">Monitors</span>
+                    </Link>
+                  </li>
+                </ul>
+              </section>
+
               <section aria-label="Monitoring navigation" className={sectionClass}>
                 <div>
                   <p className={sectionLabelClass}>Monitoring</p>

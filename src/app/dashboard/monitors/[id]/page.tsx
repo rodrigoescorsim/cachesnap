@@ -1811,7 +1811,19 @@ export default async function MonitorDetailPage({
                       </div>
                     </ViewSectionHeader>
                     {stats.length === 0 ? (
-                      <p className="text-sm text-zinc-400">Compiling historical insights...</p>
+                      <div className="cs-card cs-card-glass min-h-[180px] flex flex-col items-center justify-center p-8 text-center animate-[cs-fade-in_0.5s_ease-out]">
+                        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.02] shadow-[0_0_24px_-8px_rgba(34,211,238,0.15)]">
+                          <BarChart3 className="h-5 w-5 text-zinc-500 animate-pulse" />
+                        </div>
+                        <p className="text-sm font-black tracking-tight text-zinc-300">
+                          {isCollecting ? 'Analyzing Historical Patterns' : 'Compiling Insights'}
+                        </p>
+                        <p className="mt-1.5 max-w-[280px] text-[11px] leading-relaxed text-zinc-500">
+                          {isCollecting
+                            ? "We're gathering the first 30 minutes of data to build your performance baseline."
+                            : "No historical data found for this time window. Try selecting a broader range."}
+                        </p>
+                      </div>
                     ) : (
                       <TtfbChart data={chartPoints} range={range} regionMeta={regionMeta} cacheHitThresholdPct={monitor.alert_cache_hit_threshold_pct} isDown={isDown} />
                     )}
