@@ -528,8 +528,28 @@ function buildMonitorColumns(
               </span>
               {(() => {
                 const { freshness } = formatRelativeTime(m.lastCheckedAt)
+                const hasNeverBeenChecked = m.lastCheckedAt.getTime() === 0
                 const isDown = isActive && m.totalRegionCount > 0 && m.errorRegionCount >= m.totalRegionCount
                 const isDegraded = isActive && m.errorRegionCount > 0 && !isDown
+
+                if (isActive && hasNeverBeenChecked) {
+                  return (
+                    <span
+                      className="cs-badge shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px] !font-black"
+                      style={{
+                        backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                        color: '#38bdf8',
+                        borderColor: 'rgba(56, 189, 248, 0.2)',
+                      }}
+                    >
+                      <span className="relative flex h-1.5 w-1.5 shrink-0">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75" />
+                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-400" />
+                      </span>
+                      ANALYZING
+                    </span>
+                  )
+                }
 
                 if (isDown) {
                   return (
@@ -553,7 +573,7 @@ function buildMonitorColumns(
                   )
                 }
                 // Show actual sync status instead of misleading "Active" when data is old
-                if (isActive && freshness === 'offline') {
+                if (isActive && freshness === 'offline' && !hasNeverBeenChecked) {
                   return (
                     <span className="cs-badge cs-badge-danger shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px]">
                       <span className="relative flex h-1.5 w-1.5 shrink-0">
@@ -614,10 +634,19 @@ function buildMonitorColumns(
       size: 10,
       enableSorting: true,
       sortingFn: (rowA, rowB, columnId) => {
-        const a = rowA.getValue(columnId) as number
-        const b = rowB.getValue(columnId) as number
+        const m1 = rowA.original
+        const m2 = rowB.original
+        const getWeight = (m: Monitor) => {
+          const isDown = m.status === 'active' && m.totalRegionCount > 0 && m.errorRegionCount >= m.totalRegionCount
+          const isAnalyzing = m.status === 'active' && m.lastCheckedAt.getTime() === 0
+          if (isDown) return 1000000
+          if (isAnalyzing) return 999999
+          return m.ttfbCurrent
+        }
+        const a = getWeight(m1)
+        const b = getWeight(m2)
         if (a !== b) return a - b
-        return monitorHealthScore(rowA.original) - monitorHealthScore(rowB.original)
+        return monitorHealthScore(m2) - monitorHealthScore(m1)
       },
       cell: ({ getValue, row }) => {
         const ms = getValue()
@@ -628,6 +657,11 @@ function buildMonitorColumns(
             <PremiumTooltip content="Site unreachable — connection failed in all regions" position="top-center" direction="top">
               <span className="text-[13px] font-black leading-none text-red-400">—</span>
             </PremiumTooltip>
+          )
+        }
+        if (m.lastCheckedAt.getTime() === 0) {
+          return (
+            <span className="text-[13px] font-black leading-none text-zinc-500/70">—</span>
           )
         }
         return (
@@ -653,6 +687,21 @@ function buildMonitorColumns(
       enableSorting: true,
       cell: ({ getValue, row }) => {
         const ms = getValue()
+        const m = row.original
+        if (m.lastCheckedAt.getTime() === 0) {
+          return (
+            <div className="flex items-center gap-2.5">
+              <span className="text-[12px] font-bold text-zinc-500/70">—</span>
+            </div>
+          )
+        }
+        if (ms === 0) {
+          return (
+            <div className="flex items-center gap-2.5">
+              <span className="text-[13px] font-black leading-none text-red-400">—</span>
+            </div>
+          )
+        }
         return (
           <div className="flex items-center gap-2.5">
             <span className={`text-[13px] font-black tabular-nums leading-none ${ttfbClass(ms)}`}>
@@ -694,6 +743,17 @@ function buildMonitorColumns(
         const hasIssues = errorOnes.length > 0 || slowOnes.length > 0
 
         if (!hasIssues) {
+          const isNew = m.status === 'active' && m.lastCheckedAt.getTime() === 0
+          if (isNew) {
+            return (
+              <div className="flex items-center justify-end gap-1.5">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 transition-colors duration-150 group-hover/row:text-zinc-400">
+                  Waiting...
+                </span>
+                <span className="h-1.5 w-1.5 rounded-full bg-sky-500/40 ring-1 ring-sky-500/20 animate-pulse" />
+              </div>
+            )
+          }
           return (
             <div className="flex items-center justify-end gap-1.5">
               <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 transition-colors duration-150 group-hover/row:text-zinc-400">
@@ -918,6 +978,7 @@ export function MonitorsTable({
     getSortedRowModel: getSortedRowModel(),
     getRowId: (row) => row.id,
     enableMultiSort: false,
+    autoResetPageIndex: false,
   })
 
   const handleRowClick = useCallback(

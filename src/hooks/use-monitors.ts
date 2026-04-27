@@ -1,6 +1,7 @@
 'use client'
 
 import { useQuery, type QueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import type { Monitor } from '@/types/monitor'
 import { type MonitorSummaryRow, toMonitor } from '@/lib/monitor-transforms'
 
@@ -39,6 +40,8 @@ export interface UseMonitorsResult {
   refetch: () => void
 }
 
+const EMPTY_MONITORS: Monitor[] = []
+
 export function useMonitors({ refetchInterval = false }: UseMonitorsOptions = {}): UseMonitorsResult {
   const { data, isLoading, isFetching, isError, dataUpdatedAt, refetch } = useQuery({
     queryKey: MONITORS_QUERY_KEY,
@@ -48,7 +51,7 @@ export function useMonitors({ refetchInterval = false }: UseMonitorsOptions = {}
   })
 
   return {
-    monitors:      data ?? [],
+    monitors:      data ?? EMPTY_MONITORS,
     isLoading,
     isFetching,
     isError,

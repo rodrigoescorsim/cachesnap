@@ -211,6 +211,10 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
   const hitTrendTone = hitDelta > 0 ? 'success' : hitDelta < 0 ? 'danger' : 'neutral'
   const hitTrendIcon = hitDelta > 0 ? ArrowUp : hitDelta < 0 ? ArrowDown : Minus
 
+  const handleOptimisticToggle = useCallback((id: string, status: 'active' | 'paused') => {
+    setOptimisticStatus((prev) => ({ ...prev, [id]: status }))
+  }, [])
+
   return (
     <div className="min-h-full bg-background">
       <GlobalHeader userEmail={userEmail} logoutAction={logoutAction} />
@@ -430,11 +434,12 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
             sorting={sorting}
             onSortingChange={setSorting}
             optimisticStatus={optimisticStatus}
-            onOptimisticToggle={(id, status) => setOptimisticStatus((prev) => ({ ...prev, [id]: status }))}
+            onOptimisticToggle={handleOptimisticToggle}
           />
         </section>
       </main>
     </div>
+
   )
 }
 
