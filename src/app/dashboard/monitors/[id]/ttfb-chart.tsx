@@ -63,15 +63,20 @@ export function TtfbChart({
   isDown?: boolean
 }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+  const [hoveredChart, setHoveredChart] = useState<'ttfb' | 'cache' | 'network' | null>(null)
   const [hoveredRegion, setHoveredRegion] = useState<string | null>(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   const [showGlobalTtfb, setShowGlobalTtfb] = useState(true)
   const [selectedTtfbRegions, setSelectedTtfbRegions] = useState<Set<string>>(new Set())
   const [showGlobalCache, setShowGlobalCache] = useState(true)
   const [selectedCacheRegions, setSelectedCacheRegions] = useState<Set<string>>(new Set())
+  const [showGlobalNet, setShowGlobalNet] = useState(true)
+  const [selectedNetRegions, setSelectedNetRegions] = useState<Set<string>>(new Set())
+  const [networkMetric, setNetworkMetric] = useState<'dns' | 'tcp' | 'tls' | 'net'>('net')
   const containerRef = useRef<HTMLDivElement>(null)
   const didInitTtfbDefaultsRef = useRef(false)
   const didInitCacheDefaultsRef = useRef(false)
+  const didInitNetDefaultsRef = useRef(false)
 
   const regions = useMemo(() => [...new Set(data.map(d => d.region))].sort(), [data])
   const allBuckets = useMemo(() => [...new Set(data.map(d => d.bucket))].sort(), [data])
@@ -165,6 +170,14 @@ export function TtfbChart({
   const globalTls = globalBucketAverage(allBuckets, data, p => p.tls_avg)
   const globalTtfb = globalBucketAverage(allBuckets, data, p => p.ttfb_avg)
   const globalP95 = globalBucketAverage(allBuckets, data, p => p.ttfb_p95)
+  const globalNet = globalDns.map((d, i) => {
+    let value = 0
+    if (networkMetric === 'dns') value = d.value
+    else if (networkMetric === 'tcp') value = globalTcp[i].value
+    else if (networkMetric === 'tls') value = globalTls[i].value
+    else value = d.value + globalTcp[i].value + globalTls[i].value
+    return { bucket: d.bucket, value }
+  })
   const hasCacheData = data.some(d => d.cache_hit_pct != null)
   const isCacheNotReported = !hasCacheData
 
@@ -190,7 +203,12 @@ export function TtfbChart({
   const niceMaxTtfb = niceMax(maxTtfb, 100)
 
   const maxNet = Math.max(
-    ...data.map(d => (d.dns_avg ?? 0) + (d.tcp_avg ?? 0) + (d.tls_avg ?? 0)),
+    ...data.map(d => {
+      if (networkMetric === 'dns') return d.dns_avg ?? 0
+      if (networkMetric === 'tcp') return d.tcp_avg ?? 0
+      if (networkMetric === 'tls') return d.tls_avg ?? 0
+      return (d.dns_avg ?? 0) + (d.tcp_avg ?? 0) + (d.tls_avg ?? 0)
+    }),
     1,
   )
   const niceMaxNet = niceMax(maxNet, 50)
@@ -239,6 +257,7 @@ export function TtfbChart({
   const handleMouseLeave = () => {
     setHoveredIdx(null)
     setHoveredRegion(null)
+    setHoveredChart(null)
   }
 
 
@@ -359,6 +378,13 @@ export function TtfbChart({
     }
   }, [defaultCacheRegions])
 
+  useEffect(() => {
+    if (!didInitNetDefaultsRef.current && defaultTtfbRegions.size > 0) {
+      setSelectedNetRegions(new Set(defaultTtfbRegions))
+      didInitNetDefaultsRef.current = true
+    }
+  }, [defaultTtfbRegions])
+
   const hoveredBucket = hoveredIdx != null ? allBuckets[hoveredIdx] : null
   const hoveredGlobalCache = hoveredBucket != null
     ? globalCache.find(bucket => bucket.bucket === hoveredBucket)?.value ?? null
@@ -424,87 +450,177 @@ export function TtfbChart({
       {/* Tooltip */}
       {hoveredIdx !== null && (
         <div
-          className="fixed z-[100] pointer-events-none bg-surface/95 backdrop-blur-xl border border-white/10 p-3 rounded-xl shadow-2xl text-white min-w-[220px]"
-          style={{ left: mousePos.x + 20 + (containerRef.current?.getBoundingClientRect().left ?? 0), top: mousePos.y + 20 + (containerRef.current?.getBoundingClientRect().top ?? 0) }}
+          className={`fixed z-[100] pointer-events-none bg-surface/95 backdrop-blur-xl border border-white/10 p-3 rounded-xl shadow-2xl text-white transition-transform duration-200 ${hoveredChart === 'network' ? 'min-w-[400px]' : 'min-w-[220px]'}`}
+          style={{ 
+            left: mousePos.x + 20 + (containerRef.current?.getBoundingClientRect().left ?? 0), 
+            top: mousePos.y + (containerRef.current?.getBoundingClientRect().top ?? 0),
+            transform: (mousePos.y + (containerRef.current?.getBoundingClientRect().top ?? 0)) > (typeof window !== 'undefined' ? window.innerHeight / 1.6 : 500) 
+              ? 'translateY(calc(-100% - 20px))' 
+              : 'translateY(20px)'
+          }}
         >
           <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2 border-b border-white/5 pb-1.5 px-0.5">
             {formatChartLabel(allBuckets[hoveredIdx], range)} {range === '7d' || range === '30d' || range === '90d' ? '' : 'UTC'}
           </p>
-          {hoveredIdx !== null && (
-            <div className={`mb-1.5 px-1.5 py-0.5 flex items-center justify-between border-b border-white/5 pb-1.5 rounded-md transition-all duration-300 ${hoveredRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : ''}`}>
-              <div className="flex flex-col gap-0.5">
-                <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${hoveredRegion === 'global' ? 'text-cyan-300' : 'text-zinc-400'}`}>GLOBAL</span>
-                <div className="flex items-center gap-4 mt-0.5">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className={`text-sm font-black tabular-nums transition-colors ${getTtfbColorClass(globalTtfb[hoveredIdx].value, 'global')}`}>
-                      {Math.round(globalTtfb[hoveredIdx].value)}
-                    </span>
-                    <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${hoveredRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>ms</span>
+
+          {hoveredChart === 'network' ? (
+            /* NETWORK LOAD TOOLTIP */
+            <>
+              <div className={`mb-1.5 px-1.5 py-1 flex flex-col border-b border-white/5 pb-1.5 rounded-md transition-all duration-300 ${hoveredRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : ''}`}>
+                <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${hoveredRegion === 'global' ? 'text-cyan-300' : 'text-zinc-400'}`}>GLOBAL</span>
+                <div className="flex items-center gap-3 mt-1.5">
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-[8px] font-bold uppercase text-zinc-500 tracking-tight">DNS</span>
+                    <span className={`text-[11px] font-black tabular-nums ${TIMING.dns.text}`}>{Math.round(globalDns[hoveredIdx].value)}ms</span>
                   </div>
-                  <div className="w-px h-3 bg-white/5" />
-                  <div className="flex items-baseline gap-1.5">
-                    <span className={`text-sm font-black tabular-nums transition-colors ${hoveredGlobalCache != null ? getCacheColor(hoveredGlobalCache, 'global') : 'text-zinc-500'}`}>
-                      {hoveredGlobalCache != null ? Math.round(hoveredGlobalCache) : '—'}%
-                    </span>
-                    <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${hoveredRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>cache</span>
+                  <div className="w-px h-2 bg-white/5" />
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-[8px] font-bold uppercase text-zinc-500 tracking-tight">TCP</span>
+                    <span className={`text-[11px] font-black tabular-nums ${TIMING.tcp.text}`}>{Math.round(globalTcp[hoveredIdx].value)}ms</span>
+                  </div>
+                  <div className="w-px h-2 bg-white/5" />
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-[8px] font-bold uppercase text-zinc-500 tracking-tight">TLS</span>
+                    <span className={`text-[11px] font-black tabular-nums ${TIMING.tls.text}`}>{Math.round(globalTls[hoveredIdx].value)}ms</span>
+                  </div>
+                  <div className="w-px h-2 bg-white/5" />
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-[8px] font-bold uppercase text-zinc-500 tracking-tight">NET</span>
+                    <span className="text-[11px] font-black tabular-nums text-cyan-300">{Math.round(globalDns[hoveredIdx].value + globalTcp[hoveredIdx].value + globalTls[hoveredIdx].value)}ms</span>
+                  </div>
+                  <div className="w-px h-2 bg-white/5" />
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-[8px] font-bold uppercase text-zinc-500 tracking-tight">TTFB</span>
+                    <span className={`text-[11px] font-black tabular-nums ${getTtfbColorClass(globalTtfb[hoveredIdx].value, 'global')}`}>{Math.round(globalTtfb[hoveredIdx].value)}ms</span>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
-          <div className="space-y-2">
-            {/* Header row */}
-            <div className="flex items-center justify-between gap-6 border-b border-white/5 pb-1 mb-1">
-              <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Region</span>
-              <div className="flex items-center gap-3">
-                <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">TTFB</span>
-                <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">P95</span>
-                <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">Cache</span>
-              </div>
-            </div>
 
-
-            {regions.map(region => {
-              const p = byRegion[region]?.get(allBuckets[hoveredIdx])
-              if (!p) return null
-              const isHovered = hoveredRegion === region
-              return (
-                <div
-                  key={region}
-                  className="flex items-center justify-between gap-6 px-1 py-0.5 rounded-md transition-all duration-300"
-                  style={isHovered ? {
-                    backgroundColor: `${regionMeta[region]?.color ?? '#6b7280'}15`,
-                    boxShadow: `0 0 15px ${(regionMeta[region]?.color ?? '#6b7280')}08`,
-                    border: `1px solid ${(regionMeta[region]?.color ?? '#6b7280')}30`,
-                  } : {
-                    border: '1px solid transparent'
-                  }}
-                >
+              <div className="space-y-1.5">
+                {/* Header row */}
+                <div className="flex items-center justify-between gap-4 border-b border-white/5 pb-1 mb-1">
+                  <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Region</span>
                   <div className="flex items-center gap-2">
-                    <div className={`w-1.5 h-1.5 rounded-full transition-transform ${isHovered ? 'scale-125' : ''}`} style={{ backgroundColor: regionMeta[region]?.color ?? '#6b7280' }} />
-                    <span className={`text-[10px] font-bold capitalize whitespace-nowrap transition-colors ${isHovered ? 'text-white' : 'text-zinc-300'}`}>
-                      {regionMeta[region]?.label ?? region}
-                    </span>
+                    <span className="w-[42px] text-right text-[8px] font-black text-zinc-500 uppercase tracking-widest">DNS</span>
+                    <span className="w-[42px] text-right text-[8px] font-black text-zinc-500 uppercase tracking-widest">TCP</span>
+                    <span className="w-[42px] text-right text-[8px] font-black text-zinc-500 uppercase tracking-widest">TLS</span>
+                    <span className="w-[42px] text-right text-[8px] font-black text-zinc-500 uppercase tracking-widest">NET</span>
+                    <span className="w-[42px] text-right text-[8px] font-black text-zinc-500 uppercase tracking-widest">TTFB</span>
                   </div>
-                  <div className="flex items-center gap-3 tabular-nums">
-                    <span className={`w-[42px] text-right text-[11px] font-black transition-colors ${getTtfbColorClass(p.ttfb_avg, 'monitor')}`}>{Math.round(p.ttfb_avg)}ms</span>
-                    <span className={`w-[42px] text-right text-[9px] font-medium transition-colors ${isHovered ? 'text-zinc-200' : 'text-zinc-400'}`}>
-                      {p.ttfb_p95 != null ? `${p.ttfb_p95}ms` : '—'}
-                    </span>
-                    <div className="w-[42px] flex justify-end">
-                      {p.cache_hit_pct != null ? (
-                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md transition-all ${getCacheColor(p.cache_hit_pct, 'monitor').replace('text-', 'bg-').replace('-400', '-500')}/10 ${getCacheColor(p.cache_hit_pct, 'monitor')}`}>
-                          {Math.round(p.cache_hit_pct)}%
+                </div>
+
+                {regions.map(region => {
+                  const p = byRegion[region]?.get(allBuckets[hoveredIdx])
+                  if (!p) return null
+                  const isHovered = hoveredRegion === region
+                  const netValue = (p.dns_avg ?? 0) + (p.tcp_avg ?? 0) + (p.tls_avg ?? 0)
+                  return (
+                    <div
+                      key={region}
+                      className="flex items-center justify-between gap-4 px-1 py-0.5 rounded-md transition-all duration-300"
+                      style={isHovered ? {
+                        backgroundColor: `${regionMeta[region]?.color ?? '#6b7280'}15`,
+                        boxShadow: `0 0 15px ${(regionMeta[region]?.color ?? '#6b7280')}08`,
+                        border: `1px solid ${(regionMeta[region]?.color ?? '#6b7280')}30`,
+                      } : {
+                        border: '1px solid transparent'
+                      }}
+                    >
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <div className={`w-1 h-1 rounded-full shrink-0 transition-transform ${isHovered ? 'scale-125' : ''}`} style={{ backgroundColor: regionMeta[region]?.color ?? '#6b7280' }} />
+                        <span className={`text-[9px] font-bold capitalize truncate transition-colors ${isHovered ? 'text-white' : 'text-zinc-300'}`}>
+                          {regionMeta[region]?.label ?? region}
                         </span>
-                      ) : (
-                        <span className="text-[9px] text-zinc-500">—</span>
-                      )}
+                      </div>
+                      <div className="flex items-center gap-2 tabular-nums">
+                        <span className={`w-[42px] text-right text-[10px] font-black ${TIMING.dns.text}`}>{Math.round(p.dns_avg ?? 0)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
+                        <span className={`w-[42px] text-right text-[10px] font-black ${TIMING.tcp.text}`}>{Math.round(p.tcp_avg ?? 0)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
+                        <span className={`w-[42px] text-right text-[10px] font-black ${TIMING.tls.text}`}>{Math.round(p.tls_avg ?? 0)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
+                        <span className="w-[42px] text-right text-[10px] font-black text-cyan-300">{Math.round(netValue)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
+                        <span className={`w-[42px] text-right text-[10px] font-black ${getTtfbColorClass(p.ttfb_avg, 'monitor')}`}>{Math.round(p.ttfb_avg)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          ) : (
+            /* DEFAULT TTFB / CACHE TOOLTIP */
+            <>
+              <div className={`mb-1.5 px-1.5 py-0.5 flex items-center justify-between border-b border-white/5 pb-1.5 rounded-md transition-all duration-300 ${hoveredRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : ''}`}>
+                <div className="flex flex-col gap-0.5">
+                  <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${hoveredRegion === 'global' ? 'text-cyan-300' : 'text-zinc-400'}`}>GLOBAL</span>
+                  <div className="flex items-center gap-4 mt-0.5">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className={`text-sm font-black tabular-nums transition-colors ${getTtfbColorClass(globalTtfb[hoveredIdx].value, 'global')}`}>
+                        {Math.round(globalTtfb[hoveredIdx].value)}
+                      </span>
+                      <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${hoveredRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>ms</span>
+                    </div>
+                    <div className="w-px h-3 bg-white/5" />
+                    <div className="flex items-baseline gap-1.5">
+                      <span className={`text-sm font-black tabular-nums transition-colors ${hoveredGlobalCache != null ? getCacheColor(hoveredGlobalCache, 'global') : 'text-zinc-500'}`}>
+                        {hoveredGlobalCache != null ? Math.round(hoveredGlobalCache) : '—'}%
+                      </span>
+                      <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${hoveredRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>cache</span>
                     </div>
                   </div>
                 </div>
-              )
-            })}
-          </div>
+              </div>
+              <div className="space-y-2">
+                {/* Header row */}
+                <div className="flex items-center justify-between gap-6 border-b border-white/5 pb-1 mb-1">
+                  <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Region</span>
+                  <div className="flex items-center gap-3">
+                    <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">TTFB</span>
+                    <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">P95</span>
+                    <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">Cache</span>
+                  </div>
+                </div>
+
+                {regions.map(region => {
+                  const p = byRegion[region]?.get(allBuckets[hoveredIdx])
+                  if (!p) return null
+                  const isHovered = hoveredRegion === region
+                  return (
+                    <div
+                      key={region}
+                      className="flex items-center justify-between gap-6 px-1 py-0.5 rounded-md transition-all duration-300"
+                      style={isHovered ? {
+                        backgroundColor: `${regionMeta[region]?.color ?? '#6b7280'}15`,
+                        boxShadow: `0 0 15px ${(regionMeta[region]?.color ?? '#6b7280')}08`,
+                        border: `1px solid ${(regionMeta[region]?.color ?? '#6b7280')}30`,
+                      } : {
+                        border: '1px solid transparent'
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={`w-1.5 h-1.5 rounded-full transition-transform ${isHovered ? 'scale-125' : ''}`} style={{ backgroundColor: regionMeta[region]?.color ?? '#6b7280' }} />
+                        <span className={`text-[10px] font-bold capitalize whitespace-nowrap transition-colors ${isHovered ? 'text-white' : 'text-zinc-300'}`}>
+                          {regionMeta[region]?.label ?? region}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 tabular-nums">
+                        <span className={`w-[42px] text-right text-[11px] font-black transition-colors ${getTtfbColorClass(p.ttfb_avg, 'monitor')}`}>{Math.round(p.ttfb_avg)}ms</span>
+                        <span className={`w-[42px] text-right text-[9px] font-medium transition-colors ${isHovered ? 'text-zinc-200' : 'text-zinc-400'}`}>
+                          {p.ttfb_p95 != null ? `${p.ttfb_p95}ms` : '—'}
+                        </span>
+                        <div className="w-[42px] flex justify-end">
+                          {p.cache_hit_pct != null ? (
+                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md transition-all ${getCacheColor(p.cache_hit_pct, 'monitor').replace('text-', 'bg-').replace('-400', '-500')}/10 ${getCacheColor(p.cache_hit_pct, 'monitor')}`}>
+                              {Math.round(p.cache_hit_pct)}%
+                            </span>
+                          ) : (
+                            <span className="text-[9px] text-zinc-500">—</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -529,7 +645,11 @@ export function TtfbChart({
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700">
+          <div
+            className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700"
+            onMouseEnter={() => setHoveredChart('ttfb')}
+            onMouseLeave={() => setHoveredChart(null)}
+          >
             <div className="mb-2 flex items-center justify-between">
               <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">TTFB Trend</div>
               <div className="flex flex-wrap items-center justify-end gap-1.5">
@@ -674,7 +794,11 @@ export function TtfbChart({
             </svg>
           </div>
 
-          <div className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700">
+          <div
+            className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700"
+            onMouseEnter={() => setHoveredChart('cache')}
+            onMouseLeave={() => setHoveredChart(null)}
+          >
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">Cache Hit Rate</div>
@@ -867,8 +991,105 @@ export function TtfbChart({
             )}
           </div>
 
-          <div className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700">
-            <div className="absolute top-4 right-4 text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-65">Network Load</div>
+          <div
+            className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700"
+            onMouseEnter={() => setHoveredChart('network')}
+            onMouseLeave={() => setHoveredChart(null)}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">Network Load</div>
+                <div className="h-3 w-px bg-white/10" />
+                <div className="flex items-center gap-1">
+                  {(['dns', 'tcp', 'tls', 'net'] as const).map(m => (
+                    <PremiumTooltip
+                      key={m}
+                      content={
+                        m === 'dns' ? "Domain name resolution time." :
+                        m === 'tcp' ? "Connection establishment time." :
+                        m === 'tls' ? "Security handshake duration." :
+                        "Total network time before request."
+                      }
+                      position="bottom-center"
+                      panelSizing="hug"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setNetworkMetric(m)}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter transition-all ${
+                          networkMetric === m 
+                            ? (m === 'net' ? 'bg-cyan-400/20 text-cyan-300 ring-1 ring-cyan-400/30' : 
+                               m === 'dns' ? 'bg-purple-400/20 text-purple-400 ring-1 ring-purple-400/30' :
+                               m === 'tcp' ? 'bg-blue-400/20 text-blue-400 ring-1 ring-blue-400/30' :
+                               'bg-fuchsia-400/20 text-fuchsia-400 ring-1 ring-fuchsia-400/30')
+                            : 'text-zinc-500 hover:text-zinc-300'
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    </PremiumTooltip>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowGlobalNet(prev => !prev)}
+                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-colors ${showGlobalNet ? 'border-cyan-400/40 bg-cyan-400/10 text-cyan-300' : 'border-border bg-white/5 text-zinc-400 hover:bg-white/10'}`}
+                >
+                  Global
+                </button>
+                <PremiumTooltip
+                  content="Select all regions."
+                  position="bottom-center"
+                  panelSizing="hug"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedNetRegions(prev => {
+                        const allSelected = regions.length > 0 && regions.every(region => prev.has(region))
+                        return allSelected ? new Set() : new Set(regions)
+                      })
+                    }}
+                    className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-colors ${selectedNetRegions.size === regions.length && regions.length > 0 ? 'border-cyan-400/40 bg-cyan-400/10 text-cyan-300' : 'border-border bg-white/5 text-zinc-400 hover:bg-white/10'}`}
+                  >
+                    All
+                  </button>
+                </PremiumTooltip>
+                {regions.map(region => {
+                  const active = selectedNetRegions.has(region)
+                  const regionLabel = regionMeta[region]?.label ?? region
+                  return (
+                    <PremiumTooltip
+                      key={`net-region-tip-${region}`}
+                      content={regionLabel}
+                      position="bottom-center"
+                      panelSizing="hug"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedNetRegions(prev => {
+                            const next = new Set(prev)
+                            if (next.has(region)) {
+                              next.delete(region)
+                            } else {
+                              next.add(region)
+                            }
+                            return next
+                          })
+                        }}
+                        className="inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-colors hover:brightness-110"
+                        style={regionToggleStyle(region, active)}
+                      >
+                        {regionAbbreviations[region] ?? region.slice(0, 3).toUpperCase()}
+                      </button>
+                    </PremiumTooltip>
+                  )
+                })}
+              </div>
+            </div>
             <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
               {[0, Math.round(niceMaxNet / 2), niceMaxNet].map(v => (
                 <g key={v}>
@@ -878,16 +1099,71 @@ export function TtfbChart({
               ))}
               <XAxisLabels />
               <GuideLine />
-              <polyline points={globalDns.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')} fill="none" stroke={TIMING.dns.stroke} strokeWidth={2} strokeDasharray="4 2" strokeOpacity={0.4} />
-              <polyline points={globalTcp.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')} fill="none" stroke={TIMING.tcp.stroke} strokeWidth={2} strokeDasharray="4 2" strokeOpacity={0.4} />
-              <polyline points={globalTls.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')} fill="none" stroke={TIMING.tls.stroke} strokeWidth={2} strokeDasharray="4 2" strokeOpacity={0.4} />
+              {showGlobalNet && (
+                <g onMouseEnter={() => setHoveredRegion('global')} onMouseLeave={() => setHoveredRegion(null)}>
+                  {/* Global Net (Sum or specific metric) */}
+                  <polyline
+                    points={globalNet.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')}
+                    fill="none"
+                    stroke={networkMetric === 'dns' ? TIMING.dns.stroke : networkMetric === 'tcp' ? TIMING.tcp.stroke : networkMetric === 'tls' ? TIMING.tls.stroke : '#22d3ee'}
+                    strokeWidth={hoveredRegion === 'global' ? 3.5 : 2.4}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    strokeOpacity={hoveredRegion === 'global' ? 1 : (hoveredRegion !== null ? 0.15 : 1)}
+                    className="transition-all duration-300 pointer-events-none"
+                  />
+                  {/* Hit area */}
+                  <polyline
+                    points={globalNet.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={16}
+                    className="cursor-pointer"
+                  />
+                </g>
+              )}
+
+
               {regions.map(region => {
+                if (!selectedNetRegions.has(region)) return null
                 const m = byRegion[region]
                 if (!m) return null
-                const points = allBuckets.map((b, i) => m.has(b)
-                  ? `${toX(i)},${toYNet((m.get(b)!.dns_avg ?? 0) + (m.get(b)!.tcp_avg ?? 0) + (m.get(b)!.tls_avg ?? 0))}`
-                  : null).filter(Boolean).join(' ')
-                return <polyline key={region} points={points} fill="none" stroke={regionMeta[region]?.color ?? '#6b7280'} strokeWidth={1} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={0.2} />
+                const points = allBuckets.map((b, i) => {
+                  const p = m.get(b)
+                  if (!p) return null
+                  let val = 0
+                  if (networkMetric === 'dns') val = p.dns_avg ?? 0
+                  else if (networkMetric === 'tcp') val = p.tcp_avg ?? 0
+                  else if (networkMetric === 'tls') val = p.tls_avg ?? 0
+                  else val = (p.dns_avg ?? 0) + (p.tcp_avg ?? 0) + (p.tls_avg ?? 0)
+                  return `${toX(i)},${toYNet(val)}`
+                }).filter(Boolean).join(' ')
+
+                const isHovered = hoveredRegion === region
+                const isOtherHovered = hoveredRegion !== null && !isHovered
+
+                return (
+                  <g key={`net-group-${region}`} onMouseEnter={() => setHoveredRegion(region)} onMouseLeave={() => setHoveredRegion(null)}>
+                    {/* Transparent hit area */}
+                    <polyline
+                      points={points}
+                      fill="none"
+                      stroke="transparent"
+                      strokeWidth={12}
+                      className="cursor-pointer"
+                    />
+                    <polyline
+                      points={points}
+                      fill="none"
+                      stroke={regionMeta[region]?.color ?? '#6b7280'}
+                      strokeWidth={isHovered ? 2.5 : 1.5}
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                      strokeOpacity={isHovered ? 1 : isOtherHovered ? 0.1 : 0.4}
+                      className="transition-all duration-300 pointer-events-none"
+                    />
+                  </g>
+                )
               })}
             </svg>
           </div>
