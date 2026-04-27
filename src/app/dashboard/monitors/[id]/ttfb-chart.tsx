@@ -265,18 +265,31 @@ export function TtfbChart({
     if (transitions <= 0) return null
 
     let stableTransitions = 0
+    let perfectTransitions = 0
     for (let i = 1; i < values.length; i++) {
-      if (Math.abs(values[i] - values[i - 1]) < 1) stableTransitions += 1
+      const diff = Math.abs(values[i] - values[i - 1])
+      if (diff < 1) stableTransitions += 1
+      if (diff === 0) perfectTransitions += 1
     }
 
     const stableRatio = stableTransitions / transitions
+    const isTrulyFlat = perfectTransitions === transitions
+
     if (stableRatio < 0.7) return null
 
     const average = values.reduce((sum, value) => sum + value, 0) / values.length
 
+    // Wording based on actual behavior vs mathematical plateau
+    const statusText = isTrulyFlat 
+      ? 'Perfectly consistent' 
+      : average >= 99.9 
+        ? 'Near-perfect consistency'
+        : 'Highly stable performance'
+
     if (average >= 99) {
       return {
         label: 'Perfect cache (100%)',
+        statusText,
         className: 'border-emerald-300/45 bg-emerald-500/16 text-emerald-200 shadow-[0_0_0_1px_rgba(16,185,129,0.22),0_0_14px_rgba(16,185,129,0.12)]',
       }
     }
@@ -284,6 +297,7 @@ export function TtfbChart({
     if (average <= 1) {
       return {
         label: 'All misses (0%)',
+        statusText: isTrulyFlat ? 'Consistently bypassing' : 'Persistent cache misses',
         className: 'border-red-300/45 bg-red-500/16 text-red-200 shadow-[0_0_0_1px_rgba(248,113,113,0.22),0_0_14px_rgba(239,68,68,0.14)]',
       }
     }
@@ -637,7 +651,7 @@ export function TtfbChart({
                       {cachePlateauState.label}
                     </span>
                     <span className="text-[10px] font-medium tracking-tight text-zinc-400">
-                      No variance detected
+                      {cachePlateauState.statusText}
                     </span>
                   </>
                 )}
