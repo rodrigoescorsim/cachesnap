@@ -739,8 +739,8 @@ export function TtfbChart({
 
                 const description = pointInsight.type === 'max' ? "Highest latency in this period." :
                   pointInsight.type === 'min' ? "Lowest latency in this period." :
-                    pointInsight.type === 'spike-up' ? "Sudden performance drop." :
-                      "Sudden performance boost."
+                    pointInsight.type === 'spike-up' ? "Performance drop in this period." :
+                      "Performance boost in this period."
 
                 const diffVsBaseline = pointInsight.value - timeframeAvg
                 const pctVsBaseline = timeframeAvg > 0 ? (diffVsBaseline / timeframeAvg) * 100 : 0
@@ -864,8 +864,8 @@ export function TtfbChart({
 
                 const description = pointInsight.type === 'max' ? "Highest latency in this period." :
                   pointInsight.type === 'min' ? "Lowest latency in this period." :
-                    pointInsight.type === 'spike-up' ? "Sudden performance drop." :
-                      "Sudden performance boost."
+                    pointInsight.type === 'spike-up' ? "Performance drop in this period." :
+                      "Performance boost in this period."
 
                 const baselineValue = targetRegion === 'global' ? ttfbTimeframeAvg : (regionTtfbAvgs.get(targetRegion) || ttfbTimeframeAvg)
                 const baselineLabel = targetRegion === 'global' ? 'global avg' : 'region avg'
@@ -908,8 +908,8 @@ export function TtfbChart({
 
                 const description = pointInsight.type === 'max' ? "Highest cache rate in this period." :
                   pointInsight.type === 'min' ? "Lowest cache rate in this period." :
-                    pointInsight.type === 'spike-up' ? "Sudden cache improvement." :
-                      "Sudden cache degradation."
+                    pointInsight.type === 'spike-up' ? "Cache boost in this period." :
+                      "Cache drop in this period."
 
                 const baselineValue = targetRegion === 'global' ? cacheTimeframeAvg : (regionCacheAvgs.get(targetRegion) || cacheTimeframeAvg)
                 const baselineLabel = targetRegion === 'global' ? 'global avg' : 'region avg'
