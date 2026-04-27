@@ -545,7 +545,7 @@ export function TtfbChart({
 
     if (average >= 99) {
       return {
-        label: 'Perfect cache (100%)',
+        label: '100% Cache Hit Rate',
         statusText,
         className: 'border-emerald-300/45 bg-emerald-500/16 text-emerald-200 shadow-[0_0_0_1px_rgba(16,185,129,0.22),0_0_14px_rgba(16,185,129,0.12)]',
       }
@@ -553,7 +553,7 @@ export function TtfbChart({
 
     if (average <= 1) {
       return {
-        label: 'All misses (0%)',
+        label: '0% Cache Hit Rate',
         statusText: isTrulyFlat ? 'Consistently bypassing' : 'Persistent cache misses',
         className: 'border-red-300/45 bg-red-500/16 text-red-200 shadow-[0_0_0_1px_rgba(248,113,113,0.22),0_0_14px_rgba(239,68,68,0.14)]',
       }
@@ -746,7 +746,7 @@ export function TtfbChart({
                 const pctVsBaseline = timeframeAvg > 0 ? (diffVsBaseline / timeframeAvg) * 100 : 0
 
                 const baselineValue = targetRegion === 'global' ? timeframeAvg : (regionNetAvgs.get(targetRegion) || timeframeAvg)
-                const baselineLabel = targetRegion === 'global' ? 'global avg' : 'region avg'
+                const baselineLabel = targetRegion === 'global' ? 'global average' : 'regional average'
                 const relDiff = pointInsight.value - baselineValue
                 const relPct = baselineValue > 0 ? (relDiff / baselineValue) * 100 : 0
 
@@ -868,7 +868,7 @@ export function TtfbChart({
                       "Performance boost in this period."
 
                 const baselineValue = targetRegion === 'global' ? ttfbTimeframeAvg : (regionTtfbAvgs.get(targetRegion) || ttfbTimeframeAvg)
-                const baselineLabel = targetRegion === 'global' ? 'global avg' : 'region avg'
+                const baselineLabel = targetRegion === 'global' ? 'global average' : 'regional average'
                 const relDiff = pointInsight.value - baselineValue
                 const relPct = baselineValue > 0 ? (relDiff / baselineValue) * 100 : 0
 
@@ -912,7 +912,7 @@ export function TtfbChart({
                       "Efficiency is lower in this period."
 
                 const baselineValue = targetRegion === 'global' ? cacheTimeframeAvg : (regionCacheAvgs.get(targetRegion) || cacheTimeframeAvg)
-                const baselineLabel = targetRegion === 'global' ? 'global avg' : 'region avg'
+                const baselineLabel = targetRegion === 'global' ? 'global average' : 'regional average'
                 const relDiff = pointInsight.value - baselineValue
 
                 return (
@@ -1256,7 +1256,7 @@ export function TtfbChart({
             </div>
             {isCacheNotReported ? (
               <div className="mt-1 rounded-xl border border-dashed border-zinc-700/60 bg-zinc-900/20 px-4 py-3 text-[11px] text-zinc-500">
-                Cache header data is not reported for this monitor in the selected window.
+                No cache headers detected in the selected timeframe.
               </div>
             ) : (
               <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
