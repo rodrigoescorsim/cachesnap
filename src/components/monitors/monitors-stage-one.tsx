@@ -22,6 +22,8 @@ import { useMonitors } from '@/hooks/use-monitors'
 import { ViewSection, ViewSectionHeader, LiveDot } from '@/components/dashboard/dashboard-ui'
 import {
   GLOBAL_HEALTH,
+  GLOBAL_TTFB,
+  GLOBAL_CACHE,
   getTtfbColorClass,
   getCacheColor,
 } from '@/lib/thresholds'
