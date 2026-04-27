@@ -464,7 +464,7 @@ export function TtfbChart({
           </p>
 
           {hoveredChart === 'network' ? (
-            /* NETWORK LOAD TOOLTIP */
+            /* CONNECTION TIME TOOLTIP */
             <>
               <div className={`mb-1.5 px-1.5 py-1 flex flex-col border-b border-white/5 pb-1.5 rounded-md transition-all duration-300 ${hoveredRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : ''}`}>
                 <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${hoveredRegion === 'global' ? 'text-cyan-300' : 'text-zinc-400'}`}>GLOBAL</span>
@@ -998,7 +998,7 @@ export function TtfbChart({
           >
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">Network Load</div>
+                <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">Connection Time</div>
                 <div className="h-3 w-px bg-white/10" />
                 <div className="flex items-center gap-1">
                   {(['dns', 'tcp', 'tls', 'net'] as const).map(m => (
@@ -1008,7 +1008,7 @@ export function TtfbChart({
                         m === 'dns' ? "Domain name resolution time." :
                         m === 'tcp' ? "Connection establishment time." :
                         m === 'tls' ? "Security handshake duration." :
-                        "Total network time before request."
+                        "Total network time (DNS + TCP + TLS)."
                       }
                       position="bottom-center"
                       panelSizing="hug"
