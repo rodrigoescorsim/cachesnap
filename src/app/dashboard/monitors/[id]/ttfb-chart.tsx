@@ -739,8 +739,8 @@ export function TtfbChart({
 
                 const description = pointInsight.type === 'max' ? "Slowest response in this period." :
                   pointInsight.type === 'min' ? "Fastest response in this period." :
-                    pointInsight.type === 'spike-up' ? "Latency is higher than the average." :
-                      "Latency is lower than the average."
+                    pointInsight.type === 'spike-up' ? "Latency is higher in this period." :
+                      "Latency is lower in this period."
 
                 const diffVsBaseline = pointInsight.value - timeframeAvg
                 const pctVsBaseline = timeframeAvg > 0 ? (diffVsBaseline / timeframeAvg) * 100 : 0
