@@ -908,8 +908,8 @@ export function TtfbChart({
 
                 const description = pointInsight.type === 'max' ? "Best hit rate in this period." :
                   pointInsight.type === 'min' ? "Lowest hit rate in this period." :
-                    pointInsight.type === 'spike-up' ? "Efficiency is higher than the average." :
-                      "Efficiency is lower than the average."
+                    pointInsight.type === 'spike-up' ? "Efficiency is higher in this period." :
+                      "Efficiency is lower in this period."
 
                 const baselineValue = targetRegion === 'global' ? cacheTimeframeAvg : (regionCacheAvgs.get(targetRegion) || cacheTimeframeAvg)
                 const baselineLabel = targetRegion === 'global' ? 'global avg' : 'region avg'
