@@ -91,7 +91,7 @@ export function MonitorDeleteConfirm({
         className="cs-card w-full max-w-[420px] p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200 border-white/10"
       >
         <div className="cs-card-wash opacity-20 bg-gradient-to-br from-red-500/10 to-transparent" />
-        
+
         <form onSubmit={handleSubmit} className="relative z-10 space-y-7">
           <div className="flex items-start gap-4">
             <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/10 border border-red-500/20 text-red-400">
@@ -156,11 +156,10 @@ export function MonitorDeleteConfirm({
             <button
               type="submit"
               disabled={!canDelete || isPending}
-              className={`h-11 px-8 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                canDelete && !isPending
+              className={`h-11 px-8 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${canDelete && !isPending
                   ? 'bg-red-500 text-white border-b-2 border-red-700 shadow-xl shadow-red-500/20 hover:bg-red-600 hover:-translate-y-0.5 active:translate-y-0 active:border-b-0'
                   : 'bg-white/5 text-zinc-600 border border-white/5 cursor-not-allowed'
-              }`}
+                }`}
             >
               {isPending ? 'Deleting...' : 'Remove permanently'}
             </button>

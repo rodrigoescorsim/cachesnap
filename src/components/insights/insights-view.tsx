@@ -57,78 +57,78 @@ import {
 // ─── Severity styles ──────────────────────────────────────────────────────────
 
 type SeverityCfg = {
-  tone:      'critical' | 'warning' | 'neutral'
-  bg:        string
-  bgHover:   string
-  ring:      string
-  badge:     string
-  label:     string
-  iconBg:    string
+  tone: 'critical' | 'warning' | 'neutral'
+  bg: string
+  bgHover: string
+  ring: string
+  badge: string
+  label: string
+  iconBg: string
   iconColor: string
-  dot:       string
-  glow:      string
+  dot: string
+  glow: string
 }
 
 const SEVERITY: Record<Severity, SeverityCfg> = {
   critical: {
-    tone:      'critical',
-    bg:        'bg-white/[0.02]',
-    bgHover:   'hover:bg-white/[0.035]',
-    ring:      'ring-1 ring-inset ring-rose-500/20 hover:ring-rose-500/28',
-    badge:     'bg-rose-500/10 text-rose-300/95 ring-rose-500/20',
-    label:     'CRITICAL',
-    iconBg:    'bg-rose-500/15 border border-rose-500/30',
+    tone: 'critical',
+    bg: 'bg-white/[0.02]',
+    bgHover: 'hover:bg-white/[0.035]',
+    ring: 'ring-1 ring-inset ring-rose-500/20 hover:ring-rose-500/28',
+    badge: 'bg-rose-500/10 text-rose-300/95 ring-rose-500/20',
+    label: 'CRITICAL',
+    iconBg: 'bg-rose-500/15 border border-rose-500/30',
     iconColor: 'text-rose-400',
-    dot:       'bg-rose-400',
-    glow:      'shadow-[0_0_32px_-12px_rgba(244,63,94,0.10)]',
+    dot: 'bg-rose-400',
+    glow: 'shadow-[0_0_32px_-12px_rgba(244,63,94,0.10)]',
   },
   warning: {
-    tone:      'warning',
-    bg:        'bg-white/[0.02]',
-    bgHover:   'hover:bg-white/[0.035]',
-    ring:      'ring-1 ring-inset ring-amber-500/18 hover:ring-amber-500/26',
-    badge:     'bg-amber-500/10 text-amber-200/90 ring-amber-500/18',
-    label:     'WARNING',
-    iconBg:    'bg-amber-500/12 border border-amber-500/25',
+    tone: 'warning',
+    bg: 'bg-white/[0.02]',
+    bgHover: 'hover:bg-white/[0.035]',
+    ring: 'ring-1 ring-inset ring-amber-500/18 hover:ring-amber-500/26',
+    badge: 'bg-amber-500/10 text-amber-200/90 ring-amber-500/18',
+    label: 'WARNING',
+    iconBg: 'bg-amber-500/12 border border-amber-500/25',
     iconColor: 'text-amber-400',
-    dot:       'bg-amber-400',
-    glow:      '',
+    dot: 'bg-amber-400',
+    glow: '',
   },
   info: {
-    tone:      'neutral',
-    bg:        'bg-white/[0.02]',
-    bgHover:   'hover:bg-white/[0.04]',
-    ring:      '',
-    badge:     'bg-blue-500/10 text-blue-300/90 ring-blue-500/20',
-    label:     'ADVISORY',
-    iconBg:    'bg-blue-500/10 border border-blue-500/20',
+    tone: 'neutral',
+    bg: 'bg-white/[0.02]',
+    bgHover: 'hover:bg-white/[0.04]',
+    ring: '',
+    badge: 'bg-blue-500/10 text-blue-300/90 ring-blue-500/20',
+    label: 'ADVISORY',
+    iconBg: 'bg-blue-500/10 border border-blue-500/20',
     iconColor: 'text-blue-400',
-    dot:       'bg-blue-400',
-    glow:      '',
+    dot: 'bg-blue-400',
+    glow: '',
   },
   success: {
-    tone:      'neutral',
-    bg:        'bg-white/[0.02]',
-    bgHover:   'hover:bg-white/[0.04]',
-    ring:      '',
-    badge:     'bg-[rgba(34,255,136,0.1)] text-[#22FF88] ring-[rgba(34,255,136,0.25)] ring-1 ring-inset',
-    label:     'STABLE',
-    iconBg:    'bg-[rgba(34,255,136,0.1)] border border-[rgba(34,255,136,0.2)]',
+    tone: 'neutral',
+    bg: 'bg-white/[0.02]',
+    bgHover: 'hover:bg-white/[0.04]',
+    ring: '',
+    badge: 'bg-[rgba(34,255,136,0.1)] text-[#22FF88] ring-[rgba(34,255,136,0.25)] ring-1 ring-inset',
+    label: 'STABLE',
+    iconBg: 'bg-[rgba(34,255,136,0.1)] border border-[rgba(34,255,136,0.2)]',
     iconColor: 'text-metric-ttfb-fast',
-    dot:       'bg-[var(--brand-primary)]',
-    glow:      '',
+    dot: 'bg-[var(--brand-primary)]',
+    glow: '',
   },
 }
 
 // ─── Icon mapping ─────────────────────────────────────────────────────────────
 
 const INSIGHT_ICON: Record<string, LucideIcon> = {
-  'critical-ttfb':    AlertTriangle,
-  'high-ttfb':        Clock,
-  'low-cache':        Zap,
-  'slow-regions':     MapPin,
+  'critical-ttfb': AlertTriangle,
+  'high-ttfb': Clock,
+  'low-cache': Zap,
+  'slow-regions': MapPin,
   'ttfb-degradation': TrendingDown,
-  'all-healthy':      ShieldCheck,
+  'all-healthy': ShieldCheck,
 }
 
 // ─── TrendChart ───────────────────────────────────────────────────────────────
@@ -136,15 +136,15 @@ const INSIGHT_ICON: Record<string, LucideIcon> = {
 type TrendChartThresholds = { warn: number; critical: number }
 
 type HoverState = {
-  svgX:       number
-  svgY:       number
-  value:      number
-  segColor:   string
-  idx:        number
+  svgX: number
+  svgY: number
+  value: number
+  segColor: string
+  idx: number
   clockLabel: string
   /** Viewport coordinates of the hovered point (for fixed tooltip). */
-  tipX:       number
-  tipY:       number
+  tipX: number
+  tipY: number
 } | null
 
 function ttfbSegColor(value: number): string {
@@ -157,7 +157,7 @@ function ttfbSegColor(value: number): string {
 function sampleClockHourLabel(nowMs: number, n: number, idx: number): string {
   if (n < 2) return ''
   const hoursAgo = (24 * (n - 1 - idx)) / (n - 1)
-  const t        = nowMs - hoursAgo * 3600 * 1000
+  const t = nowMs - hoursAgo * 3600 * 1000
   return `${new Date(t).getHours()}h`
 }
 
@@ -186,11 +186,11 @@ function TrendChart({
   unit = '',
   thresholds,
 }: {
-  data:        number[]
-  color:       string
-  id:          string
-  height?:     number
-  unit?:       string
+  data: number[]
+  color: string
+  id: string
+  height?: number
+  unit?: string
   thresholds?: TrendChartThresholds
 }) {
   const [hovered, setHovered] = useState<HoverState>(null)
@@ -222,8 +222,8 @@ function TrendChart({
     range === 0
       ? Array.from({ length: Y_TICK_COUNT }, () => max)
       : Array.from({ length: Y_TICK_COUNT }, (_, i) =>
-          Math.round(max - (i / (Y_TICK_COUNT - 1)) * (max - min)),
-        )
+        Math.round(max - (i / (Y_TICK_COUNT - 1)) * (max - min)),
+      )
 
   const pts = data.map((v, i) => {
     const x = ml + (i / (data.length - 1)) * plotW
@@ -233,22 +233,22 @@ function TrendChart({
 
   const linePath = smoothLinePath(pts)
   const area = [`${ml},${H}`, ...pts.map(([x, y]) => `${x},${y}`), `${ml + plotW},${H}`].join(' ')
-  const gid     = `grad-${id}`
+  const gid = `grad-${id}`
   const gridGid = `grid-${id}`
 
   function clientPointToSvg(svg: SVGSVGElement, clientX: number, clientY: number) {
-    const p   = svg.createSVGPoint()
-    p.x       = clientX
-    p.y       = clientY
+    const p = svg.createSVGPoint()
+    p.x = clientX
+    p.y = clientY
     const ctm = svg.getScreenCTM()
     if (!ctm) return { x: 0, y: 0 }
     return p.matrixTransform(ctm.inverse())
   }
 
   function svgPointToClient(svg: SVGSVGElement, x: number, y: number) {
-    const p   = svg.createSVGPoint()
-    p.x       = x
-    p.y       = y
+    const p = svg.createSVGPoint()
+    p.x = x
+    p.y = y
     const ctm = svg.getScreenCTM()
     if (!ctm) return { x: 0, y: 0 }
     return p.matrixTransform(ctm)
@@ -256,24 +256,24 @@ function TrendChart({
 
   function handleMouseMove(e: React.MouseEvent<SVGSVGElement>) {
     const svg = e.currentTarget
-    const p   = clientPointToSvg(svg, e.clientX, e.clientY)
+    const p = clientPointToSvg(svg, e.clientX, e.clientY)
     const rel = plotW > 0 ? (p.x - ml) / plotW : 0
     const idx = Math.max(
       0,
       Math.min(Math.round(Math.min(1, Math.max(0, rel)) * (data.length - 1)), data.length - 1),
     )
-    const segC    = thresholds ? ttfbSegColor(data[idx]) : color
+    const segC = thresholds ? ttfbSegColor(data[idx]) : color
     const ptCoord = pts[idx]
-    const scr     = svgPointToClient(svg, ptCoord[0], ptCoord[1])
+    const scr = svgPointToClient(svg, ptCoord[0], ptCoord[1])
     setHovered({
       svgX: ptCoord[0],
       svgY: ptCoord[1],
-      value:      data[idx],
-      segColor:   segC,
+      value: data[idx],
+      segColor: segC,
       idx,
       clockLabel: sampleClockHourLabel(Date.now(), data.length, idx),
-      tipX:       scr.x,
-      tipY:       scr.y,
+      tipX: scr.x,
+      tipY: scr.y,
     })
   }
 
@@ -314,9 +314,9 @@ function TrendChart({
             >
               <defs>
                 <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%"   stopColor={color} stopOpacity="0.12" />
-                  <stop offset="70%"  stopColor={color} stopOpacity="0.04" />
-                  <stop offset="100%" stopColor={color} stopOpacity="0"    />
+                  <stop offset="0%" stopColor={color} stopOpacity="0.12" />
+                  <stop offset="70%" stopColor={color} stopOpacity="0.04" />
+                  <stop offset="100%" stopColor={color} stopOpacity="0" />
                 </linearGradient>
                 <pattern id={gridGid} x={ml} y={pt} width={plotW} height={(H - pt - pb) / 4} patternUnits="userSpaceOnUse">
                   <line x1="0" y1="0" x2={plotW} y2="0" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
@@ -385,8 +385,8 @@ function TrendChart({
           <div
             className="pointer-events-none fixed z-[200] min-w-[8.25rem] rounded-lg border border-white/[0.12] bg-[#111d32]/98 px-3 py-2 text-left shadow-2xl ring-1 ring-white/[0.06] backdrop-blur-md"
             style={{
-              left:      hovered.tipX,
-              top:       hovered.tipY,
+              left: hovered.tipX,
+              top: hovered.tipY,
               transform: 'translate(-50%, calc(-100% - 12px))',
             }}
           >
@@ -448,7 +448,7 @@ function SlowRegionsPopover({ regions, visible }: { regions: RegionEntry[]; visi
   if (!visible) return null
 
   const slowCount = regions.filter(r => r.isSlow).length
-  const sorted    = [...regions].sort((a, b) => (b.isSlow ? 1 : 0) - (a.isSlow ? 1 : 0))
+  const sorted = [...regions].sort((a, b) => (b.isSlow ? 1 : 0) - (a.isSlow ? 1 : 0))
 
   return (
     <div
@@ -494,13 +494,13 @@ function InsightCard({
   delay,
   regionList,
 }: {
-  insight:     Insight
-  delay:       number
+  insight: Insight
+  delay: number
   regionList?: RegionEntry[]
 }) {
-  const s    = SEVERITY[insight.severity]
+  const s = SEVERITY[insight.severity]
   const Icon = INSIGHT_ICON[insight.id] ?? AlertTriangle
-  const strongTone   = s.tone !== 'neutral'
+  const strongTone = s.tone !== 'neutral'
   const showRegionPopover = insight.id === 'slow-regions' && (regionList?.length ?? 0) > 0
   const [regionsOpen, setRegionsOpen] = useState(false)
 
@@ -583,18 +583,18 @@ function InsightCard({
 function AlertRow({ monitor, rank }: { monitor: Monitor; rank: number }) {
   const isHighTtfb = monitor.ttfbCurrent > 300
   const isLowCache = monitor.cacheHitCurrent !== null && monitor.cacheHitCurrent < 70
-  const hasSlowR   = monitor.slowRegionCount > 0
+  const hasSlowR = monitor.slowRegionCount > 0
 
   const sev: Severity =
     monitor.ttfbCurrent > 500 || (monitor.cacheHitCurrent ?? 100) < 40
       ? 'critical'
       : 'warning'
-  const s          = SEVERITY[sev]
+  const s = SEVERITY[sev]
   const isCritical = sev === 'critical'
-  const SevIcon    = isCritical ? AlertTriangle : Clock
+  const SevIcon = isCritical ? AlertTriangle : Clock
 
   const displayName = monitor.name || safeHostname(monitor.url)
-  const host        = safeHostname(monitor.url)
+  const host = safeHostname(monitor.url)
 
   return (
     <Link
@@ -659,15 +659,15 @@ function AlertRow({ monitor, rank }: { monitor: Monitor; rank: number }) {
 function MonitorQuickCard({ monitor, rank }: { monitor: Monitor; rank: number }) {
   const ttfbClass =
     monitor.ttfbCurrent < 200 ? 'text-metric-ttfb-fast'
-    : monitor.ttfbCurrent > 350 ? 'text-metric-ttfb-slow'
-    : 'text-metric-ttfb-med'
+      : monitor.ttfbCurrent > 350 ? 'text-metric-ttfb-slow'
+        : 'text-metric-ttfb-med'
 
   const sparkColor =
     monitor.ttfbCurrent < 200 ? '#22FF88'
-    : monitor.ttfbCurrent > 350 ? '#f43f5e'
-    : '#f59e0b'
+      : monitor.ttfbCurrent > 350 ? '#f43f5e'
+        : '#f59e0b'
 
-  const deltaSign  = monitor.ttfbCurrentDelta > 0 ? '+' : ''
+  const deltaSign = monitor.ttfbCurrentDelta > 0 ? '+' : ''
   const deltaColor = monitor.ttfbCurrentDelta <= 0 ? 'text-metric-ttfb-fast' : 'text-rose-500'
 
   return (
@@ -740,7 +740,7 @@ function MonitorQuickCard({ monitor, rank }: { monitor: Monitor; rank: number })
 // ─── InsightsView ─────────────────────────────────────────────────────────────
 
 type InsightsViewProps = {
-  userEmail:    string
+  userEmail: string
   logoutAction: () => Promise<void>
 }
 
@@ -751,14 +751,14 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
   const { activeCount, liveTtfb, liveHit, avgTtfb24h, avgHit24h, healthScore, ttfbDelta, hitDelta } = useMemo(() => {
     if (!monitors.length) return { activeCount: 0, liveTtfb: 0, liveHit: 0, avgTtfb24h: 0, avgHit24h: 0, healthScore: 0, ttfbDelta: 0, hitDelta: 0 }
 
-    const active  = monitors.filter(m => m.status === 'active')
-    
+    const active = monitors.filter(m => m.status === 'active')
+
     // Live Average (Current sample from all active monitors)
     const liveTtfb = active.length > 0
       ? Math.round(active.reduce((s, m) => s + m.ttfbCurrent, 0) / active.length)
       : 0
 
-    const cm     = active.filter(m => m.cacheHitCurrent !== null)
+    const cm = active.filter(m => m.cacheHitCurrent !== null)
     const liveHit = cm.length
       ? Number((cm.reduce((s, m) => s + m.cacheHitCurrent!, 0) / cm.length).toFixed(1))
       : 0
@@ -767,28 +767,28 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
     const avgTtfb24h = active.length > 0
       ? Math.round(active.reduce((s, m) => s + m.ttfbAvg24h, 0) / active.length)
       : 0
-    
+
     const cm24h = active.filter(m => m.cacheHitAvg24h !== null)
     const avgHit24h = cm24h.length
       ? Number((cm24h.reduce((s, m) => s + m.cacheHitAvg24h!, 0) / cm24h.length).toFixed(1))
       : 0
 
     // Global health Score: weighted average of individual monitor health scores
-    const healthScore = monitors.length > 0 
-      ? Math.round(monitors.reduce((sum, m) => sum + monitorHealthScore(m), 0) / monitors.length) 
+    const healthScore = monitors.length > 0
+      ? Math.round(monitors.reduce((sum, m) => sum + monitorHealthScore(m), 0) / monitors.length)
       : 0
 
     // Network-wide Trends (Real-time vs 24h Baseline)
     const ttfbDelta = calculateTrend(liveTtfb, avgTtfb24h)
-    const hitDelta  = calculateTrend(liveHit, avgHit24h)
+    const hitDelta = calculateTrend(liveHit, avgHit24h)
 
-    return { 
-      activeCount: active.length, 
-      liveTtfb, 
-      liveHit, 
-      avgTtfb24h, 
-      avgHit24h, 
-      healthScore, 
+    return {
+      activeCount: active.length,
+      liveTtfb,
+      liveHit,
+      avgTtfb24h,
+      avgHit24h,
+      healthScore,
       ttfbDelta,
       hitDelta
     }
@@ -802,11 +802,11 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
   const hitTrendIcon = hitDelta > 0 ? ArrowUp : hitDelta < 0 ? ArrowDown : Minus
 
   const healthLabel = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'Stable' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'Degraded' : 'Critical'
-  const healthDesc  = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'Excellent' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'Fair' : 'Poor'
+  const healthDesc = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'Excellent' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'Fair' : 'Poor'
   const healthBadgeCls = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'cs-badge-success' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'cs-badge-warning' : 'cs-badge-error'
-  const healthDotCls   = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'bg-[var(--brand-primary)]' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'bg-amber-400' : 'bg-rose-400'
+  const healthDotCls = healthScore >= GLOBAL_HEALTH.HEALTHY ? 'bg-[var(--brand-primary)]' : healthScore >= GLOBAL_HEALTH.DEGRADED ? 'bg-amber-400' : 'bg-rose-400'
 
-  const insights  = useMemo(() => deriveInsights(monitors), [monitors])
+  const insights = useMemo(() => deriveInsights(monitors), [monitors])
   const ttfbTrend = useMemo(() => aggregateTtfbTrend(monitors), [monitors])
 
   const alertMonitors = useMemo(
@@ -892,8 +892,8 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               valueClassName={getHealthColor(healthScore)}
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
               badge={{
-                text:         healthLabel,
-                className:    `${healthBadgeCls}`,
+                text: healthLabel,
+                className: `${healthBadgeCls}`,
                 withPulseDot: !isLoading,
                 dotClassName: healthDotCls,
               }}
@@ -919,10 +919,10 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                 isLoading
                   ? undefined
                   : {
-                      label: ttfbPill.label,
-                      tone: ttfbPill.tone,
-                      context: globalTtfbFooterContext(liveTtfb, ttfbDelta),
-                    }
+                    label: ttfbPill.label,
+                    tone: ttfbPill.tone,
+                    context: globalTtfbFooterContext(liveTtfb, ttfbDelta),
+                  }
               }
               animationDelayMs={70}
             />
@@ -945,10 +945,10 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                 isLoading
                   ? undefined
                   : {
-                      label: cachePill.label,
-                      tone: cachePill.tone,
-                      context: globalCacheFooterContext(liveHit),
-                    }
+                    label: cachePill.label,
+                    tone: cachePill.tone,
+                    context: globalCacheFooterContext(liveHit),
+                  }
               }
               animationDelayMs={140}
             />
@@ -972,11 +972,10 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
             </div>
           ) : (
             <div
-              className={`grid grid-cols-1 gap-4 ${
-                insights.length >= 3 ? 'sm:grid-cols-2 xl:grid-cols-3'
-                : insights.length === 2 ? 'sm:grid-cols-2'
-                : ''
-              }`}
+              className={`grid grid-cols-1 gap-4 ${insights.length >= 3 ? 'sm:grid-cols-2 xl:grid-cols-3'
+                  : insights.length === 2 ? 'sm:grid-cols-2'
+                    : ''
+                }`}
             >
               {insights.map((insight, i) => {
                 let regionList: RegionEntry[] | undefined
@@ -994,7 +993,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
 
         {/* ── C. Performance Trends ─────────────────────────────────────────── */}
         <ViewSection aria-label="Performance Trends">
-        <ViewSectionHeader title="Performance Trends" showDot={false} />
+          <ViewSectionHeader title="Performance Trends" showDot={false} />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 
             {/* TTFB 24h trend */}
@@ -1073,14 +1072,14 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                       hit >= 80
                         ? 'linear-gradient(90deg, #064e3b 0%, #059669 55%, #34d399 100%)'
                         : hit >= 60
-                        ? 'linear-gradient(90deg, #022c22 0%, #047857 50%, #10b981 100%)'
-                        : 'linear-gradient(90deg, #022c22 0%, #065f46 45%, #0d9488 100%)'
+                          ? 'linear-gradient(90deg, #022c22 0%, #047857 50%, #10b981 100%)'
+                          : 'linear-gradient(90deg, #022c22 0%, #065f46 45%, #0d9488 100%)'
                     const glow =
                       hit >= 80
                         ? '0 0 10px rgba(16,185,129,0.18)'
                         : hit >= 60
-                        ? '0 0 8px rgba(5,150,105,0.14)'
-                        : '0 0 8px rgba(13,148,136,0.12)'
+                          ? '0 0 8px rgba(5,150,105,0.14)'
+                          : '0 0 8px rgba(13,148,136,0.12)'
 
                     return (
                       <div key={m.id} className="flex items-center gap-3">
@@ -1097,9 +1096,9 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                             <div
                               className="h-full rounded-full transition-all duration-700 ease-out"
                               style={{
-                                width:      `${hit}%`,
+                                width: `${hit}%`,
                                 background: grad,
-                                boxShadow:  glow,
+                                boxShadow: glow,
                               }}
                             />
                           </div>
@@ -1125,7 +1124,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
         <ViewSection aria-label="Active Alerts">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-            <ViewSectionHeader title="Active Alerts" showDot={false} />
+              <ViewSectionHeader title="Active Alerts" showDot={false} />
               {!isLoading && alertMonitors.length > 0 && (
                 <span
                   className={`cs-badge ${criticalCount > 0 ? 'cs-badge-error' : 'cs-badge-warning'} !px-2 !py-0.5 !text-[9px]`}

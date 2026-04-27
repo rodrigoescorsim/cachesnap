@@ -203,7 +203,7 @@ export function MonitorEditForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      
+
       if (res.ok) {
         setStatus('saved')
         lastSavedValues.current = current
@@ -272,9 +272,9 @@ export function MonitorEditForm({
           {status === 'saving' && <div className="w-1.5 h-1.5 rounded-full bg-white/20 animate-pulse" />}
           {status === 'saved' && <div className="w-1.5 h-1.5 rounded-full bg-[var(--brand-primary)] shadow-[0_0_8px_rgba(34,255,136,0.5)]" />}
           {status === 'error' && <div className="w-1.5 h-1.5 rounded-full bg-red-400" />}
-          {status === 'saving' ? 'Saving changes...' : 
-           status === 'saved' ? 'All changes saved ✓' : 
-           status === 'error' ? 'Error updating settings' : ''}
+          {status === 'saving' ? 'Saving changes...' :
+            status === 'saved' ? 'All changes saved ✓' :
+              status === 'error' ? 'Error updating settings' : ''}
         </div>
       </div>
 
@@ -403,11 +403,10 @@ export function MonitorEditForm({
                           type="button"
                           onClick={() => handleInputChange('alert_sensitivity', opt.value)}
                           disabled={!values.alert_anomaly_enabled}
-                          className={`relative flex flex-col items-center gap-0.5 rounded-lg border px-2 py-2.5 text-center transition-all ${
-                            values.alert_sensitivity === opt.value
+                          className={`relative flex flex-col items-center gap-0.5 rounded-lg border px-2 py-2.5 text-center transition-all ${values.alert_sensitivity === opt.value
                               ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 text-white shadow-[0_0_12px_rgba(34,255,136,0.08)]'
                               : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
-                          }`}
+                            }`}
                         >
                           <span className="text-xs font-bold mt-1">{opt.label}</span>
                           <span className="text-[10px] opacity-60 leading-tight">{opt.sub}</span>
@@ -565,11 +564,10 @@ export function MonitorEditForm({
                                   : [...current, opt.value]
                                 if (next.length > 0) handleInputChange('alert_cache_hit_trend_comparators', next)
                               }}
-                              className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all border ${
-                                active
+                              className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all border ${active
                                   ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 text-white'
                                   : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
-                              }`}
+                                }`}
                             >
                               {opt.label}
                             </button>
@@ -627,11 +625,10 @@ export function MonitorEditForm({
                             type="button"
                             disabled={!values.alert_ttfb_trend_enabled}
                             onClick={() => handleInputChange('alert_ttfb_trend_direction', opt.value)}
-                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all border ${
-                              values.alert_ttfb_trend_direction === opt.value
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all border ${values.alert_ttfb_trend_direction === opt.value
                                 ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 text-white'
                                 : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
-                            }`}
+                              }`}
                           >
                             {opt.label}
                           </button>
@@ -660,11 +657,10 @@ export function MonitorEditForm({
                                   : [...current, opt.value]
                                 if (next.length > 0) handleInputChange('alert_ttfb_trend_comparators', next)
                               }}
-                              className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all border ${
-                                active
+                              className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all border ${active
                                   ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 text-white'
                                   : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
-                              }`}
+                                }`}
                             >
                               {opt.label}
                             </button>

@@ -91,24 +91,23 @@ export function MonitorHeaderToolbar({
 
   return (
     <div className="flex items-center gap-2">
-        <button
+      <button
         type="button"
         onClick={handleToggleActive}
         disabled={pendingToggle}
         title={isActive ? 'Pause monitoring' : 'Resume monitoring'}
-        className={`${PAUSE_BTN} ${
-          isActive
+        className={`${PAUSE_BTN} ${isActive
             ? 'cs-tint-warning'
             : 'cs-tint-success'
-        }`}
+          }`}
       >
         {pendingToggle
           ? isActive
             ? 'Pausing…'
             : 'Resuming…'
           : isActive
-          ? 'Pause'
-          : 'Resume'}
+            ? 'Pause'
+            : 'Resume'}
       </button>
 
       <div className="relative flex items-center">
@@ -119,9 +118,8 @@ export function MonitorHeaderToolbar({
           aria-haspopup="menu"
           title="More actions"
           onClick={() => setMenuOpen((v) => !v)}
-          className={`${MENU_TRIGGER} ${
-            menuOpen ? 'bg-white/5' : ''
-          }`}
+          className={`${MENU_TRIGGER} ${menuOpen ? 'bg-white/5' : ''
+            }`}
         >
           <MoreVertical
             className="h-4 w-4 shrink-0 -translate-y-px"
@@ -132,45 +130,45 @@ export function MonitorHeaderToolbar({
 
         {menuOpen && portalNode
           ? createPortal(
-              <div
-                ref={menuRef}
-                role="menu"
-                className="cs-dropdown"
-                style={{
-                  position: 'absolute',
-                  top: coords.top,
-                  left: coords.left - 180, // Adjust to open from right
-                }}
-              >
-                <div className="flex flex-col">
-                  <Link
-                    role="menuitem"
-                    href={buildMonitorHref('settings', range)}
-                    className="cs-item"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    <SettingsIcon className="h-3.5 w-3.5 opacity-70" />
-                    Settings
-                  </Link>
-                </div>
-                <div className="cs-divider" />
-                <div className="flex flex-col">
-                  <button
-                    role="menuitem"
-                    type="button"
-                    className="cs-item cs-item-danger"
-                    onClick={() => {
-                      setMenuOpen(false)
-                      setRemoveOpen(true)
-                    }}
-                  >
-                    <Trash className="h-3.5 w-3.5 opacity-70" />
-                    Remove monitor
-                  </button>
-                </div>
-              </div>,
-              portalNode
-            )
+            <div
+              ref={menuRef}
+              role="menu"
+              className="cs-dropdown"
+              style={{
+                position: 'absolute',
+                top: coords.top,
+                left: coords.left - 180, // Adjust to open from right
+              }}
+            >
+              <div className="flex flex-col">
+                <Link
+                  role="menuitem"
+                  href={buildMonitorHref('settings', range)}
+                  className="cs-item"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <SettingsIcon className="h-3.5 w-3.5 opacity-70" />
+                  Settings
+                </Link>
+              </div>
+              <div className="cs-divider" />
+              <div className="flex flex-col">
+                <button
+                  role="menuitem"
+                  type="button"
+                  className="cs-item cs-item-danger"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    setRemoveOpen(true)
+                  }}
+                >
+                  <Trash className="h-3.5 w-3.5 opacity-70" />
+                  Remove monitor
+                </button>
+              </div>
+            </div>,
+            portalNode
+          )
           : null}
       </div>
       {removeOpen ? (

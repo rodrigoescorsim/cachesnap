@@ -68,29 +68,29 @@ export function LiveActivityHeader({ monitorId, freezeStorageKey, latestDataAt }
   }
 
   return (
-    <ViewSectionHeader title="Live Network Activity">
-        <div className="relative flex shrink-0 flex-col items-end justify-center">
-          <MonitorDispatchButtons
-            monitorId={monitorId}
-            variant="compact"
-            freezeStorageKey={freezeStorageKey}
-            isFrozen={isFrozen}
-            onToggleFreeze={handleToggleFreeze}
-          />
+    <ViewSectionHeader title="Live Performance">
+      <div className="relative flex shrink-0 flex-col items-end justify-center">
+        <MonitorDispatchButtons
+          monitorId={monitorId}
+          variant="compact"
+          freezeStorageKey={freezeStorageKey}
+          isFrozen={isFrozen}
+          onToggleFreeze={handleToggleFreeze}
+        />
 
-          {/* Tooltip do Frozen cobre “resume”; aqui só reforça quando e com que hora pausou (sem duplicar “Last probe”). */}
-          {isFrozen && freezeStartedAtMs != null ? (
-            <div
-              className="absolute top-[calc(100%-2px)] right-0 flex items-center justify-end gap-1 transition-opacity duration-300 ease-out whitespace-nowrap"
-              aria-live="polite"
-            >
-              <Pause className="h-3 w-3 shrink-0 text-indigo-400/80" aria-hidden />
-              <span className="text-[11px] font-normal tabular-nums tracking-tight text-indigo-300/85">
-                Frozen at {formatFrozenAtClock(freezeStartedAtMs)}
-              </span>
-            </div>
-          ) : null}
-        </div>
+        {/* Tooltip do Frozen cobre “resume”; aqui só reforça quando e com que hora pausou (sem duplicar “Last probe”). */}
+        {isFrozen && freezeStartedAtMs != null ? (
+          <div
+            className="absolute top-[calc(100%-2px)] right-0 flex items-center justify-end gap-1 transition-opacity duration-300 ease-out whitespace-nowrap"
+            aria-live="polite"
+          >
+            <Pause className="h-3 w-3 shrink-0 text-indigo-400/80" aria-hidden />
+            <span className="text-[11px] font-normal tabular-nums tracking-tight text-indigo-300/85">
+              Frozen at {formatFrozenAtClock(freezeStartedAtMs)}
+            </span>
+          </div>
+        ) : null}
+      </div>
     </ViewSectionHeader>
   )
 }
