@@ -76,16 +76,54 @@ export function TtfbChart({
   const regions = useMemo(() => [...new Set(data.map(d => d.region))].sort(), [data])
   const allBuckets = useMemo(() => [...new Set(data.map(d => d.bucket))].sort(), [data])
   const regionAbbreviations = useMemo(() => {
+    // Standard tech region mappings to avoid country confusion (e.g. FRA -> FRK)
+    const MAPPING: Record<string, string> = {
+      'frankfurt': 'FRK',
+      'london': 'LDN',
+      'tokyo': 'TYO',
+      'singapore': 'SGP',
+      'mumbai': 'MUM',
+      'sydney': 'SYD',
+      'sao paulo': 'SPO',
+      'são paulo': 'SPO',
+      'paris': 'PAR',
+      'seoul': 'SEL',
+      'hong kong': 'HKG',
+      'oregon': 'ORE',
+      'ohio': 'OHI',
+      'northern virginia': 'NVA',
+      'virginia': 'VIR',
+      'cape town': 'CPT',
+    }
+
     const toAbbreviation = (label: string, fallbackRegion: string) => {
+      const low = label.toLowerCase()
+      // 1. Direct match in mapping
+      for (const [key, val] of Object.entries(MAPPING)) {
+        if (low.includes(key)) return val
+      }
+
       const cleaned = label
         .replace(/[^A-Za-z\s]/g, ' ')
         .trim()
+      
       if (!cleaned) return fallbackRegion.slice(0, 3).toUpperCase()
+      
       const parts = cleaned.split(/\s+/).filter(Boolean)
+      
+      // 2. Multi-word: take first letters (e.g. North Virginia -> NV)
       if (parts.length >= 2) {
         return parts.slice(0, 3).map(part => part[0]?.toUpperCase() ?? '').join('')
       }
-      return cleaned.slice(0, 3).toUpperCase()
+
+      // 3. One word: use first 3, but if it ends in 'a' and it's long, try to pick a consonant
+      // (This is a heuristic to avoid FRA, BRA, etc. if it's not in mapping)
+      const raw = cleaned.toUpperCase()
+      if (raw.length > 3 && (raw.startsWith('FRA') || raw.startsWith('BRA') || raw.startsWith('ITA'))) {
+        return (raw[0] + raw[1] + raw[3]).slice(0, 3) // Pick 1, 2, 4
+      }
+
+      return raw.slice(0, 3)
     }
 
     const map: Record<string, string> = {}
