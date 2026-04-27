@@ -868,7 +868,12 @@ export function TtfbChart({
           </div>
 
           <div className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700">
-            <div className="absolute top-4 right-4 text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-65">Network Load</div>
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">Network Load</div>
+              <div className="flex flex-wrap items-center justify-end gap-1.5">
+                {/* Future toggles here */}
+              </div>
+            </div>
             <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
               {[0, Math.round(niceMaxNet / 2), niceMaxNet].map(v => (
                 <g key={v}>
