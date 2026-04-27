@@ -141,7 +141,7 @@ function Sparkline({ data, delta }: { data: number[]; delta: number }) {
       {tip !== null && tipMs !== null && (
         <div
           role="tooltip"
-          className="pointer-events-none absolute bottom-full left-0 z-20 mb-1 min-w-[3rem] -translate-x-1/2 rounded border border-white/[0.12] bg-zinc-950/95 px-1.5 py-0.5 text-center text-[10px] font-semibold tabular-nums text-zinc-200 shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
+          className="pointer-events-none absolute bottom-full left-0 z-20 mb-6 min-w-[3rem] -translate-x-1/2 rounded border border-white/[0.12] bg-zinc-950/95 px-1.5 py-0.5 text-center text-[10px] font-semibold tabular-nums text-zinc-200 shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
           style={{ left: `${tip.px}px` }}
         >
           {tipMs} ms

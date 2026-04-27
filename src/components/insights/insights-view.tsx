@@ -387,7 +387,7 @@ function TrendChart({
             style={{
               left: hovered.tipX,
               top: hovered.tipY,
-              transform: 'translate(-50%, calc(-100% - 12px))',
+              transform: 'translate(-50%, calc(-100% - 24px))',
             }}
           >
             <p className="font-mono text-[12px] font-bold tabular-nums" style={{ color: hovered.segColor }}>
@@ -453,7 +453,7 @@ function SlowRegionsPopover({ regions, visible }: { regions: RegionEntry[]; visi
   return (
     <div
       role="tooltip"
-      className="pointer-events-none absolute bottom-full left-0 z-50 mb-2.5 w-[220px] animate-[cs-fade-in_0.15s_ease-out] rounded-xl border border-border bg-[#111d32] p-3 shadow-2xl ring-1 ring-white/5"
+      className="pointer-events-none absolute bottom-full left-0 z-50 mb-6 w-[220px] animate-[cs-fade-in_0.15s_ease-out] rounded-xl border border-border bg-[#111d32] p-3 shadow-2xl ring-1 ring-white/5"
     >
       {/* Arrow */}
       <div className="absolute -bottom-[5px] left-4 h-2.5 w-2.5 rotate-45 rounded-[2px] border-b border-r border-border bg-[#111d32]" />

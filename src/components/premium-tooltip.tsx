@@ -12,7 +12,7 @@ export type PremiumTooltipPosition =
   | 'bottom-left'
 
 const TOOLTIP_WIDTH = 'min(320px, calc(100vw - 2rem))' as const
-const GAP_PX = 8
+const GAP_PX = 24
 
 function tooltipFixedStyle(
   trigger: DOMRect,

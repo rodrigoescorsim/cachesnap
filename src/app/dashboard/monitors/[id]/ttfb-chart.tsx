@@ -66,7 +66,7 @@ export function TtfbChart({
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const [hoveredChart, setHoveredChart] = useState<'ttfb' | 'cache' | 'network' | null>(null)
   const [hoveredRegion, setHoveredRegion] = useState<string | null>(null)
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0, clientX: 0, clientY: 0, isRight: false, isBottom: false })
   const [showGlobalTtfb, setShowGlobalTtfb] = useState(true)
   const [selectedTtfbRegions, setSelectedTtfbRegions] = useState<Set<string>>(new Set())
   const [showGlobalCache, setShowGlobalCache] = useState(true)
@@ -171,6 +171,7 @@ export function TtfbChart({
   const globalTls = globalBucketAverage(allBuckets, data, p => p.tls_avg)
   const globalTtfb = globalBucketAverage(allBuckets, data, p => p.ttfb_avg)
   const globalP95 = globalBucketAverage(allBuckets, data, p => p.ttfb_p95)
+  const globalCache = globalBucketAverage(allBuckets, data, p => p.cache_hit_pct)
   const globalNet = globalDns.map((d, i) => {
     let value = 0
     if (networkMetric === 'dns') value = d.value
@@ -184,12 +185,12 @@ export function TtfbChart({
 
   // ── Network Insights (Max, Min, Spikes) ───────────────────────────────────
   const netInsights = useMemo(() => {
-    const insights = new Map<string, Array<{idx: number, type: 'max' | 'min' | 'spike-up' | 'spike-down', diff?: number, pct?: number, value: number}>>()
-    
-    const processSeries = (name: string, series: Array<{value: number}>) => {
+    const insights = new Map<string, Array<{ idx: number, type: 'max' | 'min' | 'spike-up' | 'spike-down', diff?: number, pct?: number, value: number }>>()
+
+    const processSeries = (name: string, series: Array<{ value: number }>) => {
       if (series.length < 2) return
-      const res: Array<{idx: number, type: 'max' | 'min' | 'spike-up' | 'spike-down', diff?: number, pct?: number, value: number}> = []
-      
+      const res: Array<{ idx: number, type: 'max' | 'min' | 'spike-up' | 'spike-down', diff?: number, pct?: number, value: number }> = []
+
       let maxVal = -Infinity
       let maxIdx = -1
       let minVal = Infinity
@@ -202,7 +203,7 @@ export function TtfbChart({
         if (v < minVal) { minVal = v; minIdx = i }
 
         if (i > 0) {
-          const prev = series[i-1].value
+          const prev = series[i - 1].value
           if (prev > 0) {
             const pct = ((v - prev) / prev) * 100
             if (pct > 40) res.push({ idx: i, type: 'spike-up', diff: v - prev, pct, value: v })
@@ -213,7 +214,7 @@ export function TtfbChart({
 
       if (maxIdx !== -1) res.push({ idx: maxIdx, type: 'max', value: maxVal })
       if (minIdx !== -1) res.push({ idx: minIdx, type: 'min', value: minVal })
-      
+
       const unique = Array.from(new Map(res.map(r => [r.idx + '-' + r.type, r])).values())
       insights.set(name, unique)
     }
@@ -243,13 +244,179 @@ export function TtfbChart({
     else if (networkMetric === 'tcp') series = globalTcp
     else if (networkMetric === 'tls') series = globalTls
     else series = globalNet
-    
+
     if (series.length === 0) return 0
     const validPoints = series.filter(p => p.value > 0)
     if (validPoints.length === 0) return 0
     const sum = validPoints.reduce((acc, curr) => acc + curr.value, 0)
     return sum / validPoints.length
   }, [globalDns, globalTcp, globalTls, globalNet, networkMetric])
+
+  const regionNetAvgs = useMemo(() => {
+    const avgs = new Map<string, number>()
+    for (const region of regions) {
+      const m = byRegion[region]
+      if (!m) continue
+      const series = allBuckets.map(b => {
+        const p = m.get(b)
+        if (!p) return 0
+        if (networkMetric === 'dns') return p.dns_avg ?? 0
+        if (networkMetric === 'tcp') return p.tcp_avg ?? 0
+        if (networkMetric === 'tls') return p.tls_avg ?? 0
+        return (p.dns_avg ?? 0) + (p.tcp_avg ?? 0) + (p.tls_avg ?? 0)
+      }).filter(v => v > 0)
+      if (series.length > 0) {
+        avgs.set(region, series.reduce((acc, v) => acc + v, 0) / series.length)
+      }
+    }
+    return avgs
+  }, [byRegion, regions, allBuckets, networkMetric])
+
+  // ── TTFB Insights (Max, Min, Spikes) ──────────────────────────────────────
+
+  // ── TTFB Insights (Max, Min, Spikes) ──────────────────────────────────────
+  const ttfbInsights = useMemo(() => {
+    const insights = new Map<string, Array<{ idx: number, type: 'max' | 'min' | 'spike-up' | 'spike-down', diff?: number, pct?: number, value: number }>>()
+
+    const processSeries = (name: string, series: Array<{ value: number }>) => {
+      if (series.length < 2) return
+      const res: Array<{ idx: number, type: 'max' | 'min' | 'spike-up' | 'spike-down', diff?: number, pct?: number, value: number }> = []
+
+      let maxVal = -Infinity
+      let maxIdx = -1
+      let minVal = Infinity
+      let minIdx = -1
+
+      for (let i = 0; i < series.length; i++) {
+        const v = series[i].value
+        if (v === 0) continue
+        if (v > maxVal) { maxVal = v; maxIdx = i }
+        if (v < minVal) { minVal = v; minIdx = i }
+
+        if (i > 0) {
+          const prev = series[i - 1].value
+          if (prev > 0) {
+            const pct = ((v - prev) / prev) * 100
+            if (pct > 40) res.push({ idx: i, type: 'spike-up', diff: v - prev, pct, value: v })
+            else if (pct < -40) res.push({ idx: i, type: 'spike-down', diff: v - prev, pct, value: v })
+          }
+        }
+      }
+
+      if (maxIdx !== -1) res.push({ idx: maxIdx, type: 'max', value: maxVal })
+      if (minIdx !== -1) res.push({ idx: minIdx, type: 'min', value: minVal })
+
+      const unique = Array.from(new Map(res.map(r => [r.idx + '-' + r.type, r])).values())
+      insights.set(name, unique)
+    }
+
+    processSeries('global', globalTtfb)
+    for (const region of regions) {
+      const m = byRegion[region]
+      if (!m) continue
+      const series = allBuckets.map(b => ({ value: m.get(b)?.ttfb_avg ?? 0 }))
+      processSeries(region, series)
+    }
+    return insights
+  }, [globalTtfb, byRegion, regions, allBuckets])
+
+  const ttfbTimeframeAvg = useMemo(() => {
+    if (globalTtfb.length === 0) return 0
+    const validPoints = globalTtfb.filter(p => p.value > 0)
+    if (validPoints.length === 0) return 0
+    const sum = validPoints.reduce((acc, curr) => acc + curr.value, 0)
+    return sum / validPoints.length
+  }, [globalTtfb])
+
+  const regionTtfbAvgs = useMemo(() => {
+    const avgs = new Map<string, number>()
+    for (const region of regions) {
+      const m = byRegion[region]
+      if (!m) continue
+      const series = allBuckets.map(b => m.get(b)?.ttfb_avg ?? 0).filter(v => v > 0)
+      if (series.length > 0) {
+        avgs.set(region, series.reduce((acc, v) => acc + v, 0) / series.length)
+      }
+    }
+    return avgs
+  }, [byRegion, regions, allBuckets])
+
+  // ── Cache Insights (Max, Min, Spikes) ─────────────────────────────────────
+  const cacheInsights = useMemo(() => {
+    const insights = new Map<string, Array<{ idx: number, type: 'max' | 'min' | 'spike-up' | 'spike-down', diff?: number, pct?: number, value: number }>>()
+
+    const processSeries = (name: string, series: Array<{ value: number }>) => {
+      if (series.length < 2) return
+      const res: Array<{ idx: number, type: 'max' | 'min' | 'spike-up' | 'spike-down', diff?: number, pct?: number, value: number }> = []
+
+      let maxVal = -Infinity
+      let maxIdx = -1
+      let minVal = Infinity
+      let minIdx = -1
+
+      const validValues = series.filter(s => s.value != null && s.value >= 0).map(s => s.value)
+      if (validValues.length < 2) return
+      
+      const vMax = Math.max(...validValues)
+      const vMin = Math.min(...validValues)
+      // STABILITY CHECK: If the variation is too small (e.g. < 2%), do not show insights for Cache
+      if (vMax - vMin < 2) return
+
+      for (let i = 0; i < series.length; i++) {
+        const v = series[i].value
+        if (v == null || v < 0) continue
+        if (v > maxVal) { maxVal = v; maxIdx = i }
+        if (v < minVal) { minVal = v; minIdx = i }
+
+        if (i > 0) {
+          const prev = series[i - 1].value
+          if (prev != null && prev > 0) {
+            const diff = v - prev
+            // For cache, spikes are absolute percentage points usually, 
+            // but we'll use a 10pt shift as a "spike" or keep the 40% relative if it's low
+            if (diff > 20) res.push({ idx: i, type: 'spike-up', diff, value: v })
+            else if (diff < -20) res.push({ idx: i, type: 'spike-down', diff, value: v })
+          }
+        }
+      }
+
+      if (maxIdx !== -1 && maxVal < 100) res.push({ idx: maxIdx, type: 'max', value: maxVal })
+      if (minIdx !== -1 && minVal > 0) res.push({ idx: minIdx, type: 'min', value: minVal })
+
+      const unique = Array.from(new Map(res.map(r => [r.idx + '-' + r.type, r])).values())
+      insights.set(name, unique)
+    }
+
+    processSeries('global', globalCache)
+    for (const region of regions) {
+      const m = byRegion[region]
+      if (!m) continue
+      const series = allBuckets.map(b => ({ value: m.get(b)?.cache_hit_pct ?? -1 }))
+      processSeries(region, series)
+    }
+    return insights
+  }, [globalCache, byRegion, regions, allBuckets])
+
+  const cacheTimeframeAvg = useMemo(() => {
+    if (globalCache.length === 0) return 0
+    const validPoints = globalCache.filter(p => p.value >= 0)
+    if (validPoints.length === 0) return 0
+    const sum = validPoints.reduce((acc, curr) => acc + curr.value, 0)
+    return sum / validPoints.length
+  }, [globalCache])
+
+  const regionCacheAvgs = useMemo(() => {
+    const avgs = new Map<string, number>()
+    for (const region of regions) {
+      const m = byRegion[region]
+      if (!m) continue
+      const series = allBuckets.map(b => m.get(b)?.cache_hit_pct ?? -1).filter(v => v >= 0)
+      if (series.length > 0) {
+        avgs.set(region, series.reduce((acc, v) => acc + v, 0) / series.length)
+      }
+    }
+    return avgs
+  }, [byRegion, regions, allBuckets])
 
   // ── Y scales (Dynamic based on visible data) ─────────────────────────────
   const maxTtfb = useMemo(() => {
@@ -306,7 +473,9 @@ export function TtfbChart({
     const rect = containerRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-    setMousePos({ x, y })
+    const isRight = e.clientX > (typeof window !== 'undefined' ? window.innerWidth * 0.5 : 800)
+    const isBottom = e.clientY > (typeof window !== 'undefined' ? window.innerHeight * 0.5 : 500)
+    setMousePos({ x, y, clientX: e.clientX, clientY: e.clientY, isRight, isBottom })
 
     const svgElement = (e.target as Element | null)?.closest('svg')
     if (!svgElement) {
@@ -370,16 +539,6 @@ export function TtfbChart({
     defaults.add(ranked[ranked.length - 1].region)
     return defaults
   }, [regions, data])
-  const globalCache = useMemo(() => {
-    return allBuckets.map(bucket => {
-      const bucketValues = data
-        .filter(point => point.bucket === bucket && point.cache_hit_pct != null)
-        .map(point => point.cache_hit_pct as number)
-      if (bucketValues.length === 0) return { bucket, value: null as number | null }
-      const total = bucketValues.reduce((sum, value) => sum + value, 0)
-      return { bucket, value: total / bucketValues.length }
-    })
-  }, [allBuckets, data])
   const cachePlateauState = useMemo(() => {
     if (isCacheNotReported) return null
     const values = globalCache
@@ -520,13 +679,14 @@ export function TtfbChart({
       {/* Tooltip */}
       {hoveredIdx !== null && (
         <div
-          className={`fixed z-[100] pointer-events-none bg-surface/95 backdrop-blur-xl border border-white/10 p-3 rounded-xl shadow-2xl text-white transition-transform duration-200 ${hoveredChart === 'network' ? 'min-w-[400px]' : 'min-w-[220px]'}`}
-          style={{ 
-            left: mousePos.x + 20 + (containerRef.current?.getBoundingClientRect().left ?? 0), 
-            top: mousePos.y + (containerRef.current?.getBoundingClientRect().top ?? 0),
-            transform: (mousePos.y + (containerRef.current?.getBoundingClientRect().top ?? 0)) > (typeof window !== 'undefined' ? window.innerHeight / 1.6 : 500) 
-              ? 'translateY(calc(-100% - 20px))' 
-              : 'translateY(20px)'
+          className={`fixed z-[100] pointer-events-none bg-surface/95 backdrop-blur-xl border border-white/10 p-3 rounded-xl shadow-2xl text-white transition-all duration-300 ease-out ${hoveredChart === 'network' ? 'min-w-[400px]' : 'min-w-[260px]'}`}
+          style={{
+            left: `${mousePos.clientX}px`,
+            top: `${mousePos.clientY}px`,
+            transform: `translate(
+              calc(-${(mousePos.clientX / (typeof window !== 'undefined' ? window.innerWidth : 1920)) * 100}% + ${mousePos.clientX > (typeof window !== 'undefined' ? window.innerWidth * 0.5 : 800) ? '-24px' : '24px'}), 
+              ${mousePos.isBottom ? 'calc(-100% - 24px)' : '24px'}
+            )`
           }}
         >
           <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2 border-b border-white/5 pb-1.5 px-0.5">
@@ -620,20 +780,25 @@ export function TtfbChart({
                 const insights = netInsights.get(targetRegion)
                 const pointInsight = insights?.find(ins => ins.idx === hoveredIdx)
                 if (!pointInsight) return null
-                
+
                 const isBad = pointInsight.type === 'max' || pointInsight.type === 'spike-up'
-                const label = pointInsight.type === 'max' ? 'Peak Latency' : 
-                              pointInsight.type === 'min' ? 'Best Performance' :
-                              pointInsight.type === 'spike-up' ? 'Performance Drop' : 'Performance Boost'
-                
-                const description = pointInsight.type === 'max' ? "Highest latency detected in this timeframe." :
-                                    pointInsight.type === 'min' ? "Lowest latency achieved in this timeframe." :
-                                    pointInsight.type === 'spike-up' ? "Significant performance degradation." : 
-                                    "Significant performance improvement."
+                const label = pointInsight.type === 'max' ? 'Peak Latency' :
+                  pointInsight.type === 'min' ? 'Best Performance' :
+                    pointInsight.type === 'spike-up' ? 'Performance Drop' : 'Performance Boost'
+
+                const description = pointInsight.type === 'max' ? "Highest latency in this period." :
+                  pointInsight.type === 'min' ? "Lowest latency in this period." :
+                    pointInsight.type === 'spike-up' ? "Sudden performance drop." :
+                      "Sudden performance boost."
 
                 const diffVsBaseline = pointInsight.value - timeframeAvg
                 const pctVsBaseline = timeframeAvg > 0 ? (diffVsBaseline / timeframeAvg) * 100 : 0
-                
+
+                const baselineValue = targetRegion === 'global' ? timeframeAvg : (regionNetAvgs.get(targetRegion) || timeframeAvg)
+                const baselineLabel = targetRegion === 'global' ? 'global avg' : 'region avg'
+                const relDiff = pointInsight.value - baselineValue
+                const relPct = baselineValue > 0 ? (relDiff / baselineValue) * 100 : 0
+
                 return (
                   <div className={`mt-2 px-2 py-1.5 rounded-lg border animate-in fade-in slide-in-from-top-1 duration-300 ${isBad ? 'bg-red-500/10 border-red-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
                     {/* Row 1: Label and Value */}
@@ -646,12 +811,12 @@ export function TtfbChart({
                         {Math.round(pointInsight.value)}ms
                       </span>
                     </div>
-                    
-                    {/* Row 2: Description and Percentage vs Baseline */}
+
+                    {/* Row 2: Description and Percentage vs Contextual Baseline */}
                     <div className="flex items-center justify-between gap-4 mt-1 text-[10px] font-medium">
-                      <span className="text-zinc-400 italic">{description}</span>
-                      <span className={`font-bold tabular-nums shrink-0 ${pctVsBaseline > 0 ? 'text-red-400/90' : 'text-emerald-400/90'}`}>
-                        {pctVsBaseline > 0 ? '+' : ''}{Math.round(pctVsBaseline)}% vs baseline
+                      <span className="text-zinc-400 italic shrink truncate mr-2">{description}</span>
+                      <span className={`font-bold tabular-nums shrink-0 ${relDiff > 0 ? 'text-red-400/90' : 'text-emerald-400/90'}`}>
+                        {relDiff > 0 ? '+' : ''}{Math.round(relPct)}% vs {baselineLabel}
                       </span>
                     </div>
                   </div>
@@ -733,6 +898,93 @@ export function TtfbChart({
                   )
                 })}
               </div>
+
+              {/* TTFB Performance Advisory Section */}
+              {hoveredChart === 'ttfb' && (() => {
+                const targetRegion = hoveredRegion || 'global'
+                const insights = ttfbInsights.get(targetRegion)
+                const pointInsight = insights?.find(ins => ins.idx === hoveredIdx)
+                if (!pointInsight) return null
+
+                const isBad = pointInsight.type === 'max' || pointInsight.type === 'spike-up'
+                const label = pointInsight.type === 'max' ? 'Peak TTFB' :
+                  pointInsight.type === 'min' ? 'Best TTFB' :
+                    pointInsight.type === 'spike-up' ? 'Performance Drop' : 'Performance Boost'
+
+                const description = pointInsight.type === 'max' ? "Highest latency in this period." :
+                  pointInsight.type === 'min' ? "Lowest latency in this period." :
+                    pointInsight.type === 'spike-up' ? "Sudden performance drop." :
+                      "Sudden performance boost."
+
+                const baselineValue = targetRegion === 'global' ? ttfbTimeframeAvg : (regionTtfbAvgs.get(targetRegion) || ttfbTimeframeAvg)
+                const baselineLabel = targetRegion === 'global' ? 'global avg' : 'region avg'
+                const relDiff = pointInsight.value - baselineValue
+                const relPct = baselineValue > 0 ? (relDiff / baselineValue) * 100 : 0
+
+                return (
+                  <div className={`mt-3 px-2 py-1.5 rounded-lg border animate-in fade-in slide-in-from-top-1 duration-300 ${isBad ? 'bg-red-500/10 border-red-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className={`flex items-center gap-1.5 font-black text-[10px] uppercase tracking-wider ${isBad ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {isBad ? <AlertTriangle size={11} className="animate-pulse" /> : <TrendingDown size={11} />}
+                        {label}
+                      </div>
+                      <span className={`text-[11px] font-black tabular-nums ${isBad ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {Math.round(pointInsight.value)}ms
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4 mt-1 text-[10px] font-medium">
+                      <span className="text-zinc-400 italic shrink truncate mr-2">{description}</span>
+                      <span className={`font-bold tabular-nums shrink-0 ${relDiff > 0 ? 'text-red-400/90' : 'text-emerald-400/90'}`}>
+                        {relDiff > 0 ? '+' : ''}{Math.round(relPct)}% vs {baselineLabel}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Cache Performance Advisory Section */}
+              {hoveredChart === 'cache' && (() => {
+                const targetRegion = hoveredRegion || 'global'
+                const insights = cacheInsights.get(targetRegion)
+                const pointInsight = insights?.find(ins => ins.idx === hoveredIdx)
+                if (!pointInsight) return null
+
+                const isBad = pointInsight.type === 'min' || pointInsight.type === 'spike-down'
+                const label = pointInsight.type === 'max' ? 'Peak Efficiency' :
+                  pointInsight.type === 'min' ? 'Cache Drop' :
+                    pointInsight.type === 'spike-up' ? 'Cache Boost' : 'Cache Drop'
+
+                const description = pointInsight.type === 'max' ? "Highest cache rate in this period." :
+                  pointInsight.type === 'min' ? "Lowest cache rate in this period." :
+                    pointInsight.type === 'spike-up' ? "Sudden cache improvement." :
+                      "Sudden cache degradation."
+
+                const baselineValue = targetRegion === 'global' ? cacheTimeframeAvg : (regionCacheAvgs.get(targetRegion) || cacheTimeframeAvg)
+                const baselineLabel = targetRegion === 'global' ? 'global avg' : 'region avg'
+                const relDiff = pointInsight.value - baselineValue
+
+                return (
+                  <div className={`mt-3 px-2 py-1.5 rounded-lg border animate-in fade-in slide-in-from-top-1 duration-300 ${isBad ? 'bg-red-500/10 border-red-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className={`flex items-center gap-1.5 font-black text-[10px] uppercase tracking-wider ${isBad ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {isBad ? <AlertTriangle size={11} className="animate-pulse" /> : <TrendingDown size={11} />}
+                        {label}
+                      </div>
+                      <span className={`text-[11px] font-black tabular-nums ${isBad ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {Math.round(pointInsight.value)}%
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4 mt-1 text-[10px] font-medium">
+                      <span className="text-zinc-400 italic shrink truncate mr-2">{description}</span>
+                      <span className={`font-bold tabular-nums shrink-0 ${relDiff > 0 ? 'text-emerald-400/90' : 'text-red-400/90'}`}>
+                        {relDiff > 0 ? '+' : ''}{Math.round(relDiff)}% vs {baselineLabel}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })()}
             </>
           )}
         </div>
@@ -765,7 +1017,14 @@ export function TtfbChart({
             onMouseLeave={() => setHoveredChart(null)}
           >
             <div className="mb-2 flex items-center justify-between">
-              <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">TTFB Trend</div>
+              <div className="flex items-center gap-3">
+                <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">TTFB Trend</div>
+                <div className="h-3 w-px bg-white/10" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-tighter">Global Avg</span>
+                  <span className="text-[10px] font-black text-cyan-300 tabular-nums leading-none mb-[1px]">{Math.round(ttfbTimeframeAvg)}ms</span>
+                </div>
+              </div>
               <div className="flex flex-wrap items-center justify-end gap-1.5">
                 <button
                   type="button"
@@ -905,6 +1164,47 @@ export function TtfbChart({
                   />
                 </g>
               )}
+
+              {/* Advisory Markers (Max, Min, Spikes) */}
+              {(() => {
+                const targetRegion = hoveredRegion || 'global'
+                const insights = ttfbInsights.get(targetRegion)
+                if (!insights) return null
+
+                const isGlobalVisible = showGlobalTtfb && targetRegion === 'global'
+                const isRegionVisible = selectedTtfbRegions.has(targetRegion)
+
+                if (!isGlobalVisible && !isRegionVisible) return null
+
+                return insights.map((ins, i) => {
+                  const color = ins.type === 'max' || ins.type === 'spike-up' ? '#f43f5e' : '#10b981'
+                  const isHoveredPoint = hoveredIdx === ins.idx
+
+                  return (
+                    <g key={`ttfb-insight-${targetRegion}-${ins.type}-${ins.idx}`} className="pointer-events-none">
+                      <circle
+                        cx={toX(ins.idx)}
+                        cy={toYTtfb(ins.value)}
+                        r={isHoveredPoint ? 8 : 4}
+                        fill={color}
+                        fillOpacity={0.2}
+                      >
+                        <animate attributeName="r" from="4" to="12" dur="1.5s" repeatCount="indefinite" />
+                        <animate attributeName="fill-opacity" from="0.3" to="0" dur="1.5s" repeatCount="indefinite" />
+                      </circle>
+                      <circle
+                        cx={toX(ins.idx)}
+                        cy={toYTtfb(ins.value)}
+                        r={isHoveredPoint ? 4 : 3}
+                        fill={color}
+                        stroke="#0B1220"
+                        strokeWidth={1}
+                        className="transition-all duration-300"
+                      />
+                    </g>
+                  )
+                })
+              })()}
             </svg>
           </div>
 
@@ -920,6 +1220,14 @@ export function TtfbChart({
                   <span className="inline-flex items-center rounded-full border border-zinc-500/30 bg-zinc-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight text-zinc-300">
                     Not Reported
                   </span>
+                )}
+                {!isCacheNotReported && (
+                  <div className="flex items-center gap-1.5 ml-2">
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-tighter">Global Avg</span>
+                    <span className="text-[10px] font-black text-emerald-400 tabular-nums leading-none mb-[1px]">
+                      {Math.round(cacheTimeframeAvg)}%
+                    </span>
+                  </div>
                 )}
                 {!isCacheNotReported && cachePlateauState && (
                   <>
@@ -1097,6 +1405,48 @@ export function TtfbChart({
                         />
                       </g>
                     )}
+
+                    {/* Advisory Markers (Max, Min, Spikes) */}
+                    {(() => {
+                      const targetRegion = hoveredRegion || 'global'
+                      const insights = cacheInsights.get(targetRegion)
+                      if (!insights) return null
+
+                      const isGlobalVisible = showGlobalCache && targetRegion === 'global'
+                      const isRegionVisible = selectedCacheRegions.has(targetRegion)
+
+                      if (!isGlobalVisible && !isRegionVisible) return null
+
+                      return insights.map((ins, i) => {
+                        const isBad = ins.type === 'min' || ins.type === 'spike-down'
+                        const color = isBad ? '#f43f5e' : '#10b981'
+                        const isHoveredPoint = hoveredIdx === ins.idx
+
+                        return (
+                          <g key={`cache-insight-${targetRegion}-${ins.type}-${ins.idx}`} className="pointer-events-none">
+                            <circle
+                              cx={toX(ins.idx)}
+                              cy={toYCache(ins.value)}
+                              r={isHoveredPoint ? 8 : 4}
+                              fill={color}
+                              fillOpacity={0.2}
+                            >
+                              <animate attributeName="r" from="4" to="12" dur="1.5s" repeatCount="indefinite" />
+                              <animate attributeName="fill-opacity" from="0.3" to="0" dur="1.5s" repeatCount="indefinite" />
+                            </circle>
+                            <circle
+                              cx={toX(ins.idx)}
+                              cy={toYCache(ins.value)}
+                              r={isHoveredPoint ? 4 : 3}
+                              fill={color}
+                              stroke="#0B1220"
+                              strokeWidth={1}
+                              className="transition-all duration-300"
+                            />
+                          </g>
+                        )
+                      })
+                    })()}
                   </>
                 ) : (
                   <text x={W / 2} y={H / 2} textAnchor="middle" fontSize={10} fill="currentColor" fillOpacity={0.35}>No cache data</text>
@@ -1116,12 +1466,11 @@ export function TtfbChart({
                 <div className="h-3 w-px bg-white/10" />
                 <div className="flex items-center gap-1.5">
                   <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-tighter">Global Avg</span>
-                  <span className={`text-[10px] font-black tabular-nums leading-none mb-[1px] transition-colors ${
-                    networkMetric === 'dns' ? 'text-purple-400' :
+                  <span className={`text-[10px] font-black tabular-nums leading-none mb-[1px] transition-colors ${networkMetric === 'dns' ? 'text-purple-400' :
                     networkMetric === 'tcp' ? 'text-blue-400' :
-                    networkMetric === 'tls' ? 'text-fuchsia-400' :
-                    'text-cyan-300'
-                  }`}>
+                      networkMetric === 'tls' ? 'text-fuchsia-400' :
+                        'text-cyan-300'
+                    }`}>
                     {Math.round(timeframeAvg)}ms
                   </span>
                 </div>
@@ -1132,9 +1481,9 @@ export function TtfbChart({
                       key={m}
                       content={
                         m === 'dns' ? "Domain name resolution time." :
-                        m === 'tcp' ? "Connection establishment time." :
-                        m === 'tls' ? "Security handshake duration." :
-                        "Total network time (DNS + TCP + TLS)."
+                          m === 'tcp' ? "Connection establishment time." :
+                            m === 'tls' ? "Security handshake duration." :
+                              "Total network time (DNS + TCP + TLS)."
                       }
                       position="bottom-center"
                       panelSizing="hug"
@@ -1142,14 +1491,13 @@ export function TtfbChart({
                       <button
                         type="button"
                         onClick={() => setNetworkMetric(m)}
-                        className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter transition-all ${
-                          networkMetric === m 
-                            ? (m === 'net' ? 'bg-cyan-400/20 text-cyan-300 ring-1 ring-cyan-400/30' : 
-                               m === 'dns' ? 'bg-purple-400/20 text-purple-400 ring-1 ring-purple-400/30' :
-                               m === 'tcp' ? 'bg-blue-400/20 text-blue-400 ring-1 ring-blue-400/30' :
-                               'bg-fuchsia-400/20 text-fuchsia-400 ring-1 ring-fuchsia-400/30')
-                            : 'text-zinc-500 hover:text-zinc-300'
-                        }`}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter transition-all ${networkMetric === m
+                          ? (m === 'net' ? 'bg-cyan-400/20 text-cyan-300 ring-1 ring-cyan-400/30' :
+                            m === 'dns' ? 'bg-purple-400/20 text-purple-400 ring-1 ring-purple-400/30' :
+                              m === 'tcp' ? 'bg-blue-400/20 text-blue-400 ring-1 ring-blue-400/30' :
+                                'bg-fuchsia-400/20 text-fuchsia-400 ring-1 ring-fuchsia-400/30')
+                          : 'text-zinc-500 hover:text-zinc-300'
+                          }`}
                       >
                         {m}
                       </button>
@@ -1285,7 +1633,7 @@ export function TtfbChart({
                       strokeWidth={isHovered ? 2.5 : 1.5}
                       strokeLinejoin="round"
                       strokeLinecap="round"
-                      strokeOpacity={isHovered ? 1 : isOtherHovered ? 0.1 : 0.4}
+                      strokeOpacity={isHovered ? 1 : isOtherHovered ? 0.15 : (hoveredIdx === null ? 1 : byRegion[region]?.has(allBuckets[hoveredIdx]) ? 1 : 0.2)}
                       className="transition-all duration-300 pointer-events-none"
                     />
                   </g>
@@ -1301,28 +1649,26 @@ export function TtfbChart({
                 // Only show markers for the currently active/hovered context to avoid clutter
                 const isGlobalVisible = showGlobalNet && targetRegion === 'global'
                 const isRegionVisible = selectedNetRegions.has(targetRegion)
-                
+
                 if (!isGlobalVisible && !isRegionVisible) return null
 
                 return insights.map((ins, i) => {
                   const color = ins.type === 'max' || ins.type === 'spike-up' ? '#f43f5e' : '#10b981'
                   const isHoveredPoint = hoveredIdx === ins.idx
-                  
+
                   return (
                     <g key={`insight-${targetRegion}-${ins.type}-${ins.idx}`} className="pointer-events-none">
                       {/* Pulse effect for spikes */}
-                      {(ins.type === 'spike-up' || ins.type === 'spike-down') && (
-                        <circle
-                          cx={toX(ins.idx)}
-                          cy={toYNet(ins.value)}
-                          r={isHoveredPoint ? 8 : 4}
-                          fill={color}
-                          fillOpacity={0.2}
-                        >
-                          <animate attributeName="r" from="4" to="12" dur="1.5s" repeatCount="indefinite" />
-                          <animate attributeName="fill-opacity" from="0.3" to="0" dur="1.5s" repeatCount="indefinite" />
-                        </circle>
-                      )}
+                      <circle
+                        cx={toX(ins.idx)}
+                        cy={toYNet(ins.value)}
+                        r={isHoveredPoint ? 8 : 4}
+                        fill={color}
+                        fillOpacity={0.2}
+                      >
+                        <animate attributeName="r" from="4" to="12" dur="1.5s" repeatCount="indefinite" />
+                        <animate attributeName="fill-opacity" from="0.3" to="0" dur="1.5s" repeatCount="indefinite" />
+                      </circle>
                       <circle
                         cx={toX(ins.idx)}
                         cy={toYNet(ins.value)}
