@@ -75,9 +75,6 @@ export function TtfbChart({
   const [selectedNetRegions, setSelectedNetRegions] = useState<Set<string>>(new Set())
   const [networkMetric, setNetworkMetric] = useState<'dns' | 'tcp' | 'tls' | 'net'>('net')
   const containerRef = useRef<HTMLDivElement>(null)
-  const didInitTtfbDefaultsRef = useRef(false)
-  const didInitCacheDefaultsRef = useRef(false)
-  const didInitNetDefaultsRef = useRef(false)
 
   const regions = useMemo(() => [...new Set(data.map(d => d.region))].sort(), [data])
   const allBuckets = useMemo(() => [...new Set(data.map(d => d.bucket))].sort(), [data])
@@ -500,45 +497,6 @@ export function TtfbChart({
   }
 
 
-  const defaultTtfbRegions = useMemo(() => {
-    const ranked = regions
-      .map(region => {
-        const points = data.filter(point => point.region === region)
-        if (points.length === 0) return null
-        const avg = points.reduce((sum, point) => sum + point.ttfb_avg, 0) / points.length
-        return { region, avg }
-      })
-      .filter((entry): entry is { region: string; avg: number } => entry != null)
-      .sort((a, b) => a.avg - b.avg)
-
-    if (ranked.length === 0) return new Set<string>()
-
-    const defaults = new Set<string>()
-    defaults.add(ranked[0].region)
-    defaults.add(ranked[ranked.length - 1].region)
-    return defaults
-  }, [regions, data])
-
-  const defaultCacheRegions = useMemo(() => {
-    const ranked = regions
-      .map(region => {
-        const points = data
-          .filter(point => point.region === region && point.cache_hit_pct != null)
-          .map(point => point.cache_hit_pct as number)
-        if (points.length === 0) return null
-        const avg = points.reduce((sum, value) => sum + value, 0) / points.length
-        return { region, avg }
-      })
-      .filter((entry): entry is { region: string; avg: number } => entry != null)
-      .sort((a, b) => a.avg - b.avg)
-
-    if (ranked.length === 0) return new Set<string>()
-
-    const defaults = new Set<string>()
-    defaults.add(ranked[0].region)
-    defaults.add(ranked[ranked.length - 1].region)
-    return defaults
-  }, [regions, data])
   const cachePlateauState = useMemo(() => {
     if (isCacheNotReported) return null
     const values = globalCache
@@ -593,26 +551,6 @@ export function TtfbChart({
   const cacheGridOpacity = (value: number) => (value === 95 ? 0.1 : 0.04)
   const cacheThresholdOpacity = 0.3
 
-  useEffect(() => {
-    if (!didInitTtfbDefaultsRef.current && defaultTtfbRegions.size > 0) {
-      setSelectedTtfbRegions(new Set(defaultTtfbRegions))
-      didInitTtfbDefaultsRef.current = true
-    }
-  }, [defaultTtfbRegions])
-
-  useEffect(() => {
-    if (!didInitCacheDefaultsRef.current && defaultCacheRegions.size > 0) {
-      setSelectedCacheRegions(new Set(defaultCacheRegions))
-      didInitCacheDefaultsRef.current = true
-    }
-  }, [defaultCacheRegions])
-
-  useEffect(() => {
-    if (!didInitNetDefaultsRef.current && defaultTtfbRegions.size > 0) {
-      setSelectedNetRegions(new Set(defaultTtfbRegions))
-      didInitNetDefaultsRef.current = true
-    }
-  }, [defaultTtfbRegions])
 
   const hoveredBucket = hoveredIdx != null ? allBuckets[hoveredIdx] : null
   const hoveredGlobalCache = hoveredBucket != null
