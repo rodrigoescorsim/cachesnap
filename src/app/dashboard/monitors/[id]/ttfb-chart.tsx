@@ -448,6 +448,18 @@ export function TtfbChart({
                     </span>
                     <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${hoveredRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>cache</span>
                   </div>
+                  {/* Global Network Sum */}
+                  {(globalDns[hoveredIdx]?.value != null || globalTcp[hoveredIdx]?.value != null) && (
+                    <>
+                      <div className="w-px h-3 bg-white/5" />
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-sm font-black tabular-nums text-zinc-300">
+                          {Math.round((globalDns[hoveredIdx]?.value ?? 0) + (globalTcp[hoveredIdx]?.value ?? 0) + (globalTls[hoveredIdx]?.value ?? 0))}
+                        </span>
+                        <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${hoveredRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>net</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -471,7 +483,7 @@ export function TtfbChart({
               return (
                 <div
                   key={region}
-                  className="flex items-center justify-between gap-6 px-1 py-0.5 rounded-md transition-all duration-300"
+                  className="flex flex-col px-1 py-1 rounded-md transition-all duration-300"
                   style={isHovered ? {
                     backgroundColor: `${regionMeta[region]?.color ?? '#6b7280'}15`,
                     boxShadow: `0 0 15px ${(regionMeta[region]?.color ?? '#6b7280')}08`,
@@ -480,27 +492,47 @@ export function TtfbChart({
                     border: '1px solid transparent'
                   }}
                 >
-                  <div className="flex items-center gap-2">
-                    <div className={`w-1.5 h-1.5 rounded-full transition-transform ${isHovered ? 'scale-125' : ''}`} style={{ backgroundColor: regionMeta[region]?.color ?? '#6b7280' }} />
-                    <span className={`text-[10px] font-bold capitalize whitespace-nowrap transition-colors ${isHovered ? 'text-white' : 'text-zinc-300'}`}>
-                      {regionMeta[region]?.label ?? region}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3 tabular-nums">
-                    <span className={`w-[42px] text-right text-[11px] font-black transition-colors ${getTtfbColorClass(p.ttfb_avg, 'monitor')}`}>{Math.round(p.ttfb_avg)}ms</span>
-                    <span className={`w-[42px] text-right text-[9px] font-medium transition-colors ${isHovered ? 'text-zinc-200' : 'text-zinc-400'}`}>
-                      {p.ttfb_p95 != null ? `${p.ttfb_p95}ms` : '—'}
-                    </span>
-                    <div className="w-[42px] flex justify-end">
-                      {p.cache_hit_pct != null ? (
-                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md transition-all ${getCacheColor(p.cache_hit_pct, 'monitor').replace('text-', 'bg-').replace('-400', '-500')}/10 ${getCacheColor(p.cache_hit_pct, 'monitor')}`}>
-                          {Math.round(p.cache_hit_pct)}%
-                        </span>
-                      ) : (
-                        <span className="text-[9px] text-zinc-500">—</span>
-                      )}
+                  <div className="flex items-center justify-between gap-6">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-1.5 h-1.5 rounded-full transition-transform ${isHovered ? 'scale-125' : ''}`} style={{ backgroundColor: regionMeta[region]?.color ?? '#6b7280' }} />
+                      <span className={`text-[10px] font-bold capitalize whitespace-nowrap transition-colors ${isHovered ? 'text-white' : 'text-zinc-300'}`}>
+                        {regionMeta[region]?.label ?? region}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 tabular-nums">
+                      <span className={`w-[42px] text-right text-[11px] font-black transition-colors ${getTtfbColorClass(p.ttfb_avg, 'monitor')}`}>{Math.round(p.ttfb_avg)}ms</span>
+                      <span className={`w-[42px] text-right text-[9px] font-medium transition-colors ${isHovered ? 'text-zinc-200' : 'text-zinc-400'}`}>
+                        {p.ttfb_p95 != null ? `${p.ttfb_p95}ms` : '—'}
+                      </span>
+                      <div className="w-[42px] flex justify-end">
+                        {p.cache_hit_pct != null ? (
+                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md transition-all ${getCacheColor(p.cache_hit_pct, 'monitor').replace('text-', 'bg-').replace('-400', '-500')}/10 ${getCacheColor(p.cache_hit_pct, 'monitor')}`}>
+                            {Math.round(p.cache_hit_pct)}%
+                          </span>
+                        ) : (
+                          <span className="text-[9px] text-zinc-500">—</span>
+                        )}
+                      </div>
                     </div>
                   </div>
+                  
+                  {/* Network Breakdown Sub-row */}
+                  {((p.dns_avg ?? 0) + (p.tcp_avg ?? 0) + (p.tls_avg ?? 0)) > 0 && (
+                    <div className="flex items-center gap-2.5 mt-1 ml-3.5 opacity-60">
+                      <div className="flex items-center gap-1">
+                        <div className="w-1.5 h-0.5 bg-purple-500 rounded-full" />
+                        <span className="text-[8px] font-bold tabular-nums">DNS {Math.round(p.dns_avg ?? 0)}ms</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-1.5 h-0.5 bg-blue-500 rounded-full" />
+                        <span className="text-[8px] font-bold tabular-nums">TCP {Math.round(p.tcp_avg ?? 0)}ms</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-1.5 h-0.5 bg-fuchsia-500 rounded-full" />
+                        <span className="text-[8px] font-bold tabular-nums">TLS {Math.round(p.tls_avg ?? 0)}ms</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}
