@@ -254,6 +254,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
               icon={Gauge}
               iconClassName="stroke-[2.5]"
               valueClassName={getTtfbColorClass(liveTtfb, 'global')}
+              isElite={!isLoading && liveTtfb < GLOBAL_TTFB.ELITE}
               trend={{
                 value: `${Math.abs(ttfbDelta)}%`,
                 tone: ttfbTrendTone,
@@ -281,6 +282,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
               icon={Zap}
               iconClassName={`fill-current ${getCacheColor(liveHit, 'global')} ${liveHit >= 98 ? 'animate-[pulse_2s_infinite]' : ''}`}
               valueClassName={getCacheColor(liveHit, 'global')}
+              isElite={!isLoading && liveHit >= GLOBAL_CACHE.PERFECT}
               trend={{
                 value: `${Math.abs(hitDelta)}%`,
                 tone: hitTrendTone,

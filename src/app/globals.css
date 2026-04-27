@@ -163,7 +163,7 @@ body {
 
   /** Form sections: subtle ring when a child control is focused (inset — works with .cs-card overflow). */
   .cs-card-focus {
-    @apply transition-[border-color, box-shadow] duration-200;
+    @apply transition-[border-color,box-shadow] duration-200;
   }
 
   .cs-card-focus:focus-within {
