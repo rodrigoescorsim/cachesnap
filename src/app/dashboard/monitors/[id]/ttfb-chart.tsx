@@ -5,6 +5,7 @@ import { formatChartLabel, niceMax, globalBucketAverage, buildP95BandPath } from
 import { TIMING } from './timing-metrics-palette'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import { getTtfbColorClass, getCacheColor } from '@/lib/thresholds'
+import { AlertTriangle, TrendingUp, TrendingDown, ChevronUp, ChevronDown } from 'lucide-react'
 
 export interface ChartPoint {
   bucket: string       // ISO string
@@ -180,6 +181,75 @@ export function TtfbChart({
   })
   const hasCacheData = data.some(d => d.cache_hit_pct != null)
   const isCacheNotReported = !hasCacheData
+
+  // ── Network Insights (Max, Min, Spikes) ───────────────────────────────────
+  const netInsights = useMemo(() => {
+    const insights = new Map<string, Array<{idx: number, type: 'max' | 'min' | 'spike-up' | 'spike-down', diff?: number, pct?: number, value: number}>>()
+    
+    const processSeries = (name: string, series: Array<{value: number}>) => {
+      if (series.length < 2) return
+      const res: Array<{idx: number, type: 'max' | 'min' | 'spike-up' | 'spike-down', diff?: number, pct?: number, value: number}> = []
+      
+      let maxVal = -Infinity
+      let maxIdx = -1
+      let minVal = Infinity
+      let minIdx = -1
+
+      for (let i = 0; i < series.length; i++) {
+        const v = series[i].value
+        if (v === 0) continue
+        if (v > maxVal) { maxVal = v; maxIdx = i }
+        if (v < minVal) { minVal = v; minIdx = i }
+
+        if (i > 0) {
+          const prev = series[i-1].value
+          if (prev > 0) {
+            const pct = ((v - prev) / prev) * 100
+            if (pct > 40) res.push({ idx: i, type: 'spike-up', diff: v - prev, pct, value: v })
+            else if (pct < -40) res.push({ idx: i, type: 'spike-down', diff: v - prev, pct, value: v })
+          }
+        }
+      }
+
+      if (maxIdx !== -1) res.push({ idx: maxIdx, type: 'max', value: maxVal })
+      if (minIdx !== -1) res.push({ idx: minIdx, type: 'min', value: minVal })
+      
+      const unique = Array.from(new Map(res.map(r => [r.idx + '-' + r.type, r])).values())
+      insights.set(name, unique)
+    }
+
+    processSeries('global', globalNet)
+    for (const region of regions) {
+      const m = byRegion[region]
+      if (!m) continue
+      const series = allBuckets.map(b => {
+        const p = m.get(b)
+        if (!p) return { value: 0 }
+        let val = 0
+        if (networkMetric === 'dns') val = p.dns_avg ?? 0
+        else if (networkMetric === 'tcp') val = p.tcp_avg ?? 0
+        else if (networkMetric === 'tls') val = p.tls_avg ?? 0
+        else val = (p.dns_avg ?? 0) + (p.tcp_avg ?? 0) + (p.tls_avg ?? 0)
+        return { value: val }
+      })
+      processSeries(region, series)
+    }
+    return insights
+  }, [globalNet, byRegion, regions, allBuckets, networkMetric])
+
+  const timeframeAvg = useMemo(() => {
+    let series = []
+    if (networkMetric === 'dns') series = globalDns
+    else if (networkMetric === 'tcp') series = globalTcp
+    else if (networkMetric === 'tls') series = globalTls
+    else series = globalNet
+    
+    if (series.length === 0) return 0
+    const validPoints = series.filter(p => p.value > 0)
+    if (validPoints.length === 0) return 0
+    const sum = validPoints.reduce((acc, curr) => acc + curr.value, 0)
+    return sum / validPoints.length
+  }, [globalDns, globalTcp, globalTls, globalNet, networkMetric])
 
   // ── Y scales (Dynamic based on visible data) ─────────────────────────────
   const maxTtfb = useMemo(() => {
@@ -543,6 +613,50 @@ export function TtfbChart({
                   )
                 })}
               </div>
+
+              {/* Performance Advisory Section in Tooltip */}
+              {(() => {
+                const targetRegion = hoveredRegion || 'global'
+                const insights = netInsights.get(targetRegion)
+                const pointInsight = insights?.find(ins => ins.idx === hoveredIdx)
+                if (!pointInsight) return null
+                
+                const isBad = pointInsight.type === 'max' || pointInsight.type === 'spike-up'
+                const label = pointInsight.type === 'max' ? 'Peak Latency' : 
+                              pointInsight.type === 'min' ? 'Best Performance' :
+                              pointInsight.type === 'spike-up' ? 'Performance Drop' : 'Performance Boost'
+                
+                const description = pointInsight.type === 'max' ? "Highest latency detected in this timeframe." :
+                                    pointInsight.type === 'min' ? "Lowest latency achieved in this timeframe." :
+                                    pointInsight.type === 'spike-up' ? "Significant performance degradation." : 
+                                    "Significant performance improvement."
+
+                const diffVsBaseline = pointInsight.value - timeframeAvg
+                const pctVsBaseline = timeframeAvg > 0 ? (diffVsBaseline / timeframeAvg) * 100 : 0
+                
+                return (
+                  <div className={`mt-2 px-2 py-1.5 rounded-lg border animate-in fade-in slide-in-from-top-1 duration-300 ${isBad ? 'bg-red-500/10 border-red-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
+                    {/* Row 1: Label and Value */}
+                    <div className="flex items-center justify-between gap-4">
+                      <div className={`flex items-center gap-1.5 font-black text-[10px] uppercase tracking-wider ${isBad ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {isBad ? <AlertTriangle size={11} className="animate-pulse" /> : <TrendingDown size={11} />}
+                        {label}
+                      </div>
+                      <span className={`text-[11px] font-black tabular-nums ${isBad ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {Math.round(pointInsight.value)}ms
+                      </span>
+                    </div>
+                    
+                    {/* Row 2: Description and Percentage vs Baseline */}
+                    <div className="flex items-center justify-between gap-4 mt-1 text-[10px] font-medium">
+                      <span className="text-zinc-400 italic">{description}</span>
+                      <span className={`font-bold tabular-nums shrink-0 ${pctVsBaseline > 0 ? 'text-red-400/90' : 'text-emerald-400/90'}`}>
+                        {pctVsBaseline > 0 ? '+' : ''}{Math.round(pctVsBaseline)}% vs baseline
+                      </span>
+                    </div>
+                  </div>
+                )
+              })()}
             </>
           ) : (
             /* DEFAULT TTFB / CACHE TOOLTIP */
@@ -1000,6 +1114,18 @@ export function TtfbChart({
               <div className="flex items-center gap-3">
                 <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">Connection Time</div>
                 <div className="h-3 w-px bg-white/10" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-tighter">Global Avg</span>
+                  <span className={`text-[10px] font-black tabular-nums leading-none mb-[1px] transition-colors ${
+                    networkMetric === 'dns' ? 'text-purple-400' :
+                    networkMetric === 'tcp' ? 'text-blue-400' :
+                    networkMetric === 'tls' ? 'text-fuchsia-400' :
+                    'text-cyan-300'
+                  }`}>
+                    {Math.round(timeframeAvg)}ms
+                  </span>
+                </div>
+                <div className="h-3 w-px bg-white/10" />
                 <div className="flex items-center gap-1">
                   {(['dns', 'tcp', 'tls', 'net'] as const).map(m => (
                     <PremiumTooltip
@@ -1165,6 +1291,51 @@ export function TtfbChart({
                   </g>
                 )
               })}
+
+              {/* Advisory Markers (Max, Min, Spikes) */}
+              {(() => {
+                const targetRegion = hoveredRegion || 'global'
+                const insights = netInsights.get(targetRegion)
+                if (!insights) return null
+
+                // Only show markers for the currently active/hovered context to avoid clutter
+                const isGlobalVisible = showGlobalNet && targetRegion === 'global'
+                const isRegionVisible = selectedNetRegions.has(targetRegion)
+                
+                if (!isGlobalVisible && !isRegionVisible) return null
+
+                return insights.map((ins, i) => {
+                  const color = ins.type === 'max' || ins.type === 'spike-up' ? '#f43f5e' : '#10b981'
+                  const isHoveredPoint = hoveredIdx === ins.idx
+                  
+                  return (
+                    <g key={`insight-${targetRegion}-${ins.type}-${ins.idx}`} className="pointer-events-none">
+                      {/* Pulse effect for spikes */}
+                      {(ins.type === 'spike-up' || ins.type === 'spike-down') && (
+                        <circle
+                          cx={toX(ins.idx)}
+                          cy={toYNet(ins.value)}
+                          r={isHoveredPoint ? 8 : 4}
+                          fill={color}
+                          fillOpacity={0.2}
+                        >
+                          <animate attributeName="r" from="4" to="12" dur="1.5s" repeatCount="indefinite" />
+                          <animate attributeName="fill-opacity" from="0.3" to="0" dur="1.5s" repeatCount="indefinite" />
+                        </circle>
+                      )}
+                      <circle
+                        cx={toX(ins.idx)}
+                        cy={toYNet(ins.value)}
+                        r={isHoveredPoint ? 4 : 3}
+                        fill={color}
+                        stroke="#0B1220"
+                        strokeWidth={1}
+                        className="transition-all duration-300"
+                      />
+                    </g>
+                  )
+                })
+              })()}
             </svg>
           </div>
         </div>
