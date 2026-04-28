@@ -34,6 +34,10 @@ export function TtfbHeatmap({ data }: { data: HeatmapCell[] }) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
 
   const grid = buildHeatmapGrid(data)
+  const validTtfbs = data.map(c => c.ttfb_avg).filter((v): v is number => v !== null)
+  const avgTtfb = validTtfbs.length > 0 
+    ? validTtfbs.reduce((a, b) => a + b, 0) / validTtfbs.length 
+    : 200
 
   const cellX = (hour: number) => PAD_LEFT + hour * (CELL_W + CELL_GAP)
   const cellY = (dow: number) => PAD_TOP + dow * (CELL_H + CELL_GAP)
@@ -105,7 +109,7 @@ export function TtfbHeatmap({ data }: { data: HeatmapCell[] }) {
             const fill = cell == null
               ? '#1F2A3A'
               : mode === 'ttfb'
-                ? heatmapTtfbColor(cell.ttfb_avg)
+                ? heatmapTtfbColor(cell.ttfb_avg, avgTtfb)
                 : heatmapCacheColor(cell.cache_hit_pct)
             return (
               <rect
