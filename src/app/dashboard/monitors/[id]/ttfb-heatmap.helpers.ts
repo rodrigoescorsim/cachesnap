@@ -46,41 +46,38 @@ const SLOW_HEX  = '#f43f5e'
 const EMPTY_HEX = '#1F2A3A'
 
 /**
- * Maps a TTFB value to a hex color using a hybrid Contextual + Semantic scale.
+ * Maps a TTFB value to a hex color using an Absolute-Weighted Hybrid scale.
  * 
- * - Site Context: We show variance based on the site's own average (+/- 50%).
- * - Global Semantics: The color hue (Green/Amber/Red) is anchored by absolute performance.
- *   - Elite sites (<250ms) oscillate between Green and Amber (never Red).
- *   - Slow sites (>800ms) oscillate between Amber and Red (never Green).
+ * - Absolute Weight (60%): Ensures values stay within their semantic category (e.g. <400ms stays Greenish).
+ * - Relative Weight (40%): Provides internal resolution to see peaks and valleys relative to the site's average.
  */
 export function heatmapTtfbColor(ttfb: number | null, siteAvg: number): string {
   if (ttfb == null) return EMPTY_HEX
 
-  // 1. Calculate relative position within the site's own variance window (+/- 50% of avg)
-  const min = siteAvg * 0.5
-  const max = siteAvg * 1.5
+  // 1. Absolute Factor: 0 (0ms) to 1 (800ms+)
+  // This anchors the color in the global performance tiers.
+  const absT = Math.max(0, Math.min(1, ttfb / 800))
+
+  // 2. Relative Factor: 0 (Best for site) to 1 (Worst for site)
+  // We use a narrower window (+/- 40% of avg) for higher sensitivity.
+  const min = siteAvg * 0.6
+  const max = siteAvg * 1.4
   const relT = Math.max(0, Math.min(1, (ttfb - min) / (max - min)))
 
-  // 2. Determine semantic anchor colors based on site average
-  let start = FAST_HEX
-  let mid = MED_HEX
-  let end = SLOW_HEX
+  // 3. Blended T: Heavily weighted by absolute category to prevent "false negatives"
+  // For an elite value (e.g. 366ms), the absT (~0.45) will keep it in the Green-Yellow band.
+  const t = (relT * 0.4) + (absT * 0.6)
 
-  if (siteAvg < 250) {
-    // Elite site: Oscillate between Deep Green and Amber (Light Green as midpoint)
-    start = FAST_HEX
-    mid = interpolateColor(0.5, FAST_HEX, MED_HEX) // Vibrant Light Green
-    end = MED_HEX
-  } else if (siteAvg > 800) {
-    // Slow site: Oscillate between Amber and Deep Red (Orange as midpoint)
-    start = MED_HEX
-    mid = interpolateColor(0.5, MED_HEX, SLOW_HEX) // Vivid Orange
-    end = SLOW_HEX
+  // 4. Color Mapping with Elite Floor
+  if (t < 0.3) return FAST_HEX // Solid Elite Green
+  if (t < 0.6) {
+    // Transition from Fast Green to Amber
+    const factor = (t - 0.3) / 0.3
+    return interpolateColor(factor, FAST_HEX, MED_HEX)
   }
-
-  // 3. Final interpolation based on the contextual variance
-  if (relT < 0.5) return interpolateColor(relT * 2, start, mid)
-  return interpolateColor((relT - 0.5) * 2, mid, end)
+  // Transition from Amber to Slow Red
+  const factor = (t - 0.6) / 0.4
+  return interpolateColor(factor, MED_HEX, SLOW_HEX)
 }
 
 /**
