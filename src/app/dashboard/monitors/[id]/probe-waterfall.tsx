@@ -8,6 +8,7 @@ import {
 } from './probe-waterfall.helpers'
 import { TIMING } from './timing-metrics-palette'
 import { TtfbLegendHelp } from './ttfb-legend-help'
+import { PremiumTooltip } from '@/components/premium-tooltip'
 
 export interface WaterfallProbe {
   region: string
@@ -29,18 +30,73 @@ export interface WaterfallProbe {
 
 // ── segment palette (for legend + bars) — matches timing-metrics-palette ───
 const SEGS = {
-  dns:      { bg: TIMING.dns.bar,      label: 'DNS Lookup' },
-  tcp:      { bg: TIMING.tcp.bar,      label: 'TCP Connect' },
-  tls:      { bg: TIMING.tls.bar,      label: 'TLS Handshake' },
-  edge:     { bg: TIMING.edge.bar,     label: 'Edge (CDN)' },
-  origin:   { bg: TIMING.origin.bar,   label: 'Origin' },
-  ttfb:     { bg: TIMING.ttfb.bar,     label: 'TTFB (unattributed)' },
+  dns: { bg: TIMING.dns.bar, label: 'DNS' },
+  tcp: { bg: TIMING.tcp.bar, label: 'TCP' },
+  tls: { bg: TIMING.tls.bar, label: 'TLS' },
+  edge: { bg: TIMING.edge.bar, label: 'Edge' },
+  origin: { bg: TIMING.origin.bar, label: 'Origin' },
+  ttfb: { bg: TIMING.ttfb.bar, label: 'TTFB (unattributed)' },
   download: { bg: TIMING.download.bar, label: 'Download' },
 } as const
 
+// ── helpers ─────────────────────────────────────────────────────────────────
+
+function formatMs(value: number | null): string {
+  if (value == null) return '—'
+  return `${Math.round(value)}ms`
+}
+
 // ── main component ───────────────────────────────────────────────────────────
 
-export function ProbeWaterfall({ probes, regionLabels }: { probes: WaterfallProbe[]; regionLabels: Record<string, string> }) {
+export function WaterfallLegend({ maxTotal }: { maxTotal: number }) {
+  return (
+    <div className="mb-3">
+      <div className="flex flex-wrap gap-x-2 gap-y-1">
+        {Object.entries(SEGS).map(([key, seg]) => {
+          if (key === 'download') return null
+          if (key === 'ttfb') {
+            const dl = SEGS.download
+            return (
+              <span
+                key="ttfb-download"
+                className="flex items-center gap-1.5 text-[9px] font-medium text-zinc-500 dark:text-zinc-400"
+              >
+                <span className={`h-2.5 w-2.5 shrink-0 rounded shadow-sm ring-1 ring-inset ring-black/5 dark:ring-white/10 ${seg.bg}`} />
+                <span className="inline-flex items-center gap-0">
+                  {seg.label}
+                  <TtfbLegendHelp />
+                </span>
+                <span className={`h-2.5 w-2.5 shrink-0 rounded shadow-sm ring-1 ring-inset ring-black/5 dark:ring-white/10 ${dl.bg}`} />
+                {dl.label}
+              </span>
+            )
+          }
+          return (
+            <span key={seg.label} className="flex items-center gap-1 text-[9px] font-medium text-zinc-500 dark:text-zinc-400">
+              <span className={`h-2.5 w-2.5 shrink-0 rounded shadow-sm ring-1 ring-inset ring-black/5 dark:ring-white/10 ${seg.bg}`} />
+              {seg.label}
+            </span>
+          )
+        })}
+        <span className="flex h-2.5 items-center text-[9px] italic text-zinc-400">
+          (scale: {maxTotal}ms = 100%)
+        </span>
+      </div>
+    </div>
+  )
+}
+
+export function ProbeWaterfall({
+  probes,
+  regionLabels,
+  hideHeader = false,
+  hideLegend = false
+}: {
+  probes: WaterfallProbe[];
+  regionLabels: Record<string, string>;
+  hideHeader?: boolean;
+  hideLegend?: boolean;
+}) {
   if (probes.length === 0) return null
 
   // Scale: max total_ms across all regions (floor 100ms for readability)
@@ -48,68 +104,39 @@ export function ProbeWaterfall({ probes, regionLabels }: { probes: WaterfallProb
 
   return (
     <section>
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-          Last probe — Timing breakdown
-        </h2>
-        {probes[0]?.probed_at && (
-          <span className="text-[10px] text-zinc-400 tabular-nums">
-            {new Date(probes[0].probed_at).toLocaleString('en-US', {
-              month: 'short', day: 'numeric',
-              hour: '2-digit', minute: '2-digit', second: '2-digit',
-            })}
-          </span>
-        )}
-      </div>
-
-      {/* Legend */}
-      <div className="mb-3">
-        <div className="flex flex-wrap gap-x-2 gap-y-1">
-          {Object.entries(SEGS).map(([key, seg]) => {
-            if (key === 'download') return null
-            if (key === 'ttfb') {
-              const dl = SEGS.download
-              return (
-                <span
-                  key="ttfb-download"
-                  className="flex items-center gap-1.5 text-[9px] font-medium text-zinc-500 dark:text-zinc-400"
-                >
-                  <span className={`h-2.5 w-2.5 shrink-0 rounded shadow-sm ring-1 ring-inset ring-black/5 dark:ring-white/10 ${seg.bg}`} />
-                  <span className="inline-flex items-center gap-0">
-                    {seg.label}
-                    <TtfbLegendHelp />
-                  </span>
-                  <span className={`h-2.5 w-2.5 shrink-0 rounded shadow-sm ring-1 ring-inset ring-black/5 dark:ring-white/10 ${dl.bg}`} />
-                  {dl.label}
-                </span>
-              )
-            }
-            return (
-              <span key={seg.label} className="flex items-center gap-1 text-[9px] font-medium text-zinc-500 dark:text-zinc-400">
-                <span className={`h-2.5 w-2.5 shrink-0 rounded shadow-sm ring-1 ring-inset ring-black/5 dark:ring-white/10 ${seg.bg}`} />
-                {seg.label}
-              </span>
-            )
-          })}
-          <span className="flex h-2.5 items-center text-[9px] italic text-zinc-400">
-            (scale: {maxTotal}ms = 100%)
-          </span>
+      {!hideHeader && (
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+            Last probe — Timing breakdown
+          </h2>
+          {probes[0]?.probed_at && (
+            <span className="text-[10px] text-zinc-400 tabular-nums">
+              {new Date(probes[0].probed_at).toLocaleString('en-US', {
+                month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit', second: '2-digit',
+              })}
+            </span>
+          )}
         </div>
-      </div>
+      )}
+
+      {/* Legend - only show if not in embedded/compact mode */}
+      {!hideHeader && !hideLegend && <WaterfallLegend maxTotal={maxTotal} />}
 
       <div className="divide-y divide-zinc-200 overflow-hidden rounded-lg border border-border bg-surface dark:divide-zinc-800">
         {probes.map(probe => {
-          const total   = Number(probe.total_ms ?? probe.ttfb_ms ?? 0)
-          const ttfb    = Number(probe.ttfb_ms ?? 0)
-          const download = Number(probe.download_ms ?? Math.max(0, total - ttfb))
-          const dns     = Number(probe.dns_ms ?? 0)
-          const tls     = Number(probe.tls_ms ?? 0)
-          const tcp     = Number(probe.server_timing_breakdown?.tcp_ms ?? 0)
-          const edge    = Number(probe.edge_ms ?? 0)
-          const origin  = Number(probe.origin_ms ?? 0)
+          const total = Number(probe.total_ms ?? probe.ttfb_ms ?? 0)
+          const ttfb = Number(probe.ttfb_ms ?? 0)
+          const download = Math.max(0, total - ttfb)
+          const dns = Number(probe.dns_ms ?? 0)
+          const tls = Number(probe.tls_ms ?? 0)
+          const tcp = Number(probe.server_timing_breakdown?.tcp_ms ?? 0)
+          const edge = Number(probe.edge_ms ?? 0)
+          const origin = Number(probe.origin_ms ?? 0)
 
           // Portion of TTFB not explained by DNS, TLS, edge+origin Server-Timing entries
-          const unknownTtfb = Math.max(0, ttfb - (dns + tls + edge + origin))
+          const attributedTtfb = dns + tls + tcp + edge + origin
+          const unknownTtfb = Math.max(0, ttfb - attributedTtfb)
           const hasBreakdown = dns > 0 || tls > 0 || edge > 0 || origin > 0
           const hasServerTiming = breakdownEntries(probe.server_timing_breakdown).length > 0
 
@@ -122,159 +149,214 @@ export function ProbeWaterfall({ probes, regionLabels }: { probes: WaterfallProb
           return (
             <div
               key={probe.region}
-              className="relative px-2.5 py-1.5 transition-colors hover:bg-zinc-50/80 dark:hover:bg-zinc-900/40"
+              className="relative p-3 transition-colors"
             >
               {/* ── Header ── */}
               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                  <span className="whitespace-nowrap text-xs font-semibold text-foreground">
-                    {regionLabel}
+                {!hideHeader && (
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <span className="whitespace-nowrap text-xs font-semibold text-foreground">
+                      {regionLabel}
+                    </span>
+
+                    {pop && (
+                      <PremiumTooltip content={pop}>
+                        <span className="inline-flex items-center rounded-md bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 ring-1 ring-inset ring-white/10">
+                          {popToCity(pop)}
+                        </span>
+                      </PremiumTooltip>
+                    )}
+
+                    {cdnLabel && (
+                      <PremiumTooltip content={probe.served_by ? `served_by: ${probe.served_by}` : 'Edge provider'}>
+                        <span
+                          className="inline-flex max-w-[8rem] items-center truncate rounded-md bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium text-violet-300/90 ring-1 ring-inset ring-violet-500/20"
+                        >
+                          {cdnLabel}
+                        </span>
+                      </PremiumTooltip>
+                    )}
+
+                    {probe.cache_status && (
+                      <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase ${cacheClass(probe.cache_status)}`}>
+                        {probe.cache_status.toUpperCase()}
+                      </span>
+                    )}
+
+                    {probe.redirect_count != null && probe.redirect_count > 0 && (
+                      <PremiumTooltip content="Number of HTTP redirect hops followed before the final response">
+                        <span
+                          className="inline-flex items-center rounded-md border border-purple-200 dark:border-purple-500/20 bg-purple-50 dark:bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-medium text-purple-600 dark:text-purple-400"
+                        >
+                          {probe.redirect_count} hop{probe.redirect_count !== 1 ? 's' : ''}
+                        </span>
+                      </PremiumTooltip>
+                    )}
+
+                    {age && (
+                      <PremiumTooltip content={`Cache-Control Age: ${probe.age_s}s${isZombie ? ' — zombie cache detected' : ''}`}>
+                        <span
+                          className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${isZombie
+                            ? 'border-red-500/20 bg-red-500/5 text-red-400'
+                            : 'border-border bg-white/5 text-zinc-500'
+                            }`}
+                        >
+                          Age {age}{isZombie ? ' ⚠' : ''}
+                        </span>
+                      </PremiumTooltip>
+                    )}
+                  </div>
+                )}
+
+                {/* Unified Timing Legend & Summary */}
+                <div className="mb-2 flex flex-wrap items-center justify-end gap-x-4 gap-y-2 tabular-nums text-[10px] text-zinc-400">
+                  {dns > 0 && (
+                    <span className="flex items-center gap-1.5">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${SEGS.dns.bg}`} />
+                      {SEGS.dns.label} <span className={`font-bold ${TIMING.dns.text}`}>{formatMs(dns)}</span>
+                    </span>
+                  )}
+                  {tcp > 0 && (
+                    <span className="flex items-center gap-1.5">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${SEGS.tcp.bg}`} />
+                      {SEGS.tcp.label} <span className={`font-bold ${TIMING.tcp.text}`}>{formatMs(tcp)}</span>
+                    </span>
+                  )}
+                  {tls > 0 && (
+                    <span className="flex items-center gap-1.5">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${SEGS.tls.bg}`} />
+                      {SEGS.tls.label} <span className={`font-bold ${TIMING.tls.text}`}>{formatMs(tls)}</span>
+                    </span>
+                  )}
+                  {edge > 0 && (
+                    <span className="flex items-center gap-1.5">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${SEGS.edge.bg}`} />
+                      {SEGS.edge.label} <span className={`font-bold ${TIMING.edge.text}`}>{formatMs(edge)}</span>
+                    </span>
+                  )}
+                  {origin > 0 && (
+                    <span className="flex items-center gap-1.5">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${SEGS.origin.bg}`} />
+                      {SEGS.origin.label} <span className={`font-bold ${TIMING.origin.text}`}>{formatMs(origin)}</span>
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1.5">
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${SEGS.ttfb.bg}`} />
+                    <span className="inline-flex items-center gap-0.5">
+                      {SEGS.ttfb.label}
+                      <TtfbLegendHelp />
+                    </span>
+                    <span className={`font-bold ${TIMING.ttfb.text}`}>{formatMs(ttfb)}</span>
                   </span>
-
-                  {pop && (
-                    <span className="inline-flex items-center rounded-md bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500 ring-1 ring-inset ring-white/10" title={pop}>
-                      {popToCity(pop)}
-                    </span>
-                  )}
-
-                  {cdnLabel && (
-                    <span
-                      className="inline-flex max-w-[8rem] items-center truncate rounded-md bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-medium text-violet-300/90 ring-1 ring-inset ring-violet-500/20"
-                      title={probe.served_by ? `served_by: ${probe.served_by}` : 'Edge provider'}
-                    >
-                      {cdnLabel}
-                    </span>
-                  )}
-
-                  {probe.cache_status && (
-                    <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-bold uppercase ${cacheClass(probe.cache_status)}`}>
-                      {probe.cache_status.toUpperCase()}
-                    </span>
-                  )}
-
-                  {probe.redirect_count != null && probe.redirect_count > 0 && (
-                    <span
-                      className="inline-flex items-center rounded-md border border-purple-200 dark:border-purple-500/20 bg-purple-50 dark:bg-purple-500/10 px-1.5 py-0.5 text-[9px] font-medium text-purple-600 dark:text-purple-400"
-                      title="Number of HTTP redirect hops followed before the final response"
-                    >
-                      {probe.redirect_count} hop{probe.redirect_count !== 1 ? 's' : ''}
-                    </span>
-                  )}
-
-                  {age && (
-                    <span
-                      className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[9px] font-medium ${
-                        isZombie
-                          ? 'border-red-500/20 bg-red-500/5 text-red-400'
-                          : 'border-border bg-white/5 text-zinc-500'
-                      }`}
-                      title={`Cache-Control Age: ${probe.age_s}s${isZombie ? ' — zombie cache detected' : ''}`}
-                    >
-                      Age {age}{isZombie ? ' ⚠' : ''}
-                    </span>
-                  )}
-                </div>
-
-                {/* Timing summary */}
-                <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 tabular-nums text-[9px] text-zinc-500">
-                  {dns > 0 && <span>DNS <span className={`font-medium ${TIMING.dns.text}`}>{Math.round(dns)}ms</span></span>}
-                  {tcp > 0 && <span>TCP <span className={`font-medium ${TIMING.tcp.text}`}>{Math.round(tcp)}ms</span></span>}
-                  {tls > 0 && <span>TLS <span className={`font-medium ${TIMING.tls.text}`}>{Math.round(tls)}ms</span></span>}
-                  {edge > 0 && <span className={`font-medium ${TIMING.edge.text}`}>Edge {edge}ms</span>}
-                  {origin > 0 && <span className={`font-medium ${TIMING.origin.text}`}>Origin {origin}ms</span>}
-                  <span>
-                    TTFB{' '}
-                    <span className={`font-semibold ${TIMING.ttfb.text}`}>{ttfb}ms</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${SEGS.download.bg}`} />
+                    {SEGS.download.label} <span className={`font-bold ${TIMING.download.text}`}>{formatMs(download)}</span>
                   </span>
-                  <span>
-                    Total{' '}
-                    <span className={`font-semibold ${TIMING.total.text}`}>{total}ms</span>
+                  <span className="ml-2 pl-4 border-l border-white/10 text-zinc-500 font-medium">
+                    Total <span className="text-zinc-200 font-black">{formatMs(total)}</span>
                   </span>
                 </div>
               </div>
 
               {/* ── Main waterfall bar ── */}
-              <div className="mt-1.5">
+              <div className="mt-2">
                 <div className="flex h-3.5 w-full overflow-hidden rounded bg-background/50">
                   {hasBreakdown ? (
                     <>
                       {dns > 0 && (
-                        <div
-                          className={`${SEGS.dns.bg} h-full shrink-0`}
+                        <PremiumTooltip 
+                          content={`DNS: ${formatMs(dns)}`}
+                          className="h-full shrink-0"
                           style={{ width: pct(dns, maxTotal) }}
-                          title={`DNS Lookup: ${dns}ms`}
-                        />
+                        >
+                          <div className={`${SEGS.dns.bg} h-full w-full`} />
+                        </PremiumTooltip>
                       )}
                       {tcp > 0 && (
-                        <div
-                          className={`${SEGS.tcp.bg} h-full shrink-0`}
+                        <PremiumTooltip 
+                          content={`TCP: ${formatMs(tcp)}`}
+                          className="h-full shrink-0"
                           style={{ width: pct(tcp, maxTotal) }}
-                          title={`TCP Connect: ${tcp}ms`}
-                        />
+                        >
+                          <div className={`${SEGS.tcp.bg} h-full w-full`} />
+                        </PremiumTooltip>
                       )}
                       {tls > 0 && (
-                        <div
-                          className={`${SEGS.tls.bg} h-full shrink-0`}
+                        <PremiumTooltip 
+                          content={`TLS: ${formatMs(tls)}`}
+                          className="h-full shrink-0"
                           style={{ width: pct(tls, maxTotal) }}
-                          title={`TLS Handshake: ${tls}ms`}
-                        />
+                        >
+                          <div className={`${SEGS.tls.bg} h-full w-full`} />
+                        </PremiumTooltip>
                       )}
                       {edge > 0 && (
-                        <div
-                          className={`${SEGS.edge.bg} h-full shrink-0`}
+                        <PremiumTooltip 
+                          content={`Edge: ${formatMs(edge)}`}
+                          className="h-full shrink-0"
                           style={{ width: pct(edge, maxTotal) }}
-                          title={`Edge (CDN): ${edge}ms`}
-                        />
+                        >
+                          <div className={`${SEGS.edge.bg} h-full w-full`} />
+                        </PremiumTooltip>
                       )}
                       {origin > 0 && (
-                        <div
-                          className={`${SEGS.origin.bg} h-full shrink-0`}
+                        <PremiumTooltip 
+                          content={`Origin: ${formatMs(origin)}`}
+                          className="h-full shrink-0"
                           style={{ width: pct(origin, maxTotal) }}
-                          title={`Origin: ${origin}ms`}
-                        />
+                        >
+                          <div className={`${SEGS.origin.bg} h-full w-full`} />
+                        </PremiumTooltip>
                       )}
                       {unknownTtfb > 1 && (
-                        <div
-                          className={`${SEGS.ttfb.bg} h-full shrink-0`}
+                        <PremiumTooltip 
+                          content={`Unattributed TTFB: ${formatMs(unknownTtfb)}`}
+                          className="h-full shrink-0"
                           style={{ width: pct(unknownTtfb, maxTotal) }}
-                          title={`Unattributed TTFB: ${Math.round(unknownTtfb)}ms`}
-                        />
+                        >
+                          <div className={`${SEGS.ttfb.bg} h-full w-full`} />
+                        </PremiumTooltip>
                       )}
                     </>
                   ) : (
                     ttfb > 0 && (
-                      <div
-                        className={`${SEGS.ttfb.bg} h-full shrink-0`}
-                        style={{ width: pct(ttfb, maxTotal) }}
-                        title={`TTFB: ${ttfb}ms (no Server-Timing breakdown available)`}
-                      />
+                      <PremiumTooltip 
+                        content={`TTFB: ${formatMs(ttfb)} (no Server-Timing breakdown available)`}
+                        className="h-full w-full"
+                      >
+                        <div className={`${SEGS.ttfb.bg} h-full w-full`} />
+                      </PremiumTooltip>
                     )
                   )}
 
                   {download > 0 && (
-                    <div
-                      className={`${SEGS.download.bg} h-full shrink-0`}
+                    <PremiumTooltip 
+                      content={`Download: ${formatMs(download)}`}
+                      className="h-full shrink-0"
                       style={{ width: pct(download, maxTotal) }}
-                      title={`Download (body): ${download}ms`}
-                    />
+                    >
+                      <div className={`${SEGS.download.bg} h-full w-full`} />
+                    </PremiumTooltip>
                   )}
                 </div>
 
                 {/* Axis ticks */}
-                <div className="mt-px flex justify-between leading-none">
-                  <span className="text-[8px] text-zinc-400">0</span>
-                  <span className="text-[8px] text-zinc-400">{Math.round(maxTotal / 2)}ms</span>
-                  <span className="text-[8px] text-zinc-400">{maxTotal}ms</span>
+                <div className="mt-1 flex justify-between leading-none">
+                  <span className="text-[9px] text-zinc-400 font-medium">0</span>
+                  <span className="text-[9px] text-zinc-400 font-medium">{Math.round(maxTotal / 2)}ms</span>
+                  <span className="text-[9px] text-zinc-400 font-medium tabular-nums">{maxTotal}ms</span>
                 </div>
               </div>
 
               {(() => {
                 const showDetailBlocks =
-                  hasServerTiming ||
-                  dns > 0 ||
-                  tls > 0 ||
-                  tcp > 0 ||
-                  (!hasBreakdown && !hasServerTiming)
+                  !hideHeader && (
+                    hasServerTiming ||
+                    dns > 0 ||
+                    tls > 0 ||
+                    tcp > 0 ||
+                    (!hasBreakdown && !hasServerTiming)
+                  )
                 if (!showDetailBlocks) return null
 
                 return (
@@ -294,12 +376,13 @@ export function ProbeWaterfall({ probes, regionLabels }: { probes: WaterfallProb
                           <div className="space-y-1">
                             {breakdownEntries(probe.server_timing_breakdown).map(([name, ms]) => (
                               <div key={name} className="flex items-center gap-2">
-                                <span
-                                  className="w-[72px] shrink-0 text-[10px] font-mono text-zinc-500 truncate"
-                                  title={name}
-                                >
-                                  {name}
-                                </span>
+                                <PremiumTooltip content={name}>
+                                  <span
+                                    className="w-[72px] shrink-0 text-[10px] font-mono text-zinc-500 truncate"
+                                  >
+                                    {name}
+                                  </span>
+                                </PremiumTooltip>
                                 <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
                                   <div
                                     className={`h-full rounded-full ${breakdownColor(name)}`}

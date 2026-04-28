@@ -1,5 +1,5 @@
 /**
- * Single source of truth for timing metric colors across Real-time, Trends, and Diagnostics (waterfall).
+ * Single source of truth for timing metric colors across Real-time, Trends, and Breakdown (waterfall).
  * DNS purple, TCP blue, TLS fuchsia, TTFB emerald, Edge sky (lighter cyan-blue vs TCP royal blue), Origin amber, Download lime.
  */
 export const TIMING = {

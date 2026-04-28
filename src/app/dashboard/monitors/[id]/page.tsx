@@ -18,6 +18,7 @@ import { ViewSectionHeader, LiveDot } from '@/components/dashboard/dashboard-ui'
 import { extractPop, popToCity, resolveCdnLabel } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
 import { MonitorSidebarRail } from './monitor-sidebar-rail'
+import { LiveTable } from './live-table'
 import {
   buildMonitorHref,
   buildViewHref,
@@ -107,6 +108,7 @@ interface LatestProbeRow {
   max_age_s: number | null
   last_probe_at: Date | null
   probe_version: string | null
+  server_timing_breakdown: Record<string, number> | null
 }
 
 interface WeekTrend {
@@ -249,7 +251,7 @@ const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   performance: 'Performance',
   trends: 'Trends',
   patterns: 'Patterns',
-  diagnostics: 'Diagnostics',
+  diagnostics: 'Breakdown',
   infrastructure: 'Edge Audit',
 }
 
@@ -742,7 +744,8 @@ export default async function MonitorDetailPage({
       error,
       age_s AS max_age_s,
       time AS last_probe_at,
-      probe_version
+      probe_version,
+      server_timing_breakdown
     FROM probe_results p1
     WHERE monitor_id = ${id}
     ORDER BY region, time DESC
@@ -1263,18 +1266,16 @@ export default async function MonitorDetailPage({
           {activeTab === 'performance' && (
             <div>
               {activeView === 'real-time' && (
-                <div className="space-y-8">
-                  <section className="space-y-4">
+                <div id="real-time-view" className="space-y-6">
+                  <section id="live-metrics-section" className="space-y-4">
                     <LiveActivityHeader
                       monitorId={monitor.id}
                       freezeStorageKey={liveFreezeStorageKey}
                       latestDataAt={latestDataAt}
                     />
 
-                    {/* LIVE TAB — Summary cards moved here */}
                     {!isCollecting && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {/* GLOBAL TTFB */}
                         <Link
                           href={buildViewHref('trends', range, monitor.id)}
                           scroll={false}
@@ -1300,7 +1301,6 @@ export default async function MonitorDetailPage({
                           </div>
                         </Link>
 
-                        {/* CACHE HIT RATE */}
                         <Link
                           href={buildViewHref('infrastructure', range, monitor.id)}
                           scroll={false}
@@ -1327,214 +1327,23 @@ export default async function MonitorDetailPage({
                         </Link>
                       </div>
                     )}
-                    {latestProbes.length === 0 ? (
-                      <p className="text-sm text-zinc-400 italic">Listening for incoming probes...</p>
+
+                    {latestProbes.length > 0 ? (
+                      <LiveTable 
+                        probes={latestProbes} 
+                        regionLabels={regionLabels} 
+                        regionDescriptions={regionDescriptions} 
+                      />
                     ) : (
-                      <div className={MONITOR_TABLE.outerWrapper}>
-                        <div className={BRAND_TABLE_SURFACE_GRADIENT} />
-                        <div className={MONITOR_TABLE.innerScroll}>
-                          <table
-                            className={`${MONITOR_TABLE.tableBase} ${MONITOR_TABLE.transition} ${MONITOR_TABLE.tableDense}`}
-                          >
-                            <thead>
-                              <tr className={MONITOR_TABLE.theadRow}>
-                                <th className="cs-table-compact-th !text-center">
-                                  <PremiumTooltip content="Geographic region" position="top-center" direction="top">Region</PremiumTooltip>
-                                </th>
-                                <th className="cs-table-compact-th !text-center">
-                                  <PremiumTooltip content="Edge node location (PoP)" position="top-center" direction="top">Served from</PremiumTooltip>
-                                </th>
-                                <th className="cs-table-compact-th !text-center">
-                                  <PremiumTooltip content="CDN or edge provider" position="top-center" direction="top">Served by</PremiumTooltip>
-                                </th>
-                                <th className="cs-table-compact-th !text-center">
-                                  <PremiumTooltip content="Cache hit or miss" position="top-center" direction="top">Cache</PremiumTooltip>
-                                </th>
-                                <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER}`}>
-                                  <PremiumTooltip content="Time to first byte" position="top-center" direction="top">TTFB</PremiumTooltip>
-                                </th>
-                                <th className="cs-table-compact-th !text-center">
-                                  <PremiumTooltip content="Cache age (seconds)" position="top-center" direction="top">Age</PremiumTooltip>
-                                </th>
-                                <th className="cs-table-compact-th !text-center">
-                                  <PremiumTooltip content="HTTP response code" position="top-center" direction="top">Status</PremiumTooltip>
-                                </th>
-                                <th className="cs-table-compact-th !text-center">
-                                  <PremiumTooltip content="Time of last check" position="top-center" direction="top">Sync</PremiumTooltip>
-                                </th>
-                                {process.env.NODE_ENV === 'development' && (
-                                  <th
-                                    className="px-3 py-2 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight"
-                                    title="Software version of the Lambda probe"
-                                  >
-                                    v
-                                  </th>
-                                )}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {latestProbes.map((s) => {
-                                const isError = s.error && s.error !== ''
-                                const cache = cacheDisplay(s.common_cache_status, null)
-                                const servedFromLabel = regionRowServedFromLabel(s.common_served_by)
-                                const cdnLabel = regionRowCdnLabelTrimmed(s.common_cdn_provider, s.common_served_by)
-                                const age = Number(s.max_age_s ?? 0)
-                                const ageVisual = age > 0 ? ageBadgeVisual(age) : null
-                                const ageBadgeTitle
-                                  = age > 0 && ageVisual
-                                    ? `Age header: ${age}s — ${ageVisual.tierHint}`
-                                    : ''
-                                return (
-                                  <tr
-                                    key={s.region}
-                                    className={MONITOR_TABLE.tbodyRow}
-                                  >
-                                    <td className="cs-table-compact-td font-bold text-zinc-200">
-                                      <PremiumTooltip content={regionDescriptions[s.region] ?? s.region} position="top-left">
-                                        {regionLabels[s.region] ?? s.region}
-                                      </PremiumTooltip>
-                                    </td>
-                                    <td className="cs-table-compact-td text-center">
-                                      {servedFromLabel ? (
-                                        <PremiumTooltip content={extractPop(s.common_served_by) || 'Unknown Point of Presence'} position="top-left">
-                                          <span className="cs-pop-tag uppercase">{servedFromLabel}</span>
-                                        </PremiumTooltip>
-                                      ) : (
-                                        <PremiumTooltip content={TOOLTIP_EDGE_DATA_UNAVAILABLE} position="top-center" direction="top">
-                                          <span className="cs-pop-tag max-w-[9rem] truncate">—</span>
-                                        </PremiumTooltip>
-                                      )}
-                                    </td>
-                                    <td className="cs-table-compact-td text-center">
-                                      {cdnLabel ? (
-                                        <PremiumTooltip
-                                          content={s.common_served_by ? `Raw served_by: ${s.common_served_by}` : 'No edge hint'}
-                                          position="top-center"
-                                          direction="top"
-                                        >
-                                          <span className="cs-pop-tag max-w-[9rem] truncate">{cdnLabel}</span>
-                                        </PremiumTooltip>
-                                      ) : (
-                                        <PremiumTooltip content={TOOLTIP_EDGE_DATA_UNAVAILABLE} position="top-center" direction="top">
-                                          <span className="cs-pop-tag max-w-[9rem] truncate">—</span>
-                                        </PremiumTooltip>
-                                      )}
-                                    </td>
-                                    <td className="cs-table-compact-td text-center">
-                                      {/* Live Activity cache column: badges match min width / padding of Status & Age; slate #475569/#64748b for "Not Reported" = neutral, not failure */}
-                                      <PremiumTooltip content={cache.title} position="top-center" direction="top">
-                                        {cache.variant === 'hit' && (
-                                          <span className="cs-badge-cache-hit">
-                                            <Zap className="h-[10px] w-[10px] shrink-0 fill-current" aria-hidden />
-                                            {cache.text}
-                                          </span>
-                                        )}
-                                        {cache.variant === 'miss' && (
-                                          <span className="cs-badge-cache-miss">{cache.text}</span>
-                                        )}
-                                        {cache.variant === 'bypass' && (
-                                          <span className="cs-badge-cache-bypass">{cache.text}</span>
-                                        )}
-                                        {cache.variant === 'dynamic' && (
-                                          <span className="cs-badge-cache-dynamic">{cache.text}</span>
-                                        )}
-                                        {cache.variant === 'not_reported' && (
-                                          <span className="cs-badge-cache-not-reported">{cache.text}</span>
-                                        )}
-                                        {cache.variant === 'percent_good' && (
-                                          <span className="cs-badge-cache-hit">{cache.text}</span>
-                                        )}
-                                        {cache.variant === 'percent_warn' && (
-                                          <span className="cs-badge-cache-miss">{cache.text}</span>
-                                        )}
-                                        {cache.variant === 'dash' && (
-                                          <span className="cs-badge-cache-dash">{cache.text}</span>
-                                        )}
-                                      </PremiumTooltip>
-                                    </td>
-                                    <td className={`${isError ? 'cs-table-compact-td' : ttfbMetricCellClass(s.ttfb_ms)} !px-3 !py-2 text-[13px]`}>
-                                      {isError ? (
-                                        <PremiumTooltip content={s.error ?? 'Connection error'} position="top-right" direction="top">
-                                          <span className="block max-w-[140px] truncate text-[10px] font-bold leading-tight text-red-400">
-                                            {s.error ?? 'Connection error'}
-                                          </span>
-                                        </PremiumTooltip>
-                                      ) : (
-                                        <PremiumTooltip content="Latency for this check" position="top-right" direction="top"><VisualGlow value={s.ttfb_ms}>{s.ttfb_ms != null ? `${Math.round(s.ttfb_ms)}ms` : '—'}</VisualGlow></PremiumTooltip>
-                                      )}
-                                    </td>
-                                    <td className="cs-table-compact-td text-right">
-                                      {age > 0 && ageVisual ? (
-                                        <PremiumTooltip content={ageBadgeTitle} position="top-right" direction="top">
-                                          <span className={ageVisual.className}>
-                                            {formatCacheAgeShort(age)}
-                                          </span>
-                                        </PremiumTooltip>
-                                      ) : (
-                                        <span className="text-[10px] text-zinc-500 tabular-nums">—</span>
-                                      )}
-                                    </td>
-                                    <td className="cs-table-compact-td text-right">
-                                      {(() => {
-                                        const code = s.status_code
-                                        const isErr = isError || (code != null && code >= 400)
-                                        const colorClass = code != null && code < 400 ? 'cs-badge-flat-success' : 'cs-badge-flat-danger';
-                                        const hops = Number(s.redirect_count ?? 0)
-                                        return (
-                                          <div className="flex items-center justify-end gap-1">
-                                            {hops > 0 && (
-                                              <PremiumTooltip content={`This request was redirected ${hops} times.`} position="top-right">
-                                                <span className="cs-badge-flat cs-badge-flat-muted" style={{ fontSize: '8px' }}>{hops}↷</span>
-                                              </PremiumTooltip>
-                                            )}
-                                            {isErr ? (
-                                              <PremiumTooltip content={s.error || 'The edge server returned an error status or connection failed.'} position="top-right" direction="top">
-                                                <span className="cs-badge-flat cs-badge-flat-danger">ERR</span>
-                                              </PremiumTooltip>
-                                            ) : (
-                                              <PremiumTooltip content="Successful request" position="top-right" direction="top"><span className={`cs-badge-flat ${colorClass}`}>{code || '200'}</span></PremiumTooltip>
-                                            )}
-                                          </div>
-                                        )
-                                      })()}
-                                    </td>
-                                    {(() => {
-                                      const syncStatus = probeSyncStatus(s.last_probe_at)
-                                      const syncColorClass =
-                                        syncStatus === 'offline' ? '!text-red-400'
-                                          : syncStatus === 'stale' ? '!text-amber-400'
-                                            : '!text-zinc-500'
-                                      const syncTooltip =
-                                        syncStatus === 'offline'
-                                          ? `Last probe on ${new Date(s.last_probe_at!).toLocaleDateString()} — no data today`
-                                          : syncStatus === 'stale'
-                                            ? `Last probe over 1h ago at ${new Date(s.last_probe_at!).toLocaleString()}`
-                                            : `Probe synchronized at ${new Date(s.last_probe_at!).toLocaleString()}`
-                                      return (
-                                        <td className={`cs-table-compact-td text-right !text-[10px] tabular-nums ${syncColorClass}`}>
-                                          {s.last_probe_at ? (
-                                            <PremiumTooltip content={syncTooltip} position="top-right" direction="top">
-                                              {new Date(s.last_probe_at).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                            </PremiumTooltip>
-                                          ) : '—'}
-                                        </td>
-                                      )
-                                    })()}
-                                    {process.env.NODE_ENV === 'development' && (
-                                      <td className="px-3 py-2 text-right whitespace-nowrap">
-                                        <span className="text-[9px] font-bold !text-zinc-500 font-mono bg-zinc-100 dark:bg-zinc-800/50 px-1 py-0.5 rounded">
-                                          {s.probe_version || '—'}
-                                        </span>
-                                      </td>
-                                    )}
-                                  </tr>
-                                )
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
+                      <div className="cs-card cs-card-glass min-h-[200px] flex flex-col items-center justify-center p-8 text-center animate-pulse">
+                        <Activity className="h-8 w-8 text-zinc-600 mb-3" />
+                        <p className="text-zinc-500 text-sm font-medium">Awaiting live synchronization...</p>
                       </div>
                     )}
+                  </section>
+
+                  <section id="live-hub-section">
+                    <RealTimeHub monitorId={monitor.id} />
                   </section>
                 </div>
               )}
@@ -1543,7 +1352,6 @@ export default async function MonitorDetailPage({
                 <div className="space-y-6">
                   <section className="space-y-4">
                     <ViewSectionHeader title="Period Performance">
-                      {/* Time range selector */}
                       <div className="flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 dark:bg-white/5 px-1.5 border border-zinc-200 dark:border-white/10">
                         {['24h', '7d', '30d'].map((r) => (
                           <Link
@@ -1562,7 +1370,6 @@ export default async function MonitorDetailPage({
 
                     {!isCollecting && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {/* GLOBAL TTFB */}
                         <Link
                           href={buildViewHref('trends', range, monitor.id)}
                           scroll={false}
@@ -1588,7 +1395,6 @@ export default async function MonitorDetailPage({
                           </div>
                         </Link>
 
-                        {/* CACHE HIT RATE */}
                         <Link
                           href={buildViewHref('infrastructure', range, monitor.id)}
                           scroll={false}
@@ -1979,12 +1785,12 @@ export default async function MonitorDetailPage({
               )}
 
               {activeView === 'diagnostics' && (
-                <div className="space-y-4">
-                  <ViewSectionHeader title="Performance Diagnostics" showDot={false} />
+                <div id="breakdown-view" className="space-y-4">
+                  <ViewSectionHeader title="Performance Breakdown" showDot={true} />
                   {waterfallProbes.length > 0 ? (
                     <ProbeWaterfall probes={waterfallProbes} regionLabels={regionLabels} />
                   ) : (
-                    <p className="text-sm text-zinc-400 italic">No diagnostic data available yet.</p>
+                    <p className="text-sm text-zinc-400 italic">No breakdown data available yet.</p>
                   )}
                 </div>
               )}

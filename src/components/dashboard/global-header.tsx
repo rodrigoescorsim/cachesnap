@@ -25,7 +25,7 @@ const NAV_ITEMS = [
     disabled: false,
     match: (p: string) => p === '/insights' || p.startsWith('/insights/'),
   },
-  { label: 'Diagnostics', href: '', disabled: true, match: () => false },
+  { label: 'Breakdown', href: '', disabled: true, match: () => false },
   { label: 'Alerts', href: '', disabled: true, match: () => false },
   { label: 'Settings', href: '', disabled: true, match: () => false },
 ]

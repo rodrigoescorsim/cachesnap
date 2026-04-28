@@ -1,0 +1,280 @@
+'use client'
+
+import React, { useState } from 'react'
+import { Zap, ChevronDown, ChevronUp, Activity } from 'lucide-react'
+import { PremiumTooltip } from '@/components/premium-tooltip'
+import { VisualGlow } from '../../visual-glow'
+import {
+  MONITOR_TABLE,
+  BRAND_TABLE_SURFACE_GRADIENT,
+  ttfbMetricCellClass,
+  TH_TTFB_HEADER
+} from './monitor-table-styles'
+import {
+  extractPop,
+  popToCity,
+  resolveCdnLabel
+} from '@/lib/edge-helpers'
+import {
+  ProbeWaterfall
+} from './probe-waterfall'
+import { isCacheHit } from '@/lib/cache-utils'
+
+interface LiveProbe {
+  region: string
+  ttfb_ms: number | null
+  download_ms: number | null
+  total_ms: number | null
+  dns_ms: number | null
+  tcp_ms: number | null
+  tls_ms: number | null
+  edge_ms: number | null
+  origin_ms: number | null
+  redirect_count: number | null
+  common_served_by: string | null
+  common_cdn_provider: string | null
+  common_http_version: string | null
+  common_cache_status: string | null
+  status_code: number | null
+  error: string | null
+  max_age_s: number | null
+  last_probe_at: Date | null
+  probe_version: string | null
+  server_timing_breakdown: Record<string, number> | null
+}
+
+interface LiveTableProps {
+  probes: LiveProbe[]
+  regionLabels: Record<string, string>
+  regionDescriptions: Record<string, string>
+}
+
+// --- Internal Helpers (replicated from page.tsx for fidelity) ---
+
+function formatCacheAgeShort(seconds: number): React.ReactNode {
+  const unitStyle = "text-[9px] opacity-70 ml-0.5 font-medium"
+  if (seconds < 60) return <>{seconds}<span className={unitStyle}>s</span></>
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return <>{minutes}<span className={unitStyle}>m</span></>
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return <>{hours}<span className={unitStyle}>h</span></>
+  const days = Math.floor(hours / 24)
+  return <>{days}<span className={unitStyle}>d</span></>
+}
+
+function ageBadgeVisual(ageSeconds: number): { className: string; tierHint: string } {
+  if (ageSeconds <= 3600) return { className: 'cs-badge-muted', tierHint: 'Recently cached (≤1h)' }
+  if (ageSeconds <= 86400) return { className: 'cs-badge-warning', tierHint: 'Elevated cache age (>1h, up to 24h)' }
+  return { className: 'cs-badge-danger', tierHint: 'Zombie cache (>24h) — review invalidation / TTL' }
+}
+
+function getSyncStatus(lastProbeAt: Date | null): { colorClass: string; tooltip: string; text: string } {
+  if (!lastProbeAt) return { colorClass: 'text-zinc-500', tooltip: 'No data', text: '—' }
+  const date = new Date(lastProbeAt)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffHours = diffMs / (1000 * 60 * 60)
+
+  const timeText = date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+
+  if (diffHours > 24) return { colorClass: 'text-red-400', tooltip: `Last probe on ${date.toLocaleDateString()} — no data today`, text: timeText }
+  if (diffHours > 1) return { colorClass: 'text-amber-400', tooltip: `Last probe over 1h ago at ${date.toLocaleString()}`, text: timeText }
+  return { colorClass: 'text-zinc-500', tooltip: `Probe synchronized at ${date.toLocaleString()}`, text: timeText }
+}
+
+export function LiveTable({ probes, regionLabels, regionDescriptions }: LiveTableProps) {
+  const [expandedRegions, setExpandedRegions] = useState<Record<string, boolean>>({})
+
+  const toggleRegion = (region: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setExpandedRegions(prev => ({
+      ...prev,
+      [region]: !prev[region]
+    }))
+  }
+
+  return (
+    <div className={MONITOR_TABLE.outerWrapper}>
+      <div className={BRAND_TABLE_SURFACE_GRADIENT} />
+      <div className={MONITOR_TABLE.innerScroll}>
+        <table className={`${MONITOR_TABLE.tableBase} ${MONITOR_TABLE.transition} ${MONITOR_TABLE.tableDense}`}>
+          <thead>
+            <tr className={MONITOR_TABLE.theadRow}>
+              <th className="cs-table-compact-th w-8"></th>
+              <th className="cs-table-compact-th !text-center">
+                <PremiumTooltip content="Geographic region" position="top-center" direction="top">Region</PremiumTooltip>
+              </th>
+              <th className="cs-table-compact-th !text-center">
+                <PremiumTooltip content="Edge node location (PoP)" position="top-center" direction="top">Served from</PremiumTooltip>
+              </th>
+              <th className="cs-table-compact-th !text-center">
+                <PremiumTooltip content="CDN or edge provider" position="top-center" direction="top">Served by</PremiumTooltip>
+              </th>
+              <th className="cs-table-compact-th !text-center">
+                <PremiumTooltip content="Cache hit or miss" position="top-center" direction="top">Cache</PremiumTooltip>
+              </th>
+              <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER}`}>
+                <PremiumTooltip content="Time to first byte" position="top-center" direction="top">TTFB</PremiumTooltip>
+              </th>
+              <th className="cs-table-compact-th !text-center">
+                <PremiumTooltip content="Cache age (seconds)" position="top-center" direction="top">Age</PremiumTooltip>
+              </th>
+              <th className="cs-table-compact-th !text-center">
+                <PremiumTooltip content="HTTP response code" position="top-center" direction="top">Status</PremiumTooltip>
+              </th>
+              <th className="cs-table-compact-th !text-center">
+                <PremiumTooltip content="Time of last check" position="top-center" direction="top">Sync</PremiumTooltip>
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/[0.02]">
+            {probes.map((p) => {
+              const isExpanded = expandedRegions[p.region]
+              const pop = extractPop(p.common_served_by)
+              const cdnLabel = resolveCdnLabel(p.common_cdn_provider, p.common_served_by)
+
+              const isCacheHitStatus = isCacheHit(p.common_cache_status)
+              const normalizedStatus = p.common_cache_status?.toUpperCase()
+
+              const isError = !!p.error
+              const age = Number(p.max_age_s ?? 0)
+              const ageVisual = age > 0 ? ageBadgeVisual(age) : null
+              const sync = getSyncStatus(p.last_probe_at)
+              const hops = Number(p.redirect_count ?? 0)
+              const isStatusErr = isError || (p.status_code != null && p.status_code >= 400)
+              const statusColorClass = p.status_code != null && p.status_code < 400 ? 'cs-badge-flat-success' : 'cs-badge-flat-danger'
+
+              return (
+                <React.Fragment key={p.region}>
+                  <tr
+                    className={`${MONITOR_TABLE.tbodyRow} cursor-pointer hover:bg-white/[0.02] transition-colors`}
+                    onClick={(e) => toggleRegion(p.region, e)}
+                  >
+                    <td className="cs-table-compact-td text-center">
+                      {isExpanded ? <ChevronUp className="h-3.5 w-3.5 text-zinc-500" /> : <ChevronDown className="h-3.5 w-3.5 text-zinc-500" />}
+                    </td>
+                    <td className="cs-table-compact-td font-bold text-zinc-200">
+                      <PremiumTooltip content={regionDescriptions[p.region] ?? p.region} position="top-left">
+                        {regionLabels[p.region] ?? p.region}
+                      </PremiumTooltip>
+                    </td>
+                    <td className="cs-table-compact-td text-center">
+                      {pop ? (
+                        <PremiumTooltip content={popToCity(pop) || pop} position="top-center" direction="top">
+                          <span className="cs-pop-tag uppercase">{pop}</span>
+                        </PremiumTooltip>
+                      ) : (
+                        <span className="cs-pop-tag">—</span>
+                      )}
+                    </td>
+                    <td className="cs-table-compact-td text-center">
+                      {cdnLabel ? (
+                        <PremiumTooltip content={p.common_served_by || 'No edge hint'} position="top-center" direction="top">
+                          <span className="cs-pop-tag truncate max-w-[100px]">{cdnLabel}</span>
+                        </PremiumTooltip>
+                      ) : (
+                        <span className="cs-pop-tag">—</span>
+                      )}
+                    </td>
+                    <td className="cs-table-compact-td text-center">
+                      <PremiumTooltip content={isCacheHitStatus ? 'Cache hit observed' : 'Cache miss or bypass'} position="top-center" direction="top">
+                        {isCacheHitStatus && (
+                          <span className="cs-badge-cache-hit">
+                            <Zap className="h-[10px] w-[10px] fill-current" />
+                            {p.common_cache_status}
+                          </span>
+                        )}
+                        {normalizedStatus === 'MISS' && <span className="cs-badge-cache-miss">MISS</span>}
+                        {normalizedStatus === 'BYPASS' && <span className="cs-badge-cache-bypass">BYPASS</span>}
+                        {normalizedStatus === 'DYNAMIC' && <span className="cs-badge-cache-dynamic">DYNAMIC</span>}
+                        {!isCacheHitStatus && normalizedStatus !== 'MISS' && normalizedStatus !== 'BYPASS' && normalizedStatus !== 'DYNAMIC' && (
+                          <span className="cs-badge-cache-not-reported">NONE</span>
+                        )}
+                      </PremiumTooltip>
+                    </td>
+                    <td className={`${isError ? 'cs-table-compact-td' : ttfbMetricCellClass(p.ttfb_ms)} !px-3 !py-2 text-[13px] text-center`}>
+                      {isError ? (
+                        <PremiumTooltip content={p.error ?? 'Connection error'} position="top-right" direction="top">
+                          <span className="block max-w-[140px] truncate text-[10px] font-bold leading-tight text-red-400">
+                            {p.error}
+                          </span>
+                        </PremiumTooltip>
+                      ) : (
+                        <VisualGlow value={p.ttfb_ms}>
+                          {p.ttfb_ms != null ? `${Math.round(p.ttfb_ms)}ms` : '—'}
+                        </VisualGlow>
+                      )}
+                    </td>
+                    <td className="cs-table-compact-td text-right">
+                      {age > 0 && ageVisual ? (
+                        <PremiumTooltip content={ageVisual.tierHint} position="top-right" direction="top">
+                          <span className={ageVisual.className}>
+                            {formatCacheAgeShort(age)}
+                          </span>
+                        </PremiumTooltip>
+                      ) : (
+                        <span className="cs-pop-tag">—</span>
+                      )}
+                    </td>
+                    <td className="cs-table-compact-td text-center">
+                      <div className="flex items-center justify-end gap-1">
+                        {hops > 0 && (
+                          <PremiumTooltip content={`This request was redirected ${hops} times.`} position="top-right">
+                            <span className="cs-badge-flat cs-badge-flat-muted" style={{ fontSize: '8px' }}>{hops}↷</span>
+                          </PremiumTooltip>
+                        )}
+                        {isStatusErr ? (
+                          <PremiumTooltip content={p.error || 'The edge server returned an error status or connection failed.'} position="top-right" direction="top">
+                            <span className="cs-badge-flat cs-badge-flat-danger">ERR</span>
+                          </PremiumTooltip>
+                        ) : (
+                          <PremiumTooltip content="Successful request" position="top-right" direction="top">
+                            <span className={`cs-badge-flat ${statusColorClass}`}>{p.status_code || '200'}</span>
+                          </PremiumTooltip>
+                        )}
+                      </div>
+                    </td>
+                    <td className={`cs-table-compact-td text-right !text-[10px] tabular-nums ${sync.colorClass}`}>
+                      <PremiumTooltip content={sync.tooltip} position="top-right" direction="top">
+                        {sync.text}
+                      </PremiumTooltip>
+                    </td>
+                  </tr>
+                  {isExpanded && (
+                    <tr>
+                      <td colSpan={9} className="bg-black/20 px-4 py-3 border-b border-white/[0.05]">
+                        <div className="animate-[cs-fade-in_0.3s_ease-out]">
+                          <ProbeWaterfall
+                            probes={[{
+                              region: p.region,
+                              dns_ms: p.dns_ms,
+                              tls_ms: p.tls_ms,
+                              ttfb_ms: p.ttfb_ms,
+                              download_ms: p.download_ms,
+                              total_ms: p.total_ms,
+                              edge_ms: p.edge_ms,
+                              origin_ms: p.origin_ms,
+                              redirect_count: p.redirect_count,
+                              cache_status: p.common_cache_status,
+                              served_by: p.common_served_by,
+                              cdn_provider: p.common_cdn_provider,
+                              age_s: p.max_age_s,
+                              server_timing_breakdown: p.server_timing_breakdown,
+                              probed_at: p.last_probe_at
+                            }]}
+                            regionLabels={regionLabels}
+                            hideHeader={true}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}

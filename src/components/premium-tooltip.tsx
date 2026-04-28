@@ -92,7 +92,9 @@ export function PremiumTooltip({
   direction: _direction = 'top',
   /** When true, panel accepts clicks (e.g. links) and stays open while the cursor is over the panel. */
   interactive = false,
-  panelSizing = 'wide',
+  panelSizing = 'hug',
+  className,
+  style,
 }: {
   children: React.ReactNode
   content: React.ReactNode
@@ -100,6 +102,8 @@ export function PremiumTooltip({
   direction?: 'top' | 'bottom'
   interactive?: boolean
   panelSizing?: 'wide' | 'hug'
+  className?: string
+  style?: React.CSSProperties
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -185,7 +189,8 @@ export function PremiumTooltip({
   return (
     <div
       ref={hostRef}
-      className="relative inline-flex items-center"
+      className={`relative inline-flex items-center ${className || ''}`}
+      style={style}
       onMouseEnter={onEnterHost}
       onMouseLeave={onLeaveHost}
     >
