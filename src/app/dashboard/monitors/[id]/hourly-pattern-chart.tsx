@@ -35,7 +35,7 @@ export function HourlyPatternChart({ data, range }: { data: HourlyPoint[]; range
 
   const maxTtfb = Math.max(...data.map(p => p.ttfb_avg), 1)
   const avgTtfb = data.length > 0 
-    ? data.reduce((a, b) => a + b, 0) / data.length 
+    ? data.reduce((acc, p) => acc + p.ttfb_avg, 0) / data.length 
     : 400
 
   const toX = (hour: number) => PAD.left + hour * (BAR_W + BAR_GAP)
