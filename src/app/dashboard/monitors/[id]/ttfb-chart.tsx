@@ -685,9 +685,74 @@ export function TtfbChart({
     )
   }
 
+  if (allBuckets.length < 2) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface/30 p-12 text-center">
+        {isDown ? (
+          <div className="flex flex-col items-center justify-center space-y-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/10 mb-1">
+              <span className="relative flex h-3 w-3">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500"></span>
+              </span>
+            </div>
+            <p className="text-sm font-black tracking-tight text-zinc-300">Monitor Offline</p>
+            <p className="text-[10px] text-zinc-500 max-w-[200px]">Waiting for the system to recover to resume trend analysis.</p>
+          </div>
+        ) : (
+          <>
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.02] shadow-[0_0_24px_-8px_rgba(34,211,238,0.15)] mx-auto">
+              <Activity className="h-5 w-5 text-zinc-500 animate-pulse" />
+            </div>
+            <p className="text-sm font-black tracking-tight text-zinc-300">Analyzing Historical Patterns</p>
+            <p className="mt-1.5 max-w-[280px] text-[11px] leading-relaxed text-zinc-500 mx-auto">We're gathering data to build your performance baseline.</p>
+          </>
+        )}
+      </div>
+    )
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6 relative" ref={containerRef} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+    <section className="space-y-4">
+      <ViewSectionHeader title="Trends">
+        <div className="flex items-center gap-3">
+          {/* Sync Button */}
+          <PremiumTooltip
+            content={isSynced ? "Charts are synchronized. Click to decouple." : "Charts are independent. Click to synchronize."}
+            position="bottom-center"
+          >
+            <button
+              onClick={() => setIsSynced(!isSynced)}
+              className={`flex items-center gap-1.5 h-9 px-3 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all ${isSynced
+                ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.1)]'
+                : 'bg-zinc-100 dark:bg-white/5 border-zinc-200 dark:border-white/10 text-zinc-500 hover:text-zinc-300'
+                }`}
+            >
+              {isSynced ? <Link2 size={12} /> : <Link2Off size={12} />}
+              {isSynced ? 'Synced' : 'Decoupled'}
+            </button>
+          </PremiumTooltip>
+
+          {/* Timeframe Toggles */}
+          <div className="flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 dark:bg-white/5 px-1.5 border border-zinc-200 dark:border-white/10">
+            {['24h', '7d', '30d', '90d'].map((r) => (
+              <Link
+                key={r}
+                href={buildViewHref(monitorId, 'trends', r as any)}
+                className={`px-3 h-6 flex items-center justify-center rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${range === r
+                  ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10'
+                  : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
+                  }`}
+              >
+                {r}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </ViewSectionHeader>
+
+      <div className="space-y-6 relative" ref={containerRef} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
       {/* Tooltip */}
       {hoveredIdx !== null && (
         <div
@@ -1001,72 +1066,6 @@ export function TtfbChart({
           )}
         </div>
       )}
-
-  if (allBuckets.length < 2) {
-    return (
-      <div className="rounded-2xl border border-border bg-surface/30 p-12 text-center">
-        {isDown ? (
-          <div className="flex flex-col items-center justify-center space-y-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/10 mb-1">
-              <span className="relative flex h-3 w-3">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500"></span>
-              </span>
-            </div>
-            <p className="text-sm font-black tracking-tight text-zinc-300">Monitor Offline</p>
-            <p className="text-[10px] text-zinc-500 max-w-[200px]">Waiting for the system to recover to resume trend analysis.</p>
-          </div>
-        ) : (
-          <>
-            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.02] shadow-[0_0_24px_-8px_rgba(34,211,238,0.15)] mx-auto">
-              <Activity className="h-5 w-5 text-zinc-500 animate-pulse" />
-            </div>
-            <p className="text-sm font-black tracking-tight text-zinc-300">Analyzing Historical Patterns</p>
-            <p className="mt-1.5 max-w-[280px] text-[11px] leading-relaxed text-zinc-500 mx-auto">We're gathering data to build your performance baseline.</p>
-          </>
-        )}
-      </div>
-    )
-  }
-
-  return (
-    <section className="space-y-4">
-      <ViewSectionHeader title="Trends">
-        <div className="flex items-center gap-3">
-          {/* Sync Button */}
-          <PremiumTooltip
-            content={isSynced ? "Charts are synchronized. Click to decouple." : "Charts are independent. Click to synchronize."}
-            position="bottom-center"
-          >
-            <button
-              onClick={() => setIsSynced(!isSynced)}
-              className={`flex items-center gap-1.5 h-9 px-3 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all ${isSynced
-                ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.1)]'
-                : 'bg-zinc-100 dark:bg-white/5 border-zinc-200 dark:border-white/10 text-zinc-500 hover:text-zinc-300'
-                }`}
-            >
-              {isSynced ? <Link2 size={12} /> : <Link2Off size={12} />}
-              {isSynced ? 'Synced' : 'Decoupled'}
-            </button>
-          </PremiumTooltip>
-
-          {/* Timeframe Toggles */}
-          <div className="flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 dark:bg-white/5 px-1.5 border border-zinc-200 dark:border-white/10">
-            {['24h', '7d', '30d', '90d'].map((r) => (
-              <Link
-                key={r}
-                href={buildViewHref(monitorId, 'trends', r as any)}
-                className={`px-3 h-6 flex items-center justify-center rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${range === r
-                  ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10'
-                  : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
-                  }`}
-              >
-                {r}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </ViewSectionHeader>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 relative">
         <div className="space-y-4">
@@ -1725,5 +1724,6 @@ export function TtfbChart({
         </div>
       </div>
     </div>
-  )
+  </section>
+)
 }
