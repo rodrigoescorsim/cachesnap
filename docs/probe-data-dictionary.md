@@ -2,7 +2,7 @@
 
 Este documento detalha todos os pontos de dados coletados pela infraestrutura de *probes* (testadores de borda) da CacheSnap, explicando a origem da captura, a relevância da métrica e como ela é utilizada pelos motores de diagnóstico, alertas e pela interface do *dashboard*.
 
-A coleta ocorre via **AWS Lambda** (Node.js 20, arm64) em 8 regiões geográficas reais. Diferente da era CF Workers, a Lambda disponibiliza `dns_ms`, `tcp_ms` e `tls_ms` via `net.Socket` nativo do Node.js.
+A coleta ocorre principalmente via Cloudflare Workers (Phase 1), o que impacta as capacidades de algumas aferições de rede puras (como DNS e TLS), mas fornece excelente posicionamento global em *Points of Presence* (PoPs).
 
 ---
 
