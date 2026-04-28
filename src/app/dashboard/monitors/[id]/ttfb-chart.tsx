@@ -389,6 +389,11 @@ export function TtfbChart({
       if (series.length < 2) return
       const res: Array<{ idx: number, type: 'max' | 'min' | 'spike-up' | 'spike-down', diff?: number, pct?: number, value: number }> = []
 
+      // Calculate average for this series to use as relevance threshold
+      const validPoints = series.filter(s => s.value > 0)
+      if (validPoints.length === 0) return
+      const avg = validPoints.reduce((acc, curr) => acc + curr.value, 0) / validPoints.length
+
       let maxVal = -Infinity
       let maxIdx = -1
       let minVal = Infinity
@@ -405,15 +410,21 @@ export function TtfbChart({
           if (prev > 0) {
             const pct = ((v - prev) / prev) * 100
             const diff = Math.abs(v - prev)
-            // Stricter: 100% change AND at least 100ms difference
-            if (pct > 100 && diff > 100) res.push({ idx: i, type: 'spike-up', diff: v - prev, pct, value: v })
-            else if (pct < -50 && diff > 100) res.push({ idx: i, type: 'spike-down', diff: v - prev, pct, value: v })
+            // Spike Up: > 100% change AND > 100ms diff AND > 25% above average
+            if (pct > 100 && diff > 100 && v > avg * 1.25) {
+              res.push({ idx: i, type: 'spike-up', diff: v - prev, pct, value: v })
+            }
+            // Spike Down: < -50% change AND > 100ms diff AND < 25% below average
+            else if (pct < -50 && diff > 100 && v < avg * 0.75) {
+              res.push({ idx: i, type: 'spike-down', diff: v - prev, pct, value: v })
+            }
           }
         }
       }
 
-      if (maxIdx !== -1) res.push({ idx: maxIdx, type: 'max', value: maxVal })
-      if (minIdx !== -1) res.push({ idx: minIdx, type: 'min', value: minVal })
+      // Only add Max/Min if they are significant relative to the average (25% threshold)
+      if (maxIdx !== -1 && maxVal > avg * 1.25) res.push({ idx: maxIdx, type: 'max', value: maxVal })
+      if (minIdx !== -1 && minVal < avg * 0.75) res.push({ idx: minIdx, type: 'min', value: minVal })
 
       // Strictly limit to 3 worst and 3 best points per region
       const badPoints = res.filter(r => r.type === 'max' || r.type === 'spike-up')
@@ -491,6 +502,11 @@ export function TtfbChart({
       if (series.length < 2) return
       const res: Array<{ idx: number, type: 'max' | 'min' | 'spike-up' | 'spike-down', diff?: number, pct?: number, value: number }> = []
 
+      // Calculate average for this series to use as relevance threshold
+      const validPoints = series.filter(s => s.value > 0)
+      if (validPoints.length === 0) return
+      const avg = validPoints.reduce((acc, curr) => acc + curr.value, 0) / validPoints.length
+
       let maxVal = -Infinity
       let maxIdx = -1
       let minVal = Infinity
@@ -507,15 +523,21 @@ export function TtfbChart({
           if (prev > 0) {
             const pct = ((v - prev) / prev) * 100
             const diff = Math.abs(v - prev)
-            // Stricter: 100% change AND at least 100ms difference
-            if (pct > 100 && diff > 100) res.push({ idx: i, type: 'spike-up', diff: v - prev, pct, value: v })
-            else if (pct < -50 && diff > 100) res.push({ idx: i, type: 'spike-down', diff: v - prev, pct, value: v })
+            // Spike Up: > 100% change AND > 100ms diff AND > 25% above average
+            if (pct > 100 && diff > 100 && v > avg * 1.25) {
+              res.push({ idx: i, type: 'spike-up', diff: v - prev, pct, value: v })
+            }
+            // Spike Down: < -50% change AND > 100ms diff AND < 25% below average
+            else if (pct < -50 && diff > 100 && v < avg * 0.75) {
+              res.push({ idx: i, type: 'spike-down', diff: v - prev, pct, value: v })
+            }
           }
         }
       }
 
-      if (maxIdx !== -1) res.push({ idx: maxIdx, type: 'max', value: maxVal })
-      if (minIdx !== -1) res.push({ idx: minIdx, type: 'min', value: minVal })
+      // Only add Max/Min if they are significant relative to the average (25% threshold)
+      if (maxIdx !== -1 && maxVal > avg * 1.25) res.push({ idx: maxIdx, type: 'max', value: maxVal })
+      if (minIdx !== -1 && minVal < avg * 0.75) res.push({ idx: minIdx, type: 'min', value: minVal })
 
       // Strictly limit to 3 worst and 3 best points per region
       const badPoints = res.filter(r => r.type === 'max' || r.type === 'spike-up')
@@ -569,12 +591,17 @@ export function TtfbChart({
       if (series.length < 2) return
       const res: Array<{ idx: number, type: 'max' | 'min' | 'spike-up' | 'spike-down', diff?: number, pct?: number, value: number }> = []
 
+      // Calculate average for this series to use as relevance threshold
+      const validPoints = series.filter(s => s.value != null && s.value >= 0)
+      if (validPoints.length === 0) return
+      const avg = validPoints.reduce((acc, curr) => acc + curr.value, 0) / validPoints.length
+
       let maxVal = -Infinity
       let maxIdx = -1
       let minVal = Infinity
       let minIdx = -1
 
-      const validValues = series.filter(s => s.value != null && s.value >= 0).map(s => s.value)
+      const validValues = validPoints.map(s => s.value)
       if (validValues.length < 2) return
       
       const vMax = Math.max(...validValues)
@@ -592,20 +619,21 @@ export function TtfbChart({
           const prev = series[i - 1].value
           if (prev != null && prev > 0) {
             const diff = v - prev
-            // Stricter for cache: 30 absolute percentage points
-            if (diff > 30) res.push({ idx: i, type: 'spike-up', diff, value: v })
-            else if (diff < -30) res.push({ idx: i, type: 'spike-down', diff, value: v })
+            // For cache: 30 absolute percentage points diff AND 25% deviation from average
+            if (diff > 30 && v > avg * 1.25) res.push({ idx: i, type: 'spike-up', diff, value: v })
+            else if (diff < -30 && v < avg * 0.75) res.push({ idx: i, type: 'spike-down', diff, value: v })
           }
         }
       }
 
-    if (maxIdx !== -1) res.push({ idx: maxIdx, type: 'max', value: maxVal })
-    if (minIdx !== -1) res.push({ idx: minIdx, type: 'min', value: minVal })
+      // Only add Max/Min if they are significant relative to the average (25% threshold)
+      if (maxIdx !== -1 && maxVal > avg * 1.25) res.push({ idx: maxIdx, type: 'max', value: maxVal })
+      if (minIdx !== -1 && minVal < avg * 0.75) res.push({ idx: minIdx, type: 'min', value: minVal })
 
-    // For Cache: lowest values are bad, highest are good
-    const badPoints = res.filter(r => r.type === 'min' || r.type === 'spike-down')
-      .sort((a, b) => a.value - b.value)
-      .slice(0, 3)
+      // For Cache: lowest values are bad, highest are good
+      const badPoints = res.filter(r => r.type === 'min' || r.type === 'spike-down')
+        .sort((a, b) => a.value - b.value)
+        .slice(0, 3)
     
     const goodPoints = res.filter(r => r.type === 'max' || r.type === 'spike-up')
       .sort((a, b) => b.value - a.value)
@@ -899,32 +927,53 @@ export function TtfbChart({
                 <div className="flex items-center justify-between gap-4 border-b border-white/5 pb-1 mb-1">
                   <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Region</span>
                   <div className="flex items-center gap-2">
+                    <span className="w-[85px] text-right text-[8px] font-black text-zinc-500 uppercase tracking-widest">NET</span>
+                    <span className="w-[42px] text-right text-[8px] font-black text-zinc-500 uppercase tracking-widest">AVG</span>
                     <span className="w-[42px] text-right text-[8px] font-black text-zinc-500 uppercase tracking-widest">DNS</span>
                     <span className="w-[42px] text-right text-[8px] font-black text-zinc-500 uppercase tracking-widest">TCP</span>
                     <span className="w-[42px] text-right text-[8px] font-black text-zinc-500 uppercase tracking-widest">TLS</span>
-                    <span className="w-[42px] text-right text-[8px] font-black text-zinc-500 uppercase tracking-widest">NET</span>
                     <span className="w-[42px] text-right text-[8px] font-black text-zinc-500 uppercase tracking-widest">TTFB</span>
                   </div>
                 </div>
 
                 {/* Global Row */}
-                {((hoveredChart === 'network' && showGlobalNet) || (hoveredChart === 'ttfb' && showGlobalTtfb) || (hoveredChart === 'cache' && showGlobalCache)) && (
-                  <div
-                    className={`flex items-center justify-between gap-4 px-1 py-1 rounded-md transition-all duration-300 ${currentActiveRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : 'border border-transparent'}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className={`w-1.5 h-1.5 rounded-full transition-transform ${currentActiveRegion === 'global' ? 'scale-125 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.4)]' : 'bg-cyan-400/40'}`} />
-                      <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${currentActiveRegion === 'global' ? 'text-cyan-300' : 'text-zinc-300'}`}>GLOBAL</span>
+                {((hoveredChart === 'network' && showGlobalNet) || (hoveredChart === 'ttfb' && showGlobalTtfb) || (hoveredChart === 'cache' && showGlobalCache)) && (() => {
+                  const insights = netInsights.get('global')
+                  const pointInsight = insights?.find(ins => ins.idx === currentHoveredIdx)
+                  const isBad = pointInsight?.type === 'max' || pointInsight?.type === 'spike-up'
+                  const baselineValue = timeframeAvg
+                  const relDiff = pointInsight ? pointInsight.value - baselineValue : 0
+                  const relPct = baselineValue > 0 ? (relDiff / baselineValue) * 100 : 0
+
+                  return (
+                    <div
+                      className={`flex items-center justify-between gap-4 px-1 py-1 rounded-md transition-all duration-300 ${currentActiveRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : 'border border-transparent'}`}
+                    >
+                      <div className="flex items-center gap-2 min-w-[70px]">
+                        <div className={`w-1.5 h-1.5 rounded-full transition-transform ${currentActiveRegion === 'global' ? 'scale-125 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.4)]' : 'bg-cyan-400/40'}`} />
+                        <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${currentActiveRegion === 'global' ? 'text-cyan-300' : 'text-zinc-300'}`}>GLOBAL</span>
+                      </div>
+                      <div className="flex items-center gap-2 tabular-nums">
+                        <div className="w-[85px] flex items-center justify-end gap-1.5">
+                          {pointInsight && (
+                            <div className={`flex items-center gap-1 px-1 py-0.5 rounded-md border text-[8px] font-black animate-in fade-in zoom-in-95 duration-300 ${isBad ? 'bg-red-500/15 border-red-500/20 text-red-400' : 'bg-emerald-500/15 border-emerald-500/20 text-emerald-400'}`}>
+                              {isBad ? <AlertTriangle size={9} className="shrink-0" /> : <TrendingDown size={9} className="shrink-0" />}
+                              <span>{relPct > 0 ? '+' : ''}{Math.round(relPct)}%</span>
+                            </div>
+                          )}
+                          <span className="text-[10px] font-black text-cyan-300">{Math.round(globalDns[currentHoveredIdx].value + globalTcp[currentHoveredIdx].value + globalTls[currentHoveredIdx].value)}ms</span>
+                        </div>
+
+                        <span className="w-[42px] text-right text-[9px] font-medium text-zinc-500 tabular-nums">{Math.round(timeframeAvg)}ms</span>
+                        <span className={`w-[42px] text-right text-[10px] font-black ${TIMING.dns.text}`}>{Math.round(globalDns[currentHoveredIdx].value)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
+                        <span className={`w-[42px] text-right text-[10px] font-black ${TIMING.tcp.text}`}>{Math.round(globalTcp[currentHoveredIdx].value)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
+                        <span className={`w-[42px] text-right text-[10px] font-black ${TIMING.tls.text}`}>{Math.round(globalTls[currentHoveredIdx].value)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
+                        
+                        <span className={`w-[42px] text-right text-[10px] font-black ${getTtfbColorClass(globalTtfb[currentHoveredIdx].value, 'global')}`}>{Math.round(globalTtfb[currentHoveredIdx].value)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 tabular-nums">
-                      <span className={`w-[42px] text-right text-[10px] font-black ${TIMING.dns.text}`}>{Math.round(globalDns[currentHoveredIdx].value)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
-                      <span className={`w-[42px] text-right text-[10px] font-black ${TIMING.tcp.text}`}>{Math.round(globalTcp[currentHoveredIdx].value)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
-                      <span className={`w-[42px] text-right text-[10px] font-black ${TIMING.tls.text}`}>{Math.round(globalTls[currentHoveredIdx].value)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
-                      <span className="w-[42px] text-right text-[10px] font-black text-cyan-300">{Math.round(globalDns[currentHoveredIdx].value + globalTcp[currentHoveredIdx].value + globalTls[currentHoveredIdx].value)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
-                      <span className={`w-[42px] text-right text-[10px] font-black ${getTtfbColorClass(globalTtfb[currentHoveredIdx].value, 'global')}`}>{Math.round(globalTtfb[currentHoveredIdx].value)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
-                    </div>
-                  </div>
-                )}
+                  )
+                })()}
 
                 {regions.map(region => {
                   if (!selectedNetRegions.has(region)) return null
@@ -932,6 +981,14 @@ export function TtfbChart({
                   if (!p) return null
                   const isHovered = currentActiveRegion === region
                   const netValue = (p.dns_avg ?? 0) + (p.tcp_avg ?? 0) + (p.tls_avg ?? 0)
+                  
+                  const insights = netInsights.get(region)
+                  const pointInsight = insights?.find(ins => ins.idx === currentHoveredIdx)
+                  const isBad = pointInsight?.type === 'max' || pointInsight?.type === 'spike-up'
+                  const baselineValue = regionNetAvgs.get(region) || timeframeAvg
+                  const relDiff = pointInsight ? pointInsight.value - baselineValue : 0
+                  const relPct = baselineValue > 0 ? (relDiff / baselineValue) * 100 : 0
+
                   return (
                     <div
                       key={region}
@@ -944,56 +1001,34 @@ export function TtfbChart({
                         border: '1px solid transparent'
                       }}
                     >
-                      <div className="flex items-center gap-2 overflow-hidden">
+                      <div className="flex items-center gap-2 min-w-[70px] overflow-hidden">
                         <div className={`w-1 h-1 rounded-full shrink-0 transition-transform ${isHovered ? 'scale-125' : ''}`} style={{ backgroundColor: regionMeta[region]?.color ?? '#6b7280' }} />
                         <span className={`text-[9px] font-bold capitalize truncate transition-colors ${isHovered ? 'text-white' : 'text-zinc-300'}`}>
                           {regionMeta[region]?.label ?? region}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 tabular-nums">
+                        <div className="w-[85px] flex items-center justify-end gap-1.5">
+                          {pointInsight && (
+                            <div className={`flex items-center gap-1 px-1 py-0.5 rounded-md border text-[8px] font-black animate-in fade-in zoom-in-95 duration-300 ${isBad ? 'bg-red-500/15 border-red-500/20 text-red-400' : 'bg-emerald-500/15 border-emerald-500/20 text-emerald-400'}`}>
+                              {isBad ? <AlertTriangle size={9} className="shrink-0" /> : <TrendingDown size={9} className="shrink-0" />}
+                              <span>{relPct > 0 ? '+' : ''}{Math.round(relPct)}%</span>
+                            </div>
+                          )}
+                          <span className="text-[10px] font-black text-cyan-300">{Math.round(netValue)}ms</span>
+                        </div>
+
+                        <span className="w-[42px] text-right text-[9px] font-medium text-zinc-500 tabular-nums">{Math.round(baselineValue)}ms</span>
                         <span className={`w-[42px] text-right text-[10px] font-black ${TIMING.dns.text}`}>{Math.round(p.dns_avg ?? 0)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
                         <span className={`w-[42px] text-right text-[10px] font-black ${TIMING.tcp.text}`}>{Math.round(p.tcp_avg ?? 0)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
                         <span className={`w-[42px] text-right text-[10px] font-black ${TIMING.tls.text}`}>{Math.round(p.tls_avg ?? 0)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
-                        <span className="w-[42px] text-right text-[10px] font-black text-cyan-300">{Math.round(netValue)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
+                        
                         <span className={`w-[42px] text-right text-[10px] font-black ${getTtfbColorClass(p.ttfb_avg, 'monitor')}`}>{Math.round(p.ttfb_avg)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
                       </div>
                     </div>
                   )
                 })}
               </div>
-
-              {(() => {
-                const targetRegion = currentActiveRegion || 'global'
-                const insights = netInsights.get(targetRegion)
-                const pointInsight = insights?.find(ins => ins.idx === currentHoveredIdx)
-                if (!pointInsight) return null
-                const isBad = pointInsight.type === 'max' || pointInsight.type === 'spike-up'
-                const label = pointInsight.type === 'max' ? 'Peak Latency' : pointInsight.type === 'min' ? 'Best Performance' : pointInsight.type === 'spike-up' ? 'Performance Drop' : 'Performance Boost'
-                const description = pointInsight.type === 'max' ? "Slowest response in this period." : pointInsight.type === 'min' ? "Fastest response in this period." : pointInsight.type === 'spike-up' ? "Latency is higher in this period." : "Latency is lower in this period."
-                const baselineValue = targetRegion === 'global' ? timeframeAvg : (regionNetAvgs.get(targetRegion) || timeframeAvg)
-                const baselineLabel = targetRegion === 'global' ? 'global average' : 'regional average'
-                const relDiff = pointInsight.value - baselineValue
-                const relPct = baselineValue > 0 ? (relDiff / baselineValue) * 100 : 0
-                return (
-                  <div className={`mt-2 px-2 py-1.5 rounded-lg border animate-in fade-in slide-in-from-top-1 duration-300 ${isBad ? 'bg-red-500/10 border-red-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
-                    <div className="flex items-center justify-between gap-4">
-                      <div className={`flex items-center gap-1.5 font-black text-[10px] uppercase tracking-wider ${isBad ? 'text-red-400' : 'text-emerald-400'}`}>
-                        {isBad ? <AlertTriangle size={11} className="animate-pulse" /> : <TrendingDown size={11} />}
-                        {label}
-                      </div>
-                      <span className={`text-[11px] font-black tabular-nums ${isBad ? 'text-red-400' : 'text-emerald-400'}`}>
-                        {Math.round(pointInsight.value)}ms
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-4 mt-1 text-[10px] font-medium">
-                      <span className="text-zinc-400 italic shrink truncate mr-2">{description}</span>
-                      <span className={`font-bold tabular-nums shrink-0 ${relDiff > 0 ? 'text-red-400/90' : 'text-emerald-400/90'}`}>
-                        {relDiff > 0 ? '+' : ''}{Math.round(relPct)}% vs {baselineLabel}
-                      </span>
-                    </div>
-                  </div>
-                )
-              })()}
             </>
           ) : (
             <>
@@ -1001,42 +1036,111 @@ export function TtfbChart({
                 <div className="flex items-center justify-between gap-6 border-b border-white/5 pb-1 mb-1">
                   <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Region</span>
                   <div className="flex items-center gap-3">
-                    <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">TTFB</span>
-                    <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">P95</span>
-                    <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">Cache</span>
+                    {hoveredChart === 'ttfb' ? (
+                      <>
+                        <span className="w-[95px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">TTFB</span>
+                        <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">AVG</span>
+                        <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">P95</span>
+                        <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">Cache</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="w-[95px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">Cache</span>
+                        <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">AVG</span>
+                        <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">TTFB</span>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 {/* Global Row */}
-                {((hoveredChart === 'ttfb' && showGlobalTtfb) || (hoveredChart === 'cache' && showGlobalCache)) && (
-                  <div
-                    className={`flex items-center justify-between gap-6 px-1 py-1 rounded-md transition-all duration-300 ${currentActiveRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : 'border border-transparent'}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className={`w-1.5 h-1.5 rounded-full transition-transform ${currentActiveRegion === 'global' ? 'scale-125 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.4)]' : 'bg-cyan-400/40'}`} />
-                      <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${currentActiveRegion === 'global' ? 'text-cyan-300' : 'text-zinc-300'}`}>GLOBAL</span>
-                    </div>
-                    <div className="flex items-center gap-3 tabular-nums">
-                      <span className={`w-[42px] text-right text-[11px] font-black transition-colors ${getTtfbColorClass(globalTtfb[currentHoveredIdx].value, 'global')}`}>{Math.round(globalTtfb[currentHoveredIdx].value)}ms</span>
-                      <span className={`w-[42px] text-right text-[9px] font-medium text-zinc-500`}>—</span>
-                      <div className="w-[42px] flex justify-end">
-                        {hoveredGlobalCache != null ? (
-                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md transition-all ${getCacheColor(hoveredGlobalCache, 'global').replace('text-', 'bg-').replace('-400', '-500')}/10 ${getCacheColor(hoveredGlobalCache, 'global')}`}>
-                            {Math.round(hoveredGlobalCache)}%
-                          </span>
+                {((hoveredChart === 'ttfb' && showGlobalTtfb) || (hoveredChart === 'cache' && showGlobalCache)) && (() => {
+                  const insights = hoveredChart === 'ttfb' ? ttfbInsights.get('global') : cacheInsights.get('global')
+                  const pointInsight = insights?.find(ins => ins.idx === currentHoveredIdx)
+                  const isBad = hoveredChart === 'ttfb' 
+                    ? (pointInsight?.type === 'max' || pointInsight?.type === 'spike-up')
+                    : (pointInsight?.type === 'min' || pointInsight?.type === 'spike-down')
+                  
+                  const baselineValue = hoveredChart === 'ttfb' ? ttfbTimeframeAvg : cacheTimeframeAvg
+                  const relDiff = pointInsight ? pointInsight.value - baselineValue : 0
+                  const relPct = baselineValue > 0 ? (relDiff / baselineValue) * 100 : 0
+                  
+                  return (
+                    <div
+                      className={`flex items-center justify-between gap-6 px-1 py-1 rounded-md transition-all duration-300 ${currentActiveRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : 'border border-transparent'}`}
+                    >
+                      <div className="flex items-center gap-2 min-w-[70px]">
+                        <div className={`w-1.5 h-1.5 rounded-full transition-transform ${currentActiveRegion === 'global' ? 'scale-125 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.4)]' : 'bg-cyan-400/40'}`} />
+                        <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${currentActiveRegion === 'global' ? 'text-cyan-300' : 'text-zinc-300'}`}>GLOBAL</span>
+                      </div>
+                      <div className="flex items-center gap-3 tabular-nums">
+                        {hoveredChart === 'ttfb' ? (
+                          <>
+                            <div className="w-[95px] flex items-center justify-end gap-2">
+                              {pointInsight && (
+                                <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-black animate-in fade-in zoom-in-95 duration-300 ${isBad ? 'bg-red-500/15 border-red-500/20 text-red-400' : 'bg-emerald-500/15 border-emerald-500/20 text-emerald-400'}`}>
+                                  {isBad ? <AlertTriangle size={10} className="shrink-0" /> : <TrendingDown size={10} className="shrink-0" />}
+                                  <span>{relPct > 0 ? '+' : ''}{Math.round(relPct)}%</span>
+                                </div>
+                              )}
+                              <span className={`text-[11px] font-black transition-colors ${getTtfbColorClass(globalTtfb[currentHoveredIdx].value, 'global')}`}>{Math.round(globalTtfb[currentHoveredIdx].value)}ms</span>
+                            </div>
+                            <span className="w-[42px] text-right text-[9px] font-medium text-zinc-500 tabular-nums">{Math.round(ttfbTimeframeAvg)}ms</span>
+                            <span className={`w-[42px] text-right text-[9px] font-medium text-zinc-500`}>—</span>
+                            <div className="w-[42px] flex justify-end">
+                              {hoveredGlobalCache != null ? (
+                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md transition-all ${getCacheColor(hoveredGlobalCache, 'global').replace('text-', 'bg-').replace('-400', '-500')}/10 ${getCacheColor(hoveredGlobalCache, 'global')}`}>
+                                  {Math.round(hoveredGlobalCache)}%
+                                </span>
+                              ) : (
+                                <span className="text-[9px] text-zinc-500">—</span>
+                              )}
+                            </div>
+                          </>
                         ) : (
-                          <span className="text-[9px] text-zinc-500">—</span>
+                          <>
+                            <div className="w-[95px] flex items-center justify-end gap-2">
+                              {pointInsight && (
+                                <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-black animate-in fade-in zoom-in-95 duration-300 ${isBad ? 'bg-red-500/15 border-red-500/20 text-red-400' : 'bg-emerald-500/15 border-emerald-500/20 text-emerald-400'}`}>
+                                  {isBad ? <AlertTriangle size={10} className="shrink-0" /> : <TrendingUp size={10} className="shrink-0" />}
+                                  <span>{relPct > 0 ? '+' : ''}{Math.round(relPct)}%</span>
+                                </div>
+                              )}
+                              {hoveredGlobalCache != null ? (
+                                <span className={`text-[11px] font-black transition-all ${getCacheColor(hoveredGlobalCache, 'global')}`}>
+                                  {Math.round(hoveredGlobalCache)}%
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-zinc-500">—</span>
+                              )}
+                            </div>
+                            <span className="w-[42px] text-right text-[9px] font-medium text-zinc-500 tabular-nums">{Math.round(cacheTimeframeAvg)}%</span>
+                            <span className={`w-[42px] text-right text-[10px] font-black ${getTtfbColorClass(globalTtfb[currentHoveredIdx].value, 'global')}`}>{Math.round(globalTtfb[currentHoveredIdx].value)}ms</span>
+                          </>
                         )}
                       </div>
                     </div>
-                  </div>
-                )}
+                  )
+                })()}
                 {regions.map(region => {
                   const isVisible = hoveredChart === 'ttfb' ? selectedTtfbRegions.has(region) : selectedCacheRegions.has(region)
                   if (!isVisible) return null
                   const p = byRegion[region]?.get(allBuckets[currentHoveredIdx])
                   if (!p) return null
                   const isHovered = currentActiveRegion === region
+                  
+                  const insights = hoveredChart === 'ttfb' ? ttfbInsights.get(region) : cacheInsights.get(region)
+                  const pointInsight = insights?.find(ins => ins.idx === currentHoveredIdx)
+                  const isBad = hoveredChart === 'ttfb' 
+                    ? (pointInsight?.type === 'max' || pointInsight?.type === 'spike-up')
+                    : (pointInsight?.type === 'min' || pointInsight?.type === 'spike-down')
+
+                  const baselineValue = hoveredChart === 'ttfb' 
+                    ? (regionTtfbAvgs.get(region) || ttfbTimeframeAvg)
+                    : (regionCacheAvgs.get(region) || cacheTimeframeAvg)
+                  const relDiff = pointInsight ? pointInsight.value - baselineValue : 0
+                  const relPct = baselineValue > 0 ? (relDiff / baselineValue) * 100 : 0
+
                   return (
                     <div
                       key={region}
@@ -1049,94 +1153,64 @@ export function TtfbChart({
                         border: '1px solid transparent'
                       }}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-[70px] overflow-hidden">
                         <div className={`w-1.5 h-1.5 rounded-full transition-transform ${isHovered ? 'scale-125' : ''}`} style={{ backgroundColor: regionMeta[region]?.color ?? '#6b7280' }} />
                         <span className={`text-[10px] font-bold capitalize whitespace-nowrap transition-colors ${isHovered ? 'text-white' : 'text-zinc-300'}`}>
                           {regionMeta[region]?.label ?? region}
                         </span>
                       </div>
                       <div className="flex items-center gap-3 tabular-nums">
-                        <span className={`w-[42px] text-right text-[11px] font-black transition-colors ${getTtfbColorClass(p.ttfb_avg, 'monitor')}`}>{Math.round(p.ttfb_avg)}ms</span>
-                        <span className={`w-[42px] text-right text-[9px] font-medium transition-colors ${isHovered ? 'text-zinc-200' : 'text-zinc-400'}`}>
-                          {p.ttfb_p95 != null ? `${p.ttfb_p95}ms` : '—'}
-                        </span>
-                        <div className="w-[42px] flex justify-end">
-                          {p.cache_hit_pct != null ? (
-                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md transition-all ${getCacheColor(p.cache_hit_pct, 'monitor').replace('text-', 'bg-').replace('-400', '-500')}/10 ${getCacheColor(p.cache_hit_pct, 'monitor')}`}>
-                              {Math.round(p.cache_hit_pct)}%
+                        {hoveredChart === 'ttfb' ? (
+                          <>
+                            <div className="w-[95px] flex items-center justify-end gap-2">
+                              {pointInsight && (
+                                <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-black animate-in fade-in zoom-in-95 duration-300 ${isBad ? 'bg-red-500/15 border-red-500/20 text-red-400' : 'bg-emerald-500/15 border-emerald-500/20 text-emerald-400'}`}>
+                                  {isBad ? <AlertTriangle size={10} className="shrink-0" /> : <TrendingDown size={10} className="shrink-0" />}
+                                  <span>{relPct > 0 ? '+' : ''}{Math.round(relPct)}%</span>
+                                </div>
+                              )}
+                              <span className={`text-[11px] font-black transition-colors ${getTtfbColorClass(p.ttfb_avg, 'monitor')}`}>{Math.round(p.ttfb_avg)}ms</span>
+                            </div>
+                            <span className="w-[42px] text-right text-[9px] font-medium text-zinc-500 tabular-nums">{Math.round(baselineValue)}ms</span>
+                            <span className={`w-[42px] text-right text-[9px] font-medium transition-colors ${isHovered ? 'text-zinc-200' : 'text-zinc-400'}`}>
+                              {p.ttfb_p95 != null ? `${p.ttfb_p95}ms` : '—'}
                             </span>
-                          ) : (
-                            <span className="text-[9px] text-zinc-500">—</span>
-                          )}
-                        </div>
+                            <div className="w-[42px] flex justify-end">
+                              {p.cache_hit_pct != null ? (
+                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md transition-all ${getCacheColor(p.cache_hit_pct, 'monitor').replace('text-', 'bg-').replace('-400', '-500')}/10 ${getCacheColor(p.cache_hit_pct, 'monitor')}`}>
+                                  {Math.round(p.cache_hit_pct)}%
+                                </span>
+                              ) : (
+                                <span className="text-[9px] text-zinc-500">—</span>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="w-[95px] flex items-center justify-end gap-2">
+                              {pointInsight && (
+                                <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[9px] font-black animate-in fade-in zoom-in-95 duration-300 ${isBad ? 'bg-red-500/15 border-red-500/20 text-red-400' : 'bg-emerald-500/15 border-emerald-500/20 text-emerald-400'}`}>
+                                  {isBad ? <AlertTriangle size={10} className="shrink-0" /> : <TrendingUp size={10} className="shrink-0" />}
+                                  <span>{relPct > 0 ? '+' : ''}{Math.round(relPct)}%</span>
+                                </div>
+                              )}
+                              {p.cache_hit_pct != null ? (
+                                <span className={`text-[11px] font-black transition-all ${getCacheColor(p.cache_hit_pct, 'monitor')}`}>
+                                  {Math.round(p.cache_hit_pct)}%
+                                </span>
+                              ) : (
+                                <span className="text-[11px] text-zinc-500">—</span>
+                              )}
+                            </div>
+                            <span className="w-[42px] text-right text-[9px] font-medium text-zinc-500 tabular-nums">{Math.round(baselineValue)}%</span>
+                            <span className={`w-[42px] text-right text-[10px] font-black ${getTtfbColorClass(p.ttfb_avg, 'monitor')}`}>{Math.round(p.ttfb_avg)}ms</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   )
                 })}
               </div>
-              {hoveredChart === 'ttfb' && (() => {
-                const targetRegion = currentActiveRegion || 'global'
-                const insights = ttfbInsights.get(targetRegion)
-                const pointInsight = insights?.find(ins => ins.idx === currentHoveredIdx)
-                if (!pointInsight) return null
-                const isBad = pointInsight.type === 'max' || pointInsight.type === 'spike-up'
-                const label = pointInsight.type === 'max' ? 'Peak TTFB' : pointInsight.type === 'min' ? 'Best TTFB' : pointInsight.type === 'spike-up' ? 'Performance Drop' : 'Performance Boost'
-                const description = pointInsight.type === 'max' ? "Highest latency in this period." : pointInsight.type === 'min' ? "Lowest latency in this period." : pointInsight.type === 'spike-up' ? "Performance drop in this period." : "Performance boost in this period."
-                const baselineValue = targetRegion === 'global' ? ttfbTimeframeAvg : (regionTtfbAvgs.get(targetRegion) || ttfbTimeframeAvg)
-                const baselineLabel = targetRegion === 'global' ? 'global average' : 'regional average'
-                const relDiff = pointInsight.value - baselineValue
-                const relPct = baselineValue > 0 ? (relDiff / baselineValue) * 100 : 0
-                return (
-                  <div className={`mt-3 px-2 py-1.5 rounded-lg border animate-in fade-in slide-in-from-top-1 duration-300 ${isBad ? 'bg-red-500/10 border-red-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
-                    <div className="flex items-center justify-between gap-4">
-                      <div className={`flex items-center gap-1.5 font-black text-[10px] uppercase tracking-wider ${isBad ? 'text-red-400' : 'text-emerald-400'}`}>
-                        {isBad ? <AlertTriangle size={11} className="animate-pulse" /> : <TrendingDown size={11} />}
-                        {label}
-                      </div>
-                      <span className={`text-[11px] font-black tabular-nums ${isBad ? 'text-red-400' : 'text-emerald-400'}`}>
-                        {Math.round(pointInsight.value)}ms
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-4 mt-1 text-[10px] font-medium">
-                      <span className="text-zinc-400 italic shrink truncate mr-2">{description}</span>
-                      <span className={`font-bold tabular-nums shrink-0 ${relDiff > 0 ? 'text-red-400/90' : 'text-emerald-400/90'}`}>
-                        {relDiff > 0 ? '+' : ''}{Math.round(relPct)}% vs {baselineLabel}
-                      </span>
-                    </div>
-                  </div>
-                )
-              })()}
-              {hoveredChart === 'cache' && (() => {
-                const targetRegion = currentActiveRegion || 'global'
-                const insights = cacheInsights.get(targetRegion)
-                const pointInsight = insights?.find(ins => ins.idx === currentHoveredIdx)
-                if (!pointInsight) return null
-                const isBad = pointInsight.type === 'min' || pointInsight.type === 'spike-down'
-                const label = pointInsight.type === 'max' ? 'Peak Efficiency' : pointInsight.type === 'min' ? 'Cache Drop' : pointInsight.type === 'spike-up' ? 'Cache Boost' : 'Cache Drop'
-                const description = pointInsight.type === 'max' ? "Best hit rate in this period." : pointInsight.type === 'min' ? "Lowest hit rate in this period." : pointInsight.type === 'spike-up' ? "Efficiency is higher in this period." : "Efficiency is lower in this period."
-                const baselineValue = targetRegion === 'global' ? cacheTimeframeAvg : (regionCacheAvgs.get(targetRegion) || cacheTimeframeAvg)
-                const baselineLabel = targetRegion === 'global' ? 'global average' : 'regional average'
-                const relDiff = pointInsight.value - baselineValue
-                return (
-                  <div className={`mt-3 px-2 py-1.5 rounded-lg border animate-in fade-in slide-in-from-top-1 duration-300 ${isBad ? 'bg-red-500/10 border-red-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
-                    <div className="flex items-center justify-between gap-4">
-                      <div className={`flex items-center gap-1.5 font-black text-[10px] uppercase tracking-wider ${isBad ? 'text-red-400' : 'text-emerald-400'}`}>
-                        {isBad ? <AlertTriangle size={11} className="animate-pulse" /> : <TrendingDown size={11} />}
-                        {label}
-                      </div>
-                      <span className={`text-[11px] font-black tabular-nums ${isBad ? 'text-red-400' : 'text-emerald-400'}`}>
-                        {Math.round(pointInsight.value)}%
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-4 mt-1 text-[10px] font-medium">
-                      <span className="text-zinc-400 italic shrink truncate mr-2">{description}</span>
-                      <span className={`font-bold tabular-nums shrink-0 ${relDiff > 0 ? 'text-emerald-400/90' : 'text-red-400/90'}`}>
-                        {relDiff > 0 ? '+' : ''}{Math.round(relDiff)}% vs {baselineLabel}
-                      </span>
-                    </div>
-                  </div>
-                )
-              })()}
             </>
           )}
         </div>
@@ -1611,7 +1685,7 @@ export function TtfbChart({
                   </div>
                   <div className="h-3 w-px bg-white/10" />
                   <div className="flex items-center gap-1">
-                    {(['dns', 'tcp', 'tls', 'net'] as const).map(m => (
+                    {(['net', 'dns', 'tcp', 'tls'] as const).map(m => (
                       <PremiumTooltip
                         key={m}
                         content={
@@ -1703,7 +1777,7 @@ export function TtfbChart({
                     <path
                       d={globalNet.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toYNet(p.value)}`).join(' ')}
                       fill="none"
-                      stroke={networkMetric === 'dns' ? TIMING.dns.stroke : networkMetric === 'tcp' ? TIMING.tcp.stroke : networkMetric === 'tls' ? TIMING.tls.stroke : '#22d3ee'}
+                      stroke="#22d3ee"
                       strokeWidth={activeNetRegion === 'global' ? 4 : 2}
                       strokeLinejoin="round"
                       strokeLinecap="round"
