@@ -1817,20 +1817,28 @@ export default async function MonitorDetailPage({
                   {spikes.length > 0 && (
                     <section className="space-y-4">
                       <ViewSectionHeader title={`Recent performance spikes — ${range === '7d' ? 'last 7 days' : range === '30d' ? 'last 30 days' : range === '90d' ? 'last 90 days' : 'last 24h'}`} />
-                      <div className="rounded-2xl border border-zinc-200 dark:border-white/5 bg-white/[0.02] divide-y divide-zinc-100 dark:divide-white/5 overflow-hidden">
+                      <div className="rounded-2xl border border-border bg-surface divide-y divide-white/[0.03] overflow-hidden">
                         {spikes.map((spike, index) => (
-                          <div key={index} className="flex items-center justify-between px-4 py-2.5 gap-4">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <span className="shrink-0 text-xs font-mono text-zinc-400 w-[38px]">
-                                {new Date(spike.bucket).toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
-                              </span>
-                              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300 truncate">
-                                {regionLabels[spike.region] ?? spike.region}
-                              </span>
+                          <div key={index} className="flex items-center justify-between py-5 px-4 hover:bg-white/[0.03] transition-all group/spike">
+                            <div className="flex items-center gap-4">
+                              <div className="flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
+                                <span className="text-[9px] font-bold text-zinc-400 tabular-nums uppercase tracking-widest">
+                                  {new Date(spike.bucket).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-black text-zinc-300 uppercase tracking-widest group-hover/spike:text-white transition-colors">{regionLabels[spike.region] ?? spike.region}</span>
                             </div>
-                            <div className="flex items-center gap-3 shrink-0 tabular-nums text-xs">
-                              <span className="text-zinc-400">{spike.prev_avg}ms to {spike.ttfb_avg}ms</span>
-                              <span className="font-semibold text-amber-500">+{spike.spike_ms}ms</span>
+
+                            <div className="flex items-center gap-5 tabular-nums">
+                              <div className="text-[10px] font-medium flex items-center gap-1.5">
+                                <span className="text-zinc-400 line-through decoration-zinc-700/30">{spike.prev_avg}ms</span>
+                                <span className="text-zinc-500/30">→</span>
+                                <span className="font-bold text-red-400">{spike.ttfb_avg}ms</span>
+                              </div>
+                              <div className="px-2 py-0.5 rounded text-[9px] font-black min-w-[65px] text-center bg-red-500/10 text-red-400 ring-1 ring-red-500/20 shadow-[0_0_12px_rgba(239,68,68,0.1)]">
+                                +{spike.spike_ms}ms
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -1843,38 +1851,84 @@ export default async function MonitorDetailPage({
                     <section className="space-y-4">
                       <ViewSectionHeader title="Week-over-week performance trend" />
                       <div className="rounded-2xl border border-border bg-surface p-4 shadow-sm space-y-4">
-                        {(() => {
-                          const maxMs = Math.max(...weekTrend.flatMap(t => [t.current_avg_ms, t.previous_avg_ms]), 1)
-                          return weekTrend.map(t => {
-                            const barColor = t.current_avg_ms < 200
-                              ? 'var(--metric-fast, #22FF88)'
-                              : t.current_avg_ms <= 500
-                                ? 'var(--metric-med, #f59e0b)'
-                                : 'var(--metric-slow, #f43f5e)'
-                            const improved = t.change_pct < 0
-                            return (
-                              <div key={t.region} className="space-y-1.5">
-                                <div className="flex items-center justify-between gap-3">
-                                  <span className="text-[11px] font-medium text-zinc-400 min-w-[110px]">{regionLabels[t.region] ?? t.region}</span>
-                                  <div className="flex items-center gap-2 tabular-nums">
-                                    <span className="text-[11px] text-zinc-500">{t.previous_avg_ms}ms → {t.current_avg_ms}ms</span>
-                                    <span className={`text-[11px] font-bold ${improved ? 'text-emerald-400' : Math.abs(t.change_pct) > 10 ? 'text-red-400' : 'text-amber-400'}`}>
-                                      {improved ? '▼' : '▲'} {Math.abs(t.change_pct)}%
-                                    </span>
+                        <div className="flex items-center gap-4 mb-4 px-1">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full bg-zinc-400" />
+                            <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Current Week</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-0.5 h-3 bg-white/30" />
+                            <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Previous Week (Avg)</span>
+                          </div>
+                        </div>
+                        <div className="space-y-5">
+                          {(() => {
+                            const maxMs = Math.max(...weekTrend.flatMap(t => [t.current_avg_ms, t.previous_avg_ms]), 1)
+                            return weekTrend.map(t => {
+                              const improved = t.change_pct < -0.5
+                              const worsened = t.change_pct > 0.5
+
+                              const barColor = improved
+                                ? '#10b981' // Emerald-500
+                                : worsened
+                                  ? '#f43f5e' // Rose-500
+                                  : '#f59e0b' // Amber-500 (Stable)
+
+                              const currentWidth = (t.current_avg_ms / maxMs) * 100
+                              const previousWidth = (t.previous_avg_ms / maxMs) * 100
+
+                              return (
+                                <div key={t.region} className="space-y-1.5 py-1.2 border-b border-white/[0.03] last:border-0 group/row">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-[10px] font-black text-zinc-300 min-w-[110px] uppercase tracking-widest transition-colors group-hover/row:text-white">{regionLabels[t.region] ?? t.region}</span>
+                                    <div className="flex items-center gap-6 tabular-nums">
+                                      <div className="text-[10px] font-medium flex items-center gap-2">
+                                        <span className="text-zinc-400 line-through decoration-zinc-600/30">{t.previous_avg_ms}ms</span>
+                                        <span className="text-zinc-500/30">→</span>
+                                        <span className="text-zinc-200 font-bold text-[10px]">{t.current_avg_ms}ms</span>
+                                      </div>
+                                      <div className={`px-2 py-0.5 rounded-md text-[9px] font-black transition-all duration-300 min-w-[50px] text-center ${improved ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]' : worsened ? 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20 shadow-[0_0_10px_rgba(244,63,94,0.1)]' : 'bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20'}`}>
+                                        {improved ? '▼' : worsened ? '▲' : '•'} {Math.abs(t.change_pct)}%
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="relative h-2.5 w-full bg-white/[0.02] rounded-full overflow-hidden group/bar ring-1 ring-white/[0.05]">
+                                    {/* Previous Week Shadow Trail */}
+                                    <div
+                                      className="absolute inset-y-0 left-0 bg-white/[0.04] transition-all duration-700"
+                                      style={{ width: `${previousWidth}%` }}
+                                    />
+
+                                    {/* Improvement "Gain Zone" Highlight */}
+                                    {improved && (
+                                      <div
+                                        className="absolute inset-y-0 bg-emerald-500/5 border-l border-emerald-500/10 transition-all duration-700"
+                                        style={{ left: `${currentWidth}%`, width: `${previousWidth - currentWidth}%` }}
+                                      />
+                                    )}
+
+                                    {/* Current Week Bar */}
+                                    <div
+                                      className="absolute inset-y-0 left-0 rounded-full transition-all duration-700 z-10"
+                                      style={{
+                                        width: `${currentWidth}%`,
+                                        backgroundColor: barColor,
+                                        boxShadow: `4px 0 10px ${barColor}40`
+                                      }}
+                                    />
+
+                                    {/* Previous Week Needle (Marker) */}
+                                    <div
+                                      className="absolute inset-y-0 w-[1.5px] bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] z-20 transition-all duration-700"
+                                      style={{ left: `${previousWidth}%` }}
+                                    />
                                   </div>
                                 </div>
-                                <div className="space-y-0.5">
-                                  <div className="relative h-2 rounded-full bg-white/5 overflow-hidden">
-                                    <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${(t.current_avg_ms / maxMs) * 100}%`, backgroundColor: barColor }} />
-                                  </div>
-                                  <div className="relative h-1 rounded-full bg-white/5 overflow-hidden">
-                                    <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${(t.previous_avg_ms / maxMs) * 100}%`, backgroundColor: barColor, opacity: 0.35 }} />
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })
-                        })()}
+                              )
+                            })
+                          })()}
+                        </div>
                       </div>
                       <p className="mt-1.5 text-xs text-zinc-400 italic">Comparing last 7 days vs the prior 7 days.</p>
                     </section>
