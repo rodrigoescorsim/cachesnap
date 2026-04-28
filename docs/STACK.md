@@ -296,7 +296,7 @@ Response 200:
 ```
 
 ### `POST /api/ingest`
-Recebe o resultado de um probe executado por um Cloudflare Worker.
+Recebe o resultado de um probe executado por uma AWS Lambda.
 
 **Headers obrigatórios:**
 ```
@@ -408,16 +408,6 @@ sample_count    INT
 calculated_at   TIMESTAMPTZ
 ```
 
-**`monitor_baselines`**
-```sql
-monitor_id      UUID   -- PK composta
-region          TEXT   -- PK composta
-ttfb_avg_ms     FLOAT  -- média dos últimos 7 dias
-ttfb_stddev_ms  FLOAT  -- desvio padrão
-cache_hit_rate  FLOAT  -- % de requests com cache HIT
-sample_count    INT
-calculated_at   TIMESTAMPTZ
-```
 Atualizada a cada hora pelo `baseline/calculator.rs`.
 
 **`alerts`**

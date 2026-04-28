@@ -34,6 +34,9 @@ export function HourlyPatternChart({ data, range }: { data: HourlyPoint[]; range
   const best3  = new Set(bestHours(data, 3, 3).map(p => p.hour_of_day))
 
   const maxTtfb = Math.max(...data.map(p => p.ttfb_avg), 1)
+  const avgTtfb = data.length > 0 
+    ? data.reduce((a, b) => a + b, 0) / data.length 
+    : 400
 
   const toX = (hour: number) => PAD.left + hour * (BAR_W + BAR_GAP)
   const barH = (ttfb: number) => Math.max((ttfb / maxTtfb) * CHART_H, 2)
@@ -71,7 +74,7 @@ export function HourlyPatternChart({ data, range }: { data: HourlyPoint[]; range
           const x = toX(hour)
           const bh = barH(point.ttfb_avg)
           const y = PAD.top + CHART_H - bh
-          const color = hourlyBarColor(point.ttfb_avg)
+          const color = hourlyBarColor(point.ttfb_avg, avgTtfb)
           const isNight = hour < 6 || hour >= 22
           return (
             <rect
