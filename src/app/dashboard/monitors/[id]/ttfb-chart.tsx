@@ -68,8 +68,13 @@ export function TtfbChart({
   const [activeRegion, setActiveRegion] = useState<string | 'global'>('global')
   const [hoveredRegion, setHoveredRegion] = useState<string | null>(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0, clientX: 0, clientY: 0, isRight: false, isBottom: false })
-  const [showGlobal, setShowGlobal] = useState(true)
-  const [selectedRegions, setSelectedRegions] = useState<Set<string>>(new Set())
+  const [isSynced, setIsSynced] = useState(true)
+  const [showGlobalTtfb, setShowGlobalTtfb] = useState(true)
+  const [selectedTtfbRegions, setSelectedTtfbRegions] = useState<Set<string>>(new Set())
+  const [showGlobalCache, setShowGlobalCache] = useState(true)
+  const [selectedCacheRegions, setSelectedCacheRegions] = useState<Set<string>>(new Set())
+  const [showGlobalNet, setShowGlobalNet] = useState(true)
+  const [selectedNetRegions, setSelectedNetRegions] = useState<Set<string>>(new Set())
   const [networkMetric, setNetworkMetric] = useState<'dns' | 'tcp' | 'tls' | 'net'>('net')
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -147,6 +152,60 @@ export function TtfbChart({
       backgroundColor: 'transparent',
       color: withAlpha(lineColor, 0.5),
       boxShadow: undefined,
+    }
+  }
+
+  // ── Sync Logic ─────────────────────────────────────────────────────────────
+  const toggleGlobal = (source: 'ttfb' | 'cache' | 'net') => {
+    if (isSynced) {
+      const next = source === 'ttfb' ? !showGlobalTtfb : source === 'cache' ? !showGlobalCache : !showGlobalNet
+      setShowGlobalTtfb(next)
+      setShowGlobalCache(next)
+      setShowGlobalNet(next)
+    } else {
+      if (source === 'ttfb') setShowGlobalTtfb(!showGlobalTtfb)
+      if (source === 'cache') setShowGlobalCache(!showGlobalCache)
+      if (source === 'net') setShowGlobalNet(!showGlobalNet)
+    }
+  }
+
+  const toggleAllRegions = (source: 'ttfb' | 'cache' | 'net') => {
+    const current = source === 'ttfb' ? selectedTtfbRegions : source === 'cache' ? selectedCacheRegions : selectedNetRegions
+    const isAllSelected = current.size === regions.length
+    const next = isAllSelected ? new Set<string>() : new Set(regions)
+    
+    if (isSynced) {
+      setSelectedTtfbRegions(new Set(next))
+      setSelectedCacheRegions(new Set(next))
+      setSelectedNetRegions(new Set(next))
+    } else {
+      if (source === 'ttfb') setSelectedTtfbRegions(next)
+      if (source === 'cache') setSelectedCacheRegions(next)
+      if (source === 'net') setSelectedNetRegions(next)
+    }
+  }
+
+  const toggleRegion = (region: string, source: 'ttfb' | 'cache' | 'net') => {
+    const current = source === 'ttfb' ? selectedTtfbRegions : source === 'cache' ? selectedCacheRegions : selectedNetRegions
+    const next = new Set(current)
+    const wasActive = next.has(region)
+    
+    if (wasActive) {
+      next.delete(region)
+      if (activeRegion === region) setActiveRegion('global')
+    } else {
+      next.add(region)
+      setActiveRegion(region)
+    }
+
+    if (isSynced) {
+      setSelectedTtfbRegions(new Set(next))
+      setSelectedCacheRegions(new Set(next))
+      setSelectedNetRegions(new Set(next))
+    } else {
+      if (source === 'ttfb') setSelectedTtfbRegions(next)
+      if (source === 'cache') setSelectedCacheRegions(next)
+      if (source === 'net') setSelectedNetRegions(next)
     }
   }
 
@@ -350,7 +409,7 @@ export function TtfbChart({
 
       const validValues = series.filter(s => s.value != null && s.value >= 0).map(s => s.value)
       if (validValues.length < 2) return
-
+      
       const vMax = Math.max(...validValues)
       const vMin = Math.min(...validValues)
       // STABILITY CHECK: If the variation is too small (e.g. < 2%), do not show insights for Cache
@@ -415,12 +474,12 @@ export function TtfbChart({
   // ── Y scales (Dynamic based on visible data) ─────────────────────────────
   const maxTtfb = useMemo(() => {
     let max = 1
-    if (showGlobal) {
+    if (showGlobalTtfb) {
       for (const p of globalTtfb) {
         if (p.value > max) max = p.value
       }
     }
-    for (const region of selectedRegions) {
+    for (const region of selectedTtfbRegions) {
       const m = byRegion[region]
       if (!m) continue
       for (const p of m.values()) {
@@ -429,18 +488,18 @@ export function TtfbChart({
       }
     }
     return max
-  }, [showGlobal, selectedRegions, globalTtfb, byRegion])
+  }, [showGlobalTtfb, selectedTtfbRegions, globalTtfb, byRegion])
 
   const niceMaxTtfb = niceMax(maxTtfb, 100)
 
   const maxNet = useMemo(() => {
     let max = 1
-    if (showGlobal) {
+    if (showGlobalNet) {
       for (const p of globalNet) {
         if (p.value > max) max = p.value
       }
     }
-    for (const region of selectedRegions) {
+    for (const region of selectedNetRegions) {
       const m = byRegion[region]
       if (!m) continue
       for (const p of m.values()) {
@@ -453,7 +512,7 @@ export function TtfbChart({
       }
     }
     return max
-  }, [showGlobal, selectedRegions, globalNet, byRegion, networkMetric])
+  }, [showGlobalNet, selectedNetRegions, globalNet, byRegion, networkMetric])
 
   const niceMaxNet = niceMax(maxNet, 50)
 
@@ -966,7 +1025,23 @@ export function TtfbChart({
           >
             <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">TTFB</div>
+                <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">TTFB Trend</div>
+                <div className="h-3 w-px bg-white/10" />
+                <PremiumTooltip
+                  content={isSynced ? "Dashboards are synchronized. Click to decouple." : "Dashboards are independent. Click to synchronize."}
+                  position="bottom-center"
+                >
+                  <button
+                    onClick={() => setIsSynced(!isSynced)}
+                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-tighter transition-all ${isSynced
+                      ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.1)]'
+                      : 'bg-zinc-800/50 border-zinc-700 text-zinc-500 hover:text-zinc-300'
+                      }`}
+                  >
+                    <Activity size={10} className={isSynced ? 'animate-pulse' : ''} />
+                    {isSynced ? 'Synced' : 'Decoupled'}
+                  </button>
+                </PremiumTooltip>
                 <div className="h-3 w-px bg-white/10" />
                 <div className="flex items-center gap-1.5">
                   <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-tighter">Global Avg</span>
@@ -976,25 +1051,22 @@ export function TtfbChart({
               <div className="flex flex-wrap items-center justify-end gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setShowGlobal(!showGlobal)}
-                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobal ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
+                  onClick={() => toggleGlobal('ttfb')}
+                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobalTtfb ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
                 >
                   GLOBAL
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => {
-                    if (selectedRegions.size === regions.length) setSelectedRegions(new Set())
-                    else setSelectedRegions(new Set(regions))
-                  }}
-                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedRegions.size === regions.length ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-300' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
+                  onClick={() => toggleAllRegions('ttfb')}
+                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedTtfbRegions.size === regions.length ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-300' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
                 >
                   ALL
                 </button>
 
                 {regions.map(region => {
-                  const active = selectedRegions.has(region)
+                  const active = selectedTtfbRegions.has(region)
                   const regionLabel = regionMeta[region]?.label ?? region
                   return (
                     <PremiumTooltip
@@ -1005,19 +1077,7 @@ export function TtfbChart({
                     >
                       <button
                         type="button"
-                        onClick={() => {
-                          setSelectedRegions(prev => {
-                            const next = new Set(prev)
-                            if (next.has(region)) {
-                              next.delete(region)
-                              if (activeRegion === region) setActiveRegion('global')
-                            } else {
-                              next.add(region)
-                              setActiveRegion(region)
-                            }
-                            return next
-                          })
-                        }}
+                        onClick={() => toggleRegion(region, 'ttfb')}
                         className="inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-colors hover:brightness-110"
                         style={regionToggleStyle(region, active)}
                       >
@@ -1038,7 +1098,7 @@ export function TtfbChart({
               <XAxisLabels />
               <GuideLine />
               {regions.map(region => {
-                if (!selectedRegions.has(region)) return null
+                if (!selectedTtfbRegions.has(region)) return null
                 const m = byRegion[region]
                 if (!m) return null
                 const bandPath = buildP95BandPath(allBuckets, m, toX, toYTtfb)
@@ -1056,16 +1116,16 @@ export function TtfbChart({
                 )
               })}
               {regions.map(region => {
-                if (!selectedRegions.has(region)) return null
+                if (!selectedTtfbRegions.has(region)) return null
                 const m = byRegion[region]
                 if (!m) return null
                 const points = allBuckets.map((b, i) => m.has(b) ? `${toX(i)},${toYTtfb(m.get(b)!.ttfb_avg)}` : null).filter(Boolean).join(' ')
                 return (
-                  <g
-                    key={`group-${region}`}
+                  <g 
+                    key={`group-${region}`} 
                     onMouseEnter={() => setHoveredRegion(region)}
                     onMouseLeave={() => setHoveredRegion(null)}
-                    onClick={() => setActiveRegion(region)}
+                    onClick={() => setActiveRegion(region)} 
                     className="cursor-pointer"
                   >
                     <polyline
@@ -1087,7 +1147,7 @@ export function TtfbChart({
                   </g>
                 )
               })}
-              {showGlobal && (
+              {showGlobalTtfb && (
                 <g onMouseEnter={() => setHoveredRegion('global')} onMouseLeave={() => setHoveredRegion(null)} onClick={() => setActiveRegion('global')} className="cursor-pointer">
                   <polyline
                     points={globalTtfb.map((bucket, i) => `${toX(i)},${toYTtfb(bucket.value)}`).join(' ')}
@@ -1114,8 +1174,8 @@ export function TtfbChart({
                 const insights = ttfbInsights.get(targetRegion)
                 if (!insights) return null
 
-                const isGlobalVisible = showGlobal && targetRegion === 'global'
-                const isRegionVisible = selectedRegions.has(targetRegion)
+                const isGlobalVisible = showGlobalTtfb && targetRegion === 'global'
+                const isRegionVisible = selectedTtfbRegions.has(targetRegion)
 
                 if (!isGlobalVisible && !isRegionVisible) return null
 
@@ -1185,60 +1245,45 @@ export function TtfbChart({
               </div>
               <div className="flex items-center gap-2">
                 {hasCacheData && (
-                  <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setShowGlobal(!showGlobal)}
-                      className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobal ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
-                    >
-                      GLOBAL
-                    </button>
+              <div className="flex flex-wrap items-center justify-end gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => toggleGlobal('cache')}
+                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobalCache ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
+                >
+                  GLOBAL
+                </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (selectedRegions.size === regions.length) setSelectedRegions(new Set())
-                        else setSelectedRegions(new Set(regions))
-                      }}
-                      className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedRegions.size === regions.length ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-300' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
-                    >
-                      ALL
-                    </button>
+                <button
+                  type="button"
+                  onClick={() => toggleAllRegions('cache')}
+                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedCacheRegions.size === regions.length ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-300' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
+                >
+                  ALL
+                </button>
 
-                    {regions.map(region => {
-                      const active = selectedRegions.has(region)
-                      const regionLabel = regionMeta[region]?.label ?? region
-                      return (
-                        <PremiumTooltip
-                          key={`cache-region-tip-${region}`}
-                          content={regionLabel}
-                          position="bottom-center"
-                          panelSizing="hug"
-                        >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedRegions(prev => {
-                                const next = new Set(prev)
-                                if (next.has(region)) {
-                                  next.delete(region)
-                                  if (activeRegion === region) setActiveRegion('global')
-                                } else {
-                                  next.add(region)
-                                  setActiveRegion(region)
-                                }
-                                return next
-                              })
-                            }}
-                            className="inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-colors hover:brightness-110"
-                            style={regionToggleStyle(region, active)}
-                          >
-                            {regionAbbreviations[region] ?? region.slice(0, 3).toUpperCase()}
-                          </button>
-                        </PremiumTooltip>
-                      )
-                    })}
-                  </div>
+                {regions.map(region => {
+                  const active = selectedCacheRegions.has(region)
+                  const regionLabel = regionMeta[region]?.label ?? region
+                  return (
+                    <PremiumTooltip
+                      key={`cache-region-tip-${region}`}
+                      content={regionLabel}
+                      position="bottom-center"
+                      panelSizing="hug"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleRegion(region, 'cache')}
+                        className="inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-colors hover:brightness-110"
+                        style={regionToggleStyle(region, active)}
+                      >
+                        {regionAbbreviations[region] ?? region.slice(0, 3).toUpperCase()}
+                      </button>
+                    </PremiumTooltip>
+                  )
+                })}
+              </div>
                 )}
               </div>
             </div>
@@ -1286,7 +1331,7 @@ export function TtfbChart({
                 {hasCacheData ? (
                   <>
                     {regions.map(region => {
-                      if (!selectedRegions.has(region)) return null
+                      if (!selectedCacheRegions.has(region)) return null
                       const m = byRegion[region]
                       if (!m) return null
                       const points = allBuckets.map((b, i) => {
@@ -1297,11 +1342,11 @@ export function TtfbChart({
 
 
                       return (
-                        <g
-                          key={`cache-group-${region}`}
+                        <g 
+                          key={`cache-group-${region}`} 
                           onMouseEnter={() => setHoveredRegion(region)}
                           onMouseLeave={() => setHoveredRegion(null)}
-                          onClick={() => setActiveRegion(region)}
+                          onClick={() => setActiveRegion(region)} 
                           className="cursor-pointer"
                         >
                           <polyline
@@ -1310,25 +1355,25 @@ export function TtfbChart({
                             stroke="transparent"
                             strokeWidth={12}
                           />
-                          <polyline
-                            points={points}
-                            fill="none"
-                            stroke={regionMeta[region]?.color ?? '#6b7280'}
-                            strokeWidth={activeRegion === region ? 3.5 : hoveredRegion === region ? 2.5 : 1.5}
-                            strokeLinejoin="round"
-                            strokeLinecap="round"
-                            strokeOpacity={activeRegion === region ? 1 : hoveredRegion === region ? 0.6 : 0.35}
-                            className="transition-all duration-300 pointer-events-none"
-                          />
+                    <polyline
+                      points={points}
+                      fill="none"
+                      stroke={regionMeta[region]?.color ?? '#6b7280'}
+                      strokeWidth={activeRegion === region ? 3.5 : hoveredRegion === region ? 2.5 : 1.5}
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                      strokeOpacity={activeRegion === region ? 1 : hoveredRegion === region ? 0.6 : 0.35}
+                      className="transition-all duration-300 pointer-events-none"
+                    />
                         </g>
                       )
                     })}
 
-                    {showGlobal && (
-                      <g
+                    {showGlobalCache && (
+                      <g 
                         onMouseEnter={() => setHoveredRegion('global')}
                         onMouseLeave={() => setHoveredRegion(null)}
-                        onClick={() => setActiveRegion('global')}
+                        onClick={() => setActiveRegion('global')} 
                         className="cursor-pointer"
                       >
                         <polyline
@@ -1356,8 +1401,8 @@ export function TtfbChart({
                       const insights = cacheInsights.get(targetRegion)
                       if (!insights) return null
 
-                      const isGlobalVisible = showGlobal && targetRegion === 'global'
-                      const isRegionVisible = selectedRegions.has(targetRegion)
+                      const isGlobalVisible = showGlobalCache && targetRegion === 'global'
+                      const isRegionVisible = selectedCacheRegions.has(targetRegion)
 
                       if (!isGlobalVisible && !isRegionVisible) return null
 
@@ -1452,25 +1497,22 @@ export function TtfbChart({
               <div className="flex flex-wrap items-center justify-end gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setShowGlobal(!showGlobal)}
-                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobal ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
+                  onClick={() => toggleGlobal('net')}
+                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobalNet ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
                 >
                   GLOBAL
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => {
-                    if (selectedRegions.size === regions.length) setSelectedRegions(new Set())
-                    else setSelectedRegions(new Set(regions))
-                  }}
-                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedRegions.size === regions.length ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-300' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
+                  onClick={() => toggleAllRegions('net')}
+                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedNetRegions.size === regions.length ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-300' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
                 >
                   ALL
                 </button>
 
                 {regions.map(region => {
-                  const active = selectedRegions.has(region)
+                  const active = selectedNetRegions.has(region)
                   const regionLabel = regionMeta[region]?.label ?? region
                   return (
                     <PremiumTooltip
@@ -1481,19 +1523,7 @@ export function TtfbChart({
                     >
                       <button
                         type="button"
-                        onClick={() => {
-                          setSelectedRegions(prev => {
-                            const next = new Set(prev)
-                            if (next.has(region)) {
-                              next.delete(region)
-                              if (activeRegion === region) setActiveRegion('global')
-                            } else {
-                              next.add(region)
-                              setActiveRegion(region)
-                            }
-                            return next
-                          })
-                        }}
+                        onClick={() => toggleRegion(region, 'net')}
                         className="inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-colors hover:brightness-110"
                         style={regionToggleStyle(region, active)}
                       >
@@ -1513,7 +1543,7 @@ export function TtfbChart({
               ))}
               <XAxisLabels />
               <GuideLine />
-              {showGlobal && (
+              {showGlobalTtfb && (
                 <g onMouseEnter={() => setHoveredRegion('global')} onMouseLeave={() => setHoveredRegion(null)} onClick={() => setActiveRegion('global')} className="cursor-pointer">
                   {/* Global Net (Sum or specific metric) */}
                   <polyline
@@ -1539,7 +1569,7 @@ export function TtfbChart({
 
 
               {regions.map(region => {
-                if (!selectedRegions.has(region)) return null
+                if (!selectedNetRegions.has(region)) return null
                 const m = byRegion[region]
                 if (!m) return null
                 const points = allBuckets.map((b, i) => {
@@ -1555,11 +1585,11 @@ export function TtfbChart({
 
 
                 return (
-                  <g
-                    key={`net-group-${region}`}
+                  <g 
+                    key={`net-group-${region}`} 
                     onMouseEnter={() => setHoveredRegion(region)}
                     onMouseLeave={() => setHoveredRegion(null)}
-                    onClick={() => setActiveRegion(region)}
+                    onClick={() => setActiveRegion(region)} 
                     className="cursor-pointer"
                   >
                     {/* Transparent hit area */}
@@ -1590,8 +1620,8 @@ export function TtfbChart({
                 if (!insights) return null
 
                 // Only show markers for the currently active/hovered context to avoid clutter
-                const isGlobalVisible = showGlobal && targetRegion === 'global'
-                const isRegionVisible = selectedRegions.has(targetRegion)
+                const isGlobalVisible = showGlobalNet && targetRegion === 'global'
+                const isRegionVisible = selectedNetRegions.has(targetRegion)
 
                 if (!isGlobalVisible && !isRegionVisible) return null
 
