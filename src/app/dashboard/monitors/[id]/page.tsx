@@ -1962,14 +1962,14 @@ export default async function MonitorDetailPage({
                     <div className="space-y-8">
                       {hourlyPattern.length > 0 && (
                         <section id="hourly-pattern-section" className="space-y-4">
-                          <ViewSectionHeader title="Hourly performance pattern" />
+                          <ViewSectionHeader title="Hourly Pattern" />
                           <HourlyPatternChart data={hourlyPattern} range={range} />
                         </section>
                       )}
 
                       {heatmapRows.length > 0 && (
                         <section id="weekly-pattern-section" className="space-y-4">
-                          <ViewSectionHeader title="Weekly performance pattern" />
+                          <ViewSectionHeader title="Weekly Heatmap" />
                           <TtfbHeatmap data={heatmapRows} />
                         </section>
                       )}
