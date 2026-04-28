@@ -1234,7 +1234,7 @@ export function TtfbChart({
                       ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-200' 
                       : 'border-zinc-700/60 bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'}`}
                   >
-                    ALL
+                    {selectedTtfbRegions.size === regions.length ? 'CLEAR' : 'ALL'}
                   </button>
 
                   {regions.map(region => {
@@ -1415,7 +1415,7 @@ export function TtfbChart({
                           ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-200' 
                           : 'border-zinc-700/60 bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'}`}
                       >
-                        ALL
+                        {selectedCacheRegions.size === regions.length ? 'CLEAR' : 'ALL'}
                       </button>
 
                       {regions.map(region => {
@@ -1658,7 +1658,7 @@ export function TtfbChart({
                       ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-200' 
                       : 'border-zinc-700/60 bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'}`}
                   >
-                    ALL
+                    {selectedNetRegions.size === regions.length ? 'CLEAR' : 'ALL'}
                   </button>
 
                   {regions.map(region => {
