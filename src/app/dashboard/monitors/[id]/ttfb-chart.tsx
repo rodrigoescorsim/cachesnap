@@ -1087,7 +1087,7 @@ export function TtfbChart({
                   </g>
                 )
               })}
-              {showGlobalTtfb && (
+              {showGlobal && (
                 <g onMouseEnter={() => setHoveredRegion('global')} onMouseLeave={() => setHoveredRegion(null)} onClick={() => setActiveRegion('global')} className="cursor-pointer">
                   <polyline
                     points={globalTtfb.map((bucket, i) => `${toX(i)},${toYTtfb(bucket.value)}`).join(' ')}
@@ -1185,66 +1185,60 @@ export function TtfbChart({
               </div>
               <div className="flex items-center gap-2">
                 {hasCacheData && (
-                  <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setShowGlobalCache(prev => !prev)}
-                      className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-colors ${showGlobalCache ? 'border-cyan-400/40 bg-cyan-400/10 text-cyan-300' : 'border-border bg-white/5 text-zinc-400 hover:bg-white/10'}`}
-                    >
-                      Global
-                    </button>
+              <div className="flex flex-wrap items-center justify-end gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowGlobal(!showGlobal)}
+                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobal ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
+                >
+                  GLOBAL
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedRegions.size === regions.length) setSelectedRegions(new Set())
+                    else setSelectedRegions(new Set(regions))
+                  }}
+                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedRegions.size === regions.length ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-300' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
+                >
+                  ALL
+                </button>
+
+                {regions.map(region => {
+                  const active = selectedRegions.has(region)
+                  const regionLabel = regionMeta[region]?.label ?? region
+                  return (
                     <PremiumTooltip
-                      content="Show all regions."
+                      key={`cache-region-tip-${region}`}
+                      content={regionLabel}
                       position="bottom-center"
                       panelSizing="hug"
                     >
                       <button
                         type="button"
                         onClick={() => {
-                          setSelectedCacheRegions(prev => {
-                            const allSelected = regions.length > 0 && regions.every(region => prev.has(region))
-                            return allSelected ? new Set() : new Set(regions)
+                          setSelectedRegions(prev => {
+                            const next = new Set(prev)
+                            if (next.has(region)) {
+                              next.delete(region)
+                              if (activeRegion === region) setActiveRegion('global')
+                            } else {
+                              next.add(region)
+                              setActiveRegion(region)
+                            }
+                            return next
                           })
                         }}
-                        className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-colors ${selectedCacheRegions.size === regions.length && regions.length > 0 ? 'border-cyan-400/40 bg-cyan-400/10 text-cyan-300' : 'border-border bg-white/5 text-zinc-400 hover:bg-white/10'}`}
+                        className="inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-colors hover:brightness-110"
+                        style={regionToggleStyle(region, active)}
                       >
-                        All
+                        {regionAbbreviations[region] ?? region.slice(0, 3).toUpperCase()}
                       </button>
                     </PremiumTooltip>
-                    {regions.map(region => {
-                      const active = selectedCacheRegions.has(region)
-                      const regionLabel = regionMeta[region]?.label ?? region
-                      return (
-                        <PremiumTooltip
-                          key={`cache-region-tip-${region}`}
-                          content={regionLabel}
-                          position="bottom-center"
-                          panelSizing="hug"
-                        >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedCacheRegions(prev => {
-                                const next = new Set(prev)
-                                if (next.has(region)) {
-                                  next.delete(region)
-                                  if (activeRegion === region) setActiveRegion('global')
-                                } else {
-                                  next.add(region)
-                                  setActiveRegion(region)
-                                }
-                                return next
-                              })
-                            }}
-                            className="inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-colors hover:brightness-110"
-                            style={regionToggleStyle(region, active)}
-                          >
-                            {regionAbbreviations[region] ?? region.slice(0, 3).toUpperCase()}
-                          </button>
-                        </PremiumTooltip>
-                      )
-                    })}
-                  </div>
+                  )
+                })}
+              </div>
                 )}
               </div>
             </div>
