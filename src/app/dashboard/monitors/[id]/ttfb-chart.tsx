@@ -73,15 +73,20 @@ export function TtfbChart({
   
   const [hoveredChart, setHoveredChart] = useState<'ttfb' | 'cache' | 'network' | null>(null)
   
-  const [activeTtfbRegion, setActiveTtfbRegion] = useState<string | 'global'>('global')
-  const [activeCacheRegion, setActiveCacheRegion] = useState<string | 'global'>('global')
-  const [activeNetRegion, setActiveNetRegion] = useState<string | 'global'>('global')
+  const [activeTtfbRegion, setActiveTtfbRegion] = useState<string | 'global' | null>('global')
+  const [activeCacheRegion, setActiveCacheRegion] = useState<string | 'global' | null>('global')
+  const [activeNetRegion, setActiveNetRegion] = useState<string | 'global' | null>('global')
   
   const [hoveredTtfbRegion, setHoveredTtfbRegion] = useState<string | null>(null)
   const [hoveredCacheRegion, setHoveredCacheRegion] = useState<string | null>(null)
   const [hoveredNetRegion, setHoveredNetRegion] = useState<string | null>(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0, clientX: 0, clientY: 0, isRight: false, isBottom: false })
   const [isSynced, setIsSynced] = useState(true)
+  
+  const [ttfbHistory, setTtfbHistory] = useState<string[]>([])
+  const [cacheHistory, setCacheHistory] = useState<string[]>([])
+  const [netHistory, setNetHistory] = useState<string[]>([])
+
   const [showGlobalTtfb, setShowGlobalTtfb] = useState(true)
   const [selectedTtfbRegions, setSelectedTtfbRegions] = useState<Set<string>>(new Set())
   const [showGlobalCache, setShowGlobalCache] = useState(true)
@@ -170,8 +175,27 @@ export function TtfbChart({
 
   // ── Sync Logic ─────────────────────────────────────────────────────────────
   const toggleGlobal = (source: 'ttfb' | 'cache' | 'net') => {
+    const isShowing = source === 'ttfb' ? showGlobalTtfb : source === 'cache' ? showGlobalCache : showGlobalNet
+    const currentActive = source === 'ttfb' ? activeTtfbRegion : source === 'cache' ? activeCacheRegion : activeNetRegion
+    
+    if (currentActive !== 'global') {
+      updateActiveRegion('global', source)
+      if (!isShowing) {
+        if (isSynced) {
+          setShowGlobalTtfb(true)
+          setShowGlobalCache(true)
+          setShowGlobalNet(true)
+        } else {
+          if (source === 'ttfb') setShowGlobalTtfb(true)
+          if (source === 'cache') setShowGlobalCache(true)
+          if (source === 'net') setShowGlobalNet(true)
+        }
+      }
+      return
+    }
+
     if (isSynced) {
-      const next = source === 'ttfb' ? !showGlobalTtfb : source === 'cache' ? !showGlobalCache : !showGlobalNet
+      const next = !isShowing
       setShowGlobalTtfb(next)
       setShowGlobalCache(next)
       setShowGlobalNet(next)
@@ -198,7 +222,7 @@ export function TtfbChart({
     }
   }
 
-  const updateActiveRegion = (region: string | 'global', source: 'ttfb' | 'cache' | 'net') => {
+  const updateActiveRegion = (region: string | 'global' | null, source: 'ttfb' | 'cache' | 'net') => {
     if (isSynced) {
       setActiveTtfbRegion(region)
       setActiveCacheRegion(region)
@@ -207,6 +231,24 @@ export function TtfbChart({
       if (source === 'ttfb') setActiveTtfbRegion(region)
       if (source === 'cache') setActiveCacheRegion(region)
       if (source === 'net') setActiveNetRegion(region)
+    }
+
+    // Update history
+    if (region && region !== 'global') {
+      const setHistory = source === 'ttfb' ? setTtfbHistory : source === 'cache' ? setCacheHistory : setNetHistory
+      setHistory(prev => {
+        const filtered = prev.filter(r => r !== region)
+        return [...filtered, region]
+      })
+    }
+  }
+
+  const handleLineClick = (region: string | 'global', source: 'ttfb' | 'cache' | 'net') => {
+    const currentActive = source === 'ttfb' ? activeTtfbRegion : source === 'cache' ? activeCacheRegion : activeNetRegion
+    if (currentActive === region) {
+      updateActiveRegion(null, source)
+    } else {
+      updateActiveRegion(region, source)
     }
   }
 
@@ -236,17 +278,39 @@ export function TtfbChart({
 
   const toggleRegion = (region: string, source: 'ttfb' | 'cache' | 'net') => {
     const current = source === 'ttfb' ? selectedTtfbRegions : source === 'cache' ? selectedCacheRegions : selectedNetRegions
-    const next = new Set(current)
-    const wasActive = next.has(region)
+    const currentActive = source === 'ttfb' ? activeTtfbRegion : source === 'cache' ? activeCacheRegion : activeNetRegion
+    const isShowing = current.has(region)
     
-    if (wasActive) {
-      next.delete(region)
-      const currentActive = source === 'ttfb' ? activeTtfbRegion : source === 'cache' ? activeCacheRegion : activeNetRegion
-      if (currentActive === region) updateActiveRegion('global', source)
-    } else {
-      next.add(region)
+    if (currentActive !== region) {
       updateActiveRegion(region, source)
+      if (!isShowing) {
+        const next = new Set(current)
+        next.add(region)
+        if (isSynced) {
+          setSelectedTtfbRegions(new Set(next))
+          setSelectedCacheRegions(new Set(next))
+          setSelectedNetRegions(new Set(next))
+        } else {
+          if (source === 'ttfb') setSelectedTtfbRegions(next)
+          if (source === 'cache') setSelectedCacheRegions(next)
+          if (source === 'net') setSelectedNetRegions(next)
+        }
+      }
+      return
     }
+
+    const next = new Set(current)
+    next.delete(region)
+    
+    // Selection history logic
+    const history = source === 'ttfb' ? ttfbHistory : source === 'cache' ? cacheHistory : netHistory
+    const setHistory = source === 'ttfb' ? setTtfbHistory : source === 'cache' ? setCacheHistory : setNetHistory
+    
+    const nextHistory = history.filter(r => r !== region)
+    setHistory(nextHistory)
+    
+    const lastRegion = nextHistory.length > 0 ? nextHistory[nextHistory.length - 1] : 'global'
+    updateActiveRegion(lastRegion, source)
 
     if (isSynced) {
       setSelectedTtfbRegions(new Set(next))
@@ -258,6 +322,37 @@ export function TtfbChart({
       if (source === 'net') setSelectedNetRegions(next)
     }
   }
+
+  // ── Auto-selection Logic ──────────────────────────────────────────────────
+  useEffect(() => {
+    // TTFB
+    const ttfbVisible = Array.from(selectedTtfbRegions)
+    const ttfbTotal = (showGlobalTtfb ? 1 : 0) + ttfbVisible.length
+    if (ttfbTotal === 1) {
+      const remaining = showGlobalTtfb ? 'global' : ttfbVisible[0]
+      if (activeTtfbRegion !== remaining) setActiveTtfbRegion(remaining)
+    }
+
+    // Cache
+    const cacheVisible = Array.from(selectedCacheRegions)
+    const cacheTotal = (showGlobalCache ? 1 : 0) + cacheVisible.length
+    if (cacheTotal === 1) {
+      const remaining = showGlobalCache ? 'global' : cacheVisible[0]
+      if (activeCacheRegion !== remaining) setActiveCacheRegion(remaining)
+    }
+
+    // Network
+    const netVisible = Array.from(selectedNetRegions)
+    const netTotal = (showGlobalNet ? 1 : 0) + netVisible.length
+    if (netTotal === 1) {
+      const remaining = showGlobalNet ? 'global' : netVisible[0]
+      if (activeNetRegion !== remaining) setActiveNetRegion(remaining)
+    }
+  }, [
+    showGlobalTtfb, selectedTtfbRegions, activeTtfbRegion,
+    showGlobalCache, selectedCacheRegions, activeCacheRegion,
+    showGlobalNet, selectedNetRegions, activeNetRegion
+  ])
 
   const byRegion = useMemo(() => {
     const map: Record<string, Map<string, ChartPoint>> = {}
@@ -309,8 +404,10 @@ export function TtfbChart({
           const prev = series[i - 1].value
           if (prev > 0) {
             const pct = ((v - prev) / prev) * 100
-            if (pct > 40) res.push({ idx: i, type: 'spike-up', diff: v - prev, pct, value: v })
-            else if (pct < -40) res.push({ idx: i, type: 'spike-down', diff: v - prev, pct, value: v })
+            const diff = Math.abs(v - prev)
+            // Stricter: 100% change AND at least 100ms difference
+            if (pct > 100 && diff > 100) res.push({ idx: i, type: 'spike-up', diff: v - prev, pct, value: v })
+            else if (pct < -50 && diff > 100) res.push({ idx: i, type: 'spike-down', diff: v - prev, pct, value: v })
           }
         }
       }
@@ -318,7 +415,16 @@ export function TtfbChart({
       if (maxIdx !== -1) res.push({ idx: maxIdx, type: 'max', value: maxVal })
       if (minIdx !== -1) res.push({ idx: minIdx, type: 'min', value: minVal })
 
-      const unique = Array.from(new Map(res.map(r => [r.idx + '-' + r.type, r])).values())
+      // Strictly limit to 3 worst and 3 best points per region
+      const badPoints = res.filter(r => r.type === 'max' || r.type === 'spike-up')
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 3)
+      
+      const goodPoints = res.filter(r => r.type === 'min' || r.type === 'spike-down')
+        .sort((a, b) => a.value - b.value)
+        .slice(0, 3)
+
+      const unique = Array.from(new Map([...badPoints, ...goodPoints].map(r => [r.idx + '-' + r.type, r])).values())
       insights.set(name, unique)
     }
 
@@ -400,8 +506,10 @@ export function TtfbChart({
           const prev = series[i - 1].value
           if (prev > 0) {
             const pct = ((v - prev) / prev) * 100
-            if (pct > 40) res.push({ idx: i, type: 'spike-up', diff: v - prev, pct, value: v })
-            else if (pct < -40) res.push({ idx: i, type: 'spike-down', diff: v - prev, pct, value: v })
+            const diff = Math.abs(v - prev)
+            // Stricter: 100% change AND at least 100ms difference
+            if (pct > 100 && diff > 100) res.push({ idx: i, type: 'spike-up', diff: v - prev, pct, value: v })
+            else if (pct < -50 && diff > 100) res.push({ idx: i, type: 'spike-down', diff: v - prev, pct, value: v })
           }
         }
       }
@@ -409,7 +517,16 @@ export function TtfbChart({
       if (maxIdx !== -1) res.push({ idx: maxIdx, type: 'max', value: maxVal })
       if (minIdx !== -1) res.push({ idx: minIdx, type: 'min', value: minVal })
 
-      const unique = Array.from(new Map(res.map(r => [r.idx + '-' + r.type, r])).values())
+      // Strictly limit to 3 worst and 3 best points per region
+      const badPoints = res.filter(r => r.type === 'max' || r.type === 'spike-up')
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 3)
+      
+      const goodPoints = res.filter(r => r.type === 'min' || r.type === 'spike-down')
+        .sort((a, b) => a.value - b.value)
+        .slice(0, 3)
+
+      const unique = Array.from(new Map([...badPoints, ...goodPoints].map(r => [r.idx + '-' + r.type, r])).values())
       insights.set(name, unique)
     }
 
@@ -475,20 +592,28 @@ export function TtfbChart({
           const prev = series[i - 1].value
           if (prev != null && prev > 0) {
             const diff = v - prev
-            // For cache, spikes are absolute percentage points usually, 
-            // but we'll use a 10pt shift as a "spike" or keep the 40% relative if it's low
-            if (diff > 20) res.push({ idx: i, type: 'spike-up', diff, value: v })
-            else if (diff < -20) res.push({ idx: i, type: 'spike-down', diff, value: v })
+            // Stricter for cache: 30 absolute percentage points
+            if (diff > 30) res.push({ idx: i, type: 'spike-up', diff, value: v })
+            else if (diff < -30) res.push({ idx: i, type: 'spike-down', diff, value: v })
           }
         }
       }
 
-      if (maxIdx !== -1 && maxVal < 100) res.push({ idx: maxIdx, type: 'max', value: maxVal })
-      if (minIdx !== -1 && minVal > 0) res.push({ idx: minIdx, type: 'min', value: minVal })
+    if (maxIdx !== -1) res.push({ idx: maxIdx, type: 'max', value: maxVal })
+    if (minIdx !== -1) res.push({ idx: minIdx, type: 'min', value: minVal })
 
-      const unique = Array.from(new Map(res.map(r => [r.idx + '-' + r.type, r])).values())
-      insights.set(name, unique)
-    }
+    // For Cache: lowest values are bad, highest are good
+    const badPoints = res.filter(r => r.type === 'min' || r.type === 'spike-down')
+      .sort((a, b) => a.value - b.value)
+      .slice(0, 3)
+    
+    const goodPoints = res.filter(r => r.type === 'max' || r.type === 'spike-up')
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 3)
+
+    const unique = Array.from(new Map([...badPoints, ...goodPoints].map(r => [r.idx + '-' + r.type, r])).values())
+    insights.set(name, unique)
+  }
 
     processSeries('global', globalCache)
     for (const region of regions) {
@@ -594,7 +719,12 @@ export function TtfbChart({
     setMousePos({ x, y, clientX: e.clientX, clientY: e.clientY, isRight, isBottom })
 
     const svgElement = (e.target as Element | null)?.closest('svg')
-    if (!svgElement) return
+    if (!svgElement) {
+      updateHoveredIdx(null, 'ttfb')
+      updateHoveredIdx(null, 'cache')
+      updateHoveredIdx(null, 'net')
+      return
+    }
 
     const chartType = hoveredChart === 'network' ? 'net' : (hoveredChart || 'ttfb')
     const svgRect = svgElement.getBoundingClientRect()
@@ -612,9 +742,6 @@ export function TtfbChart({
     updateHoveredIdx(null, 'ttfb')
     updateHoveredIdx(null, 'cache')
     updateHoveredIdx(null, 'net')
-    updateHoveredRegion(null, 'ttfb')
-    updateHoveredRegion(null, 'cache')
-    updateHoveredRegion(null, 'net')
     setHoveredChart(null)
   }
 
@@ -721,7 +848,6 @@ export function TtfbChart({
 
   const currentHoveredIdx = hoveredChart === 'network' ? hoveredNetIdx : hoveredChart === 'cache' ? hoveredCacheIdx : hoveredTtfbIdx
   const currentActiveRegion = hoveredChart === 'network' ? activeNetRegion : hoveredChart === 'cache' ? activeCacheRegion : activeTtfbRegion
-  const currentHoveredRegion = hoveredChart === 'network' ? hoveredNetRegion : hoveredChart === 'cache' ? hoveredCacheRegion : hoveredTtfbRegion
 
   const hoveredBucket = currentHoveredIdx != null ? allBuckets[currentHoveredIdx] : null
   const hoveredGlobalCache = hoveredBucket != null
@@ -751,7 +877,7 @@ export function TtfbChart({
   return (
     <div className="space-y-6 relative" ref={containerRef} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
       {/* Tooltip */}
-      {currentHoveredIdx !== null && (
+      {hoveredChart !== null && currentHoveredIdx !== null && (
         <div
           className={`fixed z-[100] pointer-events-none bg-surface/95 backdrop-blur-xl border border-white/10 p-3 rounded-xl shadow-2xl text-white transition-all duration-300 ease-out ${hoveredChart === 'network' ? 'min-w-[400px]' : 'min-w-[260px]'}`}
           style={{
@@ -769,37 +895,7 @@ export function TtfbChart({
 
           {hoveredChart === 'network' ? (
             <>
-              <div className={`mb-1.5 px-1.5 py-1 flex flex-col border-b border-white/5 pb-1.5 rounded-md transition-all duration-300 ${currentActiveRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : ''}`}>
-                <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${currentActiveRegion === 'global' ? 'text-cyan-300' : 'text-zinc-400'}`}>GLOBAL</span>
-                <div className="flex items-center gap-3 mt-1.5">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-[8px] font-bold uppercase text-zinc-500 tracking-tight">DNS</span>
-                    <span className={`text-[11px] font-black tabular-nums ${TIMING.dns.text}`}>{Math.round(globalDns[currentHoveredIdx].value)}ms</span>
-                  </div>
-                  <div className="w-px h-2 bg-white/5" />
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-[8px] font-bold uppercase text-zinc-500 tracking-tight">TCP</span>
-                    <span className={`text-[11px] font-black tabular-nums ${TIMING.tcp.text}`}>{Math.round(globalTcp[currentHoveredIdx].value)}ms</span>
-                  </div>
-                  <div className="w-px h-2 bg-white/5" />
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-[8px] font-bold uppercase text-zinc-500 tracking-tight">TLS</span>
-                    <span className={`text-[11px] font-black tabular-nums ${TIMING.tls.text}`}>{Math.round(globalTls[currentHoveredIdx].value)}ms</span>
-                  </div>
-                  <div className="w-px h-2 bg-white/5" />
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-[8px] font-bold uppercase text-zinc-500 tracking-tight">NET</span>
-                    <span className="text-[11px] font-black tabular-nums text-cyan-300">{Math.round(globalDns[currentHoveredIdx].value + globalTcp[currentHoveredIdx].value + globalTls[currentHoveredIdx].value)}ms</span>
-                  </div>
-                  <div className="w-px h-2 bg-white/5" />
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-[8px] font-bold uppercase text-zinc-500 tracking-tight">TTFB</span>
-                    <span className={`text-[11px] font-black tabular-nums ${getTtfbColorClass(globalTtfb[currentHoveredIdx].value, 'global')}`}>{Math.round(globalTtfb[currentHoveredIdx].value)}ms</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 mt-2">
                 <div className="flex items-center justify-between gap-4 border-b border-white/5 pb-1 mb-1">
                   <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Region</span>
                   <div className="flex items-center gap-2">
@@ -811,7 +907,27 @@ export function TtfbChart({
                   </div>
                 </div>
 
+                {/* Global Row */}
+                {((hoveredChart === 'network' && showGlobalNet) || (hoveredChart === 'ttfb' && showGlobalTtfb) || (hoveredChart === 'cache' && showGlobalCache)) && (
+                  <div
+                    className={`flex items-center justify-between gap-4 px-1 py-1 rounded-md transition-all duration-300 ${currentActiveRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : 'border border-transparent'}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`w-1.5 h-1.5 rounded-full transition-transform ${currentActiveRegion === 'global' ? 'scale-125 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.4)]' : 'bg-cyan-400/40'}`} />
+                      <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${currentActiveRegion === 'global' ? 'text-cyan-300' : 'text-zinc-300'}`}>GLOBAL</span>
+                    </div>
+                    <div className="flex items-center gap-2 tabular-nums">
+                      <span className={`w-[42px] text-right text-[10px] font-black ${TIMING.dns.text}`}>{Math.round(globalDns[currentHoveredIdx].value)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
+                      <span className={`w-[42px] text-right text-[10px] font-black ${TIMING.tcp.text}`}>{Math.round(globalTcp[currentHoveredIdx].value)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
+                      <span className={`w-[42px] text-right text-[10px] font-black ${TIMING.tls.text}`}>{Math.round(globalTls[currentHoveredIdx].value)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
+                      <span className="w-[42px] text-right text-[10px] font-black text-cyan-300">{Math.round(globalDns[currentHoveredIdx].value + globalTcp[currentHoveredIdx].value + globalTls[currentHoveredIdx].value)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
+                      <span className={`w-[42px] text-right text-[10px] font-black ${getTtfbColorClass(globalTtfb[currentHoveredIdx].value, 'global')}`}>{Math.round(globalTtfb[currentHoveredIdx].value)}<span className="text-[8px] opacity-60 ml-0.5">ms</span></span>
+                    </div>
+                  </div>
+                )}
+
                 {regions.map(region => {
+                  if (!selectedNetRegions.has(region)) return null
                   const p = byRegion[region]?.get(allBuckets[currentHoveredIdx])
                   if (!p) return null
                   const isHovered = currentActiveRegion === region
@@ -821,9 +937,9 @@ export function TtfbChart({
                       key={region}
                       className="flex items-center justify-between gap-4 px-1 py-0.5 rounded-md transition-all duration-300"
                       style={isHovered ? {
-                        backgroundColor: `${regionMeta[region]?.color ?? '#6b7280'}15`,
-                        boxShadow: `0 0 15px ${(regionMeta[region]?.color ?? '#6b7280')}08`,
-                        border: `1px solid ${(regionMeta[region]?.color ?? '#6b7280')}30`,
+                        backgroundColor: `${regionMeta[region]?.color ?? '#6b7280'}25`,
+                        boxShadow: `0 0 15px ${(regionMeta[region]?.color ?? '#6b7280')}15`,
+                        border: `1px solid ${(regionMeta[region]?.color ?? '#6b7280')}50`,
                       } : {
                         border: '1px solid transparent'
                       }}
@@ -881,27 +997,7 @@ export function TtfbChart({
             </>
           ) : (
             <>
-              <div className={`mb-1.5 px-1.5 py-0.5 flex items-center justify-between border-b border-white/5 pb-1.5 rounded-md transition-all duration-300 ${currentActiveRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : ''}`}>
-                <div className="flex flex-col gap-0.5">
-                  <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${currentActiveRegion === 'global' ? 'text-cyan-300' : 'text-zinc-400'}`}>GLOBAL</span>
-                  <div className="flex items-center gap-4 mt-0.5">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className={`text-sm font-black tabular-nums transition-colors ${getTtfbColorClass(globalTtfb[currentHoveredIdx].value, 'global')}`}>
-                        {Math.round(globalTtfb[currentHoveredIdx].value)}
-                      </span>
-                      <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${currentActiveRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>ms</span>
-                    </div>
-                    <div className="w-px h-3 bg-white/5" />
-                    <div className="flex items-baseline gap-1.5">
-                      <span className={`text-sm font-black tabular-nums transition-colors ${hoveredGlobalCache != null ? getCacheColor(hoveredGlobalCache, 'global') : 'text-zinc-500'}`}>
-                        {hoveredGlobalCache != null ? Math.round(hoveredGlobalCache) : '—'}%
-                      </span>
-                      <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${currentActiveRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>cache</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-2">
+              <div className="space-y-2 mt-2">
                 <div className="flex items-center justify-between gap-6 border-b border-white/5 pb-1 mb-1">
                   <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Region</span>
                   <div className="flex items-center gap-3">
@@ -910,7 +1006,34 @@ export function TtfbChart({
                     <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">Cache</span>
                   </div>
                 </div>
+
+                {/* Global Row */}
+                {((hoveredChart === 'ttfb' && showGlobalTtfb) || (hoveredChart === 'cache' && showGlobalCache)) && (
+                  <div
+                    className={`flex items-center justify-between gap-6 px-1 py-1 rounded-md transition-all duration-300 ${currentActiveRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : 'border border-transparent'}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`w-1.5 h-1.5 rounded-full transition-transform ${currentActiveRegion === 'global' ? 'scale-125 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.4)]' : 'bg-cyan-400/40'}`} />
+                      <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${currentActiveRegion === 'global' ? 'text-cyan-300' : 'text-zinc-300'}`}>GLOBAL</span>
+                    </div>
+                    <div className="flex items-center gap-3 tabular-nums">
+                      <span className={`w-[42px] text-right text-[11px] font-black transition-colors ${getTtfbColorClass(globalTtfb[currentHoveredIdx].value, 'global')}`}>{Math.round(globalTtfb[currentHoveredIdx].value)}ms</span>
+                      <span className={`w-[42px] text-right text-[9px] font-medium text-zinc-500`}>—</span>
+                      <div className="w-[42px] flex justify-end">
+                        {hoveredGlobalCache != null ? (
+                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md transition-all ${getCacheColor(hoveredGlobalCache, 'global').replace('text-', 'bg-').replace('-400', '-500')}/10 ${getCacheColor(hoveredGlobalCache, 'global')}`}>
+                            {Math.round(hoveredGlobalCache)}%
+                          </span>
+                        ) : (
+                          <span className="text-[9px] text-zinc-500">—</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {regions.map(region => {
+                  const isVisible = hoveredChart === 'ttfb' ? selectedTtfbRegions.has(region) : selectedCacheRegions.has(region)
+                  if (!isVisible) return null
                   const p = byRegion[region]?.get(allBuckets[currentHoveredIdx])
                   if (!p) return null
                   const isHovered = currentActiveRegion === region
@@ -919,9 +1042,9 @@ export function TtfbChart({
                       key={region}
                       className="flex items-center justify-between gap-6 px-1 py-0.5 rounded-md transition-all duration-300"
                       style={isHovered ? {
-                        backgroundColor: `${regionMeta[region]?.color ?? '#6b7280'}15`,
-                        boxShadow: `0 0 15px ${(regionMeta[region]?.color ?? '#6b7280')}08`,
-                        border: `1px solid ${(regionMeta[region]?.color ?? '#6b7280')}30`,
+                        backgroundColor: `${regionMeta[region]?.color ?? '#6b7280'}25`,
+                        boxShadow: `0 0 15px ${(regionMeta[region]?.color ?? '#6b7280')}15`,
+                        border: `1px solid ${(regionMeta[region]?.color ?? '#6b7280')}50`,
                       } : {
                         border: '1px solid transparent'
                       }}
@@ -952,7 +1075,7 @@ export function TtfbChart({
                 })}
               </div>
               {hoveredChart === 'ttfb' && (() => {
-                const targetRegion = activeTtfbRegion || 'global'
+                const targetRegion = currentActiveRegion || 'global'
                 const insights = ttfbInsights.get(targetRegion)
                 const pointInsight = insights?.find(ins => ins.idx === currentHoveredIdx)
                 if (!pointInsight) return null
@@ -984,7 +1107,7 @@ export function TtfbChart({
                 )
               })()}
               {hoveredChart === 'cache' && (() => {
-                const targetRegion = activeCacheRegion || 'global'
+                const targetRegion = currentActiveRegion || 'global'
                 const insights = cacheInsights.get(targetRegion)
                 const pointInsight = insights?.find(ins => ins.idx === currentHoveredIdx)
                 if (!pointInsight) return null
@@ -1083,8 +1206,6 @@ export function TtfbChart({
           <div className="space-y-4">
             <div
               className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700"
-              onMouseEnter={() => setHoveredChart('ttfb')}
-              onMouseLeave={() => setHoveredChart(null)}
             >
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -1139,7 +1260,12 @@ export function TtfbChart({
                   })}
                 </div>
               </div>
-              <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
+              <svg 
+                viewBox={`0 0 ${W} ${H}`} 
+                className="w-full h-auto overflow-visible"
+                onMouseEnter={() => setHoveredChart('ttfb')}
+                onMouseLeave={() => setHoveredChart(null)}
+              >
                 {[0, Math.round(niceMaxTtfb / 2), niceMaxTtfb].map(v => (
                   <g key={v}>
                     <line x1={PAD.left} x2={W - PAD.right} y1={toYTtfb(v)} y2={toYTtfb(v)} stroke="currentColor" strokeOpacity={0.05} strokeWidth={1} />
@@ -1158,9 +1284,7 @@ export function TtfbChart({
                   return (
                     <g
                       key={region}
-                      onMouseEnter={() => updateHoveredRegion(region, 'ttfb')}
-                      onMouseLeave={() => updateHoveredRegion(null, 'ttfb')}
-                      onClick={() => updateActiveRegion(region, 'ttfb')}
+                      onClick={() => handleLineClick(region, 'ttfb')}
                       className="cursor-pointer"
                     >
                       <path d={bandPath} fill={regionMeta[region]?.color ?? '#6b7280'} fillOpacity={isActive ? 0.08 : 0.03} />
@@ -1168,72 +1292,78 @@ export function TtfbChart({
                         d={allBuckets.map((b, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toYTtfb(m.get(b)?.ttfb_avg ?? 0)}`).join(' ')}
                         fill="none"
                         stroke={regionMeta[region]?.color ?? '#6b7280'}
-                        strokeWidth={activeTtfbRegion === region ? 3.5 : hoveredTtfbRegion === region ? 2.5 : 1.5}
+                        strokeWidth={isActive ? 3.5 : 1.5}
                         strokeLinejoin="round"
                         strokeLinecap="round"
-                        strokeOpacity={activeTtfbRegion === region ? 1 : hoveredTtfbRegion === region ? 0.6 : 0.35}
+                        strokeOpacity={isActive ? 1 : 0.35}
                         className="transition-all duration-300"
                       />
                     </g>
                   )
                 })}
                 {showGlobalTtfb && (
-                  <g onMouseEnter={() => updateHoveredRegion('global', 'ttfb')} onMouseLeave={() => updateHoveredRegion(null, 'ttfb')} onClick={() => updateActiveRegion('global', 'ttfb')} className="cursor-pointer">
+                  <g onClick={() => handleLineClick('global', 'ttfb')} className="cursor-pointer">
                     <path
                       d={globalTtfb.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toYTtfb(p.value)}`).join(' ')}
                       fill="none"
                       stroke="#22d3ee"
-                      strokeWidth={activeTtfbRegion === 'global' ? 4 : hoveredTtfbRegion === 'global' ? 3 : 2}
+                      strokeWidth={activeTtfbRegion === 'global' ? 4 : 2}
                       strokeLinejoin="round"
                       strokeLinecap="round"
-                      strokeOpacity={activeTtfbRegion === 'global' ? 1 : hoveredTtfbRegion === 'global' ? 0.7 : 0.5}
+                      strokeOpacity={activeTtfbRegion === 'global' ? 1 : 0.5}
                       className="transition-all duration-300"
                     />
                   </g>
                 )}
 
-                {(() => {
-                  const targetRegion = activeTtfbRegion || 'global'
-                  const insights = ttfbInsights.get(targetRegion)
-                  if (!insights) return null
-                  const isGlobalVisible = showGlobalTtfb && targetRegion === 'global'
-                  const isRegionVisible = selectedTtfbRegions.has(targetRegion)
+                {/* Render insights ONLY for the active/hovered series */}
+                {['global', ...regions].map(target => {
+                  const currentActive = hoveredTtfbRegion || activeTtfbRegion || 'global'
+                  if (target !== currentActive) return null
+                  
+                  const isGlobalVisible = target === 'global' && showGlobalTtfb
+                  const isRegionVisible = target !== 'global' && selectedTtfbRegions.has(target)
                   if (!isGlobalVisible && !isRegionVisible) return null
+                  
+                  const insights = ttfbInsights.get(target)
+                  if (!insights) return null
+
                   return insights.map((ins, i) => {
                     const color = ins.type === 'max' || ins.type === 'spike-up' ? '#f43f5e' : '#10b981'
                     const isHoveredPoint = hoveredTtfbIdx === ins.idx
+                    const isActiveTarget = activeTtfbRegion === target
+                    const isHoveredTarget = hoveredTtfbRegion === target
+                    
                     return (
-                      <g key={`insight-${targetRegion}-${ins.type}-${ins.idx}`} className="pointer-events-none">
+                      <g key={`insight-ttfb-${target}-${ins.type}-${ins.idx}`} className="pointer-events-none">
                         <circle
                           cx={toX(ins.idx)}
                           cy={toYTtfb(ins.value)}
-                          r={isHoveredPoint ? 8 : 4}
+                          r={isHoveredPoint ? 10 : 5.5}
                           fill={color}
-                          fillOpacity={0.2}
+                          fillOpacity={0.4}
                         >
-                          <animate attributeName="r" from="4" to="12" dur="1.5s" repeatCount="indefinite" />
-                          <animate attributeName="fill-opacity" from="0.3" to="0" dur="1.5s" repeatCount="indefinite" />
+                          <animate attributeName="r" from="4" to="14" dur="1.5s" repeatCount="indefinite" />
+                          <animate attributeName="fill-opacity" from="0.4" to="0" dur="1.5s" repeatCount="indefinite" />
                         </circle>
                         <circle
                           cx={toX(ins.idx)}
                           cy={toYTtfb(ins.value)}
-                          r={isHoveredPoint ? 4 : 3}
+                          r={isHoveredPoint ? 5 : 4}
                           fill={color}
                           stroke="#0B1220"
-                          strokeWidth={1}
+                          strokeWidth={1.5}
                           className="transition-all duration-300"
                         />
                       </g>
                     )
                   })
-                })()}
+                })}
               </svg>
             </div>
 
             <div
               className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700"
-              onMouseEnter={() => setHoveredChart('cache')}
-              onMouseLeave={() => setHoveredChart(null)}
             >
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -1318,7 +1448,12 @@ export function TtfbChart({
                   No cache headers detected in the selected timeframe.
                 </div>
               ) : (
-                <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
+                <svg 
+                  viewBox={`0 0 ${W} ${H}`} 
+                  className="w-full h-auto overflow-visible"
+                  onMouseEnter={() => setHoveredChart('cache')}
+                  onMouseLeave={() => setHoveredChart(null)}
+                >
                   <rect x={PAD.left} y={toYCache(100)} width={CW} height={toYCache(95) - toYCache(100)} fill="#10b981" fillOpacity={0.04} />
                   <rect x={PAD.left} y={toYCache(95)} width={CW} height={toYCache(90) - toYCache(95)} fill="#f59e0b" fillOpacity={0.035} />
                   <rect x={PAD.left} y={toYCache(90)} width={CW} height={toYCache(0) - toYCache(90)} fill="#ef4444" fillOpacity={0.03} />
@@ -1370,7 +1505,7 @@ export function TtfbChart({
                             key={`cache-region-group-${region}`}
                             onMouseEnter={() => updateHoveredRegion(region, 'cache')}
                             onMouseLeave={() => updateHoveredRegion(null, 'cache')}
-                            onClick={() => updateActiveRegion(region, 'cache')}
+                            onClick={() => handleLineClick(region, 'cache')}
                             className="cursor-pointer"
                           >
                             <path
@@ -1389,60 +1524,66 @@ export function TtfbChart({
 
                       {showGlobalCache && (
                         <g
-                          onMouseEnter={() => updateHoveredRegion('global', 'cache')}
-                          onMouseLeave={() => updateHoveredRegion(null, 'cache')}
-                          onClick={() => updateActiveRegion('global', 'cache')}
+                          onClick={() => handleLineClick('global', 'cache')}
                           className="cursor-pointer"
                         >
                           <path
                             d={globalCache.map((p, i) => p.value != null ? `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toYCache(p.value)}` : null).filter(Boolean).join(' ')}
                             fill="none"
                             stroke="#22d3ee"
-                            strokeWidth={activeCacheRegion === 'global' ? 4 : hoveredCacheRegion === 'global' ? 3 : 2}
+                            strokeWidth={activeCacheRegion === 'global' ? 4 : 2}
                             strokeLinejoin="round"
                             strokeLinecap="round"
-                            strokeOpacity={activeCacheRegion === 'global' ? 1 : hoveredCacheRegion === 'global' ? 0.7 : 0.5}
+                            strokeOpacity={activeCacheRegion === 'global' ? 1 : 0.5}
                             className="transition-all duration-300"
                           />
                         </g>
                       )}
 
-                      {(() => {
-                        const targetRegion = activeCacheRegion || 'global'
-                        const insights = cacheInsights.get(targetRegion)
-                        if (!insights) return null
-                        const isGlobalVisible = showGlobalCache && targetRegion === 'global'
-                        const isRegionVisible = selectedCacheRegions.has(targetRegion)
+                      {/* Render insights ONLY for the active/hovered series */}
+                      {['global', ...regions].map(target => {
+                        const currentActive = hoveredCacheRegion || activeCacheRegion || 'global'
+                        if (target !== currentActive) return null
+                        
+                        const isGlobalVisible = target === 'global' && showGlobalCache
+                        const isRegionVisible = target !== 'global' && selectedCacheRegions.has(target)
                         if (!isGlobalVisible && !isRegionVisible) return null
+                        
+                        const insights = cacheInsights.get(target)
+                        if (!insights) return null
+
                         return insights.map((ins, i) => {
                           const isBad = ins.type === 'min' || ins.type === 'spike-down'
                           const color = isBad ? '#f43f5e' : '#10b981'
                           const isHoveredPoint = hoveredCacheIdx === ins.idx
+                          const isActiveTarget = activeCacheRegion === target
+                          const isHoveredTarget = hoveredCacheRegion === target
+                          
                           return (
-                            <g key={`insight-cache-${targetRegion}-${ins.type}-${ins.idx}`} className="pointer-events-none">
+                            <g key={`insight-cache-${target}-${ins.type}-${ins.idx}`} className="pointer-events-none">
                               <circle
                                 cx={toX(ins.idx)}
                                 cy={toYCache(ins.value)}
-                                r={isHoveredPoint ? 8 : 4}
+                                r={isHoveredPoint ? 10 : 5.5}
                                 fill={color}
-                                fillOpacity={0.2}
+                                fillOpacity={0.4}
                               >
-                                <animate attributeName="r" from="4" to="12" dur="1.5s" repeatCount="indefinite" />
-                                <animate attributeName="fill-opacity" from="0.3" to="0" dur="1.5s" repeatCount="indefinite" />
+                                <animate attributeName="r" from="4" to="14" dur="1.5s" repeatCount="indefinite" />
+                                <animate attributeName="fill-opacity" from="0.4" to="0" dur="1.5s" repeatCount="indefinite" />
                               </circle>
                               <circle
                                 cx={toX(ins.idx)}
                                 cy={toYCache(ins.value)}
-                                r={isHoveredPoint ? 4 : 3}
+                                r={isHoveredPoint ? 5 : 4}
                                 fill={color}
                                 stroke="#0B1220"
-                                strokeWidth={1}
+                                strokeWidth={1.5}
                                 className="transition-all duration-300"
                               />
                             </g>
                           )
                         })
-                      })()}
+                      })}
                     </>
                   ) : (
                     <text x={W / 2} y={H / 2} textAnchor="middle" fontSize={10} fill="currentColor" fillOpacity={0.35}>No cache data</text>
@@ -1453,8 +1594,6 @@ export function TtfbChart({
 
             <div
               className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700"
-              onMouseEnter={() => setHoveredChart('network')}
-              onMouseLeave={() => setHoveredChart(null)}
             >
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -1545,7 +1684,12 @@ export function TtfbChart({
                   })}
                 </div>
               </div>
-              <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
+              <svg 
+                viewBox={`0 0 ${W} ${H}`} 
+                className="w-full h-auto overflow-visible"
+                onMouseEnter={() => setHoveredChart('network')}
+                onMouseLeave={() => setHoveredChart(null)}
+              >
                 {[0, Math.round(niceMaxNet / 2), niceMaxNet].map(v => (
                   <g key={v}>
                     <line x1={PAD.left} x2={W - PAD.right} y1={toYNet(v)} y2={toYNet(v)} stroke="currentColor" strokeOpacity={0.05} strokeWidth={1} />
@@ -1555,15 +1699,15 @@ export function TtfbChart({
                 <XAxisLabels />
                 <GuideLine source="net" />
                 {showGlobalNet && (
-                  <g onMouseEnter={() => updateHoveredRegion('global', 'net')} onMouseLeave={() => updateHoveredRegion(null, 'net')} onClick={() => updateActiveRegion('global', 'net')} className="cursor-pointer">
+                  <g onClick={() => handleLineClick('global', 'net')} className="cursor-pointer">
                     <path
                       d={globalNet.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toYNet(p.value)}`).join(' ')}
                       fill="none"
                       stroke={networkMetric === 'dns' ? TIMING.dns.stroke : networkMetric === 'tcp' ? TIMING.tcp.stroke : networkMetric === 'tls' ? TIMING.tls.stroke : '#22d3ee'}
-                      strokeWidth={activeNetRegion === 'global' ? 4 : hoveredNetRegion === 'global' ? 3 : 2}
+                      strokeWidth={activeNetRegion === 'global' ? 4 : 2}
                       strokeLinejoin="round"
                       strokeLinecap="round"
-                      strokeOpacity={activeNetRegion === 'global' ? 1 : hoveredNetRegion === 'global' ? 0.7 : 0.5}
+                      strokeOpacity={activeNetRegion === 'global' ? 1 : 0.5}
                       className="transition-all duration-300"
                     />
                   </g>
@@ -1589,60 +1733,66 @@ export function TtfbChart({
                   return (
                     <g
                       key={`net-group-${region}`}
-                      onMouseEnter={() => updateHoveredRegion(region, 'net')}
-                      onMouseLeave={() => updateHoveredRegion(null, 'net')}
-                      onClick={() => updateActiveRegion(region, 'net')}
+                      onClick={() => handleLineClick(region, 'net')}
                       className="cursor-pointer"
                     >
                       <path
                         d={dPath}
                         fill="none"
                         stroke={regionMeta[region]?.color ?? '#6b7280'}
-                        strokeWidth={activeNetRegion === region ? 3.5 : hoveredNetRegion === region ? 2.5 : 1.5}
+                        strokeWidth={activeNetRegion === region ? 3.5 : 1.5}
                         strokeLinejoin="round"
                         strokeLinecap="round"
-                        strokeOpacity={activeNetRegion === region ? 1 : hoveredNetRegion === region ? 0.6 : 0.35}
+                        strokeOpacity={activeNetRegion === region ? 1 : 0.35}
                         className="transition-all duration-300"
                       />
                     </g>
                   )
                 })}
 
-                {(() => {
-                  const targetRegion = activeNetRegion || 'global'
-                  const insights = netInsights.get(targetRegion)
-                  if (!insights) return null
-                  const isGlobalVisible = showGlobalNet && targetRegion === 'global'
-                  const isRegionVisible = selectedNetRegions.has(targetRegion)
+                {/* Render insights ONLY for the active/hovered series */}
+                {['global', ...regions].map(target => {
+                  const currentActive = hoveredNetRegion || activeNetRegion || 'global'
+                  if (target !== currentActive) return null
+                  
+                  const isGlobalVisible = target === 'global' && showGlobalNet
+                  const isRegionVisible = target !== 'global' && selectedNetRegions.has(target)
                   if (!isGlobalVisible && !isRegionVisible) return null
+                  
+                  const insights = netInsights.get(target)
+                  if (!insights) return null
+
                   return insights.map((ins, i) => {
                     const color = ins.type === 'max' || ins.type === 'spike-up' ? '#f43f5e' : '#10b981'
                     const isHoveredPoint = hoveredNetIdx === ins.idx
+                    const isActiveTarget = activeNetRegion === target
+                    const isHoveredTarget = hoveredNetRegion === target
+                    
                     return (
-                      <g key={`insight-net-${targetRegion}-${ins.type}-${ins.idx}`} className="pointer-events-none">
+                      <g key={`insight-net-${target}-${ins.type}-${ins.idx}`} className="pointer-events-none">
                         <circle
                           cx={toX(ins.idx)}
                           cy={toYNet(ins.value)}
-                          r={isHoveredPoint ? 8 : 4}
+                          r={isHoveredPoint ? 10 : 5.5}
                           fill={color}
-                          fillOpacity={0.2}
+                          fillOpacity={0.4}
                         >
-                          <animate attributeName="r" from="4" to="12" dur="1.5s" repeatCount="indefinite" />
-                          <animate attributeName="fill-opacity" from="0.3" to="0" dur="1.5s" repeatCount="indefinite" />
+                          <animate attributeName="r" from="4" to="14" dur="1.5s" repeatCount="indefinite" />
+                          <animate attributeName="fill-opacity" from="0.4" to="0" dur="1.5s" repeatCount="indefinite" />
                         </circle>
                         <circle
                           cx={toX(ins.idx)}
                           cy={toYNet(ins.value)}
-                          r={isHoveredPoint ? 4 : 3}
+                          r={isHoveredPoint ? 5 : 4}
                           fill={color}
                           stroke="#0B1220"
-                          strokeWidth={1}
+                          strokeWidth={1.5}
                           className="transition-all duration-300"
                         />
                       </g>
                     )
                   })
-                })()}
+                })}
               </svg>
             </div>
           </div>
