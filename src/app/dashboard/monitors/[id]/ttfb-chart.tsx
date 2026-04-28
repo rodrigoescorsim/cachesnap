@@ -5,7 +5,9 @@ import { formatChartLabel, niceMax, globalBucketAverage, buildP95BandPath } from
 import { TIMING } from './timing-metrics-palette'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import { getTtfbColorClass, getCacheColor } from '@/lib/thresholds'
-import { AlertTriangle, TrendingUp, TrendingDown, ChevronUp, ChevronDown, Activity } from 'lucide-react'
+import { AlertTriangle, TrendingUp, TrendingDown, ChevronUp, ChevronDown, Activity, Link as LinkIcon, Unlink } from 'lucide-react'
+import { buildViewHref } from './monitor-href'
+import Link from 'next/link'
 
 export interface ChartPoint {
   bucket: string       // ISO string
@@ -56,17 +58,28 @@ export function TtfbChart({
   regionMeta,
   cacheHitThresholdPct,
   isDown,
+  monitorId,
 }: {
   data: ChartPoint[]
   range: string
   regionMeta: Record<string, RegionRenderMeta>
   cacheHitThresholdPct?: number | null
   isDown?: boolean
+  monitorId: string
 }) {
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+  const [hoveredTtfbIdx, setHoveredTtfbIdx] = useState<number | null>(null)
+  const [hoveredCacheIdx, setHoveredCacheIdx] = useState<number | null>(null)
+  const [hoveredNetIdx, setHoveredNetIdx] = useState<number | null>(null)
+  
   const [hoveredChart, setHoveredChart] = useState<'ttfb' | 'cache' | 'network' | null>(null)
-  const [activeRegion, setActiveRegion] = useState<string | 'global'>('global')
-  const [hoveredRegion, setHoveredRegion] = useState<string | null>(null)
+  
+  const [activeTtfbRegion, setActiveTtfbRegion] = useState<string | 'global'>('global')
+  const [activeCacheRegion, setActiveCacheRegion] = useState<string | 'global'>('global')
+  const [activeNetRegion, setActiveNetRegion] = useState<string | 'global'>('global')
+  
+  const [hoveredTtfbRegion, setHoveredTtfbRegion] = useState<string | null>(null)
+  const [hoveredCacheRegion, setHoveredCacheRegion] = useState<string | null>(null)
+  const [hoveredNetRegion, setHoveredNetRegion] = useState<string | null>(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0, clientX: 0, clientY: 0, isRight: false, isBottom: false })
   const [isSynced, setIsSynced] = useState(true)
   const [showGlobalTtfb, setShowGlobalTtfb] = useState(true)
@@ -185,6 +198,42 @@ export function TtfbChart({
     }
   }
 
+  const updateActiveRegion = (region: string | 'global', source: 'ttfb' | 'cache' | 'net') => {
+    if (isSynced) {
+      setActiveTtfbRegion(region)
+      setActiveCacheRegion(region)
+      setActiveNetRegion(region)
+    } else {
+      if (source === 'ttfb') setActiveTtfbRegion(region)
+      if (source === 'cache') setActiveCacheRegion(region)
+      if (source === 'net') setActiveNetRegion(region)
+    }
+  }
+
+  const updateHoveredRegion = (region: string | null, source: 'ttfb' | 'cache' | 'net') => {
+    if (isSynced) {
+      setHoveredTtfbRegion(region)
+      setHoveredCacheRegion(region)
+      setHoveredNetRegion(region)
+    } else {
+      if (source === 'ttfb') setHoveredTtfbRegion(region)
+      if (source === 'cache') setHoveredCacheRegion(region)
+      if (source === 'net') setHoveredNetRegion(region)
+    }
+  }
+
+  const updateHoveredIdx = (idx: number | null, source: 'ttfb' | 'cache' | 'net') => {
+    if (isSynced) {
+      setHoveredTtfbIdx(idx)
+      setHoveredCacheIdx(idx)
+      setHoveredNetIdx(idx)
+    } else {
+      if (source === 'ttfb') setHoveredTtfbIdx(idx)
+      if (source === 'cache') setHoveredCacheIdx(idx)
+      if (source === 'net') setHoveredNetIdx(idx)
+    }
+  }
+
   const toggleRegion = (region: string, source: 'ttfb' | 'cache' | 'net') => {
     const current = source === 'ttfb' ? selectedTtfbRegions : source === 'cache' ? selectedCacheRegions : selectedNetRegions
     const next = new Set(current)
@@ -192,10 +241,11 @@ export function TtfbChart({
     
     if (wasActive) {
       next.delete(region)
-      if (activeRegion === region) setActiveRegion('global')
+      const currentActive = source === 'ttfb' ? activeTtfbRegion : source === 'cache' ? activeCacheRegion : activeNetRegion
+      if (currentActive === region) updateActiveRegion('global', source)
     } else {
       next.add(region)
-      setActiveRegion(region)
+      updateActiveRegion(region, source)
     }
 
     if (isSynced) {
@@ -544,24 +594,27 @@ export function TtfbChart({
     setMousePos({ x, y, clientX: e.clientX, clientY: e.clientY, isRight, isBottom })
 
     const svgElement = (e.target as Element | null)?.closest('svg')
-    if (!svgElement) {
-      setHoveredIdx(null)
-      return
-    }
+    if (!svgElement) return
+
+    const chartType = hoveredChart === 'network' ? 'net' : (hoveredChart || 'ttfb')
     const svgRect = svgElement.getBoundingClientRect()
     const relativeX = (e.clientX - svgRect.left) * (W / svgRect.width)
 
     const idx = Math.round(((relativeX - PAD.left) / CW) * (allBuckets.length - 1))
     if (idx >= 0 && idx < allBuckets.length) {
-      setHoveredIdx(idx)
+      updateHoveredIdx(idx, chartType as any)
     } else {
-      setHoveredIdx(null)
+      updateHoveredIdx(null, chartType as any)
     }
   }
 
   const handleMouseLeave = () => {
-    setHoveredIdx(null)
-    setHoveredRegion(null)
+    updateHoveredIdx(null, 'ttfb')
+    updateHoveredIdx(null, 'cache')
+    updateHoveredIdx(null, 'net')
+    updateHoveredRegion(null, 'ttfb')
+    updateHoveredRegion(null, 'cache')
+    updateHoveredRegion(null, 'net')
     setHoveredChart(null)
   }
 
@@ -620,8 +673,57 @@ export function TtfbChart({
   const cacheGridOpacity = (value: number) => (value === 95 ? 0.1 : 0.04)
   const cacheThresholdOpacity = 0.3
 
+  const XAxisLabels = () => {
+    if (allBuckets.length < 2) return null
+    const count = allBuckets.length
+    const step = Math.max(1, Math.floor(count / 5))
+    const indices = []
+    for (let i = 0; i < count; i += step) indices.push(i)
+    if (indices[indices.length - 1] !== count - 1) indices.push(count - 1)
 
-  const hoveredBucket = hoveredIdx != null ? allBuckets[hoveredIdx] : null
+    return (
+      <g>
+        {indices.map(i => (
+          <text
+            key={i}
+            x={toX(i)}
+            y={H - 4}
+            textAnchor={i === 0 ? 'start' : i === count - 1 ? 'end' : 'middle'}
+            fontSize={9}
+            fill="currentColor"
+            fillOpacity={0.3}
+          >
+            {formatChartLabel(allBuckets[i], range)}
+          </text>
+        ))}
+      </g>
+    )
+  }
+
+  const GuideLine = ({ source }: { source: 'ttfb' | 'cache' | 'net' }) => {
+    const idx = source === 'ttfb' ? hoveredTtfbIdx : source === 'cache' ? hoveredCacheIdx : hoveredNetIdx
+    if (idx === null) return null
+    const x = toX(idx)
+    return (
+      <line
+        x1={x}
+        x2={x}
+        y1={PAD.top}
+        y2={H - PAD.bottom}
+        stroke="currentColor"
+        strokeOpacity={0.1}
+        strokeWidth={1}
+        strokeDasharray="4 4"
+        className="pointer-events-none"
+      />
+    )
+  }
+
+  const currentHoveredIdx = hoveredChart === 'network' ? hoveredNetIdx : hoveredChart === 'cache' ? hoveredCacheIdx : hoveredTtfbIdx
+  const currentActiveRegion = hoveredChart === 'network' ? activeNetRegion : hoveredChart === 'cache' ? activeCacheRegion : activeTtfbRegion
+  const currentHoveredRegion = hoveredChart === 'network' ? hoveredNetRegion : hoveredChart === 'cache' ? hoveredCacheRegion : hoveredTtfbRegion
+
+  const hoveredBucket = currentHoveredIdx != null ? allBuckets[currentHoveredIdx] : null
   const hoveredGlobalCache = hoveredBucket != null
     ? globalCache.find(bucket => bucket.bucket === hoveredBucket)?.value ?? null
     : null
@@ -645,46 +747,11 @@ export function TtfbChart({
       .sort((a, b) => b.value - a.value)[0] ?? null
     : null
 
-  // ── Sub-components ────────────────────────────────────────────────────────
-  function XAxisLabels() {
-    const n = Math.max(allBuckets.length - 1, 1)
-    const xIdxs = [...new Set([0, Math.round(n / 3), Math.round(2 * n / 3), n])]
-    return (
-      <>
-        {xIdxs.map((idx, i) => (
-          <text
-            key={idx}
-            x={toX(idx)}
-            y={H - 8}
-            textAnchor={i === 0 ? 'start' : i === xIdxs.length - 1 ? 'end' : 'middle'}
-            fontSize={8}
-            fill="currentColor"
-            fillOpacity={0.35}
-          >
-            {formatChartLabel(allBuckets[idx] ?? '', range)}
-          </text>
-        ))}
-      </>
-    )
-  }
-
-  function GuideLine() {
-    if (hoveredIdx === null) return null
-    return (
-      <line
-        x1={toX(hoveredIdx)} x2={toX(hoveredIdx)}
-        y1={PAD.top} y2={H - PAD.bottom}
-        stroke="currentColor" strokeOpacity={0.2}
-        strokeWidth={1} strokeDasharray="3 2"
-      />
-    )
-  }
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6 relative" ref={containerRef} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
       {/* Tooltip */}
-      {hoveredIdx !== null && (
+      {currentHoveredIdx !== null && (
         <div
           className={`fixed z-[100] pointer-events-none bg-surface/95 backdrop-blur-xl border border-white/10 p-3 rounded-xl shadow-2xl text-white transition-all duration-300 ease-out ${hoveredChart === 'network' ? 'min-w-[400px]' : 'min-w-[260px]'}`}
           style={{
@@ -697,44 +764,42 @@ export function TtfbChart({
           }}
         >
           <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2 border-b border-white/5 pb-1.5 px-0.5">
-            {formatChartLabel(allBuckets[hoveredIdx], range)} {range === '7d' || range === '30d' || range === '90d' ? '' : 'UTC'}
+            {formatChartLabel(allBuckets[currentHoveredIdx], range)} {range === '7d' || range === '30d' || range === '90d' ? '' : 'UTC'}
           </p>
 
           {hoveredChart === 'network' ? (
-            /* CONNECTION TIME TOOLTIP */
             <>
-              <div className={`mb-1.5 px-1.5 py-1 flex flex-col border-b border-white/5 pb-1.5 rounded-md transition-all duration-300 ${activeRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : ''}`}>
-                <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${activeRegion === 'global' ? 'text-cyan-300' : 'text-zinc-400'}`}>GLOBAL</span>
+              <div className={`mb-1.5 px-1.5 py-1 flex flex-col border-b border-white/5 pb-1.5 rounded-md transition-all duration-300 ${currentActiveRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : ''}`}>
+                <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${currentActiveRegion === 'global' ? 'text-cyan-300' : 'text-zinc-400'}`}>GLOBAL</span>
                 <div className="flex items-center gap-3 mt-1.5">
                   <div className="flex items-baseline gap-1">
                     <span className="text-[8px] font-bold uppercase text-zinc-500 tracking-tight">DNS</span>
-                    <span className={`text-[11px] font-black tabular-nums ${TIMING.dns.text}`}>{Math.round(globalDns[hoveredIdx].value)}ms</span>
+                    <span className={`text-[11px] font-black tabular-nums ${TIMING.dns.text}`}>{Math.round(globalDns[currentHoveredIdx].value)}ms</span>
                   </div>
                   <div className="w-px h-2 bg-white/5" />
                   <div className="flex items-baseline gap-1">
                     <span className="text-[8px] font-bold uppercase text-zinc-500 tracking-tight">TCP</span>
-                    <span className={`text-[11px] font-black tabular-nums ${TIMING.tcp.text}`}>{Math.round(globalTcp[hoveredIdx].value)}ms</span>
+                    <span className={`text-[11px] font-black tabular-nums ${TIMING.tcp.text}`}>{Math.round(globalTcp[currentHoveredIdx].value)}ms</span>
                   </div>
                   <div className="w-px h-2 bg-white/5" />
                   <div className="flex items-baseline gap-1">
                     <span className="text-[8px] font-bold uppercase text-zinc-500 tracking-tight">TLS</span>
-                    <span className={`text-[11px] font-black tabular-nums ${TIMING.tls.text}`}>{Math.round(globalTls[hoveredIdx].value)}ms</span>
+                    <span className={`text-[11px] font-black tabular-nums ${TIMING.tls.text}`}>{Math.round(globalTls[currentHoveredIdx].value)}ms</span>
                   </div>
                   <div className="w-px h-2 bg-white/5" />
                   <div className="flex items-baseline gap-1">
                     <span className="text-[8px] font-bold uppercase text-zinc-500 tracking-tight">NET</span>
-                    <span className="text-[11px] font-black tabular-nums text-cyan-300">{Math.round(globalDns[hoveredIdx].value + globalTcp[hoveredIdx].value + globalTls[hoveredIdx].value)}ms</span>
+                    <span className="text-[11px] font-black tabular-nums text-cyan-300">{Math.round(globalDns[currentHoveredIdx].value + globalTcp[currentHoveredIdx].value + globalTls[currentHoveredIdx].value)}ms</span>
                   </div>
                   <div className="w-px h-2 bg-white/5" />
                   <div className="flex items-baseline gap-1">
                     <span className="text-[8px] font-bold uppercase text-zinc-500 tracking-tight">TTFB</span>
-                    <span className={`text-[11px] font-black tabular-nums ${getTtfbColorClass(globalTtfb[hoveredIdx].value, 'global')}`}>{Math.round(globalTtfb[hoveredIdx].value)}ms</span>
+                    <span className={`text-[11px] font-black tabular-nums ${getTtfbColorClass(globalTtfb[currentHoveredIdx].value, 'global')}`}>{Math.round(globalTtfb[currentHoveredIdx].value)}ms</span>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                {/* Header row */}
                 <div className="flex items-center justify-between gap-4 border-b border-white/5 pb-1 mb-1">
                   <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Region</span>
                   <div className="flex items-center gap-2">
@@ -747,9 +812,9 @@ export function TtfbChart({
                 </div>
 
                 {regions.map(region => {
-                  const p = byRegion[region]?.get(allBuckets[hoveredIdx])
+                  const p = byRegion[region]?.get(allBuckets[currentHoveredIdx])
                   if (!p) return null
-                  const isHovered = activeRegion === region
+                  const isHovered = currentActiveRegion === region
                   const netValue = (p.dns_avg ?? 0) + (p.tcp_avg ?? 0) + (p.tls_avg ?? 0)
                   return (
                     <div
@@ -781,34 +846,20 @@ export function TtfbChart({
                 })}
               </div>
 
-              {/* Performance Advisory Section in Tooltip */}
               {(() => {
-                const targetRegion = activeRegion || 'global'
+                const targetRegion = currentActiveRegion || 'global'
                 const insights = netInsights.get(targetRegion)
-                const pointInsight = insights?.find(ins => ins.idx === hoveredIdx)
+                const pointInsight = insights?.find(ins => ins.idx === currentHoveredIdx)
                 if (!pointInsight) return null
-
                 const isBad = pointInsight.type === 'max' || pointInsight.type === 'spike-up'
-                const label = pointInsight.type === 'max' ? 'Peak Latency' :
-                  pointInsight.type === 'min' ? 'Best Performance' :
-                    pointInsight.type === 'spike-up' ? 'Performance Drop' : 'Performance Boost'
-
-                const description = pointInsight.type === 'max' ? "Slowest response in this period." :
-                  pointInsight.type === 'min' ? "Fastest response in this period." :
-                    pointInsight.type === 'spike-up' ? "Latency is higher in this period." :
-                      "Latency is lower in this period."
-
-                const diffVsBaseline = pointInsight.value - timeframeAvg
-                const pctVsBaseline = timeframeAvg > 0 ? (diffVsBaseline / timeframeAvg) * 100 : 0
-
+                const label = pointInsight.type === 'max' ? 'Peak Latency' : pointInsight.type === 'min' ? 'Best Performance' : pointInsight.type === 'spike-up' ? 'Performance Drop' : 'Performance Boost'
+                const description = pointInsight.type === 'max' ? "Slowest response in this period." : pointInsight.type === 'min' ? "Fastest response in this period." : pointInsight.type === 'spike-up' ? "Latency is higher in this period." : "Latency is lower in this period."
                 const baselineValue = targetRegion === 'global' ? timeframeAvg : (regionNetAvgs.get(targetRegion) || timeframeAvg)
                 const baselineLabel = targetRegion === 'global' ? 'global average' : 'regional average'
                 const relDiff = pointInsight.value - baselineValue
                 const relPct = baselineValue > 0 ? (relDiff / baselineValue) * 100 : 0
-
                 return (
                   <div className={`mt-2 px-2 py-1.5 rounded-lg border animate-in fade-in slide-in-from-top-1 duration-300 ${isBad ? 'bg-red-500/10 border-red-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
-                    {/* Row 1: Label and Value */}
                     <div className="flex items-center justify-between gap-4">
                       <div className={`flex items-center gap-1.5 font-black text-[10px] uppercase tracking-wider ${isBad ? 'text-red-400' : 'text-emerald-400'}`}>
                         {isBad ? <AlertTriangle size={11} className="animate-pulse" /> : <TrendingDown size={11} />}
@@ -818,8 +869,6 @@ export function TtfbChart({
                         {Math.round(pointInsight.value)}ms
                       </span>
                     </div>
-
-                    {/* Row 2: Description and Percentage vs Contextual Baseline */}
                     <div className="flex items-center justify-between gap-4 mt-1 text-[10px] font-medium">
                       <span className="text-zinc-400 italic shrink truncate mr-2">{description}</span>
                       <span className={`font-bold tabular-nums shrink-0 ${relDiff > 0 ? 'text-red-400/90' : 'text-emerald-400/90'}`}>
@@ -831,30 +880,28 @@ export function TtfbChart({
               })()}
             </>
           ) : (
-            /* DEFAULT TTFB / CACHE TOOLTIP */
             <>
-              <div className={`mb-1.5 px-1.5 py-0.5 flex items-center justify-between border-b border-white/5 pb-1.5 rounded-md transition-all duration-300 ${activeRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : ''}`}>
+              <div className={`mb-1.5 px-1.5 py-0.5 flex items-center justify-between border-b border-white/5 pb-1.5 rounded-md transition-all duration-300 ${currentActiveRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : ''}`}>
                 <div className="flex flex-col gap-0.5">
-                  <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${activeRegion === 'global' ? 'text-cyan-300' : 'text-zinc-400'}`}>GLOBAL</span>
+                  <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${currentActiveRegion === 'global' ? 'text-cyan-300' : 'text-zinc-400'}`}>GLOBAL</span>
                   <div className="flex items-center gap-4 mt-0.5">
                     <div className="flex items-baseline gap-1.5">
-                      <span className={`text-sm font-black tabular-nums transition-colors ${getTtfbColorClass(globalTtfb[hoveredIdx].value, 'global')}`}>
-                        {Math.round(globalTtfb[hoveredIdx].value)}
+                      <span className={`text-sm font-black tabular-nums transition-colors ${getTtfbColorClass(globalTtfb[currentHoveredIdx].value, 'global')}`}>
+                        {Math.round(globalTtfb[currentHoveredIdx].value)}
                       </span>
-                      <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${activeRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>ms</span>
+                      <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${currentActiveRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>ms</span>
                     </div>
                     <div className="w-px h-3 bg-white/5" />
                     <div className="flex items-baseline gap-1.5">
                       <span className={`text-sm font-black tabular-nums transition-colors ${hoveredGlobalCache != null ? getCacheColor(hoveredGlobalCache, 'global') : 'text-zinc-500'}`}>
                         {hoveredGlobalCache != null ? Math.round(hoveredGlobalCache) : '—'}%
                       </span>
-                      <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${activeRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>cache</span>
+                      <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${currentActiveRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>cache</span>
                     </div>
                   </div>
                 </div>
               </div>
               <div className="space-y-2">
-                {/* Header row */}
                 <div className="flex items-center justify-between gap-6 border-b border-white/5 pb-1 mb-1">
                   <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">Region</span>
                   <div className="flex items-center gap-3">
@@ -863,11 +910,10 @@ export function TtfbChart({
                     <span className="w-[42px] text-right text-[9px] font-black text-zinc-500 uppercase tracking-widest">Cache</span>
                   </div>
                 </div>
-
                 {regions.map(region => {
-                  const p = byRegion[region]?.get(allBuckets[hoveredIdx])
+                  const p = byRegion[region]?.get(allBuckets[currentHoveredIdx])
                   if (!p) return null
-                  const isHovered = activeRegion === region
+                  const isHovered = currentActiveRegion === region
                   return (
                     <div
                       key={region}
@@ -905,29 +951,18 @@ export function TtfbChart({
                   )
                 })}
               </div>
-
-              {/* TTFB Performance Advisory Section */}
               {hoveredChart === 'ttfb' && (() => {
-                const targetRegion = activeRegion || 'global'
+                const targetRegion = activeTtfbRegion || 'global'
                 const insights = ttfbInsights.get(targetRegion)
-                const pointInsight = insights?.find(ins => ins.idx === hoveredIdx)
+                const pointInsight = insights?.find(ins => ins.idx === currentHoveredIdx)
                 if (!pointInsight) return null
-
                 const isBad = pointInsight.type === 'max' || pointInsight.type === 'spike-up'
-                const label = pointInsight.type === 'max' ? 'Peak TTFB' :
-                  pointInsight.type === 'min' ? 'Best TTFB' :
-                    pointInsight.type === 'spike-up' ? 'Performance Drop' : 'Performance Boost'
-
-                const description = pointInsight.type === 'max' ? "Highest latency in this period." :
-                  pointInsight.type === 'min' ? "Lowest latency in this period." :
-                    pointInsight.type === 'spike-up' ? "Performance drop in this period." :
-                      "Performance boost in this period."
-
+                const label = pointInsight.type === 'max' ? 'Peak TTFB' : pointInsight.type === 'min' ? 'Best TTFB' : pointInsight.type === 'spike-up' ? 'Performance Drop' : 'Performance Boost'
+                const description = pointInsight.type === 'max' ? "Highest latency in this period." : pointInsight.type === 'min' ? "Lowest latency in this period." : pointInsight.type === 'spike-up' ? "Performance drop in this period." : "Performance boost in this period."
                 const baselineValue = targetRegion === 'global' ? ttfbTimeframeAvg : (regionTtfbAvgs.get(targetRegion) || ttfbTimeframeAvg)
                 const baselineLabel = targetRegion === 'global' ? 'global average' : 'regional average'
                 const relDiff = pointInsight.value - baselineValue
                 const relPct = baselineValue > 0 ? (relDiff / baselineValue) * 100 : 0
-
                 return (
                   <div className={`mt-3 px-2 py-1.5 rounded-lg border animate-in fade-in slide-in-from-top-1 duration-300 ${isBad ? 'bg-red-500/10 border-red-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
                     <div className="flex items-center justify-between gap-4">
@@ -939,7 +974,6 @@ export function TtfbChart({
                         {Math.round(pointInsight.value)}ms
                       </span>
                     </div>
-
                     <div className="flex items-center justify-between gap-4 mt-1 text-[10px] font-medium">
                       <span className="text-zinc-400 italic shrink truncate mr-2">{description}</span>
                       <span className={`font-bold tabular-nums shrink-0 ${relDiff > 0 ? 'text-red-400/90' : 'text-emerald-400/90'}`}>
@@ -949,28 +983,17 @@ export function TtfbChart({
                   </div>
                 )
               })()}
-
-              {/* Cache Performance Advisory Section */}
               {hoveredChart === 'cache' && (() => {
-                const targetRegion = activeRegion || 'global'
+                const targetRegion = activeCacheRegion || 'global'
                 const insights = cacheInsights.get(targetRegion)
-                const pointInsight = insights?.find(ins => ins.idx === hoveredIdx)
+                const pointInsight = insights?.find(ins => ins.idx === currentHoveredIdx)
                 if (!pointInsight) return null
-
                 const isBad = pointInsight.type === 'min' || pointInsight.type === 'spike-down'
-                const label = pointInsight.type === 'max' ? 'Peak Efficiency' :
-                  pointInsight.type === 'min' ? 'Cache Drop' :
-                    pointInsight.type === 'spike-up' ? 'Cache Boost' : 'Cache Drop'
-
-                const description = pointInsight.type === 'max' ? "Best hit rate in this period." :
-                  pointInsight.type === 'min' ? "Lowest hit rate in this period." :
-                    pointInsight.type === 'spike-up' ? "Efficiency is higher in this period." :
-                      "Efficiency is lower in this period."
-
+                const label = pointInsight.type === 'max' ? 'Peak Efficiency' : pointInsight.type === 'min' ? 'Cache Drop' : pointInsight.type === 'spike-up' ? 'Cache Boost' : 'Cache Drop'
+                const description = pointInsight.type === 'max' ? "Best hit rate in this period." : pointInsight.type === 'min' ? "Lowest hit rate in this period." : pointInsight.type === 'spike-up' ? "Efficiency is higher in this period." : "Efficiency is lower in this period."
                 const baselineValue = targetRegion === 'global' ? cacheTimeframeAvg : (regionCacheAvgs.get(targetRegion) || cacheTimeframeAvg)
                 const baselineLabel = targetRegion === 'global' ? 'global average' : 'regional average'
                 const relDiff = pointInsight.value - baselineValue
-
                 return (
                   <div className={`mt-3 px-2 py-1.5 rounded-lg border animate-in fade-in slide-in-from-top-1 duration-300 ${isBad ? 'bg-red-500/10 border-red-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
                     <div className="flex items-center justify-between gap-4">
@@ -982,7 +1005,6 @@ export function TtfbChart({
                         {Math.round(pointInsight.value)}%
                       </span>
                     </div>
-
                     <div className="flex items-center justify-between gap-4 mt-1 text-[10px] font-medium">
                       <span className="text-zinc-400 italic shrink truncate mr-2">{description}</span>
                       <span className={`font-bold tabular-nums shrink-0 ${relDiff > 0 ? 'text-emerald-400/90' : 'text-red-400/90'}`}>
@@ -1017,650 +1039,614 @@ export function TtfbChart({
           )}
         </div>
       ) : (
-        <div className="space-y-4">
-          <div
-            className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700"
-            onMouseEnter={() => setHoveredChart('ttfb')}
-            onMouseLeave={() => setHoveredChart(null)}
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">TTFB Trend</div>
-                <div className="h-3 w-px bg-white/10" />
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-tighter">Global Avg</span>
-                  <span className="text-[10px] font-black text-cyan-300 tabular-nums leading-none mb-[1px]">{Math.round(ttfbTimeframeAvg)}ms</span>
-                </div>
-                <div className="h-3 w-px bg-white/10" />
-                <PremiumTooltip
-                  content={isSynced ? "Charts are synchronized. Click to decouple." : "Charts are independent. Click to synchronize."}
-                  position="bottom-center"
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+              <h2 className="text-sm font-bold text-zinc-200 uppercase tracking-wider">Trends</h2>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <PremiumTooltip
+                content={isSynced ? "Charts are synchronized. Click to decouple." : "Charts are independent. Click to synchronize."}
+                position="bottom-center"
+              >
+                <button
+                  onClick={() => setIsSynced(!isSynced)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all shadow-sm ${isSynced
+                    ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400 shadow-indigo-500/10'
+                    : 'bg-zinc-800/50 border-zinc-700 text-zinc-500 hover:text-zinc-300'
+                    }`}
                 >
-                  <button
-                    onClick={() => setIsSynced(!isSynced)}
-                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-tighter transition-all ${isSynced
-                      ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.1)]'
-                      : 'bg-zinc-800/50 border-zinc-700 text-zinc-500 hover:text-zinc-300'
+                  {isSynced ? <LinkIcon size={10} /> : <Unlink size={10} />}
+                  {isSynced ? 'Synced' : 'Decoupled'}
+                </button>
+              </PremiumTooltip>
+
+              <div className="flex h-8 items-center gap-1 rounded-xl bg-zinc-100 dark:bg-white/5 px-1.5 border border-zinc-200 dark:border-white/10">
+                {['24h', '7d', '30d', '90d'].map((r) => (
+                  <Link
+                    key={r}
+                    href={buildViewHref('trends', r, monitorId)}
+                    className={`px-3 h-6 flex items-center justify-center rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${range === r
+                      ? 'bg-white dark:bg-white/10 text-zinc-900 dark:text-white shadow-lg shadow-black/5 ring-1 ring-black/5'
+                      : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
                       }`}
                   >
-                    <Activity size={10} className={isSynced ? 'animate-pulse' : ''} />
-                    {isSynced ? 'Synced' : 'Decoupled'}
-                  </button>
-                </PremiumTooltip>
-              </div>
-              <div className="flex flex-wrap items-center justify-end gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => toggleGlobal('ttfb')}
-                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobalTtfb ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
-                >
-                  GLOBAL
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => toggleAllRegions('ttfb')}
-                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedTtfbRegions.size === regions.length ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-300' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
-                >
-                  ALL
-                </button>
-
-                {regions.map(region => {
-                  const active = selectedTtfbRegions.has(region)
-                  const regionLabel = regionMeta[region]?.label ?? region
-                  return (
-                    <PremiumTooltip
-                      key={`region-tip-${region}`}
-                      content={regionLabel}
-                      position="bottom-center"
-                      panelSizing="hug"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => toggleRegion(region, 'ttfb')}
-                        className="inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-colors hover:brightness-110"
-                        style={regionToggleStyle(region, active)}
-                      >
-                        {regionAbbreviations[region] ?? region.slice(0, 3).toUpperCase()}
-                      </button>
-                    </PremiumTooltip>
-                  )
-                })}
+                    {r}
+                  </Link>
+                ))}
               </div>
             </div>
-            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
-              {[0, Math.round(niceMaxTtfb / 2), niceMaxTtfb].map(v => (
-                <g key={v}>
-                  <line x1={PAD.left} x2={W - PAD.right} y1={toYTtfb(v)} y2={toYTtfb(v)} stroke="currentColor" strokeOpacity={0.05} strokeWidth={1} />
-                  <text x={PAD.left - 6} y={toYTtfb(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}ms</text>
-                </g>
-              ))}
-              <XAxisLabels />
-              <GuideLine />
-              {regions.map(region => {
-                if (!selectedTtfbRegions.has(region)) return null
-                const m = byRegion[region]
-                if (!m) return null
-                const bandPath = buildP95BandPath(allBuckets, m, toX, toYTtfb)
-                if (!bandPath) return null
-                const isActive = activeRegion === region
-                return (
-                  <path
-                    key={`band-${region}`}
-                    d={bandPath}
-                    fill={regionMeta[region]?.color ?? '#6b7280'}
-                    fillOpacity={isActive ? 0.15 : 0.05}
-                    stroke="none"
-                    className="transition-all duration-300 pointer-events-none"
-                  />
-                )
-              })}
-              {regions.map(region => {
-                if (!selectedTtfbRegions.has(region)) return null
-                const m = byRegion[region]
-                if (!m) return null
-                const points = allBuckets.map((b, i) => m.has(b) ? `${toX(i)},${toYTtfb(m.get(b)!.ttfb_avg)}` : null).filter(Boolean).join(' ')
-                return (
-                  <g 
-                    key={`group-${region}`} 
-                    onMouseEnter={() => setHoveredRegion(region)}
-                    onMouseLeave={() => setHoveredRegion(null)}
-                    onClick={() => setActiveRegion(region)} 
-                    className="cursor-pointer"
+          </div>
+
+          <div className="space-y-4">
+            <div
+              className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700"
+              onMouseEnter={() => setHoveredChart('ttfb')}
+              onMouseLeave={() => setHoveredChart(null)}
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">TTFB Trend</div>
+                  <div className="h-3 w-px bg-white/10" />
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-tighter">Global Avg</span>
+                    <span className="text-[10px] font-black text-cyan-300 tabular-nums leading-none mb-[1px]">{Math.round(ttfbTimeframeAvg)}ms</span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => toggleGlobal('ttfb')}
+                    className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobalTtfb 
+                      ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30' 
+                      : 'border-zinc-700/60 bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'}`}
                   >
-                    <polyline
-                      points={points}
-                      fill="none"
-                      stroke="transparent"
-                      strokeWidth={12}
-                    />
-                    <polyline
-                      points={points}
-                      fill="none"
-                      stroke={regionMeta[region]?.color ?? '#6b7280'}
-                      strokeWidth={activeRegion === region ? 3.5 : hoveredRegion === region ? 2.5 : 1.5}
-                      strokeLinejoin="round"
-                      strokeLinecap="round"
-                      strokeOpacity={activeRegion === region ? 1 : hoveredRegion === region ? 0.6 : 0.35}
-                      className="transition-all duration-300 pointer-events-none"
-                    />
-                  </g>
-                )
-              })}
-              {showGlobalTtfb && (
-                <g onMouseEnter={() => setHoveredRegion('global')} onMouseLeave={() => setHoveredRegion(null)} onClick={() => setActiveRegion('global')} className="cursor-pointer">
-                  <polyline
-                    points={globalTtfb.map((bucket, i) => `${toX(i)},${toYTtfb(bucket.value)}`).join(' ')}
-                    fill="none"
-                    stroke="transparent"
-                    strokeWidth={12}
-                  />
-                  <polyline
-                    points={globalTtfb.map((bucket, i) => `${toX(i)},${toYTtfb(bucket.value)}`).join(' ')}
-                    fill="none"
-                    stroke="#22d3ee"
-                    strokeWidth={activeRegion === 'global' ? 3.5 : hoveredRegion === 'global' ? 2.5 : 2.4}
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                    strokeOpacity={activeRegion === 'global' ? 1 : hoveredRegion === 'global' ? 0.6 : 0.35}
-                    className="transition-all duration-300 pointer-events-none"
-                  />
-                </g>
-              )}
+                    GLOBAL
+                  </button>
 
-              {/* Advisory Markers (Max, Min, Spikes) */}
-              {(() => {
-                const targetRegion = activeRegion || 'global'
-                const insights = ttfbInsights.get(targetRegion)
-                if (!insights) return null
+                  <button
+                    type="button"
+                    onClick={() => toggleAllRegions('ttfb')}
+                    className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedTtfbRegions.size === regions.length 
+                      ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-200' 
+                      : 'border-zinc-700/60 bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'}`}
+                  >
+                    ALL
+                  </button>
 
-                const isGlobalVisible = showGlobalTtfb && targetRegion === 'global'
-                const isRegionVisible = selectedTtfbRegions.has(targetRegion)
-
-                if (!isGlobalVisible && !isRegionVisible) return null
-
-                return insights.map((ins, i) => {
-                  const color = ins.type === 'max' || ins.type === 'spike-up' ? '#f43f5e' : '#10b981'
-                  const isHoveredPoint = hoveredIdx === ins.idx
-
-                  return (
-                    <g key={`ttfb-insight-${targetRegion}-${ins.type}-${ins.idx}`} className="pointer-events-none">
-                      <circle
-                        cx={toX(ins.idx)}
-                        cy={toYTtfb(ins.value)}
-                        r={isHoveredPoint ? 8 : 4}
-                        fill={color}
-                        fillOpacity={0.2}
+                  {regions.map(region => {
+                    const active = selectedTtfbRegions.has(region)
+                    const regionLabel = regionMeta[region]?.label ?? region
+                    return (
+                      <PremiumTooltip
+                        key={`region-tip-${region}`}
+                        content={regionLabel}
+                        position="bottom-center"
+                        panelSizing="hug"
                       >
-                        <animate attributeName="r" from="4" to="12" dur="1.5s" repeatCount="indefinite" />
-                        <animate attributeName="fill-opacity" from="0.3" to="0" dur="1.5s" repeatCount="indefinite" />
-                      </circle>
-                      <circle
-                        cx={toX(ins.idx)}
-                        cy={toYTtfb(ins.value)}
-                        r={isHoveredPoint ? 4 : 3}
-                        fill={color}
-                        stroke="#0B1220"
-                        strokeWidth={1}
+                        <button
+                          type="button"
+                          onClick={() => toggleRegion(region, 'ttfb')}
+                          className="inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-colors hover:brightness-110"
+                          style={regionToggleStyle(region, active)}
+                        >
+                          {regionAbbreviations[region] ?? region.slice(0, 3).toUpperCase()}
+                        </button>
+                      </PremiumTooltip>
+                    )
+                  })}
+                </div>
+              </div>
+              <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
+                {[0, Math.round(niceMaxTtfb / 2), niceMaxTtfb].map(v => (
+                  <g key={v}>
+                    <line x1={PAD.left} x2={W - PAD.right} y1={toYTtfb(v)} y2={toYTtfb(v)} stroke="currentColor" strokeOpacity={0.05} strokeWidth={1} />
+                    <text x={PAD.left - 6} y={toYTtfb(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}ms</text>
+                  </g>
+                ))}
+                <XAxisLabels />
+                <GuideLine source="ttfb" />
+                {regions.map(region => {
+                  if (!selectedTtfbRegions.has(region)) return null
+                  const m = byRegion[region]
+                  if (!m) return null
+                  const bandPath = buildP95BandPath(allBuckets, m, toX, toYTtfb)
+                  if (!bandPath) return null
+                  const isActive = activeTtfbRegion === region
+                  return (
+                    <g
+                      key={region}
+                      onMouseEnter={() => updateHoveredRegion(region, 'ttfb')}
+                      onMouseLeave={() => updateHoveredRegion(null, 'ttfb')}
+                      onClick={() => updateActiveRegion(region, 'ttfb')}
+                      className="cursor-pointer"
+                    >
+                      <path d={bandPath} fill={regionMeta[region]?.color ?? '#6b7280'} fillOpacity={isActive ? 0.08 : 0.03} />
+                      <path
+                        d={allBuckets.map((b, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toYTtfb(m.get(b)?.ttfb_avg ?? 0)}`).join(' ')}
+                        fill="none"
+                        stroke={regionMeta[region]?.color ?? '#6b7280'}
+                        strokeWidth={activeTtfbRegion === region ? 3.5 : hoveredTtfbRegion === region ? 2.5 : 1.5}
+                        strokeLinejoin="round"
+                        strokeLinecap="round"
+                        strokeOpacity={activeTtfbRegion === region ? 1 : hoveredTtfbRegion === region ? 0.6 : 0.35}
                         className="transition-all duration-300"
                       />
                     </g>
                   )
-                })
-              })()}
-            </svg>
-          </div>
-
-          <div
-            className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700"
-            onMouseEnter={() => setHoveredChart('cache')}
-            onMouseLeave={() => setHoveredChart(null)}
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">Cache Hit Rate</div>
-                {isCacheNotReported && (
-                  <span className="inline-flex items-center rounded-full border border-zinc-500/30 bg-zinc-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight text-zinc-300">
-                    Not Reported
-                  </span>
-                )}
-                {!isCacheNotReported && (
-                  <>
-                    <div className="h-3 w-px bg-white/10 ml-1" />
-                    <div className="flex items-center gap-1.5 ml-1">
-                      <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-tighter">Global Avg</span>
-                      <span className="text-[10px] font-black text-emerald-400 tabular-nums leading-none mb-[1px]">
-                        {Math.round(cacheTimeframeAvg)}%
-                      </span>
-                    </div>
-                  </>
-                )}
-                {!isCacheNotReported && cachePlateauState && (
-                  <>
-                    <span className={`ml-[15px] inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-tight ${cachePlateauState.className}`}>
-                      {cachePlateauState.label}
-                    </span>
-                    <span className="text-[10px] font-medium tracking-tight text-zinc-400">
-                      {cachePlateauState.statusText}
-                    </span>
-                  </>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {hasCacheData && (
-              <div className="flex flex-wrap items-center justify-end gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => toggleGlobal('cache')}
-                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobalCache ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
-                >
-                  GLOBAL
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => toggleAllRegions('cache')}
-                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedCacheRegions.size === regions.length ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-300' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
-                >
-                  ALL
-                </button>
-
-                {regions.map(region => {
-                  const active = selectedCacheRegions.has(region)
-                  const regionLabel = regionMeta[region]?.label ?? region
-                  return (
-                    <PremiumTooltip
-                      key={`cache-region-tip-${region}`}
-                      content={regionLabel}
-                      position="bottom-center"
-                      panelSizing="hug"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => toggleRegion(region, 'cache')}
-                        className="inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-colors hover:brightness-110"
-                        style={regionToggleStyle(region, active)}
-                      >
-                        {regionAbbreviations[region] ?? region.slice(0, 3).toUpperCase()}
-                      </button>
-                    </PremiumTooltip>
-                  )
                 })}
-              </div>
-                )}
-              </div>
-            </div>
-            {isCacheNotReported ? (
-              <div className="mt-1 rounded-xl border border-dashed border-zinc-700/60 bg-zinc-900/20 px-4 py-3 text-[11px] text-zinc-500">
-                No cache headers detected in the selected timeframe.
-              </div>
-            ) : (
-              <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
-                <rect x={PAD.left} y={toYCache(100)} width={CW} height={toYCache(95) - toYCache(100)} fill="#10b981" fillOpacity={0.04} />
-                <rect x={PAD.left} y={toYCache(95)} width={CW} height={toYCache(90) - toYCache(95)} fill="#f59e0b" fillOpacity={0.035} />
-                <rect x={PAD.left} y={toYCache(90)} width={CW} height={toYCache(0) - toYCache(90)} fill="#ef4444" fillOpacity={0.03} />
-
-                {[0, 25, 50, 75, 90, 95, 100].map(v => (
-                  <g key={v}>
-                    <line
-                      x1={PAD.left}
-                      x2={W - PAD.right}
-                      y1={toYCache(v)}
-                      y2={toYCache(v)}
-                      stroke="currentColor"
-                      strokeOpacity={cacheGridOpacity(v)}
-                      strokeWidth={1}
-                      strokeDasharray={v === 95 ? '4 3' : undefined}
-                    />
-                    <text x={PAD.left - 6} y={toYCache(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}%</text>
-                  </g>
-                ))}
-                <XAxisLabels />
-                <GuideLine />
-
-                {cacheHitThresholdPct != null && (
-                  <line
-                    x1={PAD.left}
-                    x2={W - PAD.right}
-                    y1={toYCache(cacheHitThresholdPct)}
-                    y2={toYCache(cacheHitThresholdPct)}
-                    stroke="var(--brand-warning, #f59e0b)"
-                    strokeWidth={1.5}
-                    strokeDasharray="6 4"
-                    strokeOpacity={cacheThresholdOpacity}
-                  />
-                )}
-
-                {hasCacheData ? (
-                  <>
-                    {regions.map(region => {
-                      if (!selectedCacheRegions.has(region)) return null
-                      const m = byRegion[region]
-                      if (!m) return null
-                      const points = allBuckets.map((b, i) => {
-                        const cacheValue = m.get(b)?.cache_hit_pct
-                        return cacheValue != null ? `${toX(i)},${toYCache(cacheValue)}` : null
-                      }).filter(Boolean).join(' ')
-                      if (!points) return null
-
-
-                      return (
-                        <g 
-                          key={`cache-group-${region}`} 
-                          onMouseEnter={() => setHoveredRegion(region)}
-                          onMouseLeave={() => setHoveredRegion(null)}
-                          onClick={() => setActiveRegion(region)} 
-                          className="cursor-pointer"
-                        >
-                          <polyline
-                            points={points}
-                            fill="none"
-                            stroke="transparent"
-                            strokeWidth={12}
-                          />
-                    <polyline
-                      points={points}
+                {showGlobalTtfb && (
+                  <g onMouseEnter={() => updateHoveredRegion('global', 'ttfb')} onMouseLeave={() => updateHoveredRegion(null, 'ttfb')} onClick={() => updateActiveRegion('global', 'ttfb')} className="cursor-pointer">
+                    <path
+                      d={globalTtfb.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toYTtfb(p.value)}`).join(' ')}
                       fill="none"
-                      stroke={regionMeta[region]?.color ?? '#6b7280'}
-                      strokeWidth={activeRegion === region ? 3.5 : hoveredRegion === region ? 2.5 : 1.5}
+                      stroke="#22d3ee"
+                      strokeWidth={activeTtfbRegion === 'global' ? 4 : hoveredTtfbRegion === 'global' ? 3 : 2}
                       strokeLinejoin="round"
                       strokeLinecap="round"
-                      strokeOpacity={activeRegion === region ? 1 : hoveredRegion === region ? 0.6 : 0.35}
-                      className="transition-all duration-300 pointer-events-none"
+                      strokeOpacity={activeTtfbRegion === 'global' ? 1 : hoveredTtfbRegion === 'global' ? 0.7 : 0.5}
+                      className="transition-all duration-300"
                     />
-                        </g>
-                      )
-                    })}
+                  </g>
+                )}
 
-                    {showGlobalCache && (
-                      <g 
-                        onMouseEnter={() => setHoveredRegion('global')}
-                        onMouseLeave={() => setHoveredRegion(null)}
-                        onClick={() => setActiveRegion('global')} 
-                        className="cursor-pointer"
-                      >
-                        <polyline
-                          points={globalCache.map((bucket, i) => bucket.value != null ? `${toX(i)},${toYCache(bucket.value)}` : null).filter(Boolean).join(' ')}
-                          fill="none"
-                          stroke="transparent"
-                          strokeWidth={12}
-                        />
-                        <polyline
-                          points={globalCache.map((bucket, i) => bucket.value != null ? `${toX(i)},${toYCache(bucket.value)}` : null).filter(Boolean).join(' ')}
-                          fill="none"
-                          stroke="#22d3ee"
-                          strokeWidth={activeRegion === 'global' ? 3.5 : hoveredRegion === 'global' ? 2.5 : 2.4}
-                          strokeLinejoin="round"
-                          strokeLinecap="round"
-                          strokeOpacity={activeRegion === 'global' ? 1 : hoveredRegion === 'global' ? 0.6 : 0.35}
-                          className="transition-all duration-300 pointer-events-none"
+                {(() => {
+                  const targetRegion = activeTtfbRegion || 'global'
+                  const insights = ttfbInsights.get(targetRegion)
+                  if (!insights) return null
+                  const isGlobalVisible = showGlobalTtfb && targetRegion === 'global'
+                  const isRegionVisible = selectedTtfbRegions.has(targetRegion)
+                  if (!isGlobalVisible && !isRegionVisible) return null
+                  return insights.map((ins, i) => {
+                    const color = ins.type === 'max' || ins.type === 'spike-up' ? '#f43f5e' : '#10b981'
+                    const isHoveredPoint = hoveredTtfbIdx === ins.idx
+                    return (
+                      <g key={`insight-${targetRegion}-${ins.type}-${ins.idx}`} className="pointer-events-none">
+                        <circle
+                          cx={toX(ins.idx)}
+                          cy={toYTtfb(ins.value)}
+                          r={isHoveredPoint ? 8 : 4}
+                          fill={color}
+                          fillOpacity={0.2}
+                        >
+                          <animate attributeName="r" from="4" to="12" dur="1.5s" repeatCount="indefinite" />
+                          <animate attributeName="fill-opacity" from="0.3" to="0" dur="1.5s" repeatCount="indefinite" />
+                        </circle>
+                        <circle
+                          cx={toX(ins.idx)}
+                          cy={toYTtfb(ins.value)}
+                          r={isHoveredPoint ? 4 : 3}
+                          fill={color}
+                          stroke="#0B1220"
+                          strokeWidth={1}
+                          className="transition-all duration-300"
                         />
                       </g>
-                    )}
+                    )
+                  })
+                })()}
+              </svg>
+            </div>
 
-                    {/* Advisory Markers (Max, Min, Spikes) */}
-                    {(() => {
-                      const targetRegion = activeRegion || 'global'
-                      const insights = cacheInsights.get(targetRegion)
-                      if (!insights) return null
+            <div
+              className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700"
+              onMouseEnter={() => setHoveredChart('cache')}
+              onMouseLeave={() => setHoveredChart(null)}
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">Cache Hit Rate</div>
+                  {isCacheNotReported && (
+                    <span className="inline-flex items-center rounded-full border border-zinc-500/30 bg-zinc-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight text-zinc-300">
+                      Not Reported
+                    </span>
+                  )}
+                  {!isCacheNotReported && (
+                    <>
+                      <div className="h-3 w-px bg-white/10 ml-1" />
+                      <div className="flex items-center gap-1.5 ml-1">
+                        <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-tighter">Global Avg</span>
+                        <span className="text-[10px] font-black text-emerald-400 tabular-nums leading-none mb-[1px]">
+                          {Math.round(cacheTimeframeAvg)}%
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  {!isCacheNotReported && cachePlateauState && (
+                    <>
+                      <span className={`ml-[15px] inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-tight ${cachePlateauState.className}`}>
+                        {cachePlateauState.label}
+                      </span>
+                      <span className="text-[10px] font-medium tracking-tight text-zinc-400">
+                        {cachePlateauState.statusText}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {hasCacheData && (
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => toggleGlobal('cache')}
+                        className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobalCache 
+                          ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30' 
+                          : 'border-zinc-700/60 bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'}`}
+                      >
+                        GLOBAL
+                      </button>
 
-                      const isGlobalVisible = showGlobalCache && targetRegion === 'global'
-                      const isRegionVisible = selectedCacheRegions.has(targetRegion)
+                      <button
+                        type="button"
+                        onClick={() => toggleAllRegions('cache')}
+                        className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedCacheRegions.size === regions.length 
+                          ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-200' 
+                          : 'border-zinc-700/60 bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'}`}
+                      >
+                        ALL
+                      </button>
 
-                      if (!isGlobalVisible && !isRegionVisible) return null
+                      {regions.map(region => {
+                        const active = selectedCacheRegions.has(region)
+                        const regionLabel = regionMeta[region]?.label ?? region
+                        return (
+                          <PremiumTooltip
+                            key={`cache-region-tip-${region}`}
+                            content={regionLabel}
+                            position="bottom-center"
+                            panelSizing="hug"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => toggleRegion(region, 'cache')}
+                              className="inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-colors hover:brightness-110"
+                              style={regionToggleStyle(region, active)}
+                            >
+                              {regionAbbreviations[region] ?? region.slice(0, 3).toUpperCase()}
+                            </button>
+                          </PremiumTooltip>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+              {isCacheNotReported ? (
+                <div className="mt-1 rounded-xl border border-dashed border-zinc-700/60 bg-zinc-900/20 px-4 py-3 text-[11px] text-zinc-500">
+                  No cache headers detected in the selected timeframe.
+                </div>
+              ) : (
+                <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
+                  <rect x={PAD.left} y={toYCache(100)} width={CW} height={toYCache(95) - toYCache(100)} fill="#10b981" fillOpacity={0.04} />
+                  <rect x={PAD.left} y={toYCache(95)} width={CW} height={toYCache(90) - toYCache(95)} fill="#f59e0b" fillOpacity={0.035} />
+                  <rect x={PAD.left} y={toYCache(90)} width={CW} height={toYCache(0) - toYCache(90)} fill="#ef4444" fillOpacity={0.03} />
 
-                      return insights.map((ins, i) => {
-                        const isBad = ins.type === 'min' || ins.type === 'spike-down'
-                        const color = isBad ? '#f43f5e' : '#10b981'
-                        const isHoveredPoint = hoveredIdx === ins.idx
+                  {[0, 25, 50, 75, 90, 95, 100].map(v => (
+                    <g key={v}>
+                      <line
+                        x1={PAD.left}
+                        x2={W - PAD.right}
+                        y1={toYCache(v)}
+                        y2={toYCache(v)}
+                        stroke="currentColor"
+                        strokeOpacity={cacheGridOpacity(v)}
+                        strokeWidth={1}
+                        strokeDasharray={v === cacheHitThresholdPct ? "4 4" : "0"}
+                      />
+                      {v === cacheHitThresholdPct && (
+                        <line
+                          x1={PAD.left}
+                          x2={W - PAD.right}
+                          y1={toYCache(v)}
+                          y2={toYCache(v)}
+                          stroke="#ef4444"
+                          strokeOpacity={cacheThresholdOpacity}
+                          strokeWidth={1}
+                          strokeDasharray="4 4"
+                        />
+                      )}
+                      <text x={PAD.left - 6} y={toYCache(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}%</text>
+                    </g>
+                  ))}
+                  <XAxisLabels />
+                  <GuideLine source="cache" />
+
+                  {hasCacheData ? (
+                    <>
+                      {regions.map(region => {
+                        if (!selectedCacheRegions.has(region)) return null
+                        const m = byRegion[region]
+                        if (!m) return null
+                        const dPath = allBuckets.map((b, i) => {
+                          const p = m.get(b)
+                          return (p && p.cache_hit_pct != null) ? `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toYCache(p.cache_hit_pct)}` : null
+                        }).filter(Boolean).join(' ')
+                        if (!dPath) return null
 
                         return (
-                          <g key={`cache-insight-${targetRegion}-${ins.type}-${ins.idx}`} className="pointer-events-none">
-                            <circle
-                              cx={toX(ins.idx)}
-                              cy={toYCache(ins.value)}
-                              r={isHoveredPoint ? 8 : 4}
-                              fill={color}
-                              fillOpacity={0.2}
-                            >
-                              <animate attributeName="r" from="4" to="12" dur="1.5s" repeatCount="indefinite" />
-                              <animate attributeName="fill-opacity" from="0.3" to="0" dur="1.5s" repeatCount="indefinite" />
-                            </circle>
-                            <circle
-                              cx={toX(ins.idx)}
-                              cy={toYCache(ins.value)}
-                              r={isHoveredPoint ? 4 : 3}
-                              fill={color}
-                              stroke="#0B1220"
-                              strokeWidth={1}
+                          <g
+                            key={`cache-region-group-${region}`}
+                            onMouseEnter={() => updateHoveredRegion(region, 'cache')}
+                            onMouseLeave={() => updateHoveredRegion(null, 'cache')}
+                            onClick={() => updateActiveRegion(region, 'cache')}
+                            className="cursor-pointer"
+                          >
+                            <path
+                              d={dPath}
+                              fill="none"
+                              stroke={regionMeta[region]?.color ?? '#6b7280'}
+                              strokeWidth={activeCacheRegion === region ? 3.5 : hoveredCacheRegion === region ? 2.5 : 1.5}
+                              strokeLinejoin="round"
+                              strokeLinecap="round"
+                              strokeOpacity={activeCacheRegion === region ? 1 : hoveredCacheRegion === region ? 0.6 : 0.35}
                               className="transition-all duration-300"
                             />
                           </g>
                         )
-                      })
-                    })()}
-                  </>
-                ) : (
-                  <text x={W / 2} y={H / 2} textAnchor="middle" fontSize={10} fill="currentColor" fillOpacity={0.35}>No cache data</text>
-                )}
-              </svg>
-            )}
-          </div>
+                      })}
 
-          <div
-            className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700"
-            onMouseEnter={() => setHoveredChart('network')}
-            onMouseLeave={() => setHoveredChart(null)}
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">Connection Time</div>
-                <div className="h-3 w-px bg-white/10" />
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-tighter">Global Avg</span>
-                  <span className={`text-[10px] font-black tabular-nums leading-none mb-[1px] transition-colors ${networkMetric === 'dns' ? 'text-purple-400' :
-                    networkMetric === 'tcp' ? 'text-blue-400' :
-                      networkMetric === 'tls' ? 'text-fuchsia-400' :
-                        'text-cyan-300'
-                    }`}>
-                    {Math.round(timeframeAvg)}ms
-                  </span>
-                </div>
-                <div className="h-3 w-px bg-white/10" />
-                <div className="flex items-center gap-1">
-                  {(['dns', 'tcp', 'tls', 'net'] as const).map(m => (
-                    <PremiumTooltip
-                      key={m}
-                      content={
-                        m === 'dns' ? "Domain name resolution time." :
-                          m === 'tcp' ? "Connection establishment time." :
-                            m === 'tls' ? "Security handshake duration." :
-                              "Total network time (DNS + TCP + TLS)."
-                      }
-                      position="bottom-center"
-                      panelSizing="hug"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setNetworkMetric(m)}
-                        className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter transition-all ${networkMetric === m
-                          ? (m === 'net' ? 'bg-cyan-400/20 text-cyan-300 ring-1 ring-cyan-400/30' :
-                            m === 'dns' ? 'bg-purple-400/20 text-purple-400 ring-1 ring-purple-400/30' :
-                              m === 'tcp' ? 'bg-blue-400/20 text-blue-400 ring-1 ring-blue-400/30' :
-                                'bg-fuchsia-400/20 text-fuchsia-400 ring-1 ring-fuchsia-400/30')
-                          : 'text-zinc-500 hover:text-zinc-300'
-                          }`}
-                      >
-                        {m}
-                      </button>
-                    </PremiumTooltip>
-                  ))}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center justify-end gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => toggleGlobal('net')}
-                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobalNet ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
-                >
-                  GLOBAL
-                </button>
+                      {showGlobalCache && (
+                        <g
+                          onMouseEnter={() => updateHoveredRegion('global', 'cache')}
+                          onMouseLeave={() => updateHoveredRegion(null, 'cache')}
+                          onClick={() => updateActiveRegion('global', 'cache')}
+                          className="cursor-pointer"
+                        >
+                          <path
+                            d={globalCache.map((p, i) => p.value != null ? `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toYCache(p.value)}` : null).filter(Boolean).join(' ')}
+                            fill="none"
+                            stroke="#22d3ee"
+                            strokeWidth={activeCacheRegion === 'global' ? 4 : hoveredCacheRegion === 'global' ? 3 : 2}
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                            strokeOpacity={activeCacheRegion === 'global' ? 1 : hoveredCacheRegion === 'global' ? 0.7 : 0.5}
+                            className="transition-all duration-300"
+                          />
+                        </g>
+                      )}
 
-                <button
-                  type="button"
-                  onClick={() => toggleAllRegions('net')}
-                  className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedNetRegions.size === regions.length ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-300' : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:border-zinc-700 hover:text-zinc-500'}`}
-                >
-                  ALL
-                </button>
-
-                {regions.map(region => {
-                  const active = selectedNetRegions.has(region)
-                  const regionLabel = regionMeta[region]?.label ?? region
-                  return (
-                    <PremiumTooltip
-                      key={`net-region-tip-${region}`}
-                      content={regionLabel}
-                      position="bottom-center"
-                      panelSizing="hug"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => toggleRegion(region, 'net')}
-                        className="inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-colors hover:brightness-110"
-                        style={regionToggleStyle(region, active)}
-                      >
-                        {regionAbbreviations[region] ?? region.slice(0, 3).toUpperCase()}
-                      </button>
-                    </PremiumTooltip>
-                  )
-                })}
-              </div>
-            </div>
-            <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
-              {[0, Math.round(niceMaxNet / 2), niceMaxNet].map(v => (
-                <g key={v}>
-                  <line x1={PAD.left} x2={W - PAD.right} y1={toYNet(v)} y2={toYNet(v)} stroke="currentColor" strokeOpacity={0.05} strokeWidth={1} />
-                  <text x={PAD.left - 6} y={toYNet(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}ms</text>
-                </g>
-              ))}
-              <XAxisLabels />
-              <GuideLine />
-              {showGlobalTtfb && (
-                <g onMouseEnter={() => setHoveredRegion('global')} onMouseLeave={() => setHoveredRegion(null)} onClick={() => setActiveRegion('global')} className="cursor-pointer">
-                  {/* Global Net (Sum or specific metric) */}
-                  <polyline
-                    points={globalNet.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')}
-                    fill="none"
-                    stroke={networkMetric === 'dns' ? TIMING.dns.stroke : networkMetric === 'tcp' ? TIMING.tcp.stroke : networkMetric === 'tls' ? TIMING.tls.stroke : '#22d3ee'}
-                    strokeWidth={activeRegion === 'global' ? 3.5 : 2.4}
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                    strokeOpacity={activeRegion === 'global' ? 1 : 0.35}
-                    className="transition-all duration-300 pointer-events-none"
-                  />
-                  {/* Hit area */}
-                  <polyline
-                    points={globalNet.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')}
-                    fill="none"
-                    stroke="transparent"
-                    strokeWidth={16}
-                    className="cursor-pointer"
-                  />
-                </g>
+                      {(() => {
+                        const targetRegion = activeCacheRegion || 'global'
+                        const insights = cacheInsights.get(targetRegion)
+                        if (!insights) return null
+                        const isGlobalVisible = showGlobalCache && targetRegion === 'global'
+                        const isRegionVisible = selectedCacheRegions.has(targetRegion)
+                        if (!isGlobalVisible && !isRegionVisible) return null
+                        return insights.map((ins, i) => {
+                          const isBad = ins.type === 'min' || ins.type === 'spike-down'
+                          const color = isBad ? '#f43f5e' : '#10b981'
+                          const isHoveredPoint = hoveredCacheIdx === ins.idx
+                          return (
+                            <g key={`insight-cache-${targetRegion}-${ins.type}-${ins.idx}`} className="pointer-events-none">
+                              <circle
+                                cx={toX(ins.idx)}
+                                cy={toYCache(ins.value)}
+                                r={isHoveredPoint ? 8 : 4}
+                                fill={color}
+                                fillOpacity={0.2}
+                              >
+                                <animate attributeName="r" from="4" to="12" dur="1.5s" repeatCount="indefinite" />
+                                <animate attributeName="fill-opacity" from="0.3" to="0" dur="1.5s" repeatCount="indefinite" />
+                              </circle>
+                              <circle
+                                cx={toX(ins.idx)}
+                                cy={toYCache(ins.value)}
+                                r={isHoveredPoint ? 4 : 3}
+                                fill={color}
+                                stroke="#0B1220"
+                                strokeWidth={1}
+                                className="transition-all duration-300"
+                              />
+                            </g>
+                          )
+                        })
+                      })()}
+                    </>
+                  ) : (
+                    <text x={W / 2} y={H / 2} textAnchor="middle" fontSize={10} fill="currentColor" fillOpacity={0.35}>No cache data</text>
+                  )}
+                </svg>
               )}
+            </div>
 
-
-              {regions.map(region => {
-                if (!selectedNetRegions.has(region)) return null
-                const m = byRegion[region]
-                if (!m) return null
-                const points = allBuckets.map((b, i) => {
-                  const p = m.get(b)
-                  if (!p) return null
-                  let val = 0
-                  if (networkMetric === 'dns') val = p.dns_avg ?? 0
-                  else if (networkMetric === 'tcp') val = p.tcp_avg ?? 0
-                  else if (networkMetric === 'tls') val = p.tls_avg ?? 0
-                  else val = (p.dns_avg ?? 0) + (p.tcp_avg ?? 0) + (p.tls_avg ?? 0)
-                  return `${toX(i)},${toYNet(val)}`
-                }).filter(Boolean).join(' ')
-
-
-                return (
-                  <g 
-                    key={`net-group-${region}`} 
-                    onMouseEnter={() => setHoveredRegion(region)}
-                    onMouseLeave={() => setHoveredRegion(null)}
-                    onClick={() => setActiveRegion(region)} 
-                    className="cursor-pointer"
+            <div
+              className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700"
+              onMouseEnter={() => setHoveredChart('network')}
+              onMouseLeave={() => setHoveredChart(null)}
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">Connection Time</div>
+                  <div className="h-3 w-px bg-white/10" />
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-tighter">Global Avg</span>
+                    <span className={`text-[10px] font-black tabular-nums leading-none mb-[1px] transition-colors ${networkMetric === 'dns' ? 'text-purple-400' :
+                      networkMetric === 'tcp' ? 'text-blue-400' :
+                        networkMetric === 'tls' ? 'text-fuchsia-400' :
+                          'text-cyan-300'
+                      }`}>
+                      {Math.round(timeframeAvg)}ms
+                    </span>
+                  </div>
+                  <div className="h-3 w-px bg-white/10" />
+                  <div className="flex items-center gap-1">
+                    {(['dns', 'tcp', 'tls', 'net'] as const).map(m => (
+                      <PremiumTooltip
+                        key={m}
+                        content={
+                          m === 'dns' ? "Domain name resolution time." :
+                            m === 'tcp' ? "Connection establishment time." :
+                              m === 'tls' ? "Security handshake duration." :
+                                "Total network time (DNS + TCP + TLS)."
+                        }
+                        position="bottom-center"
+                        panelSizing="hug"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setNetworkMetric(m)}
+                          className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter transition-all ${networkMetric === m
+                            ? (m === 'net' ? 'bg-cyan-400/20 text-cyan-300 ring-1 ring-cyan-400/30' :
+                              m === 'dns' ? 'bg-purple-400/20 text-purple-400 ring-1 ring-purple-400/30' :
+                                m === 'tcp' ? 'bg-blue-400/20 text-blue-400 ring-1 ring-blue-400/30' :
+                                  'bg-fuchsia-400/20 text-fuchsia-400 ring-1 ring-fuchsia-400/30')
+                            : 'text-zinc-500 hover:text-zinc-300'
+                            }`}
+                        >
+                          {m}
+                        </button>
+                      </PremiumTooltip>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => toggleGlobal('net')}
+                    className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobalNet 
+                      ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30' 
+                      : 'border-zinc-700/60 bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'}`}
                   >
-                    {/* Transparent hit area */}
-                    <polyline
-                      points={points}
+                    GLOBAL
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => toggleAllRegions('net')}
+                    className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedNetRegions.size === regions.length 
+                      ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-200' 
+                      : 'border-zinc-700/60 bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'}`}
+                  >
+                    ALL
+                  </button>
+
+                  {regions.map(region => {
+                    const active = selectedNetRegions.has(region)
+                    const regionLabel = regionMeta[region]?.label ?? region
+                    return (
+                      <PremiumTooltip
+                        key={`net-region-tip-${region}`}
+                        content={regionLabel}
+                        position="bottom-center"
+                        panelSizing="hug"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleRegion(region, 'net')}
+                          className="inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-colors hover:brightness-110"
+                          style={regionToggleStyle(region, active)}
+                        >
+                          {regionAbbreviations[region] ?? region.slice(0, 3).toUpperCase()}
+                        </button>
+                      </PremiumTooltip>
+                    )
+                  })}
+                </div>
+              </div>
+              <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto overflow-visible">
+                {[0, Math.round(niceMaxNet / 2), niceMaxNet].map(v => (
+                  <g key={v}>
+                    <line x1={PAD.left} x2={W - PAD.right} y1={toYNet(v)} y2={toYNet(v)} stroke="currentColor" strokeOpacity={0.05} strokeWidth={1} />
+                    <text x={PAD.left - 6} y={toYNet(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}ms</text>
+                  </g>
+                ))}
+                <XAxisLabels />
+                <GuideLine source="net" />
+                {showGlobalNet && (
+                  <g onMouseEnter={() => updateHoveredRegion('global', 'net')} onMouseLeave={() => updateHoveredRegion(null, 'net')} onClick={() => updateActiveRegion('global', 'net')} className="cursor-pointer">
+                    <path
+                      d={globalNet.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toYNet(p.value)}`).join(' ')}
                       fill="none"
-                      stroke="transparent"
-                      strokeWidth={12}
-                    />
-                    <polyline
-                      points={points}
-                      fill="none"
-                      stroke={regionMeta[region]?.color ?? '#6b7280'}
-                      strokeWidth={activeRegion === region ? 3.5 : hoveredRegion === region ? 2.5 : 1.5}
+                      stroke={networkMetric === 'dns' ? TIMING.dns.stroke : networkMetric === 'tcp' ? TIMING.tcp.stroke : networkMetric === 'tls' ? TIMING.tls.stroke : '#22d3ee'}
+                      strokeWidth={activeNetRegion === 'global' ? 4 : hoveredNetRegion === 'global' ? 3 : 2}
                       strokeLinejoin="round"
                       strokeLinecap="round"
-                      strokeOpacity={activeRegion === region ? 1 : hoveredRegion === region ? 0.6 : 0.35}
-                      className="transition-all duration-300 pointer-events-none"
+                      strokeOpacity={activeNetRegion === 'global' ? 1 : hoveredNetRegion === 'global' ? 0.7 : 0.5}
+                      className="transition-all duration-300"
                     />
                   </g>
-                )
-              })}
+                )}
 
-              {/* Advisory Markers (Max, Min, Spikes) */}
-              {(() => {
-                const targetRegion = activeRegion || 'global'
-                const insights = netInsights.get(targetRegion)
-                if (!insights) return null
 
-                // Only show markers for the currently active/hovered context to avoid clutter
-                const isGlobalVisible = showGlobalNet && targetRegion === 'global'
-                const isRegionVisible = selectedNetRegions.has(targetRegion)
-
-                if (!isGlobalVisible && !isRegionVisible) return null
-
-                return insights.map((ins, i) => {
-                  const color = ins.type === 'max' || ins.type === 'spike-up' ? '#f43f5e' : '#10b981'
-                  const isHoveredPoint = hoveredIdx === ins.idx
+                {regions.map(region => {
+                  if (!selectedNetRegions.has(region)) return null
+                  const m = byRegion[region]
+                  if (!m) return null
+                  const dPath = allBuckets.map((b, i) => {
+                    const p = m.get(b)
+                    if (!p) return null
+                    let val = 0
+                    if (networkMetric === 'dns') val = p.dns_avg ?? 0
+                    else if (networkMetric === 'tcp') val = p.tcp_avg ?? 0
+                    else if (networkMetric === 'tls') val = p.tls_avg ?? 0
+                    else val = (p.dns_avg ?? 0) + (p.tcp_avg ?? 0) + (p.tls_avg ?? 0)
+                    return `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toYNet(val)}`
+                  }).filter(Boolean).join(' ')
+                  if (!dPath) return null
 
                   return (
-                    <g key={`insight-${targetRegion}-${ins.type}-${ins.idx}`} className="pointer-events-none">
-                      {/* Pulse effect for spikes */}
-                      <circle
-                        cx={toX(ins.idx)}
-                        cy={toYNet(ins.value)}
-                        r={isHoveredPoint ? 8 : 4}
-                        fill={color}
-                        fillOpacity={0.2}
-                      >
-                        <animate attributeName="r" from="4" to="12" dur="1.5s" repeatCount="indefinite" />
-                        <animate attributeName="fill-opacity" from="0.3" to="0" dur="1.5s" repeatCount="indefinite" />
-                      </circle>
-                      <circle
-                        cx={toX(ins.idx)}
-                        cy={toYNet(ins.value)}
-                        r={isHoveredPoint ? 4 : 3}
-                        fill={color}
-                        stroke="#0B1220"
-                        strokeWidth={1}
+                    <g
+                      key={`net-group-${region}`}
+                      onMouseEnter={() => updateHoveredRegion(region, 'net')}
+                      onMouseLeave={() => updateHoveredRegion(null, 'net')}
+                      onClick={() => updateActiveRegion(region, 'net')}
+                      className="cursor-pointer"
+                    >
+                      <path
+                        d={dPath}
+                        fill="none"
+                        stroke={regionMeta[region]?.color ?? '#6b7280'}
+                        strokeWidth={activeNetRegion === region ? 3.5 : hoveredNetRegion === region ? 2.5 : 1.5}
+                        strokeLinejoin="round"
+                        strokeLinecap="round"
+                        strokeOpacity={activeNetRegion === region ? 1 : hoveredNetRegion === region ? 0.6 : 0.35}
                         className="transition-all duration-300"
                       />
                     </g>
                   )
-                })
-              })()}
-            </svg>
+                })}
+
+                {(() => {
+                  const targetRegion = activeNetRegion || 'global'
+                  const insights = netInsights.get(targetRegion)
+                  if (!insights) return null
+                  const isGlobalVisible = showGlobalNet && targetRegion === 'global'
+                  const isRegionVisible = selectedNetRegions.has(targetRegion)
+                  if (!isGlobalVisible && !isRegionVisible) return null
+                  return insights.map((ins, i) => {
+                    const color = ins.type === 'max' || ins.type === 'spike-up' ? '#f43f5e' : '#10b981'
+                    const isHoveredPoint = hoveredNetIdx === ins.idx
+                    return (
+                      <g key={`insight-net-${targetRegion}-${ins.type}-${ins.idx}`} className="pointer-events-none">
+                        <circle
+                          cx={toX(ins.idx)}
+                          cy={toYNet(ins.value)}
+                          r={isHoveredPoint ? 8 : 4}
+                          fill={color}
+                          fillOpacity={0.2}
+                        >
+                          <animate attributeName="r" from="4" to="12" dur="1.5s" repeatCount="indefinite" />
+                          <animate attributeName="fill-opacity" from="0.3" to="0" dur="1.5s" repeatCount="indefinite" />
+                        </circle>
+                        <circle
+                          cx={toX(ins.idx)}
+                          cy={toYNet(ins.value)}
+                          r={isHoveredPoint ? 4 : 3}
+                          fill={color}
+                          stroke="#0B1220"
+                          strokeWidth={1}
+                          className="transition-all duration-300"
+                        />
+                      </g>
+                    )
+                  })
+                })()}
+              </svg>
+            </div>
           </div>
-        </div>
+        </section>
       )}
 
       {/* Legend */}
