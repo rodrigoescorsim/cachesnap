@@ -5,6 +5,7 @@ import {
   Activity,
   AlertCircle,
   BarChart2,
+  CalendarDays,
   ChevronLeft,
   Layers,
   LineChart,
@@ -21,13 +22,14 @@ import {
   type PerformanceView,
 } from './monitor-href'
 
-const MONITORING_VIEWS = ['real-time', 'performance', 'trends'] as const
+const MONITORING_VIEWS = ['real-time', 'performance', 'trends', 'patterns'] as const
 const INFRASTRUCTURE_VIEW = 'infrastructure' as const
 
 const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   'real-time': 'Live',
   performance: 'Performance',
   trends: 'Trends',
+  patterns: 'Patterns',
   diagnostics: 'Diagnostics',
   infrastructure: 'Edge Audit',
 }
@@ -36,6 +38,7 @@ const PERFORMANCE_VIEW_ICONS: Record<PerformanceView, typeof Activity> = {
   'real-time': Radio,
   performance: BarChart2,
   trends: LineChart,
+  patterns: CalendarDays,
   diagnostics: Activity,
   infrastructure: Layers,
 }

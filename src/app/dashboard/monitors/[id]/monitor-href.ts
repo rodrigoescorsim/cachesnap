@@ -8,7 +8,7 @@ export type MonitorTab =
   | 'settings'
   | 'incidents'
 
-export type PerformanceView = 'real-time' | 'performance' | 'trends' | 'diagnostics' | 'infrastructure'
+export type PerformanceView = 'real-time' | 'performance' | 'trends' | 'patterns' | 'diagnostics' | 'infrastructure'
 
 export type AlertType =
   | 'down'

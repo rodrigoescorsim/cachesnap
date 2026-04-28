@@ -9,14 +9,14 @@ import {
   type HeatmapCell,
 } from './ttfb-heatmap.helpers'
 
-const CELL_W = 20
-const CELL_H = 12
+const CELL_W = 30
+const CELL_H = 30
 const CELL_GAP = 2
-const PAD_LEFT = 28
-const PAD_TOP = 20
-const PAD_BOTTOM = 10
-const SVG_W = PAD_LEFT + 7 * (CELL_W + CELL_GAP) + 20
-const SVG_H = PAD_TOP + 24 * (CELL_H + CELL_GAP) + PAD_BOTTOM
+const PAD_LEFT = 44
+const PAD_TOP = 28
+const PAD_BOTTOM = 12
+const SVG_W = PAD_LEFT + 24 * (CELL_W + CELL_GAP) + 16
+const SVG_H = PAD_TOP + 7 * (CELL_H + CELL_GAP) + PAD_BOTTOM
 
 type Mode = 'ttfb' | 'cache'
 
@@ -35,16 +35,16 @@ export function TtfbHeatmap({ data }: { data: HeatmapCell[] }) {
   const grid = buildHeatmapGrid(data)
   const maxTtfb = Math.max(...data.map(c => c.ttfb_avg ?? 0), 1)
 
-  const cellX = (dow: number) => PAD_LEFT + dow * (CELL_W + CELL_GAP)
-  const cellY = (hour: number) => PAD_TOP + hour * (CELL_H + CELL_GAP)
+  const cellX = (hour: number) => PAD_LEFT + hour * (CELL_W + CELL_GAP)
+  const cellY = (dow: number) => PAD_TOP + dow * (CELL_H + CELL_GAP)
 
   const hourLabels = [0, 6, 12, 18, 23]
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-4 shadow-sm relative">
       {/* Header with mode toggle */}
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-tight opacity-40">Pattern</span>
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-tight opacity-40">Weekly Pattern</span>
         <div className="flex items-center gap-0.5 bg-white/5 rounded-lg p-0.5">
           {(['ttfb', 'cache'] as Mode[]).map(m => (
             <button
@@ -67,33 +67,35 @@ export function TtfbHeatmap({ data }: { data: HeatmapCell[] }) {
         className="w-full h-auto overflow-visible"
         onMouseLeave={() => setTooltip(null)}
       >
-        {/* Day of week labels (X axis) */}
-        {[0, 1, 2, 3, 4, 5, 6].map(dow => (
-          <text
-            key={dow}
-            x={cellX(dow) + CELL_W / 2}
-            y={PAD_TOP - 6}
-            textAnchor="middle"
-            fontSize={9}
-            fill="currentColor"
-            fillOpacity={0.35}
-          >
-            {dowLabel(dow)}
-          </text>
-        ))}
-
-        {/* Hour labels (Y axis) */}
+        {/* Hour labels (X axis) */}
         {hourLabels.map(h => (
           <text
             key={h}
-            x={PAD_LEFT - 4}
-            y={cellY(h) + CELL_H / 2 + 3}
-            textAnchor="end"
-            fontSize={9}
+            x={cellX(h) + CELL_W / 2}
+            y={PAD_TOP - 12}
+            textAnchor="middle"
+            fontSize={10}
             fill="currentColor"
             fillOpacity={0.35}
+            fontWeight="bold"
           >
             {h}h
+          </text>
+        ))}
+
+        {/* Day of week labels (Y axis) */}
+        {[0, 1, 2, 3, 4, 5, 6].map(dow => (
+          <text
+            key={dow}
+            x={PAD_LEFT - 10}
+            y={cellY(dow) + CELL_H / 2 + 4}
+            textAnchor="end"
+            fontSize={10}
+            fill="currentColor"
+            fillOpacity={0.35}
+            fontWeight="bold"
+          >
+            {dowLabel(dow).substring(0, 3)}
           </text>
         ))}
 
@@ -108,13 +110,13 @@ export function TtfbHeatmap({ data }: { data: HeatmapCell[] }) {
             return (
               <rect
                 key={`${dow}-${hour}`}
-                x={cellX(dow)}
-                y={cellY(hour)}
+                x={cellX(hour)}
+                y={cellY(dow)}
                 width={CELL_W}
                 height={CELL_H}
-                rx={2}
+                rx={1.5}
                 fill={fill}
-                opacity={cell == null ? 0.3 : 0.85}
+                opacity={cell == null ? 0.2 : 0.85}
                 onMouseEnter={(e) => {
                   if (!cell) return
                   const svg = (e.currentTarget as SVGRectElement).ownerSVGElement!

@@ -36,6 +36,7 @@ import {
   AlertCircle,
   PlayCircle,
   History,
+  CalendarDays,
   AlertTriangle,
   TrendingUp,
   Zap,
@@ -241,12 +242,13 @@ const TAB_ICONS: Record<MonitorTab, LucideIcon> = {
   incidents: AlertCircle,
 }
 
-const VALID_PERFORMANCE_VIEWS = ['real-time', 'performance', 'trends', 'diagnostics', 'infrastructure'] as const satisfies readonly PerformanceView[]
+const VALID_PERFORMANCE_VIEWS = ['real-time', 'performance', 'trends', 'patterns', 'diagnostics', 'infrastructure'] as const satisfies readonly PerformanceView[]
 
 const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   'real-time': 'Live',
   performance: 'Performance',
   trends: 'Trends',
+  patterns: 'Patterns',
   diagnostics: 'Diagnostics',
   infrastructure: 'Edge Audit',
 }
@@ -899,9 +901,8 @@ export default async function MonitorDetailPage({
     LIMIT 5
   `
 
-  // Hourly pattern and heatmap queries — only meaningful for ≥ 7d
-  const hourlyPattern = range !== '24h'
-    ? await sql<HourlyPoint[]>`
+  // Hourly pattern and heatmap queries
+  const hourlyPattern = await sql<HourlyPoint[]>`
         SELECT
           EXTRACT(HOUR FROM time)::int                                           AS hour_of_day,
           ROUND(AVG(ttfb_ms)::numeric, 0)::int                                   AS ttfb_avg,
@@ -921,10 +922,7 @@ export default async function MonitorDetailPage({
         GROUP BY hour_of_day
         ORDER BY hour_of_day
       `
-    : []
-
-  const heatmapRows = range !== '24h'
-    ? await sql<HeatmapCell[]>`
+  const heatmapRows = await sql<HeatmapCell[]>`
         SELECT
           EXTRACT(DOW FROM time)::int                                            AS dow,
           EXTRACT(HOUR FROM time)::int                                           AS hour_of_day,
@@ -942,8 +940,6 @@ export default async function MonitorDetailPage({
         GROUP BY dow, hour_of_day
         ORDER BY dow, hour_of_day
       `
-    : []
-
   const securityByRegion = await sql<SecurityByRegion[]>`
     SELECT DISTINCT ON (region)
       region,
@@ -1814,7 +1810,7 @@ export default async function MonitorDetailPage({
                     <TtfbChart data={chartPoints} range={range} regionMeta={regionMeta} cacheHitThresholdPct={monitor.alert_cache_hit_threshold_pct} isDown={isDown} monitorId={id} />
                   )}
 
-                  {spikes.length > 0 && (
+                  {activeView === 'trends' && spikes.length > 0 && (
                     <section className="space-y-4">
                       <ViewSectionHeader title={`Recent performance spikes — ${range === '7d' ? 'last 7 days' : range === '30d' ? 'last 30 days' : range === '90d' ? 'last 90 days' : 'last 24h'}`} />
                       <div className="rounded-2xl border border-border bg-surface divide-y divide-white/[0.03] overflow-hidden">
@@ -1847,7 +1843,7 @@ export default async function MonitorDetailPage({
                     </section>
                   )}
 
-                  {weekTrend.length > 0 && (
+                  {activeView === 'trends' && weekTrend.length > 0 && (
                     <section className="space-y-4">
                       <ViewSectionHeader title="Week-over-week performance trend" />
                       <div className="rounded-2xl border border-border bg-surface p-4 shadow-sm space-y-4">
@@ -1933,19 +1929,50 @@ export default async function MonitorDetailPage({
                       <p className="mt-1.5 text-xs text-zinc-400 italic">Comparing last 7 days vs the prior 7 days.</p>
                     </section>
                   )}
+                </div>
+              )}
 
-                  {range !== '24h' && hourlyPattern.length > 0 && (
+              {activeView === 'patterns' && (
+                <div className="space-y-6">
+                  {hourlyPattern.length === 0 && heatmapRows.length === 0 ? (
                     <section className="space-y-4">
-                      <ViewSectionHeader title="Hourly performance pattern" />
-                      <HourlyPatternChart data={hourlyPattern} range={range} />
+                      <ViewSectionHeader title="Patterns Analysis" />
+                      <div className="cs-card cs-card-glass min-h-[300px] flex flex-col items-center justify-center p-12 text-center animate-[cs-fade-in_0.5s_ease-out]">
+                        <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.02] shadow-[0_0_32px_-8px_rgba(34,211,238,0.2)]">
+                          <History className="h-7 w-7 text-zinc-500 animate-pulse" />
+                        </div>
+                        <h3 className="text-lg font-black tracking-tight text-zinc-300 uppercase">Awaiting Statistical Density</h3>
+                        <p className="mt-2.5 max-w-[420px] text-[13px] leading-relaxed text-zinc-500">
+                          Meaningful hourly and weekly patterns require a broader historical window to emerge. 
+                          Currently, your monitor needs more samples or a wider time selection.
+                        </p>
+                        <div className="mt-8">
+                          <Link
+                            href={buildViewHref('patterns', '7d', id)}
+                            className="inline-flex items-center gap-2 rounded-xl bg-white/[0.05] border border-white/10 px-6 py-3 text-[11px] font-black uppercase tracking-widest text-white transition-all hover:bg-white/10 hover:scale-[1.02] active:scale-[0.98] shadow-xl"
+                          >
+                            <CalendarDays className="h-4 w-4 text-emerald-400" />
+                            Analyze 7-Day History
+                          </Link>
+                        </div>
+                      </div>
                     </section>
-                  )}
+                  ) : (
+                    <div className="space-y-8">
+                      {hourlyPattern.length > 0 && (
+                        <section className="space-y-4">
+                          <ViewSectionHeader title="Hourly performance pattern" />
+                          <HourlyPatternChart data={hourlyPattern} range={range} />
+                        </section>
+                      )}
 
-                  {range !== '24h' && heatmapRows.length > 0 && (
-                    <section className="space-y-4">
-                      <ViewSectionHeader title="Weekly performance pattern" />
-                      <TtfbHeatmap data={heatmapRows} />
-                    </section>
+                      {heatmapRows.length > 0 && (
+                        <section className="space-y-4">
+                          <ViewSectionHeader title="Weekly performance pattern" />
+                          <TtfbHeatmap data={heatmapRows} />
+                        </section>
+                      )}
+                    </div>
                   )}
                 </div>
               )}

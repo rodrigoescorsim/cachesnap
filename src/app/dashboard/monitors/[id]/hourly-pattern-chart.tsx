@@ -10,8 +10,8 @@ import {
 } from './hourly-pattern.helpers'
 
 const W = 700
-const H = 160
-const PAD = { top: 20, right: 16, bottom: 28, left: 32 }
+const H = 220
+const PAD = { top: 24, right: 16, bottom: 32, left: 36 }
 const CHART_W = W - PAD.left - PAD.right
 const CHART_H = H - PAD.top - PAD.bottom
 const BAR_COUNT = 24
