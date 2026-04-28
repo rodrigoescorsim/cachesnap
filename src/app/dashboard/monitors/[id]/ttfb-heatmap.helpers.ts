@@ -46,15 +46,30 @@ const SLOW_HEX  = '#f43f5e'
 const EMPTY_HEX = '#1F2A3A'
 
 /**
- * Maps a TTFB value to a hex color on the design-system scale.
- * t=0 (0ms) → fast, t=1 (≥maxTtfb) → slow.
- * null → surface-muted (#1F2A3A).
+ * Maps a TTFB value to a hex color on an absolute semantic scale.
+ * < 200ms: Elite (Green)
+ * 200ms - 800ms: Average (Green to Amber)
+ * > 800ms: Slow (Amber to Red)
  */
-export function heatmapTtfbColor(ttfb: number | null, maxTtfb: number): string {
+export function heatmapTtfbColor(ttfb: number | null): string {
   if (ttfb == null) return EMPTY_HEX
-  const t = Math.max(0, Math.min(1, ttfb / Math.max(maxTtfb, 1)))
-  if (t < 0.5) return interpolateColor(t * 2, FAST_HEX, MED_HEX)
-  return interpolateColor((t - 0.5) * 2, MED_HEX, SLOW_HEX)
+  
+  // Absolute thresholds for performance tiers
+  const FAST_THRESHOLD = 200
+  const MED_THRESHOLD = 800
+  const MAX_THRESHOLD = 1500
+
+  if (ttfb <= FAST_THRESHOLD) {
+    return FAST_HEX
+  }
+
+  if (ttfb <= MED_THRESHOLD) {
+    const t = (ttfb - FAST_THRESHOLD) / (MED_THRESHOLD - FAST_THRESHOLD)
+    return interpolateColor(t, FAST_HEX, MED_HEX)
+  }
+
+  const t = Math.min(1, (ttfb - MED_THRESHOLD) / (MAX_THRESHOLD - MED_THRESHOLD))
+  return interpolateColor(t, MED_HEX, SLOW_HEX)
 }
 
 /**

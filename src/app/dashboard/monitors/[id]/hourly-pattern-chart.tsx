@@ -8,6 +8,7 @@ import {
   hourlyBarColor,
   type HourlyPoint,
 } from './hourly-pattern.helpers'
+import { getTtfbTooltip, getTtfbColorClass, getCacheColor } from '@/lib/thresholds'
 
 const W = 700
 const H = 220
@@ -151,9 +152,16 @@ export function HourlyPatternChart({ data, range }: { data: HourlyPoint[]; range
         >
           <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">{tooltip.hour}:00 UTC</p>
           <div className="space-y-0.5 tabular-nums">
-            <div className="flex justify-between gap-3">
-              <span className="text-[10px] text-zinc-400">avg</span>
-              <span className="text-[11px] font-bold">{tooltip.point.ttfb_avg}ms</span>
+            <div className="space-y-1 pb-1.5 mb-1.5 border-b border-white/5">
+              <div className="flex justify-between gap-3">
+                <span className="text-[10px] text-zinc-400">avg</span>
+                <span className={`text-[11px] font-bold ${getTtfbColorClass(tooltip.point.ttfb_avg)}`}>
+                  {tooltip.point.ttfb_avg}ms
+                </span>
+              </div>
+              <p className="text-[9px] text-zinc-500 leading-tight">
+                {getTtfbTooltip(tooltip.point.ttfb_avg).split(':')[0]}
+              </p>
             </div>
             {tooltip.point.ttfb_p95 != null && (
               <div className="flex justify-between gap-3">
@@ -162,9 +170,11 @@ export function HourlyPatternChart({ data, range }: { data: HourlyPoint[]; range
               </div>
             )}
             {tooltip.point.cache_hit_pct != null && (
-              <div className="flex justify-between gap-3">
+              <div className="flex justify-between gap-3 pb-1.5">
                 <span className="text-[10px] text-zinc-400">cache</span>
-                <span className="text-[10px] text-zinc-300">{tooltip.point.cache_hit_pct}%</span>
+                <span className={`text-[10px] font-medium ${getCacheColor(tooltip.point.cache_hit_pct)}`}>
+                  {tooltip.point.cache_hit_pct}%
+                </span>
               </div>
             )}
             <div className="flex justify-between gap-3 pt-0.5 border-t border-white/5">

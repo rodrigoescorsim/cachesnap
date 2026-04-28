@@ -8,6 +8,7 @@ import {
   buildHeatmapGrid,
   type HeatmapCell,
 } from './ttfb-heatmap.helpers'
+import { getTtfbTooltip, getTtfbColorClass, getCacheColor, getCacheTooltip } from '@/lib/thresholds'
 
 const CELL_W = 30
 const CELL_H = 30
@@ -33,7 +34,6 @@ export function TtfbHeatmap({ data }: { data: HeatmapCell[] }) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
 
   const grid = buildHeatmapGrid(data)
-  const maxTtfb = Math.max(...data.map(c => c.ttfb_avg ?? 0), 1)
 
   const cellX = (hour: number) => PAD_LEFT + hour * (CELL_W + CELL_GAP)
   const cellY = (dow: number) => PAD_TOP + dow * (CELL_H + CELL_GAP)
@@ -105,7 +105,7 @@ export function TtfbHeatmap({ data }: { data: HeatmapCell[] }) {
             const fill = cell == null
               ? '#1F2A3A'
               : mode === 'ttfb'
-                ? heatmapTtfbColor(cell.ttfb_avg, maxTtfb)
+                ? heatmapTtfbColor(cell.ttfb_avg)
                 : heatmapCacheColor(cell.cache_hit_pct)
             return (
               <rect
@@ -141,15 +141,24 @@ export function TtfbHeatmap({ data }: { data: HeatmapCell[] }) {
           </p>
           <div className="space-y-0.5 tabular-nums">
             {tooltip.cell.ttfb_avg != null && (
-              <div className="flex justify-between gap-3">
-                <span className="text-[10px] text-zinc-400">TTFB avg</span>
-                <span className="text-[11px] font-bold">{tooltip.cell.ttfb_avg}ms</span>
+              <div className="space-y-1 pb-1.5 mb-1.5 border-b border-white/5">
+                <div className="flex justify-between gap-3">
+                  <span className="text-[10px] text-zinc-400">TTFB avg</span>
+                  <span className={`text-[11px] font-bold ${getTtfbColorClass(tooltip.cell.ttfb_avg)}`}>
+                    {tooltip.cell.ttfb_avg}ms
+                  </span>
+                </div>
+                <p className="text-[9px] text-zinc-500 leading-tight">
+                  {getTtfbTooltip(tooltip.cell.ttfb_avg).split(':')[0]}
+                </p>
               </div>
             )}
             {tooltip.cell.cache_hit_pct != null && (
-              <div className="flex justify-between gap-3">
+              <div className="flex justify-between gap-3 pb-1.5">
                 <span className="text-[10px] text-zinc-400">Cache</span>
-                <span className="text-[10px] text-zinc-300">{tooltip.cell.cache_hit_pct}%</span>
+                <span className={`text-[10px] font-medium ${getCacheColor(tooltip.cell.cache_hit_pct)}`}>
+                  {tooltip.cell.cache_hit_pct}%
+                </span>
               </div>
             )}
             <div className="flex justify-between gap-3 pt-0.5 border-t border-white/5">
