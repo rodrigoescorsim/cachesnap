@@ -66,6 +66,7 @@ export function TtfbChart({
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const [hoveredChart, setHoveredChart] = useState<'ttfb' | 'cache' | 'network' | null>(null)
   const [activeRegion, setActiveRegion] = useState<string | 'global'>('global')
+  const [hoveredRegion, setHoveredRegion] = useState<string | null>(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0, clientX: 0, clientY: 0, isRight: false, isBottom: false })
   const [showGlobalTtfb, setShowGlobalTtfb] = useState(true)
   const [selectedTtfbRegions, setSelectedTtfbRegions] = useState<Set<string>>(new Set())
@@ -505,6 +506,7 @@ export function TtfbChart({
 
   const handleMouseLeave = () => {
     setHoveredIdx(null)
+    setHoveredRegion(null)
     setHoveredChart(null)
   }
 
@@ -1069,7 +1071,13 @@ export function TtfbChart({
                 if (!m) return null
                 const points = allBuckets.map((b, i) => m.has(b) ? `${toX(i)},${toYTtfb(m.get(b)!.ttfb_avg)}` : null).filter(Boolean).join(' ')
                 return (
-                  <g key={`group-${region}`} onClick={() => setActiveRegion(region)} className="cursor-pointer">
+                  <g 
+                    key={`group-${region}`} 
+                    onMouseEnter={() => setHoveredRegion(region)}
+                    onMouseLeave={() => setHoveredRegion(null)}
+                    onClick={() => setActiveRegion(region)} 
+                    className="cursor-pointer"
+                  >
                     <polyline
                       points={points}
                       fill="none"
@@ -1080,17 +1088,17 @@ export function TtfbChart({
                       points={points}
                       fill="none"
                       stroke={regionMeta[region]?.color ?? '#6b7280'}
-                      strokeWidth={activeRegion === region ? 3.5 : 1.5}
+                      strokeWidth={activeRegion === region ? 3.5 : hoveredRegion === region ? 2.5 : 1.5}
                       strokeLinejoin="round"
                       strokeLinecap="round"
-                      strokeOpacity={activeRegion === region ? 1 : 0.35}
+                      strokeOpacity={activeRegion === region ? 1 : hoveredRegion === region ? 0.6 : 0.35}
                       className="transition-all duration-300 pointer-events-none"
                     />
                   </g>
                 )
               })}
               {showGlobalTtfb && (
-                <g onClick={() => setActiveRegion('global')} className="cursor-pointer">
+                <g onMouseEnter={() => setHoveredRegion('global')} onMouseLeave={() => setHoveredRegion(null)} onClick={() => setActiveRegion('global')} className="cursor-pointer">
                   <polyline
                     points={globalTtfb.map((bucket, i) => `${toX(i)},${toYTtfb(bucket.value)}`).join(' ')}
                     fill="none"
@@ -1101,10 +1109,10 @@ export function TtfbChart({
                     points={globalTtfb.map((bucket, i) => `${toX(i)},${toYTtfb(bucket.value)}`).join(' ')}
                     fill="none"
                     stroke="#22d3ee"
-                    strokeWidth={activeRegion === 'global' ? 3.5 : 2.4}
+                    strokeWidth={activeRegion === 'global' ? 3.5 : hoveredRegion === 'global' ? 2.5 : 2.4}
                     strokeLinejoin="round"
                     strokeLinecap="round"
-                    strokeOpacity={activeRegion === 'global' ? 1 : 0.35}
+                    strokeOpacity={activeRegion === 'global' ? 1 : hoveredRegion === 'global' ? 0.6 : 0.35}
                     className="transition-all duration-300 pointer-events-none"
                   />
                 </g>
@@ -1305,7 +1313,13 @@ export function TtfbChart({
 
 
                       return (
-                        <g key={`cache-group-${region}`} onClick={() => setActiveRegion(region)} className="cursor-pointer">
+                        <g 
+                          key={`cache-group-${region}`} 
+                          onMouseEnter={() => setHoveredRegion(region)}
+                          onMouseLeave={() => setHoveredRegion(null)}
+                          onClick={() => setActiveRegion(region)} 
+                          className="cursor-pointer"
+                        >
                           <polyline
                             points={points}
                             fill="none"
@@ -1316,10 +1330,10 @@ export function TtfbChart({
                       points={points}
                       fill="none"
                       stroke={regionMeta[region]?.color ?? '#6b7280'}
-                      strokeWidth={activeRegion === region ? 3.5 : 1.5}
+                      strokeWidth={activeRegion === region ? 3.5 : hoveredRegion === region ? 2.5 : 1.5}
                       strokeLinejoin="round"
                       strokeLinecap="round"
-                      strokeOpacity={activeRegion === region ? 1 : 0.35}
+                      strokeOpacity={activeRegion === region ? 1 : hoveredRegion === region ? 0.6 : 0.35}
                       className="transition-all duration-300 pointer-events-none"
                     />
                         </g>
@@ -1327,7 +1341,12 @@ export function TtfbChart({
                     })}
 
                     {showGlobalCache && (
-                      <g onClick={() => setActiveRegion('global')} className="cursor-pointer">
+                      <g 
+                        onMouseEnter={() => setHoveredRegion('global')}
+                        onMouseLeave={() => setHoveredRegion(null)}
+                        onClick={() => setActiveRegion('global')} 
+                        className="cursor-pointer"
+                      >
                         <polyline
                           points={globalCache.map((bucket, i) => bucket.value != null ? `${toX(i)},${toYCache(bucket.value)}` : null).filter(Boolean).join(' ')}
                           fill="none"
@@ -1338,10 +1357,10 @@ export function TtfbChart({
                           points={globalCache.map((bucket, i) => bucket.value != null ? `${toX(i)},${toYCache(bucket.value)}` : null).filter(Boolean).join(' ')}
                           fill="none"
                           stroke="#22d3ee"
-                          strokeWidth={activeRegion === 'global' ? 3.5 : 2.4}
+                          strokeWidth={activeRegion === 'global' ? 3.5 : hoveredRegion === 'global' ? 2.5 : 2.4}
                           strokeLinejoin="round"
                           strokeLinecap="round"
-                          strokeOpacity={activeRegion === 'global' ? 1 : 0.35}
+                          strokeOpacity={activeRegion === 'global' ? 1 : hoveredRegion === 'global' ? 0.6 : 0.35}
                           className="transition-all duration-300 pointer-events-none"
                         />
                       </g>
@@ -1517,7 +1536,7 @@ export function TtfbChart({
               <XAxisLabels />
               <GuideLine />
               {showGlobalNet && (
-                <g onClick={() => setActiveRegion('global')} className="cursor-pointer">
+                <g onMouseEnter={() => setHoveredRegion('global')} onMouseLeave={() => setHoveredRegion(null)} onClick={() => setActiveRegion('global')} className="cursor-pointer">
                   {/* Global Net (Sum or specific metric) */}
                   <polyline
                     points={globalNet.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')}
@@ -1558,7 +1577,13 @@ export function TtfbChart({
 
 
                 return (
-                  <g key={`net-group-${region}`} onClick={() => setActiveRegion(region)} className="cursor-pointer">
+                  <g 
+                    key={`net-group-${region}`} 
+                    onMouseEnter={() => setHoveredRegion(region)}
+                    onMouseLeave={() => setHoveredRegion(null)}
+                    onClick={() => setActiveRegion(region)} 
+                    className="cursor-pointer"
+                  >
                     {/* Transparent hit area */}
                     <polyline
                       points={points}
@@ -1570,10 +1595,10 @@ export function TtfbChart({
                       points={points}
                       fill="none"
                       stroke={regionMeta[region]?.color ?? '#6b7280'}
-                      strokeWidth={activeRegion === region ? 3.5 : 1.5}
+                      strokeWidth={activeRegion === region ? 3.5 : hoveredRegion === region ? 2.5 : 1.5}
                       strokeLinejoin="round"
                       strokeLinecap="round"
-                      strokeOpacity={activeRegion === region ? 1 : 0.35}
+                      strokeOpacity={activeRegion === region ? 1 : hoveredRegion === region ? 0.6 : 0.35}
                       className="transition-all duration-300 pointer-events-none"
                     />
                   </g>
