@@ -5,7 +5,7 @@ import { formatChartLabel, niceMax, globalBucketAverage, buildP95BandPath } from
 import { TIMING } from './timing-metrics-palette'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import { getTtfbColorClass, getCacheColor } from '@/lib/thresholds'
-import { AlertTriangle, TrendingUp, TrendingDown, ChevronUp, ChevronDown } from 'lucide-react'
+import { AlertTriangle, TrendingUp, TrendingDown, ChevronUp, ChevronDown, Activity } from 'lucide-react'
 
 export interface ChartPoint {
   bucket: string       // ISO string
