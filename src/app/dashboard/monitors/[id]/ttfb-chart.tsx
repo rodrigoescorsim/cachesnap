@@ -1033,7 +1033,7 @@ export function TtfbChart({
                 </div>
                 <div className="h-3 w-px bg-white/10" />
                 <PremiumTooltip
-                  content={isSynced ? "Dashboards are synchronized. Click to decouple." : "Dashboards are independent. Click to synchronize."}
+                  content={isSynced ? "Charts are synchronized. Click to decouple." : "Charts are independent. Click to synchronize."}
                   position="bottom-center"
                 >
                   <button
