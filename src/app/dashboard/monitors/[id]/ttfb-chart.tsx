@@ -1051,14 +1051,13 @@ export function TtfbChart({
                 if (!m) return null
                 const bandPath = buildP95BandPath(allBuckets, m, toX, toYTtfb)
                 if (!bandPath) return null
-                const isHovered = activeRegion === region
-                const isOtherHovered = activeRegion !== null && !isHovered
+                const isActive = activeRegion === region
                 return (
                   <path
                     key={`band-${region}`}
                     d={bandPath}
                     fill={regionMeta[region]?.color ?? '#6b7280'}
-                    fillOpacity={isHovered ? 0.15 : isOtherHovered ? 0.02 : 0.08}
+                    fillOpacity={isActive ? 0.15 : 0.05}
                     stroke="none"
                     className="transition-all duration-300 pointer-events-none"
                   />
@@ -1084,7 +1083,7 @@ export function TtfbChart({
                       strokeWidth={activeRegion === region ? 3.5 : 1.5}
                       strokeLinejoin="round"
                       strokeLinecap="round"
-                      strokeOpacity={activeRegion === region ? 1 : 0.15}
+                      strokeOpacity={activeRegion === region ? 1 : 0.35}
                       className="transition-all duration-300 pointer-events-none"
                     />
                   </g>
@@ -1105,7 +1104,7 @@ export function TtfbChart({
                     strokeWidth={activeRegion === 'global' ? 3.5 : 2.4}
                     strokeLinejoin="round"
                     strokeLinecap="round"
-                    strokeOpacity={activeRegion === 'global' ? 1 : 0.15}
+                    strokeOpacity={activeRegion === 'global' ? 1 : 0.35}
                     className="transition-all duration-300 pointer-events-none"
                   />
                 </g>
@@ -1320,7 +1319,7 @@ export function TtfbChart({
                       strokeWidth={activeRegion === region ? 3.5 : 1.5}
                       strokeLinejoin="round"
                       strokeLinecap="round"
-                      strokeOpacity={activeRegion === region ? 1 : 0.15}
+                      strokeOpacity={activeRegion === region ? 1 : 0.35}
                       className="transition-all duration-300 pointer-events-none"
                     />
                         </g>
@@ -1342,7 +1341,7 @@ export function TtfbChart({
                           strokeWidth={activeRegion === 'global' ? 3.5 : 2.4}
                           strokeLinejoin="round"
                           strokeLinecap="round"
-                          strokeOpacity={activeRegion === 'global' ? 1 : 0.15}
+                          strokeOpacity={activeRegion === 'global' ? 1 : 0.35}
                           className="transition-all duration-300 pointer-events-none"
                         />
                       </g>
@@ -1518,7 +1517,7 @@ export function TtfbChart({
               <XAxisLabels />
               <GuideLine />
               {showGlobalNet && (
-                <g onMouseEnter={() => setHoveredRegion('global')} onMouseLeave={() => setHoveredRegion(null)}>
+                <g onClick={() => setActiveRegion('global')} className="cursor-pointer">
                   {/* Global Net (Sum or specific metric) */}
                   <polyline
                     points={globalNet.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')}
@@ -1527,7 +1526,7 @@ export function TtfbChart({
                     strokeWidth={activeRegion === 'global' ? 3.5 : 2.4}
                     strokeLinejoin="round"
                     strokeLinecap="round"
-                    strokeOpacity={activeRegion === 'global' ? 1 : 0.15}
+                    strokeOpacity={activeRegion === 'global' ? 1 : 0.35}
                     className="transition-all duration-300 pointer-events-none"
                   />
                   {/* Hit area */}
@@ -1574,7 +1573,7 @@ export function TtfbChart({
                       strokeWidth={activeRegion === region ? 3.5 : 1.5}
                       strokeLinejoin="round"
                       strokeLinecap="round"
-                      strokeOpacity={activeRegion === region ? 1 : 0.15}
+                      strokeOpacity={activeRegion === region ? 1 : 0.35}
                       className="transition-all duration-300 pointer-events-none"
                     />
                   </g>
