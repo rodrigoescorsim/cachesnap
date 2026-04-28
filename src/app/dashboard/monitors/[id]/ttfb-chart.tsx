@@ -1826,6 +1826,16 @@ export function TtfbChart({
           </div>
         </div>
       </div>
+      
+      {/* Smart Legend Note — Only shown when a region is active (showing P95 band) */}
+      {activeTtfbRegion && activeTtfbRegion !== 'global' && (
+        <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-zinc-800/30 border border-zinc-700/40 w-fit animate-in fade-in slide-in-from-bottom-2">
+          <div className="w-2.5 h-2.5 bg-zinc-400/10 border border-zinc-400/20 rounded-sm" />
+          <span className="text-[9px] text-zinc-400 font-medium leading-tight">
+            <strong className="text-zinc-300">Área Sombreada:</strong> Variância (P95). Representa a experiência dos 5% dos usuários com maior lentidão.
+          </span>
+        </div>
+      )}
     </div>
   )
 }
