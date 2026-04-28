@@ -1933,9 +1933,9 @@ export default async function MonitorDetailPage({
               )}
 
               {activeView === 'patterns' && (
-                <div className="space-y-6">
+                <div id="patterns-view" className="space-y-6">
                   {hourlyPattern.length === 0 && heatmapRows.length === 0 ? (
-                    <section className="space-y-4">
+                    <section id="patterns-empty-state" className="space-y-4">
                       <ViewSectionHeader title="Patterns Analysis" />
                       <div className="cs-card cs-card-glass min-h-[300px] flex flex-col items-center justify-center p-12 text-center animate-[cs-fade-in_0.5s_ease-out]">
                         <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.02] shadow-[0_0_32px_-8px_rgba(34,211,238,0.2)]">
@@ -1948,6 +1948,7 @@ export default async function MonitorDetailPage({
                         </p>
                         <div className="mt-8">
                           <Link
+                            id="btn-analyze-7d"
                             href={buildViewHref('patterns', '7d', id)}
                             className="inline-flex items-center gap-2 rounded-xl bg-white/[0.05] border border-white/10 px-6 py-3 text-[11px] font-black uppercase tracking-widest text-white transition-all hover:bg-white/10 hover:scale-[1.02] active:scale-[0.98] shadow-xl"
                           >
@@ -1960,14 +1961,14 @@ export default async function MonitorDetailPage({
                   ) : (
                     <div className="space-y-8">
                       {hourlyPattern.length > 0 && (
-                        <section className="space-y-4">
+                        <section id="hourly-pattern-section" className="space-y-4">
                           <ViewSectionHeader title="Hourly performance pattern" />
                           <HourlyPatternChart data={hourlyPattern} range={range} />
                         </section>
                       )}
 
                       {heatmapRows.length > 0 && (
-                        <section className="space-y-4">
+                        <section id="weekly-pattern-section" className="space-y-4">
                           <ViewSectionHeader title="Weekly performance pattern" />
                           <TtfbHeatmap data={heatmapRows} />
                         </section>

@@ -53,6 +53,7 @@ export function TtfbHeatmap({ data }: { data: HeatmapCell[] }) {
           {(['ttfb', 'cache'] as Mode[]).map(m => (
             <button
               key={m}
+              id={`btn-heatmap-mode-${m}`}
               onClick={() => setMode(m)}
               className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${
                 mode === m
