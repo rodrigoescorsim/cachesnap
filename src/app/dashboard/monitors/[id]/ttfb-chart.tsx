@@ -65,7 +65,7 @@ export function TtfbChart({
 }) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const [hoveredChart, setHoveredChart] = useState<'ttfb' | 'cache' | 'network' | null>(null)
-  const [hoveredRegion, setHoveredRegion] = useState<string | null>(null)
+  const [activeRegion, setActiveRegion] = useState<string | 'global'>('global')
   const [mousePos, setMousePos] = useState({ x: 0, y: 0, clientX: 0, clientY: 0, isRight: false, isBottom: false })
   const [showGlobalTtfb, setShowGlobalTtfb] = useState(true)
   const [selectedTtfbRegions, setSelectedTtfbRegions] = useState<Set<string>>(new Set())
@@ -505,7 +505,6 @@ export function TtfbChart({
 
   const handleMouseLeave = () => {
     setHoveredIdx(null)
-    setHoveredRegion(null)
     setHoveredChart(null)
   }
 
@@ -647,8 +646,8 @@ export function TtfbChart({
           {hoveredChart === 'network' ? (
             /* CONNECTION TIME TOOLTIP */
             <>
-              <div className={`mb-1.5 px-1.5 py-1 flex flex-col border-b border-white/5 pb-1.5 rounded-md transition-all duration-300 ${hoveredRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : ''}`}>
-                <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${hoveredRegion === 'global' ? 'text-cyan-300' : 'text-zinc-400'}`}>GLOBAL</span>
+              <div className={`mb-1.5 px-1.5 py-1 flex flex-col border-b border-white/5 pb-1.5 rounded-md transition-all duration-300 ${activeRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : ''}`}>
+                <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${activeRegion === 'global' ? 'text-cyan-300' : 'text-zinc-400'}`}>GLOBAL</span>
                 <div className="flex items-center gap-3 mt-1.5">
                   <div className="flex items-baseline gap-1">
                     <span className="text-[8px] font-bold uppercase text-zinc-500 tracking-tight">DNS</span>
@@ -693,7 +692,7 @@ export function TtfbChart({
                 {regions.map(region => {
                   const p = byRegion[region]?.get(allBuckets[hoveredIdx])
                   if (!p) return null
-                  const isHovered = hoveredRegion === region
+                  const isHovered = activeRegion === region
                   const netValue = (p.dns_avg ?? 0) + (p.tcp_avg ?? 0) + (p.tls_avg ?? 0)
                   return (
                     <div
@@ -727,7 +726,7 @@ export function TtfbChart({
 
               {/* Performance Advisory Section in Tooltip */}
               {(() => {
-                const targetRegion = hoveredRegion || 'global'
+                const targetRegion = activeRegion || 'global'
                 const insights = netInsights.get(targetRegion)
                 const pointInsight = insights?.find(ins => ins.idx === hoveredIdx)
                 if (!pointInsight) return null
@@ -777,22 +776,22 @@ export function TtfbChart({
           ) : (
             /* DEFAULT TTFB / CACHE TOOLTIP */
             <>
-              <div className={`mb-1.5 px-1.5 py-0.5 flex items-center justify-between border-b border-white/5 pb-1.5 rounded-md transition-all duration-300 ${hoveredRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : ''}`}>
+              <div className={`mb-1.5 px-1.5 py-0.5 flex items-center justify-between border-b border-white/5 pb-1.5 rounded-md transition-all duration-300 ${activeRegion === 'global' ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20 shadow-[0_0_15px_rgba(34,211,238,0.1)]' : ''}`}>
                 <div className="flex flex-col gap-0.5">
-                  <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${hoveredRegion === 'global' ? 'text-cyan-300' : 'text-zinc-400'}`}>GLOBAL</span>
+                  <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${activeRegion === 'global' ? 'text-cyan-300' : 'text-zinc-400'}`}>GLOBAL</span>
                   <div className="flex items-center gap-4 mt-0.5">
                     <div className="flex items-baseline gap-1.5">
                       <span className={`text-sm font-black tabular-nums transition-colors ${getTtfbColorClass(globalTtfb[hoveredIdx].value, 'global')}`}>
                         {Math.round(globalTtfb[hoveredIdx].value)}
                       </span>
-                      <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${hoveredRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>ms</span>
+                      <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${activeRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>ms</span>
                     </div>
                     <div className="w-px h-3 bg-white/5" />
                     <div className="flex items-baseline gap-1.5">
                       <span className={`text-sm font-black tabular-nums transition-colors ${hoveredGlobalCache != null ? getCacheColor(hoveredGlobalCache, 'global') : 'text-zinc-500'}`}>
                         {hoveredGlobalCache != null ? Math.round(hoveredGlobalCache) : '—'}%
                       </span>
-                      <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${hoveredRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>cache</span>
+                      <span className={`text-[9px] font-bold uppercase tracking-tight transition-colors ${activeRegion === 'global' ? 'text-cyan-400/60' : 'text-zinc-500'}`}>cache</span>
                     </div>
                   </div>
                 </div>
@@ -811,7 +810,7 @@ export function TtfbChart({
                 {regions.map(region => {
                   const p = byRegion[region]?.get(allBuckets[hoveredIdx])
                   if (!p) return null
-                  const isHovered = hoveredRegion === region
+                  const isHovered = activeRegion === region
                   return (
                     <div
                       key={region}
@@ -852,7 +851,7 @@ export function TtfbChart({
 
               {/* TTFB Performance Advisory Section */}
               {hoveredChart === 'ttfb' && (() => {
-                const targetRegion = hoveredRegion || 'global'
+                const targetRegion = activeRegion || 'global'
                 const insights = ttfbInsights.get(targetRegion)
                 const pointInsight = insights?.find(ins => ins.idx === hoveredIdx)
                 if (!pointInsight) return null
@@ -896,7 +895,7 @@ export function TtfbChart({
 
               {/* Cache Performance Advisory Section */}
               {hoveredChart === 'cache' && (() => {
-                const targetRegion = hoveredRegion || 'global'
+                const targetRegion = activeRegion || 'global'
                 const insights = cacheInsights.get(targetRegion)
                 const pointInsight = insights?.find(ins => ins.idx === hoveredIdx)
                 if (!pointInsight) return null
@@ -1019,8 +1018,10 @@ export function TtfbChart({
                             const next = new Set(prev)
                             if (next.has(region)) {
                               next.delete(region)
+                              if (activeRegion === region) setActiveRegion('global')
                             } else {
                               next.add(region)
+                              setActiveRegion(region)
                             }
                             return next
                           })
@@ -1050,8 +1051,8 @@ export function TtfbChart({
                 if (!m) return null
                 const bandPath = buildP95BandPath(allBuckets, m, toX, toYTtfb)
                 if (!bandPath) return null
-                const isHovered = hoveredRegion === region
-                const isOtherHovered = hoveredRegion !== null && !isHovered
+                const isHovered = activeRegion === region
+                const isOtherHovered = activeRegion !== null && !isHovered
                 return (
                   <path
                     key={`band-${region}`}
@@ -1068,49 +1069,43 @@ export function TtfbChart({
                 const m = byRegion[region]
                 if (!m) return null
                 const points = allBuckets.map((b, i) => m.has(b) ? `${toX(i)},${toYTtfb(m.get(b)!.ttfb_avg)}` : null).filter(Boolean).join(' ')
-                const isHovered = hoveredRegion === region
-                const isOtherHovered = hoveredRegion !== null && !isHovered
                 return (
-                  <g key={`group-${region}`} onMouseEnter={() => setHoveredRegion(region)} onMouseLeave={() => setHoveredRegion(null)}>
-                    {/* Transparent hit area for easier hovering */}
+                  <g key={`group-${region}`} onClick={() => setActiveRegion(region)} className="cursor-pointer">
                     <polyline
                       points={points}
                       fill="none"
                       stroke="transparent"
                       strokeWidth={12}
-                      className="cursor-pointer"
                     />
                     <polyline
                       points={points}
                       fill="none"
                       stroke={regionMeta[region]?.color ?? '#6b7280'}
-                      strokeWidth={isHovered ? 2.5 : 1.5}
+                      strokeWidth={activeRegion === region ? 3.5 : 1.5}
                       strokeLinejoin="round"
                       strokeLinecap="round"
-                      strokeOpacity={isHovered ? 1 : isOtherHovered ? 0.15 : (hoveredIdx === null ? 1 : byRegion[region]?.has(allBuckets[hoveredIdx]) ? 1 : 0.2)}
+                      strokeOpacity={activeRegion === region ? 1 : 0.15}
                       className="transition-all duration-300 pointer-events-none"
                     />
                   </g>
                 )
               })}
               {showGlobalTtfb && (
-                <g onMouseEnter={() => setHoveredRegion('global')} onMouseLeave={() => setHoveredRegion(null)}>
-                  {/* Hit area for global line */}
+                <g onClick={() => setActiveRegion('global')} className="cursor-pointer">
                   <polyline
                     points={globalTtfb.map((bucket, i) => `${toX(i)},${toYTtfb(bucket.value)}`).join(' ')}
                     fill="none"
                     stroke="transparent"
                     strokeWidth={12}
-                    className="cursor-pointer"
                   />
                   <polyline
                     points={globalTtfb.map((bucket, i) => `${toX(i)},${toYTtfb(bucket.value)}`).join(' ')}
                     fill="none"
                     stroke="#22d3ee"
-                    strokeWidth={hoveredRegion === 'global' ? 3.5 : 2.4}
+                    strokeWidth={activeRegion === 'global' ? 3.5 : 2.4}
                     strokeLinejoin="round"
                     strokeLinecap="round"
-                    strokeOpacity={hoveredRegion === 'global' ? 1 : hoveredRegion !== null ? 0.15 : 1}
+                    strokeOpacity={activeRegion === 'global' ? 1 : 0.15}
                     className="transition-all duration-300 pointer-events-none"
                   />
                 </g>
@@ -1118,7 +1113,7 @@ export function TtfbChart({
 
               {/* Advisory Markers (Max, Min, Spikes) */}
               {(() => {
-                const targetRegion = hoveredRegion || 'global'
+                const targetRegion = activeRegion || 'global'
                 const insights = ttfbInsights.get(targetRegion)
                 if (!insights) return null
 
@@ -1236,8 +1231,10 @@ export function TtfbChart({
                                 const next = new Set(prev)
                                 if (next.has(region)) {
                                   next.delete(region)
+                                  if (activeRegion === region) setActiveRegion('global')
                                 } else {
                                   next.add(region)
+                                  setActiveRegion(region)
                                 }
                                 return next
                               })
@@ -1302,56 +1299,50 @@ export function TtfbChart({
                       const m = byRegion[region]
                       if (!m) return null
                       const points = allBuckets.map((b, i) => {
-                        const p = m.get(b)
-                        return p && p.cache_hit_pct != null ? `${toX(i)},${toYCache(p.cache_hit_pct)}` : null
+                        const cacheValue = m.get(b)?.cache_hit_pct
+                        return cacheValue != null ? `${toX(i)},${toYCache(cacheValue)}` : null
                       }).filter(Boolean).join(' ')
                       if (!points) return null
 
-                      const isHovered = hoveredRegion === region
-                      const isOtherHovered = hoveredRegion !== null && !isHovered
 
                       return (
-                        <g key={`cache-group-${region}`} onMouseEnter={() => setHoveredRegion(region)} onMouseLeave={() => setHoveredRegion(null)}>
-                          {/* Hit area */}
+                        <g key={`cache-group-${region}`} onClick={() => setActiveRegion(region)} className="cursor-pointer">
                           <polyline
                             points={points}
                             fill="none"
                             stroke="transparent"
                             strokeWidth={12}
-                            className="cursor-pointer"
                           />
-                          <polyline
-                            points={points}
-                            fill="none"
-                            stroke={regionMeta[region]?.color ?? '#6b7280'}
-                            strokeWidth={isHovered ? 2.5 : 1.5}
-                            strokeLinejoin="round"
-                            strokeLinecap="round"
-                            strokeOpacity={isHovered ? 1 : isOtherHovered ? 0.15 : (hoveredIdx === null ? 1 : byRegion[region]?.has(allBuckets[hoveredIdx]) ? 1 : 0.2)}
-                            className="transition-all duration-300 pointer-events-none"
-                          />
+                    <polyline
+                      points={points}
+                      fill="none"
+                      stroke={regionMeta[region]?.color ?? '#6b7280'}
+                      strokeWidth={activeRegion === region ? 3.5 : 1.5}
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                      strokeOpacity={activeRegion === region ? 1 : 0.15}
+                      className="transition-all duration-300 pointer-events-none"
+                    />
                         </g>
                       )
                     })}
 
                     {showGlobalCache && (
-                      <g onMouseEnter={() => setHoveredRegion('global')} onMouseLeave={() => setHoveredRegion(null)}>
-                        {/* Hit area for global cache */}
+                      <g onClick={() => setActiveRegion('global')} className="cursor-pointer">
                         <polyline
                           points={globalCache.map((bucket, i) => bucket.value != null ? `${toX(i)},${toYCache(bucket.value)}` : null).filter(Boolean).join(' ')}
                           fill="none"
                           stroke="transparent"
                           strokeWidth={12}
-                          className="cursor-pointer"
                         />
                         <polyline
                           points={globalCache.map((bucket, i) => bucket.value != null ? `${toX(i)},${toYCache(bucket.value)}` : null).filter(Boolean).join(' ')}
                           fill="none"
                           stroke="#22d3ee"
-                          strokeWidth={hoveredRegion === 'global' ? 3.5 : 2.4}
+                          strokeWidth={activeRegion === 'global' ? 3.5 : 2.4}
                           strokeLinejoin="round"
                           strokeLinecap="round"
-                          strokeOpacity={hoveredRegion === 'global' ? 1 : (hoveredRegion !== null ? 0.15 : 1)}
+                          strokeOpacity={activeRegion === 'global' ? 1 : 0.15}
                           className="transition-all duration-300 pointer-events-none"
                         />
                       </g>
@@ -1359,7 +1350,7 @@ export function TtfbChart({
 
                     {/* Advisory Markers (Max, Min, Spikes) */}
                     {(() => {
-                      const targetRegion = hoveredRegion || 'global'
+                      const targetRegion = activeRegion || 'global'
                       const insights = cacheInsights.get(targetRegion)
                       if (!insights) return null
 
@@ -1499,8 +1490,10 @@ export function TtfbChart({
                             const next = new Set(prev)
                             if (next.has(region)) {
                               next.delete(region)
+                              if (activeRegion === region) setActiveRegion('global')
                             } else {
                               next.add(region)
+                              setActiveRegion(region)
                             }
                             return next
                           })
@@ -1531,10 +1524,10 @@ export function TtfbChart({
                     points={globalNet.map((g, i) => `${toX(i)},${toYNet(g.value)}`).join(' ')}
                     fill="none"
                     stroke={networkMetric === 'dns' ? TIMING.dns.stroke : networkMetric === 'tcp' ? TIMING.tcp.stroke : networkMetric === 'tls' ? TIMING.tls.stroke : '#22d3ee'}
-                    strokeWidth={hoveredRegion === 'global' ? 3.5 : 2.4}
+                    strokeWidth={activeRegion === 'global' ? 3.5 : 2.4}
                     strokeLinejoin="round"
                     strokeLinecap="round"
-                    strokeOpacity={hoveredRegion === 'global' ? 1 : (hoveredRegion !== null ? 0.15 : 1)}
+                    strokeOpacity={activeRegion === 'global' ? 1 : 0.15}
                     className="transition-all duration-300 pointer-events-none"
                   />
                   {/* Hit area */}
@@ -1564,27 +1557,24 @@ export function TtfbChart({
                   return `${toX(i)},${toYNet(val)}`
                 }).filter(Boolean).join(' ')
 
-                const isHovered = hoveredRegion === region
-                const isOtherHovered = hoveredRegion !== null && !isHovered
 
                 return (
-                  <g key={`net-group-${region}`} onMouseEnter={() => setHoveredRegion(region)} onMouseLeave={() => setHoveredRegion(null)}>
+                  <g key={`net-group-${region}`} onClick={() => setActiveRegion(region)} className="cursor-pointer">
                     {/* Transparent hit area */}
                     <polyline
                       points={points}
                       fill="none"
                       stroke="transparent"
                       strokeWidth={12}
-                      className="cursor-pointer"
                     />
                     <polyline
                       points={points}
                       fill="none"
                       stroke={regionMeta[region]?.color ?? '#6b7280'}
-                      strokeWidth={isHovered ? 2.5 : 1.5}
+                      strokeWidth={activeRegion === region ? 3.5 : 1.5}
                       strokeLinejoin="round"
                       strokeLinecap="round"
-                      strokeOpacity={isHovered ? 1 : isOtherHovered ? 0.15 : (hoveredIdx === null ? 1 : byRegion[region]?.has(allBuckets[hoveredIdx]) ? 1 : 0.2)}
+                      strokeOpacity={activeRegion === region ? 1 : 0.15}
                       className="transition-all duration-300 pointer-events-none"
                     />
                   </g>
@@ -1593,7 +1583,7 @@ export function TtfbChart({
 
               {/* Advisory Markers (Max, Min, Spikes) */}
               {(() => {
-                const targetRegion = hoveredRegion || 'global'
+                const targetRegion = activeRegion || 'global'
                 const insights = netInsights.get(targetRegion)
                 if (!insights) return null
 
