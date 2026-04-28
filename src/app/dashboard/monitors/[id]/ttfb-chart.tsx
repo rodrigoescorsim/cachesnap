@@ -415,12 +415,12 @@ export function TtfbChart({
   // ── Y scales (Dynamic based on visible data) ─────────────────────────────
   const maxTtfb = useMemo(() => {
     let max = 1
-    if (showGlobalTtfb) {
+    if (showGlobal) {
       for (const p of globalTtfb) {
         if (p.value > max) max = p.value
       }
     }
-    for (const region of selectedTtfbRegions) {
+    for (const region of selectedRegions) {
       const m = byRegion[region]
       if (!m) continue
       for (const p of m.values()) {
@@ -429,18 +429,18 @@ export function TtfbChart({
       }
     }
     return max
-  }, [showGlobalTtfb, selectedTtfbRegions, globalTtfb, byRegion])
+  }, [showGlobal, selectedRegions, globalTtfb, byRegion])
 
   const niceMaxTtfb = niceMax(maxTtfb, 100)
 
   const maxNet = useMemo(() => {
     let max = 1
-    if (showGlobalNet) {
+    if (showGlobal) {
       for (const p of globalNet) {
         if (p.value > max) max = p.value
       }
     }
-    for (const region of selectedNetRegions) {
+    for (const region of selectedRegions) {
       const m = byRegion[region]
       if (!m) continue
       for (const p of m.values()) {
@@ -453,7 +453,7 @@ export function TtfbChart({
       }
     }
     return max
-  }, [showGlobalNet, selectedNetRegions, globalNet, byRegion, networkMetric])
+  }, [showGlobal, selectedRegions, globalNet, byRegion, networkMetric])
 
   const niceMaxNet = niceMax(maxNet, 50)
 
