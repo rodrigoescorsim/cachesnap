@@ -53,6 +53,7 @@ import {
 } from '@/app/dashboard/monitors/[id]/monitor-table-styles'
 
 import { MONITOR_TTFB, MONITOR_CACHE, getTtfbColorClass, getCacheColor, getTtfbTooltip, getCacheTooltip } from '@/lib/thresholds'
+import { isCacheHit, getCacheDisplayLabel } from '@/lib/cache-utils'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -173,15 +174,17 @@ function cacheHitTooltipText(pct: number): string {
   return getCacheTooltip(pct, 'monitor')
 }
 
-function CacheHitBadge({ pct }: { pct: number | null }) {
-  if (pct === null) {
+function CacheHitBadge({ pct, status }: { pct: number | null; status: string | null }) {
+  const isIntentional = isCacheBypass(status)
+  if (pct === null || (Math.round(pct) === 0 && isIntentional)) {
+    const displayLabel = getCacheDisplayLabel(status)
     return (
       <PremiumTooltip
-        content="No cache-status header detected on recent probes. The origin may not use a supported CDN."
+        content={pct === null ? "No cache-status header detected on recent probes." : "Site is intentionally dynamic: All requests fetched from origin."}
         position="top-center"
         direction="top"
       >
-        <span className="cs-badge-cache-dash cursor-help">—</span>
+        <span className="cs-badge-cache-not-reported uppercase text-[10px] font-black">{displayLabel}</span>
       </PremiumTooltip>
     )
   }
@@ -488,14 +491,19 @@ function buildMonitorColumns(
     enableSorting: true,
     cell: ({ getValue, row }) => {
       const pct = getValue()
-      if (pct === null) {
+      const m = row.original
+      const isIntentional = isCacheBypass(m.cacheStatusCurrent)
+      if (pct === null || (Math.round(Number(pct)) === 0 && isIntentional)) {
+        const displayLabel = getCacheDisplayLabel(m.cacheStatusCurrent)
         return (
-          <span className="text-[12px] font-semibold tabular-nums text-zinc-500/90" aria-label="No data">
-            —
-          </span>
+          <div className="flex flex-col gap-[3px]">
+            <span className="text-[10px] font-black uppercase text-zinc-500/90 tabular-nums">
+              {displayLabel}
+            </span>
+          </div>
         )
       }
-      const tier = getCacheHitTier(pct)
+      const tier = getCacheHitTier(Number(pct))
       const textClass =
         tier === 'high' ? 'text-emerald-400'
           : tier === 'mid' ? 'text-amber-400'
@@ -503,7 +511,7 @@ function buildMonitorColumns(
       return (
         <div className="flex flex-col gap-[3px]">
           <span className={`text-[13px] font-black tabular-nums leading-none ${textClass}`}>
-            {pct.toFixed(1)}%
+            {Number(pct).toFixed(1)}%
           </span>
           <DeltaChip value={row.original.cacheHitDelta} />
         </div>
@@ -717,7 +725,7 @@ function buildMonitorColumns(
       header: () => <MonitorsThTooltip label="Cache Hit" description={HEADER_HELP.cacheHit} />,
       size: 10,
       enableSorting: true,
-      cell: ({ getValue }) => <CacheHitBadge pct={getValue()} />,
+    cell: ({ getValue, row }) => <CacheHitBadge pct={getValue()} status={row.original.cacheStatusCurrent} />,
     }),
 
     ...(includeHit24hAvg ? [hit24hAvgColumn] : []),

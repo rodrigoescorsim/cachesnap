@@ -46,7 +46,7 @@ export async function GET() {
         ROUND(AVG(ttfb_ms) FILTER (WHERE ttfb_ms IS NOT NULL AND error IS NULL))::int  AS ttfb_avg_24h,
         ROUND(
           100.0
-          * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING') AND error IS NULL)
+          * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT') AND error IS NULL)
           / NULLIF(COUNT(*) FILTER (WHERE cache_status IS NOT NULL AND error IS NULL), 0),
           1
         )                                                                               AS cache_hit_avg_24h
@@ -62,10 +62,11 @@ export async function GET() {
         ROUND(AVG(ttfb_ms) FILTER (WHERE ttfb_ms IS NOT NULL AND error IS NULL))::int   AS ttfb_current,
         ROUND(
           100.0
-          * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING') AND error IS NULL)
+          * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT') AND error IS NULL)
           / NULLIF(COUNT(*) FILTER (WHERE cache_status IS NOT NULL AND error IS NULL), 0),
           1
         )                                                                                AS cache_hit_current,
+        MODE() WITHIN GROUP (ORDER BY COALESCE(cache_status, 'NO HEADER')) FILTER (WHERE error IS NULL) AS dominant_cache_status,
         MAX(probe_time)                                                                  AS last_checked_at,
         COUNT(*) FILTER (WHERE ttfb_ms > 300 AND error IS NULL)::int                    AS slow_region_count,
         COUNT(*)::int                                                                    AS total_region_count,
@@ -129,6 +130,7 @@ export async function GET() {
 
       -- NULL = no recognisable cache-status header; 0 = header present but no HITs
       c.cache_hit_current                                                                    AS cache_hit_current,
+      c.dominant_cache_status                                                                AS cache_status_current,
       h.cache_hit_avg_24h                                                                    AS cache_hit_avg_24h,
       -- Positive = current better than 24h avg (percentage-point diff); null if no data
       CASE
