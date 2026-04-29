@@ -18,7 +18,7 @@ import {
 import {
   ProbeWaterfall
 } from './probe-waterfall'
-import { isCacheHit } from '@/lib/cache-utils'
+import { isCacheHit, isCacheMiss, isCacheBypass, getCacheDisplayLabel } from '@/lib/cache-utils'
 
 interface LiveProbe {
   region: string
@@ -196,8 +196,8 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                     </td>
                     <td className="cs-table-compact-td text-center">
                       {pop ? (
-                        <PremiumTooltip content={popToCity(pop) || pop} position="top-center" direction="top">
-                          <span className="cs-pop-tag uppercase">{pop}</span>
+                        <PremiumTooltip content={`PoP code: ${pop}`} position="top-center" direction="top">
+                          <span className="cs-pop-tag uppercase whitespace-nowrap">{popToCity(pop) || pop}</span>
                         </PremiumTooltip>
                       ) : (
                         <span className="cs-pop-tag">—</span>
@@ -213,26 +213,44 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                       )}
                     </td>
                     <td className="cs-table-compact-td text-center">
-                      {isCacheHitStatus ? (
-                        <PremiumTooltip content="Cache hit observed" position="top-center" direction="top">
-                          <span className="cs-badge-cache-hit">
-                            <Zap className="h-[10px] w-[10px] fill-current" />
-                            {p.common_cache_status}
-                          </span>
-                        </PremiumTooltip>
-                      ) : normalizedStatus === 'MISS' ? (
-                        <PremiumTooltip content="Request was cacheable but not found in edge cache" position="top-center" direction="top">
-                          <span className="cs-badge-cache-miss">MISS</span>
-                        </PremiumTooltip>
-                      ) : normalizedStatus?.startsWith('BYPASS:') ? (
-                        <PremiumTooltip content={p.common_cache_status?.split(':')[1] ?? 'Bypassed edge cache'} position="top-center" direction="top">
-                          <span className="cs-badge-cache-not-reported">BYPASS</span>
-                        </PremiumTooltip>
-                      ) : (
-                        <PremiumTooltip content={p.common_cache_status?.includes(':') ? p.common_cache_status.split(':')[1] : (p.common_cache_status || 'No cache header detected')} position="top-center" direction="top">
-                          <span className="cs-badge-cache-not-reported">BYPASS</span>
-                        </PremiumTooltip>
-                      )}
+                      {(() => {
+                        const status = p.common_cache_status
+                        if (!status) {
+                          return (
+                            <PremiumTooltip content="No cache header detected" position="top-center" direction="top">
+                              <span className="cs-badge-cache-dash">—</span>
+                            </PremiumTooltip>
+                          )
+                        }
+
+                        const upper = status.toUpperCase()
+                        const displayStatus = getCacheDisplayLabel(status)
+
+                        if (isCacheHit(status)) {
+                          return (
+                            <PremiumTooltip content={upper.includes(':') ? upper.split(':')[1].trim() : 'Cache hit observed'} position="top-center" direction="top">
+                              <span className="cs-badge-cache-hit">
+                                <Zap className="h-[10px] w-[10px] fill-current" />
+                                {displayStatus}
+                              </span>
+                            </PremiumTooltip>
+                          )
+                        }
+
+                        if (isCacheMiss(status)) {
+                          return (
+                            <PremiumTooltip content={upper.includes(':') ? upper.split(':')[1].trim() : 'Request was cacheable but not found in edge cache'} position="top-center" direction="top">
+                              <span className="cs-badge-cache-miss">{displayStatus}</span>
+                            </PremiumTooltip>
+                          )
+                        }
+
+                        return (
+                          <PremiumTooltip content={upper.includes(':') ? upper.split(':')[1].trim() : 'Bypassed edge cache'} position="top-center" direction="top">
+                            <span className="cs-badge-cache-not-reported">{displayStatus}</span>
+                          </PremiumTooltip>
+                        )
+                      })()}
                     </td>
                     <td className={`${isError ? 'cs-table-compact-td' : ttfbMetricCellClass(p.ttfb_ms)} !px-3 !py-2 text-[13px] text-center`}>
                       {isError ? (

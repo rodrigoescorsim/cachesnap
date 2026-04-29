@@ -19,7 +19,7 @@ import {
   WaterfallLegend,
   type WaterfallProbe 
 } from './probe-waterfall'
-import { isCacheHit } from '@/lib/cache-utils'
+import { isCacheHit, isCacheMiss, getCacheDisplayLabel } from '@/lib/cache-utils'
 
 interface BreakdownTableProps {
   probes: WaterfallProbe[]
@@ -38,11 +38,8 @@ export function BreakdownTable({ probes, regionLabels, regionDescriptions }: Bre
   }
 
   const getCacheVariant = (status: string | null) => {
-    const normalized = status?.toUpperCase() ?? null
-    if (isCacheHit(normalized)) return 'hit'
-    if (normalized === 'MISS') return 'miss'
-    if (normalized === 'BYPASS') return 'bypass'
-    if (normalized === 'DYNAMIC') return 'dynamic'
+    if (isCacheHit(status)) return 'hit'
+    if (isCacheMiss(status)) return 'miss'
     return 'not_reported'
   }
 
@@ -100,21 +97,25 @@ export function BreakdownTable({ probes, regionLabels, regionDescriptions }: Bre
                     </td>
                     <td className="cs-table-compact-td text-center">
                       {cacheVariant === 'hit' && (
-                        <PremiumTooltip content="Cache hit observed" position="top-center" direction="top">
+                        <PremiumTooltip content={p.cache_status?.includes(':') ? p.cache_status.split(':')[1].trim() : 'Cache hit observed'} position="top-center" direction="top">
                           <span className="cs-badge-cache-hit">
                             <Zap className="h-[10px] w-[10px] fill-current" />
-                            {p.cache_status}
+                            {getCacheDisplayLabel(p.cache_status)}
                           </span>
                         </PremiumTooltip>
                       )}
                       {cacheVariant === 'miss' && (
-                        <PremiumTooltip content="Cacheable but not found in edge cache" position="top-center" direction="top">
-                          <span className="cs-badge-cache-miss">MISS</span>
+                        <PremiumTooltip content={p.cache_status?.includes(':') ? p.cache_status.split(':')[1].trim() : 'Request was cacheable but not found in edge cache'} position="top-center" direction="top">
+                          <span className="cs-badge-cache-miss">
+                            {getCacheDisplayLabel(p.cache_status)}
+                          </span>
                         </PremiumTooltip>
                       )}
-                      {cacheVariant !== 'hit' && cacheVariant !== 'miss' && (
+                      {cacheVariant === 'not_reported' && (
                         <PremiumTooltip content={p.cache_status?.includes(':') ? p.cache_status.split(':')[1] : (p.cache_status || 'No cache header detected')} position="top-center" direction="top">
-                          <span className="cs-badge-cache-not-reported">BYPASS</span>
+                          <span className="cs-badge-cache-not-reported">
+                            {getCacheDisplayLabel(p.cache_status || 'BYPASS')}
+                          </span>
                         </PremiumTooltip>
                       )}
                     </td>

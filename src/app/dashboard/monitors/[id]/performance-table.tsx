@@ -4,7 +4,7 @@ import React, { useState, Fragment } from 'react'
 import { ChevronDown, ChevronUp, Zap, Gauge } from 'lucide-react'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import { extractPop, resolveCdnLabel, popToCity } from '@/lib/edge-helpers'
-import { isCacheHit } from '@/lib/cache-utils'
+import { isCacheHit, isCacheMiss, isCacheBypass, getCacheDisplayLabel } from '@/lib/cache-utils'
 import { getCacheColor, getCacheTooltip, getTtfbTooltip, getTtfbColorClass } from '@/lib/thresholds'
 import {
   MONITOR_TABLE,
@@ -256,8 +256,10 @@ export function PerformanceTable({ stats, regionLabels, regionDescriptions, glob
                             ) : Math.round(s.cache_hit_pct) >= 50 ? (
                               <span className="cs-badge-cache-miss">{Math.round(s.cache_hit_pct)}%</span>
                             ) : (
-                              Math.round(s.cache_hit_pct) === 0 && (!s.common_cache_status || s.common_cache_status.toUpperCase().includes('BYPASS')) ? (
-                                <span className="cs-badge-cache-not-reported">BYPASS</span>
+                              Math.round(s.cache_hit_pct) === 0 && (!s.common_cache_status || isCacheBypass(s.common_cache_status)) ? (
+                                <span className="cs-badge-cache-not-reported">
+                                  {getCacheDisplayLabel(s.common_cache_status || 'BYPASS')}
+                                </span>
                               ) : (
                                 <span className="cs-badge-cache-hit-rate-low">{Math.round(s.cache_hit_pct)}%</span>
                               )
