@@ -267,15 +267,23 @@ async fn maybe_bootstrap_evaluate(state: AppState, monitor_id: uuid::Uuid) {
 
         if let Some(monitor) = monitor {
             let regions = Arc::new(crate::scheduler::runner::fetch_regions(&state.db).await);
-            tracing::info!("ingest: bootstrap immediate bypass dispatch for monitor {monitor_id}");
-            crate::scheduler::runner::dispatch_probes(
-                &state,
-                &monitor,
-                regions,
-                crate::scheduler::runner::BypassMode::Full,
-                false,
-            )
-            .await;
+            let bypass_mode = match monitor.audit_readiness_state.as_str() {
+                "enabled" => crate::scheduler::runner::BypassMode::Full,
+                "warmup" => crate::scheduler::runner::BypassMode::Warmup,
+                _ => crate::scheduler::runner::BypassMode::Off,
+            };
+
+            if !matches!(bypass_mode, crate::scheduler::runner::BypassMode::Off) {
+                tracing::info!("ingest: bootstrap immediate bypass dispatch for monitor {monitor_id} [mode={:?}]", bypass_mode as i32);
+                crate::scheduler::runner::dispatch_probes(
+                    &state,
+                    &monitor,
+                    regions,
+                    bypass_mode,
+                    false,
+                )
+                .await;
+            }
         }
     }
 }

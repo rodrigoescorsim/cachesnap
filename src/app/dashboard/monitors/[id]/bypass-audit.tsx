@@ -56,7 +56,6 @@ function AuditCTA({
   monitorId: string
 }) {
   const state = resolveReadinessState(readiness)
-  const reason = resolveReason(readiness)
 
   if (state === 'enabled') {
     return <MonitorDispatchButtons monitorId={monitorId} variant="audit" />
@@ -69,23 +68,14 @@ function AuditCTA({
           disabled
           className="relative inline-flex h-9 items-center justify-center gap-2.5 rounded-xl border px-6 border-white/10 bg-white/5 text-zinc-500 cursor-not-allowed opacity-60 text-xs font-bold tracking-tight"
         >
-          <Clock className="h-3.5 w-3.5" />
+          <Zap className="h-3.5 w-3.5" />
           Warming Up...
         </button>
       </PremiumTooltip>
     )
   }
 
-  return (
-    <PremiumTooltip content={reason || 'Edge audit unavailable.'} direction="top">
-      <button
-        disabled
-        className="relative inline-flex h-9 items-center justify-center gap-2.5 rounded-xl border px-6 border-white/10 bg-white/5 text-zinc-500 cursor-not-allowed opacity-50 text-xs font-bold tracking-tight"
-      >
-        Audit Unavailable
-      </button>
-    </PremiumTooltip>
-  )
+  return null
 }
 
 function RecheckButton({ monitorId }: { monitorId: string }) {
@@ -249,7 +239,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
     // min-h prevents layout shift when transitioning between states (Melhoria #4)
     <div className="space-y-6 min-h-[200px]">
       {/* Section header with permanent state badge — Task 3.1 */}
-      <ViewSectionHeader title="Edge Audit" showDot={state === 'enabled'}>
+      <ViewSectionHeader title="Edge Audit" showDot={true}>
         <div className="flex items-center gap-3">
           <span className={badge.cssClass}>{badge.label}</span>
           <AuditCTA readiness={readiness} monitorId={monitorId} />
@@ -284,8 +274,8 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
         </div>
       )}
 
-      {/* Audit timeline — only rendered when there is data */}
-      {hasData && (
+      {/* Audit timeline — only rendered when there is data AND state is not disabled (Melhoria UX) */}
+      {hasData && state !== 'disabled' && (
         <>
           {/* Time Explorer — Task 3.4: show comparable regions + confidence per snapshot */}
           <div className="space-y-3">
