@@ -1047,6 +1047,19 @@ export default async function MonitorDetailPage({
     ? Math.round((liveHitCount / validLiveCache.length) * 100)
     : 0;
 
+  const isLiveGlobalDynamic = liveGlobalHitRate === 0 && latestProbes.length > 0
+  
+  const liveDominantStatusLabel = (() => {
+    if (liveGlobalHitRate > 0 || latestProbes.length === 0) return null
+    const counts: Record<string, number> = {}
+    latestProbes.forEach(p => {
+      const label = getCacheDisplayLabel(p.common_cache_status)
+      counts[label] = (counts[label] || 0) + 1
+    })
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1])
+    return sorted.length > 0 ? sorted[0][0] : 'NO HEADER'
+  })()
+
   // AGGREGATE CALCULATIONS FOR SUMMARY CARDS
   const avgTtfb = stats.length > 0
     ? Math.round(stats.reduce((acc, s) => acc + (s.ttfb_avg_ms || 0), 0) / stats.length)
@@ -1056,13 +1069,14 @@ export default async function MonitorDetailPage({
   const totalProbesCount = stats.reduce((acc, s) => acc + s.probe_count, 0);
   const globalHitRate = totalProbesCount > 0 ? Math.round((totalHitProbes / totalProbesCount) * 100) : 0;
 
-  const isGlobalDynamic = globalHitRate === 0 && (stats.some(s => !isCacheHit(s.common_cache_status)) || latestProbes.some(p => !isCacheHit(p.common_cache_status)))
+  const isGlobalDynamic = globalHitRate === 0 && (stats.length > 0 || latestProbes.length > 0)
   
   // Find current dominant status from Live data to help label historical 0%
   const liveDominantStatus = (() => {
+    if (latestProbes.length === 0) return null
     const counts: Record<string, number> = {}
     latestProbes.forEach(p => {
-      const label = getCacheDisplayLabel(p.common_cache_status || 'BYPASS')
+      const label = getCacheDisplayLabel(p.common_cache_status)
       counts[label] = (counts[label] || 0) + 1
     })
     const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1])
@@ -1072,17 +1086,17 @@ export default async function MonitorDetailPage({
   // Find dominant status for label when 0%
   const dominantStatusLabel = (() => {
     if (globalHitRate > 0) return null
-    // If we have a clear live status (like DYNAMIC), prioritize it over historical MISS
-    if (liveDominantStatus && (liveDominantStatus === 'DYNAMIC' || liveDominantStatus === 'BYPASS')) {
+    // If we have a clear live status (like DYNAMIC or NO HEADER), prioritize it over historical MISS
+    if (liveDominantStatus && (liveDominantStatus === 'DYNAMIC' || liveDominantStatus === 'BYPASS' || liveDominantStatus === 'NO HEADER')) {
       return liveDominantStatus
     }
     const counts: Record<string, number> = {}
     stats.forEach(s => {
-      const label = getCacheDisplayLabel(s.common_cache_status || 'BYPASS')
+      const label = getCacheDisplayLabel(s.common_cache_status)
       counts[label] = (counts[label] || 0) + 1
     })
     const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1])
-    return sorted.length > 0 ? sorted[0][0] : 'BYPASS'
+    return sorted.length > 0 ? sorted[0][0] : 'NO HEADER'
   })()
 
   const validUptimeStats = stats.filter(s => typeof s.uptime_pct === 'number');
@@ -1428,13 +1442,19 @@ export default async function MonitorDetailPage({
                                 <PremiumTooltip content="Average cache hit rate from recent probes across all regions">
                                   <p className="cs-metric-card-label !text-[11px]">Global Cache Hit Rate</p>
                                 </PremiumTooltip>
-                                <PremiumTooltip content={validLiveCache.length === 0 ? 'No data available' : getCacheTooltip(liveGlobalHitRate, 'global')}>
+                                <PremiumTooltip content={liveGlobalHitRate === 0 ? (isLiveGlobalDynamic ? 'Site is intentionally dynamic: All requests fetched from origin' : 'No data available') : getCacheTooltip(liveGlobalHitRate, 'global')}>
                                   <div className="flex items-center gap-2">
                                     <div className="flex items-baseline gap-0.5">
-                                      <span className={`text-[26px] font-black tracking-tight leading-none ${getCacheColor(liveGlobalHitRate, 'global')}`}>{liveGlobalHitRate}</span>
-                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getCacheColor(liveGlobalHitRate, 'global')}`}>%</span>
+                                      {isLiveGlobalDynamic ? (
+                                        <span className="text-[20px] font-black tracking-tight leading-none text-zinc-500 uppercase">{liveDominantStatusLabel}</span>
+                                      ) : (
+                                        <>
+                                          <span className={`text-[26px] font-black tracking-tight leading-none ${getCacheColor(liveGlobalHitRate, 'global')}`}>{liveGlobalHitRate}</span>
+                                          <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getCacheColor(liveGlobalHitRate, 'global')}`}>%</span>
+                                        </>
+                                      )}
                                     </div>
-                                    <Zap className={`h-5 w-5 fill-current ${getCacheColor(liveGlobalHitRate, 'global')}`} />
+                                    {!isLiveGlobalDynamic && <Zap className={`h-5 w-5 fill-current ${getCacheColor(liveGlobalHitRate, 'global')}`} />}
                                   </div>
                                 </PremiumTooltip>
                               </div>

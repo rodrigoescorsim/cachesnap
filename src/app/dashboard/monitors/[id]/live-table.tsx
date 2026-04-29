@@ -218,7 +218,7 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                         if (!status) {
                           return (
                             <PremiumTooltip content="No cache header detected" position="top-center" direction="top">
-                              <span className="cs-badge-cache-dash">—</span>
+                              <span className="cs-badge-cache-not-reported">NO HEADER</span>
                             </PremiumTooltip>
                           )
                         }

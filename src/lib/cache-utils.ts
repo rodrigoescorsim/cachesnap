@@ -2,9 +2,9 @@
  * Centralized logic for cache hit status across the frontend.
  */
 
-export const CACHE_HIT_STATUSES = ['HIT', 'STALE', 'REVALIDATED', 'UPDATING'];
-export const CACHE_MISS_STATUSES = ['MISS', 'EXPIRED'];
-export const CACHE_BYPASS_STATUSES = ['BYPASS', 'DYNAMIC', 'NONE'];
+export const CACHE_HIT_STATUSES = ['HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT'];
+export const CACHE_MISS_STATUSES = ['MISS', 'EXPIRED', 'ERROR'];
+export const CACHE_BYPASS_STATUSES = ['BYPASS', 'DYNAMIC', 'NONE', 'PASS', 'NO-CACHE', 'UNCALCULABLE', 'UNCACHEABLE', 'IGNORED', 'NO HEADER'];
 
 /**
  * SQL fragment to be used in raw queries (Postgres/Neon).
@@ -33,7 +33,7 @@ export function isCacheMiss(status: string | null | undefined): boolean {
  * Helper to check if a status string is a bypass/dynamic.
  */
 export function isCacheBypass(status: string | null | undefined): boolean {
-  if (!status) return false
+  if (!status) return true // Treat null/undefined as a bypass category (No Header)
   const label = getCacheDisplayLabel(status)
   return CACHE_BYPASS_STATUSES.includes(label)
 }
@@ -43,7 +43,7 @@ export function isCacheBypass(status: string | null | undefined): boolean {
  * Example: "BYPASS:Cloudflare DYNAMIC" -> "DYNAMIC"
  */
 export function getCacheDisplayLabel(status: string | null | undefined): string {
-  if (!status) return '—'
+  if (!status || status === '—') return 'NO HEADER'
   const upper = status.toUpperCase()
   
   if (upper.includes(':')) {

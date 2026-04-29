@@ -265,9 +265,9 @@ export function PerformanceTable({
                             ) : (
                               Math.round(s.cache_hit_pct) === 0 && (!s.common_cache_status || !isCacheHit(s.common_cache_status)) ? (
                                 <span className="cs-badge-cache-not-reported">
-                                  {Math.round(s.cache_hit_pct) === 0 && (liveDominantStatus === 'DYNAMIC' || liveDominantStatus === 'BYPASS') 
+                                  {Math.round(s.cache_hit_pct) === 0 && (liveDominantStatus === 'DYNAMIC' || liveDominantStatus === 'BYPASS' || liveDominantStatus === 'NO HEADER') 
                                     ? liveDominantStatus 
-                                    : getCacheDisplayLabel(s.common_cache_status || 'BYPASS')}
+                                    : getCacheDisplayLabel(s.common_cache_status)}
                                 </span>
                               ) : (
                                 <span className="cs-badge-cache-hit-rate-low">{Math.round(s.cache_hit_pct)}%</span>
