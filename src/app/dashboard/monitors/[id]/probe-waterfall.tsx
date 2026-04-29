@@ -1,4 +1,5 @@
 import { extractPop, popToCity, resolveCdnLabel } from '@/lib/edge-helpers'
+import { isCacheHit } from '@/lib/cache-utils'
 import {
   breakdownColor,
   breakdownEntries,
@@ -138,12 +139,32 @@ export function ProbeWaterfall({
           const dns = Number(probe.dns_ms ?? 0)
           const tls = Number(probe.tls_ms ?? 0)
           const tcp = Number(probe.server_timing_breakdown?.tcp_ms ?? 0)
-          const edge = Number(probe.edge_ms ?? 0)
-          const origin = Number(probe.origin_ms ?? 0)
+          let edge = Number(probe.edge_ms ?? 0)
+          let origin = Number(probe.origin_ms ?? 0)
+
+          // Heuristic: If cache is a MISS (or similar) and we have no origin timing,
+          // the "processing" time is almost certainly the origin fetch.
+          // We move edge_ms to origin_ms to avoid the "Contradictory Edge time on MISS" UX bug.
+          const hit = isCacheHit(probe.cache_status)
+          const isExplicitMiss = probe.cache_status && ['MISS', 'BYPASS', 'DYNAMIC', 'EXPIRED'].includes(probe.cache_status.toUpperCase())
+          const isGlobalMiss = probe.cache_status?.includes('%') && parseFloat(probe.cache_status) < 10 // Threshold for aggregate view
+
+          if (!hit && (isExplicitMiss || isGlobalMiss)) {
+            if (origin === 0 && edge > 0) {
+              origin = edge
+              edge = 0
+            }
+          }
 
           // Portion of TTFB not explained by DNS, TLS, edge+origin Server-Timing entries
           const attributedTtfb = dns + tls + tcp + edge + origin
-          const unknownTtfb = Math.max(0, ttfb - attributedTtfb)
+          let unknownTtfb = Math.max(0, ttfb - attributedTtfb)
+
+          // If it's a MISS, "unknown" time is also likely origin fetch time
+          if (!hit && (isExplicitMiss || isGlobalMiss) && unknownTtfb > 0) {
+            origin += unknownTtfb
+            unknownTtfb = 0
+          }
           
           // We split the waterfall into two rows for the TTFB duration.
           // Top row: A continuous bar for the total TTFB.
