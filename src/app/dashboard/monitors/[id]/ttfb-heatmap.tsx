@@ -139,7 +139,7 @@ export function TtfbHeatmap({ data }: { data: HeatmapCell[] }) {
       {tooltip && (
         <div
           className="absolute z-50 pointer-events-none bg-surface/95 backdrop-blur-xl border border-white/10 p-2.5 rounded-xl shadow-2xl text-white min-w-[150px]"
-          style={{ left: tooltip.x + 12, top: tooltip.y + 12 }}
+          style={{ left: tooltip.x + 20, top: tooltip.y + 20 }}
         >
           <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">
             {dowLabel(tooltip.dow)} {tooltip.hour}:00
