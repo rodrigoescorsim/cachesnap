@@ -8,7 +8,7 @@ export const LiveDot = () => (
 )
 
 interface ViewSectionHeaderProps {
-  title: string
+  title: React.ReactNode
   showDot?: boolean
   className?: string
   children?: React.ReactNode

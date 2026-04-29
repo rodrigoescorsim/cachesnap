@@ -1345,19 +1345,30 @@ export default async function MonitorDetailPage({
               {activeView === 'performance' && (
                 <div className="space-y-6">
                   <section className="space-y-4">
-                    <ViewSectionHeader title={`Period Performance (${range})`}>
+                    <ViewSectionHeader
+                      title={
+                        <div className="flex items-baseline gap-2">
+                          <span>Period Performance</span>
+                          <span className="text-[11px] font-black uppercase tracking-[0.1em] text-zinc-400 opacity-70">
+                            · {range.toUpperCase()}
+                          </span>
+                        </div>
+                      }
+                    >
                       <div className="flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 dark:bg-white/5 px-1.5 border border-zinc-200 dark:border-white/10">
-                        {['24h', '7d', '30d'].map((r) => (
-                          <Link
-                            key={r}
-                            href={buildViewHref('performance', r)}
-                            className={`px-3 h-6 flex items-center justify-center rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${range === r
-                              ? 'bg-zinc-100 text-zinc-900 shadow-lg shadow-white/5 ring-1 ring-white/10'
-                              : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
-                              }`}
-                          >
-                            {r}
-                          </Link>
+                        {['24h', '7d', '30d', '90d'].map((r) => (
+                          <PremiumTooltip key={r} content={`Analyze the last ${r} of regional performance`}>
+                            <Link
+                              key={r}
+                              href={buildViewHref('performance', r)}
+                              className={`px-3 h-6 flex items-center justify-center rounded-lg text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 ${range === r
+                                ? 'bg-white dark:bg-white/10 text-zinc-900 dark:text-white shadow-lg shadow-black/5 ring-1 ring-black/5'
+                                : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
+                                }`}
+                            >
+                              {r}
+                            </Link>
+                          </PremiumTooltip>
                         ))}
                       </div>
                     </ViewSectionHeader>
@@ -1756,7 +1767,16 @@ export default async function MonitorDetailPage({
                     <div className="space-y-8">
                       {hourlyPattern.length > 0 && (
                         <section id="hourly-pattern-section" className="space-y-4">
-                          <ViewSectionHeader title="Hourly Pattern" />
+                          <ViewSectionHeader
+                            title={
+                              <div className="flex items-baseline gap-2">
+                                <span>Hourly Pattern</span>
+                                <span className="text-[11px] font-black uppercase tracking-[0.1em] text-zinc-400 opacity-70">
+                                  · {range.toUpperCase()}
+                                </span>
+                              </div>
+                            }
+                          />
                           <HourlyPatternChart data={hourlyPattern} range={range} />
                         </section>
                       )}
