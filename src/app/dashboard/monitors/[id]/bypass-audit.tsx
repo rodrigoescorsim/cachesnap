@@ -175,7 +175,7 @@ function ReadinessBanner({
   const title = state === 'disabled' ? 'Edge Audit Unavailable' : 'Edge Audit Warming Up'
 
   return (
-    <div className="cs-card-glass p-4 flex gap-4 items-start border-amber-500/10 bg-amber-500/5">
+    <div className="cs-tint-warning p-4 flex gap-4 items-start">
       <div className="cs-card-wash opacity-40" />
       <Icon className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
       <div className="relative z-10 space-y-1 flex-1">
@@ -356,7 +356,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
 
           {/* Bypass Failure Alert */}
           {bypassFails.length > 0 && (
-            <div className="cs-card-glass p-4 flex gap-4 items-start border-amber-500/10 bg-amber-500/5">
+            <div className="cs-tint-warning p-4 flex gap-4 items-start">
               <div className="cs-card-wash opacity-40" />
               <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5" />
               <div className="relative z-10 space-y-1">
@@ -477,12 +477,12 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                         <td className="px-4 py-4 text-right">
                           <div className="flex items-center justify-end gap-2.5">
                             {isEdgeHit ? (
-                              <span className="cs-badge cs-badge-success text-[10px] px-2 py-0.5">
-                                <Zap className="w-2.5 h-2.5 fill-current" />
-                                HIT
-                              </span>
+                              <div className="flex items-center gap-1.5 text-emerald-400">
+                                <Zap className="w-3 h-3 fill-current" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">HIT</span>
+                              </div>
                             ) : (
-                              <span className="cs-badge-flat cs-badge-flat-muted text-[10px] px-2 py-0.5 font-bold">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
                                 {row.edge_cache_status?.toUpperCase() || 'MISS'}
                               </span>
                             )}
@@ -502,7 +502,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                               </span>
                             ) : (
                               <>
-                                <span className="cs-badge-flat cs-badge-flat-muted text-[10px] px-2 py-0.5 font-bold">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
                                   {row.origin_cache_status?.toUpperCase() || 'MISS'}
                                 </span>
                                 <span className="text-zinc-500 font-mono font-medium text-xs">
@@ -526,11 +526,11 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                                 </div>
                               </PremiumTooltip>
                             ) : !isValidComparison ? (
-                              <div className="flex flex-col items-end">
-                                <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
+                              <div className="flex flex-col items-end opacity-40">
+                                <span className="text-[9px] font-black text-zinc-500 uppercase tracking-tight">
                                   Analysis Pending
                                 </span>
-                                <span className="text-[9px] font-bold text-zinc-700 uppercase">
+                                <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-tighter">
                                   Wait for HIT/MISS
                                 </span>
                               </div>
