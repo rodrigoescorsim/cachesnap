@@ -214,31 +214,40 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
         regions[item.region] = { edge_ttfb: [], origin_ttfb: [], edge_hits: 0, origin_hits: 0, edge_statuses: [], origin_statuses: [] }
       }
       const r = regions[item.region]
+      const isEdgeHit = item.edge_cache_status?.toUpperCase() === 'HIT'
+      const isOriginHit = item.origin_cache_status?.toUpperCase() === 'HIT'
+
       if (item.edge_ttfb > 0) r.edge_ttfb.push(item.edge_ttfb)
-      if (item.origin_ttfb > 0) r.origin_ttfb.push(item.origin_ttfb)
-      if (item.edge_cache_status?.toUpperCase() === 'HIT') r.edge_hits++
-      if (item.origin_cache_status?.toUpperCase() === 'HIT') r.origin_hits++
+      // Only push origin TTFB if it was NOT a forced hit, to avoid polluting the average
+      if (item.origin_ttfb > 0 && !isOriginHit) r.origin_ttfb.push(item.origin_ttfb)
+
+      if (isEdgeHit) r.edge_hits++
+      if (isOriginHit) r.origin_hits++
       if (item.edge_cache_status) r.edge_statuses.push(item.edge_cache_status.toUpperCase())
       if (item.origin_cache_status) r.origin_statuses.push(item.origin_cache_status.toUpperCase())
     })
 
-    return Object.entries(regions).map(([id, stats]) => ({
-      region: id,
-      edge_ttfb: stats.edge_ttfb.length > 0 ? stats.edge_ttfb.reduce((a, b) => a + b, 0) / stats.edge_ttfb.length : 0,
-      origin_ttfb: stats.origin_ttfb.length > 0 ? stats.origin_ttfb.reduce((a, b) => a + b, 0) / stats.origin_ttfb.length : 0,
-      edge_hit_ratio: stats.edge_statuses.length > 0 ? stats.edge_hits / stats.edge_statuses.length : 0,
-      origin_hit_ratio: stats.origin_statuses.length > 0 ? stats.origin_hits / stats.origin_statuses.length : 0,
-      last_edge_status: stats.edge_statuses[stats.edge_statuses.length - 1] || 'MISS',
-      last_origin_status: stats.origin_statuses[stats.origin_statuses.length - 1] || 'MISS',
-      sample_count: stats.edge_statuses.length
-    }))
+    return Object.entries(regions).map(([id, stats]) => {
+      const originHitRatio = stats.origin_statuses.length > 0 ? stats.origin_hits / stats.origin_statuses.length : 0
+      return {
+        region: id,
+        edge_ttfb: stats.edge_ttfb.length > 0 ? stats.edge_ttfb.reduce((a, b) => a + b, 0) / stats.edge_ttfb.length : 0,
+        origin_ttfb: stats.origin_ttfb.length > 0 ? stats.origin_ttfb.reduce((a, b) => a + b, 0) / stats.origin_ttfb.length : 0,
+        edge_hit_ratio: stats.edge_statuses.length > 0 ? stats.edge_hits / stats.edge_statuses.length : 0,
+        origin_hit_ratio: originHitRatio,
+        // We only consider it a forced hit if 100% of samples failed bypass
+        is_forced_hit: originHitRatio >= 1 && stats.origin_statuses.length > 0,
+        last_edge_status: stats.edge_statuses[stats.edge_statuses.length - 1] || 'MISS',
+        last_origin_status: stats.origin_statuses[stats.origin_statuses.length - 1] || 'MISS',
+        sample_count: stats.edge_statuses.length
+      }
+    })
   }, [filteredData])
 
-  const confirmedHitsCount = aggregatedData.filter(r => r.edge_hit_ratio > 0 && r.origin_hit_ratio === 0).length
-  const forcedHitRegionsCount = aggregatedData.filter(r => r.origin_hit_ratio > 0).length
-  const totalEdge = aggregatedData.reduce((sum, r) => sum + (r.edge_hit_ratio > 0 ? r.edge_ttfb : 0), 0)
-  const totalOrigin = aggregatedData.reduce((sum, r) => sum + (r.edge_hit_ratio > 0 ? r.origin_ttfb : 0), 0)
-  const validForAvg = aggregatedData.filter(r => r.edge_hit_ratio > 0).length
+  const validForAvg = aggregatedData.filter(r => r.edge_hit_ratio > 0 && !r.is_forced_hit).length
+  const forcedHitRegionsCount = aggregatedData.filter(r => r.is_forced_hit).length
+  const totalEdge = aggregatedData.reduce((sum, r) => sum + (r.edge_hit_ratio > 0 && !r.is_forced_hit ? r.edge_ttfb : 0), 0)
+  const totalOrigin = aggregatedData.reduce((sum, r) => sum + (r.edge_hit_ratio > 0 && !r.is_forced_hit ? r.origin_ttfb : 0), 0)
 
   const avgSavingMs = validForAvg > 0 ? (totalOrigin - totalEdge) / validForAvg : 0
   const avgSavingPct = totalOrigin > 0 ? ((totalOrigin - totalEdge) / totalOrigin) * 100 : 0
@@ -252,52 +261,61 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
   return (
     // min-h prevents layout shift when transitioning between states (Melhoria #4)
     <div className="space-y-6 min-h-[200px]">
-      {/* Section header with permanent state badge — Task 3.1 */}
-      <ViewSectionHeader title="Edge Audit" showDot={true}>
-        <div className="flex items-center gap-6">
-          {readiness && (state === 'warmup' || state === 'enabled') && (
-             <WarmupProgress readiness={readiness} />
-          )}
-          <div className="flex items-center gap-3">
-            <span className={badge.cssClass}>{badge.label}</span>
-            <AuditCTA readiness={readiness} monitorId={monitorId} />
+      {/* Main Header — Task: Standardize with Performance screen */}
+      <ViewSectionHeader 
+        title={
+          <div className="flex items-center gap-2">
+            <span>Edge Audit</span>
+            <span className="text-zinc-600 font-bold uppercase tracking-widest text-[11px] opacity-60">·</span>
+            <span className="text-zinc-500 font-black uppercase tracking-[0.2em] text-[11px]">
+              {period}
+            </span>
           </div>
+        } 
+        showDot={true}
+      >
+        <div className="flex items-center gap-2">
+          <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
+            {periods.map(p => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${
+                  period === p
+                    ? 'bg-white/10 text-white shadow-lg'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+          {canAudit && <div className="ml-2"><MonitorDispatchButtons monitorId={monitorId} variant="audit" /></div>}
         </div>
       </ViewSectionHeader>
+
+      {/* Info Bar — Readiness & Confidence (Integrated Status Line) */}
+      {(readiness && hasAnyData) && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-1 gap-4 pt-1">
+          <div className="flex items-center gap-8">
+             {(state === 'warmup' || state === 'enabled') && (
+               <WarmupProgress readiness={readiness} />
+             )}
+          </div>
+          <div className="flex items-center gap-4">
+             <div className="flex items-center gap-2">
+               <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Status:</span>
+               <span className={badge.cssClass}>{badge.label}</span>
+             </div>
+             <div className="h-4 w-[1px] bg-white/5 hidden sm:block" />
+             <AuditCTA readiness={readiness} monitorId={monitorId} />
+          </div>
+        </div>
+      )}
 
       {/* Reason banner (disabled / warmup) — Task 3.2 */}
       {shouldShowBanner(readiness) && readiness && (
         <ReadinessBanner readiness={readiness} monitorId={monitorId} />
-      )}
-      {/* Period Selector & Controls — Always show if monitor has history */}
-      {hasAnyData && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
-                {periods.map(p => (
-                  <button
-                    key={p}
-                    onClick={() => setPeriod(p)}
-                    className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${
-                      period === p
-                        ? 'bg-white/10 text-white shadow-lg'
-                        : 'text-zinc-500 hover:text-zinc-300'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-              <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest ml-2">
-                Analyze Average Performance
-              </span>
-            </div>
-            {canAudit && <MonitorDispatchButtons monitorId={monitorId} variant="audit" />}
-          </div>
-
-          <ViewSectionHeader title={`Audit Analysis — Last ${period}`} showDot={false} />
-        </div>
       )}
 
       {/* Results Section */}
@@ -421,8 +439,8 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                 <tbody>
                   {aggregatedData.map(row => {
                     const isEdgeHit = row.edge_hit_ratio > 0
-                    const isOriginHit = row.origin_hit_ratio > 0
-                    const isValidComparison = isEdgeHit && !isOriginHit
+                    const isOriginHit = row.is_forced_hit
+                    const isValidComparison = isEdgeHit && !isOriginHit && row.origin_ttfb > 0
 
                     const itemSaving = row.origin_ttfb - row.edge_ttfb
                     const isSaving = itemSaving > 0
@@ -455,11 +473,11 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                         <td className="px-4 py-4 text-right">
                           <div className="flex items-center justify-end gap-2.5">
                             {isOriginHit ? (
-                              <div className="flex flex-col items-end opacity-40">
-                                <span className="text-[10px] font-black text-zinc-700 tracking-[0.4em] px-2">
+                              <div className="flex flex-col items-end">
+                                <span className="text-[10px] font-black text-zinc-600 tracking-[0.4em] px-2 opacity-50">
                                   ———
                                 </span>
-                                <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-tighter">
+                                <span className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter">
                                   Forced HIT
                                 </span>
                               </div>
@@ -468,8 +486,8 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                                 <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
                                   {row.last_origin_status}
                                 </span>
-                                <span className="text-zinc-500 font-mono font-medium text-xs">
-                                  {Math.round(row.origin_ttfb)}ms
+                                <span className="text-zinc-500 font-mono font-bold text-xs">
+                                  {row.origin_ttfb > 0 ? `${Math.round(row.origin_ttfb)}ms` : '—'}
                                 </span>
                               </>
                             )}
@@ -478,22 +496,22 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                         <td className="px-4 py-4 text-right">
                           <div className="flex flex-col items-end">
                             {isOriginHit ? (
-                              <PremiumTooltip content="Origin latency unavailable for this period because CDN served cache even on bypass attempts.">
-                                <div className="flex flex-col items-end cursor-help opacity-40">
-                                  <span className="text-[10px] font-bold text-zinc-500 italic">
+                              <PremiumTooltip content="Origin latency unavailable for this period because CDN served cache even on bypass attempts (100% of samples).">
+                                <div className="flex flex-col items-end cursor-help">
+                                  <span className="text-[11px] font-bold text-zinc-400 italic">
                                     Inconclusive
                                   </span>
-                                  <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">
+                                  <span className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter opacity-70">
                                     {row.sample_count} samples
                                   </span>
                                 </div>
                               </PremiumTooltip>
                             ) : !isValidComparison ? (
-                              <div className="flex flex-col items-end opacity-40">
-                                <span className="text-[9px] font-black text-zinc-500 uppercase tracking-tight">
-                                  Initial Samples
+                              <div className="flex flex-col items-end opacity-60">
+                                <span className="text-[10px] font-black text-zinc-400 uppercase tracking-tight">
+                                  {row.origin_hit_ratio > 0 ? 'Mixed Signal' : 'Initial Samples'}
                                 </span>
-                                <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-tighter">
+                                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-tighter">
                                   {row.sample_count} samples
                                 </span>
                               </div>
