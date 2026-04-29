@@ -1283,19 +1283,16 @@ export default async function MonitorDetailPage({
                         >
                           <div className="cs-card-wash opacity-40" />
                           <div className="relative z-10 flex items-center justify-between">
-                            <PremiumTooltip content="Average global latency from recent probes">
+                            <PremiumTooltip content="Average latency from recent probes across all regions">
                               <p className="cs-metric-card-label !text-[11px]">Global TTFB</p>
                             </PremiumTooltip>
                             <PremiumTooltip content={validLiveTtfb.length === 0 ? 'No data available' : getTtfbTooltip(liveAvgTtfb, 'global')}>
-                              <div className="flex items-center gap-3">
-                                {validLiveTtfb.length === 0 ? (
-                                  <span className="text-[24px] font-bold tracking-tight leading-none text-zinc-500">—<span className="text-base ml-0.5 text-zinc-600">ms</span></span>
-                                ) : (
-                                  <>
-                                    <span className={`text-[24px] font-bold tracking-tight leading-none ${getTtfbColorClass(liveAvgTtfb, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{liveAvgTtfb}<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
-                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${getTtfbColorClass(liveAvgTtfb, 'global')}`} />
-                                  </>
-                                )}
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-baseline gap-0.5">
+                                  <span className={`text-[26px] font-black tracking-tight leading-none ${getTtfbColorClass(liveAvgTtfb, 'global')}`}>{liveAvgTtfb}</span>
+                                  <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getTtfbColorClass(liveAvgTtfb, 'global')}`}>ms</span>
+                                </div>
+                                <Gauge className={`h-5 w-5 stroke-[2.5] ${getTtfbColorClass(liveAvgTtfb, 'global')}`} />
                               </div>
                             </PremiumTooltip>
                           </div>
@@ -1308,19 +1305,16 @@ export default async function MonitorDetailPage({
                         >
                           <div className="cs-card-wash opacity-60" />
                           <div className="relative z-10 flex items-center justify-between">
-                            <PremiumTooltip content="Cache hit rate from recent probes">
-                              <p className="cs-metric-card-label !text-[11px]">Cache Hit Rate</p>
+                            <PremiumTooltip content="Average cache hit rate from recent probes across all regions">
+                              <p className="cs-metric-card-label !text-[11px]">Global Cache Hit Rate</p>
                             </PremiumTooltip>
                             <PremiumTooltip content={validLiveCache.length === 0 ? 'No data available' : getCacheTooltip(liveGlobalHitRate, 'global')}>
-                              <div className="flex items-center gap-3">
-                                {validLiveCache.length === 0 ? (
-                                  <span className="text-[24px] font-bold tracking-tight leading-none text-zinc-500">—<span className="text-base ml-0.5 text-zinc-600">%</span></span>
-                                ) : (
-                                  <>
-                                    <span className={`text-[24px] font-bold tracking-tight leading-none ${getCacheColor(liveGlobalHitRate, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{liveGlobalHitRate}<span className="text-base ml-0.5 text-zinc-500">%</span></span>
-                                    <Zap className={`h-5 w-5 fill-current ${getCacheColor(liveGlobalHitRate, 'global')}`} />
-                                  </>
-                                )}
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-baseline gap-0.5">
+                                  <span className={`text-[26px] font-black tracking-tight leading-none ${getCacheColor(liveGlobalHitRate, 'global')}`}>{liveGlobalHitRate}</span>
+                                  <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getCacheColor(liveGlobalHitRate, 'global')}`}>%</span>
+                                </div>
+                                <Zap className={`h-5 w-5 fill-current ${getCacheColor(liveGlobalHitRate, 'global')}`} />
                               </div>
                             </PremiumTooltip>
                           </div>
@@ -1329,10 +1323,10 @@ export default async function MonitorDetailPage({
                     )}
 
                     {latestProbes.length > 0 ? (
-                      <LiveTable 
-                        probes={latestProbes} 
-                        regionLabels={regionLabels} 
-                        regionDescriptions={regionDescriptions} 
+                      <LiveTable
+                        probes={latestProbes}
+                        regionLabels={regionLabels}
+                        regionDescriptions={regionDescriptions}
                       />
                     ) : (
                       <div className="cs-card cs-card-glass min-h-[200px] flex flex-col items-center justify-center p-8 text-center animate-pulse">
@@ -1377,19 +1371,16 @@ export default async function MonitorDetailPage({
                         >
                           <div className="cs-card-wash opacity-40" />
                           <div className="relative z-10 flex items-center justify-between">
-                            <PremiumTooltip content={`Global average Time to First Byte during the last ${range}`}>
+                            <PremiumTooltip content={`Average Time to First Byte during the last ${range} across all regions`}>
                               <p className="cs-metric-card-label !text-[11px]">Global TTFB</p>
                             </PremiumTooltip>
                             <PremiumTooltip content={avgTtfb === 0 ? 'No data available' : getTtfbTooltip(avgTtfb, 'global')}>
-                              <div className="flex items-center gap-3">
-                                {avgTtfb === 0 ? (
-                                  <span className="text-[24px] font-bold tracking-tight leading-none text-zinc-500">—<span className="text-base ml-0.5 text-zinc-600">ms</span></span>
-                                ) : (
-                                  <>
-                                    <span className={`text-[24px] font-bold tracking-tight leading-none ${getTtfbColorClass(avgTtfb, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{avgTtfb}<span className="text-base ml-0.5 text-zinc-500">ms</span></span>
-                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${getTtfbColorClass(avgTtfb, 'global')}`} />
-                                  </>
-                                )}
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-baseline gap-0.5">
+                                  <span className={`text-[26px] font-black tracking-tight leading-none ${getTtfbColorClass(avgTtfb, 'global')}`}>{avgTtfb}</span>
+                                  <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getTtfbColorClass(avgTtfb, 'global')}`}>ms</span>
+                                </div>
+                                <Gauge className={`h-5 w-5 stroke-[2.5] ${getTtfbColorClass(avgTtfb, 'global')}`} />
                               </div>
                             </PremiumTooltip>
                           </div>
@@ -1402,19 +1393,16 @@ export default async function MonitorDetailPage({
                         >
                           <div className="cs-card-wash opacity-60" />
                           <div className="relative z-10 flex items-center justify-between">
-                            <PremiumTooltip content={`Percentage of requests successfully served from CDN edge cache during the last ${range}`}>
-                              <p className="cs-metric-card-label !text-[11px]">Cache Hit Rate</p>
+                            <PremiumTooltip content={`Average cache hit rate from CDN edge cache during the last ${range} across all regions`}>
+                              <p className="cs-metric-card-label !text-[11px]">Global Cache Hit Rate</p>
                             </PremiumTooltip>
                             <PremiumTooltip content={globalHitRate === 0 ? 'No data available' : getCacheTooltip(globalHitRate, 'global')}>
-                              <div className="flex items-center gap-3">
-                                {globalHitRate === 0 ? (
-                                  <span className="text-[24px] font-bold tracking-tight leading-none text-zinc-500">—<span className="text-base ml-0.5 text-zinc-600">%</span></span>
-                                ) : (
-                                  <>
-                                    <span className={`text-[24px] font-bold tracking-tight leading-none ${getCacheColor(globalHitRate, 'global') === 'text-metric-elite' ? 'text-metric-elite' : 'text-white'}`}>{globalHitRate}<span className="text-base ml-0.5 text-zinc-500">%</span></span>
-                                    <Zap className={`h-5 w-5 fill-current ${getCacheColor(globalHitRate, 'global')}`} />
-                                  </>
-                                )}
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-baseline gap-0.5">
+                                  <span className={`text-[26px] font-black tracking-tight leading-none ${getCacheColor(globalHitRate, 'global')}`}>{globalHitRate}</span>
+                                  <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getCacheColor(globalHitRate, 'global')}`}>%</span>
+                                </div>
+                                <Zap className={`h-5 w-5 fill-current ${getCacheColor(globalHitRate, 'global')}`} />
                               </div>
                             </PremiumTooltip>
                           </div>
@@ -1749,7 +1737,7 @@ export default async function MonitorDetailPage({
                         </div>
                         <h3 className="text-lg font-black tracking-tight text-zinc-300 uppercase">Awaiting Statistical Density</h3>
                         <p className="mt-2.5 max-w-[420px] text-[13px] leading-relaxed text-zinc-500">
-                          Meaningful hourly and weekly patterns require a broader historical window to emerge. 
+                          Meaningful hourly and weekly patterns require a broader historical window to emerge.
                           Currently, your monitor needs more samples or a wider time selection.
                         </p>
                         <div className="mt-8">
