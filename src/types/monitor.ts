@@ -25,6 +25,7 @@ export interface Monitor {
   cacheHitCurrent: number | null
   cacheHitAvg24h: number | null
   cacheHitDelta: number | null
+  cacheStatusCurrent: string | null
   regions: MonitorRegion[]
   slowRegionCount: number
   totalRegionCount: number

@@ -19,6 +19,7 @@ export interface MonitorSummaryRow {
   cache_hit_current: number | string | null
   cache_hit_avg_24h: number | string | null
   cache_hit_delta: number | string | null
+  cache_status_current: string | null
   regions: Array<{ code: string; label: string; flag: string; isSlow: boolean; isError: boolean }>
   slow_region_count: number | string
   total_region_count: number | string
@@ -60,6 +61,7 @@ export function toMonitor(row: MonitorSummaryRow): Monitor {
     cacheHitCurrent:  toNumOrNull(row.cache_hit_current),
     cacheHitAvg24h:   toNumOrNull(row.cache_hit_avg_24h),
     cacheHitDelta:    toNumOrNull(row.cache_hit_delta),
+    cacheStatusCurrent: row.cache_status_current,
     regions:           row.regions ?? [],
     slowRegionCount:   toNum(row.slow_region_count),
     totalRegionCount:  toNum(row.total_region_count),
