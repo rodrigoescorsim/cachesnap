@@ -938,7 +938,7 @@ export function TtfbChart({
                 </div>
 
                 {/* Global Row */}
-                {((hoveredChart === 'network' && showGlobalNet) || (hoveredChart === 'ttfb' && showGlobalTtfb) || (hoveredChart === 'cache' && showGlobalCache)) && (() => {
+                {showGlobalNet && (() => {
                   const insights = netInsights.get('global')
                   const pointInsight = insights?.find(ins => ins.idx === currentHoveredIdx)
                   const isBad = pointInsight?.type === 'max' || pointInsight?.type === 'spike-up'

@@ -1,4 +1,4 @@
-import sql from './src/lib/db.ts'
+import sql from './src/lib/db'
 
 async function updateOregonColor() {
   try {

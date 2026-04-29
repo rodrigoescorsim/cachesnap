@@ -1,4 +1,4 @@
-import sql from './src/lib/db.ts'
+import sql from './src/lib/db'
 
 async function checkColors() {
   const regions = await sql`SELECT id, label, color FROM regions WHERE enabled = true`

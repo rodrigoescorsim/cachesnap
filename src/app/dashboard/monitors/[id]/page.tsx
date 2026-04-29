@@ -19,6 +19,7 @@ import { extractPop, popToCity, resolveCdnLabel } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
 import { MonitorSidebarRail } from './monitor-sidebar-rail'
 import { LiveTable } from './live-table'
+import { PerformanceTable } from './performance-table'
 import {
   buildMonitorHref,
   buildViewHref,
@@ -44,6 +45,7 @@ import {
   Gauge,
   Fingerprint,
   Settings,
+  BarChart3,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -258,20 +260,6 @@ const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
 /** Monitor title card — subtle top wash + glass (Vercel-style). Densidade ~tool (menos padding vertical). */
 const MONITOR_HEADER_CARD =
   'cs-card cs-card-glass px-5 py-2.5 relative'
-
-const TOOLTIP_EDGE_DATA_UNAVAILABLE = 'Data not available yet'
-
-function regionRowServedFromLabel(servedBy: string | null): string {
-  if (!servedBy?.trim()) return ''
-  return (popToCity(extractPop(servedBy) || '') || extractPop(servedBy) || '').trim()
-}
-
-function regionRowCdnLabelTrimmed(
-  provider: string | null | undefined,
-  servedBy: string | null | undefined
-): string {
-  return (resolveCdnLabel(provider, servedBy) ?? '').trim()
-}
 
 /** Status pills in the monitor title bar — consistent shell + interactive hover. */
 const MONITOR_HEADER_STATUS_BADGE =
@@ -1337,7 +1325,7 @@ export default async function MonitorDetailPage({
                   </section>
 
                   <section id="live-hub-section">
-                    <RealTimeHub monitorId={monitor.id} />
+                    <RealTimeHub userId={user.id} watchId={monitor.id} />
                   </section>
                 </div>
               )}
@@ -1423,169 +1411,11 @@ export default async function MonitorDetailPage({
                     {stats.length === 0 ? (
                       <p className="text-sm text-zinc-400">Compiling historical insights...</p>
                     ) : (
-                      <div className={MONITOR_TABLE.outerWrapper}>
-                        <div className={BRAND_TABLE_SURFACE_GRADIENT} />
-                        <div className={MONITOR_TABLE.innerScroll}>
-                          <table
-                            className={`${MONITOR_TABLE.tableBase} ${MONITOR_TABLE.transition} ${MONITOR_TABLE.tableDense}`}
-                          >
-                            <thead>
-                              {(() => {
-                                const hasEdgeData = stats.some(s => s.edge_hit_avg_ms !== null);
-                                const hasOriginData = stats.some(s => s.origin_miss_avg_ms !== null);
-                                const showSplitTtfb = hasEdgeData || hasOriginData;
-
-                                return (
-                                  <tr className={MONITOR_TABLE.theadRow}>
-                                    <th className="cs-table-compact-th !text-center">
-                                      <PremiumTooltip content="Geographic region" position="top-center" direction="top">Region</PremiumTooltip>
-                                    </th>
-                                    <th className="cs-table-compact-th !text-center">
-                                      <PremiumTooltip content="Edge node location (PoP)" position="top-center" direction="top">Served from</PremiumTooltip>
-                                    </th>
-                                    <th className="cs-table-compact-th !text-center">
-                                      <PremiumTooltip content="CDN or edge provider" position="top-center" direction="top">Served by</PremiumTooltip>
-                                    </th>
-                                    <th className="cs-table-compact-th !text-center">
-                                      <PremiumTooltip content="Cache efficiency" position="top-center" direction="top">Cache</PremiumTooltip>
-                                    </th>
-                                    {showSplitTtfb ? (
-                                      <>
-                                        <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER}`}>
-                                          <PremiumTooltip content="Latency when served from cache" position="top-center" direction="top">Edge TTFB</PremiumTooltip>
-                                        </th>
-                                        <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER_ORIGIN}`}>
-                                          <PremiumTooltip content="Latency when bypassing cache" position="top-center" direction="top">Origin TTFB</PremiumTooltip>
-                                        </th>
-                                        <th className={`cs-table-compact-th !text-center border-l border-white/5 ${TH_TTFB_HEADER}`}>
-                                          <PremiumTooltip content="Average latency" position="top-center" direction="top">Avg TTFB</PremiumTooltip>
-                                        </th>
-                                      </>
-                                    ) : (
-                                      <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER}`}>
-                                        <PremiumTooltip content="Average latency" position="top-center" direction="top">Avg TTFB</PremiumTooltip>
-                                      </th>
-                                    )}
-
-                                    <th className="cs-table-compact-th !text-center whitespace-nowrap">
-                                      <PremiumTooltip content="Minimum and maximum latency" position="top-center" direction="top">Min / Max</PremiumTooltip>
-                                    </th>
-                                    <th className="cs-table-compact-th !text-center">
-                                      <PremiumTooltip content="Percentage of successful probes" position="top-center" direction="top">Uptime</PremiumTooltip>
-                                    </th>
-                                  </tr>
-                                )
-                              })()}
-                            </thead>
-                            <tbody>
-                              {(() => {
-                                const hasEdgeData = stats.some(st => st.edge_hit_avg_ms !== null);
-                                const hasOriginData = stats.some(st => st.origin_miss_avg_ms !== null);
-                                const showSplitTtfb = hasEdgeData || hasOriginData;
-
-                                return stats.map((s) => {
-                                  const servedFromLabel = regionRowServedFromLabel(s.common_served_by)
-                                  const cdnLabel = regionRowCdnLabelTrimmed(s.common_cdn_provider, s.common_served_by)
-                                  return (
-                                    <tr
-                                      key={s.region}
-                                      className={MONITOR_TABLE.tbodyRow}
-                                    >
-                                      <td className="cs-table-compact-td">
-                                        <PremiumTooltip content={regionDescriptions[s.region] ?? s.region} position="top-left">
-                                          <span className="font-bold text-zinc-200">
-                                            {regionLabels[s.region] ?? s.region}
-                                          </span>
-                                        </PremiumTooltip>
-                                      </td>
-                                      <td className="cs-table-compact-td text-center">
-                                        {servedFromLabel ? (
-                                          <PremiumTooltip content={extractPop(s.common_served_by) ? `PoP code detected: ${extractPop(s.common_served_by)}` : 'Location inferred from monitoring region'} position="top-left">
-                                            <span className="cs-pop-tag whitespace-nowrap uppercase">{servedFromLabel}</span>
-                                          </PremiumTooltip>
-                                        ) : (
-                                          <PremiumTooltip content={TOOLTIP_EDGE_DATA_UNAVAILABLE} position="top-center" direction="top">
-                                            <span className="cs-pop-tag max-w-[9rem] truncate">—</span>
-                                          </PremiumTooltip>
-                                        )}
-                                      </td>
-                                      <td className="cs-table-compact-td text-center">
-                                        {cdnLabel ? (
-                                          <PremiumTooltip content={s.common_served_by ? `served_by: ${s.common_served_by}` : 'No edge hint'} position="top-center" direction="top">
-                                            <span className="cs-pop-tag max-w-[9rem] truncate">{cdnLabel}</span>
-                                          </PremiumTooltip>
-                                        ) : (
-                                          <PremiumTooltip content={TOOLTIP_EDGE_DATA_UNAVAILABLE} position="top-center" direction="top">
-                                            <span className="cs-pop-tag max-w-[9rem] truncate">—</span>
-                                          </PremiumTooltip>
-                                        )}
-                                      </td>
-                                      <td className="cs-table-compact-td text-center">
-                                        {s.cache_hit_pct != null ? (
-                                          <PremiumTooltip content={`${s.cache_hit_pct}% of requests were served from edge cache`} position="top-center" direction="top">
-                                            {Math.round(s.cache_hit_pct) >= 95 ? (
-                                              <span className="cs-badge-cache-hit">
-                                                <Zap className="h-[10px] w-[10px] shrink-0 fill-current" aria-hidden />
-                                                {Math.round(s.cache_hit_pct)}%
-                                              </span>
-                                            ) : Math.round(s.cache_hit_pct) >= 90 ? (
-                                              <span className="cs-badge-cache-hit">{Math.round(s.cache_hit_pct)}%</span>
-                                            ) : Math.round(s.cache_hit_pct) >= 50 ? (
-                                              <span className="cs-badge-cache-miss">{Math.round(s.cache_hit_pct)}%</span>
-                                            ) : (
-                                              <span className="cs-badge-cache-hit-rate-low">{Math.round(s.cache_hit_pct)}%</span>
-                                            )}
-                                          </PremiumTooltip>
-                                        ) : (
-                                          <span className="cs-badge-cache-dash">—</span>
-                                        )}
-                                      </td>
-
-                                      {showSplitTtfb ? (
-                                        <>
-                                          <td className={`${edgeTtfbMetricCellClass(s.edge_hit_avg_ms)} !text-[13px] !py-2`}>
-                                            <PremiumTooltip content="Average cache latency" position="top-right" direction="top">{s.edge_hit_avg_ms != null ? `${Math.round(s.edge_hit_avg_ms)}ms` : '—'}</PremiumTooltip>
-                                          </td>
-                                          <td className={`${originTtfbMetricCellClass(s.origin_miss_avg_ms)} !text-[13px] !py-2`}>
-                                            <PremiumTooltip content="Average origin latency" position="top-right" direction="top">{s.origin_miss_avg_ms != null ? `${Math.round(s.origin_miss_avg_ms)}ms` : '—'}</PremiumTooltip>
-                                          </td>
-                                          <td className={`${ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2 border-l border-white/5`}>
-                                            <PremiumTooltip content="Average latency for this region" position="top-right" direction="top">{s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}</PremiumTooltip>
-                                          </td>
-                                        </>
-                                      ) : (
-                                        <td className={`${ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2`}>
-                                          {s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}
-                                        </td>
-                                      )}
-
-
-                                      <td className="cs-table-compact-td-mono text-right text-zinc-400">
-                                        {s.ttfb_min_ms != null ? (
-                                          <PremiumTooltip content={`Min: ${Math.round(s.ttfb_min_ms)}ms / Max: ${Math.round(s.ttfb_max_ms || 0)}ms recorded`} position="top-right">
-                                            <span className="whitespace-nowrap border-b border-dashed border-zinc-800 hover:border-zinc-600 transition-colors pb-0.5 cursor-help">
-                                              {Math.round(s.ttfb_min_ms)}<span className="opacity-30 mx-1">/</span>{Math.round(s.ttfb_max_ms || 0)}<span className="text-[9px] ml-0.5 opacity-50 font-sans">ms</span>
-                                            </span>
-                                          </PremiumTooltip>
-                                        ) : '—'}
-                                      </td>
-                                      <td className="cs-table-compact-td text-right">
-                                        {s.uptime_pct != null ? (
-                                          <PremiumTooltip content={`Uptime: ${Math.round(s.uptime_pct)}% of successful probes`} position="top-right" direction="top">
-                                            <span className={`cs-badge-flat ${s.uptime_pct >= 99 ? 'cs-badge-flat-success' : s.uptime_pct >= 95 ? 'cs-badge-flat-warning' : 'cs-badge-flat-danger'} font-bold`}>
-                                              {Math.round(s.uptime_pct)}%
-                                            </span>
-                                          </PremiumTooltip>
-                                        ) : '—'}
-                                      </td>
-                                    </tr>
-                                  )
-                                })
-                              })()}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
+                      <PerformanceTable
+                        stats={stats}
+                        regionLabels={regionLabels}
+                        regionDescriptions={regionDescriptions}
+                      />
                     )}
                   </section>
 

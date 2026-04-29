@@ -25,7 +25,6 @@ function tooltipFixedStyle(
     position: 'fixed',
     zIndex: 99999,
     pointerEvents: interactive ? 'auto' : 'none',
-    maxWidth: 'calc(100vw - 2rem)',
     ...(panelSizing === 'hug'
       ? {
           width: 'max-content',
