@@ -35,6 +35,33 @@ pub struct AppState {
     pub tx: broadcast::Sender<String>,
 }
 
+impl AppState {
+    #[cfg(test)]
+    pub fn test_with_db(db: PgPool, config: crate::config::Config) -> Self {
+        let (tx, _) = broadcast::channel(1);
+        let http = reqwest::Client::new();
+        let config_arc = Arc::new(config);
+        let probe_limits = Arc::new(ProbeDispatchLimits::new(Arc::new(
+            config_arc.probe_dispatch.clone(),
+        )));
+
+        // Redis pool (requires local redis for these tests)
+        let redis_cfg = deadpool_redis::Config::from_url("redis://127.0.0.1:6379");
+        let redis = redis_cfg
+            .create_pool(Some(deadpool_redis::Runtime::Tokio1))
+            .unwrap();
+
+        Self {
+            db,
+            redis,
+            config: config_arc,
+            http,
+            probe_limits,
+            tx,
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Carregar .env
@@ -100,6 +127,7 @@ async fn main() -> Result<()> {
         .route("/api/ingest", post(routes::ingest::handler))
         .route("/api/monitors/active", get(routes::monitors::list_active))
         .route("/api/monitors/:id/dispatch", post(routes::dispatch::handler))
+        .route("/api/monitors/:id/evaluate-readiness", post(routes::evaluate::handler))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state);

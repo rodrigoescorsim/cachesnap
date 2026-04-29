@@ -17,4 +17,12 @@ pub struct Monitor {
     pub notify_email_enabled: bool,
     pub notify_slack_webhook: Option<String>,
     pub notify_slack_enabled: bool,
+    // Audit readiness engine (migration 026)
+    pub audit_readiness_state: String,
+    pub audit_readiness_updated_at: Option<DateTime<Utc>>,
+    pub audit_readiness_consecutive_hits: i32,
+    pub audit_readiness_reason: Option<String>,
+    pub audit_readiness_comparable_pairs: i32,
+    pub audit_readiness_comparable_regions: i32,
+    pub audit_readiness_edge_hit_ratio: f64,
 }

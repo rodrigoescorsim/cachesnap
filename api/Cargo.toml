@@ -54,6 +54,9 @@ tokio-cron-scheduler = "0.10"
 # Password hashing (para auth compartilhada com Next.js)
 argon2 = "0.5"
 
+[dev-dependencies]
+tokio-test = "0.4"
+
 [profile.release]
 opt-level = 3
 lto = true

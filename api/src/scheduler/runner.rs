@@ -5,12 +5,24 @@
 use crate::AppState;
 use crate::models::monitor::Monitor;
 use crate::scheduler::dispatch_limiter::PostProbeContext;
+use crate::scheduler::readiness;
 use deadpool_redis::redis::cmd;
 use futures::stream::{self, StreamExt};
 use serde_json::json;
 use std::sync::Arc;
 use tokio::time::{interval, Duration};
 use tracing::{debug, error, info, warn};
+
+/// Política de disparo de bypass por monitor.
+#[derive(Copy, Clone)]
+pub enum BypassMode {
+    /// Sem probes de audit (disabled).
+    Off,
+    /// Probe throttled por região (warmup) — cada região tem chave Redis própria.
+    Warmup,
+    /// Fluxo normal de audit (enabled).
+    Full,
+}
 
 pub async fn fetch_regions(db: &sqlx::PgPool) -> Vec<(String, String)> {
     match sqlx::query_as!(
@@ -34,6 +46,23 @@ pub async fn fetch_regions(db: &sqlx::PgPool) -> Vec<(String, String)> {
     }
 }
 
+const MONITOR_QUERY: &str = r#"
+    SELECT id, user_id, url, name,
+           check_interval_seconds, alert_threshold_ms,
+           audit_interval_seconds,
+           is_active, created_at,
+           notify_email, notify_email_enabled,
+           notify_slack_webhook, notify_slack_enabled,
+           audit_readiness_state,
+           audit_readiness_updated_at,
+           audit_readiness_consecutive_hits,
+           audit_readiness_reason,
+           audit_readiness_comparable_pairs,
+           audit_readiness_comparable_regions,
+           audit_readiness_edge_hit_ratio
+    FROM monitors WHERE is_active = TRUE
+"#;
+
 pub async fn start(state: AppState) {
     info!("Scheduler started — probe dispatch loop initialized");
 
@@ -49,19 +78,17 @@ pub async fn start(state: AppState) {
             regions = Arc::new(fetch_regions(&state.db).await);
         }
 
-        let monitors = match sqlx::query_as!(
-            Monitor,
-            r#"SELECT id as "id!", user_id as "user_id!", url as "url!", name,
-                      check_interval_seconds as "check_interval_seconds!",
-                      alert_threshold_ms as "alert_threshold_ms!",
-                      audit_interval_seconds,
-                      is_active as "is_active!", created_at as "created_at!",
-                      notify_email, notify_email_enabled as "notify_email_enabled!",
-                      notify_slack_webhook, notify_slack_enabled as "notify_slack_enabled!"
-               FROM monitors WHERE is_active = TRUE"#
-        )
-        .fetch_all(&state.db)
-        .await
+        // Avaliação periódica de readiness a cada 15 min
+        if tick_count.is_multiple_of(900) {
+            let state_r = state.clone();
+            tokio::spawn(async move {
+                run_readiness_tick(&state_r).await;
+            });
+        }
+
+        let monitors: Vec<Monitor> = match sqlx::query_as(MONITOR_QUERY)
+            .fetch_all(&state.db)
+            .await
         {
             Ok(m) => m,
             Err(e) => {
@@ -83,14 +110,20 @@ pub async fn start(state: AppState) {
             let regions = Arc::clone(&regions_tick);
             async move {
                 if should_run_now(&state, &monitor).await {
-                    let run_bypass = should_run_bypass(&state, &monitor).await;
-                    if run_bypass {
+                    let bypass_mode = get_bypass_mode(&state, &monitor).await;
+                    if matches!(bypass_mode, BypassMode::Full | BypassMode::Warmup) {
                         info!(
-                            "Scheduler: forcing bypass probe for monitor {} ({})",
-                            monitor.id, monitor.url
+                            "Scheduler: bypass probe for monitor {} ({}) [mode={}]",
+                            monitor.id,
+                            monitor.url,
+                            match bypass_mode {
+                                BypassMode::Full => "full",
+                                BypassMode::Warmup => "warmup",
+                                BypassMode::Off => "off",
+                            }
                         );
                     }
-                    dispatch_probes(&state, &monitor, regions, run_bypass, false).await;
+                    dispatch_probes(&state, &monitor, regions, bypass_mode, false).await;
                 }
             }
         }))
@@ -100,7 +133,29 @@ pub async fn start(state: AppState) {
     }
 }
 
-async fn check_interval(state: &AppState, key: &str, interval_secs: i64) -> bool {
+async fn run_readiness_tick(state: &AppState) {
+    let ids: Vec<uuid::Uuid> = match sqlx::query_scalar(
+        "SELECT id FROM monitors WHERE is_active = TRUE",
+    )
+    .fetch_all(&state.db)
+    .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            error!("readiness tick: failed to fetch monitor ids: {e}");
+            return;
+        }
+    };
+
+    for monitor_id in ids {
+        let state_clone = state.clone();
+        tokio::spawn(async move {
+            readiness::evaluate_and_persist(&state_clone, monitor_id).await;
+        });
+    }
+}
+
+pub(crate) async fn check_interval(state: &AppState, key: &str, interval_secs: i64) -> bool {
     let mut conn = match state.redis.get().await {
         Ok(c) => c,
         Err(e) => {
@@ -149,37 +204,38 @@ async fn should_run_now(state: &AppState, monitor: &Monitor) -> bool {
     .await
 }
 
-async fn should_run_bypass(state: &AppState, monitor: &Monitor) -> bool {
-    let interval = monitor.audit_interval_seconds.unwrap_or(3600) as i64;
-
-    let interval_passed =
-        check_interval(state, &format!("last_bypass:{}", monitor.id), interval).await;
-    if interval_passed {
-        return true;
+/// Determina a política de bypass baseado no estado de readiness persistido.
+async fn get_bypass_mode(state: &AppState, monitor: &Monitor) -> BypassMode {
+    match monitor.audit_readiness_state.as_str() {
+        "disabled" => BypassMode::Off,
+        "warmup" => BypassMode::Warmup,
+        "enabled" => {
+            let interval = monitor.audit_interval_seconds.unwrap_or(3600) as i64;
+            if check_interval(state, &format!("last_bypass:{}", monitor.id), interval).await {
+                BypassMode::Full
+            } else {
+                BypassMode::Off
+            }
+        }
+        _ => BypassMode::Off,
     }
-
-    let has_history = sqlx::query!(
-        r#"SELECT EXISTS(SELECT 1 FROM audit_results WHERE monitor_id = $1 LIMIT 1) as "exists!""#,
-        monitor.id
-    )
-    .fetch_one(&state.db)
-    .await
-    .map(|r| r.exists)
-    .unwrap_or(true);
-
-    !has_history
 }
 
 pub async fn dispatch_probes(
     state: &AppState,
     monitor: &Monitor,
     regions: Arc<Vec<(String, String)>>,
-    run_bypass: bool,
+    bypass_mode: BypassMode,
     is_manual: bool,
 ) {
+    let bypass_label = match &bypass_mode {
+        BypassMode::Off => "off",
+        BypassMode::Warmup => "warmup",
+        BypassMode::Full => "full",
+    };
     debug!(
         "Dispatching probes for monitor {} ({}) | bypass={} | manual={}",
-        monitor.id, monitor.url, run_bypass, is_manual
+        monitor.id, monitor.url, bypass_label, is_manual
     );
 
     let client = state.http.clone();
@@ -188,6 +244,7 @@ pub async fn dispatch_probes(
     let monitor_id = monitor.id;
     let target_url = monitor.url.clone();
     let limits = state.probe_limits.clone();
+    let audit_interval = monitor.audit_interval_seconds.unwrap_or(3600) as i64;
 
     let parallel = state
         .config
@@ -195,34 +252,56 @@ pub async fn dispatch_probes(
         .max_regions_parallel_per_monitor
         .max(1);
 
-    stream::iter(regions.iter().cloned().map(|(region_name, worker_url)| {
-        let client = client.clone();
-        let ingest_url = ingest_url.clone();
-        let probe_secret = probe_secret.clone();
-        let target_url = target_url.clone();
-        let limits = limits.clone();
-        let region = region_name;
-        async move {
-            let body = json!({
-                "monitor_id": monitor_id,
-                "url": target_url,
-                "ingest_url": ingest_url,
-                "run_bypass": run_bypass,
-                "is_manual": is_manual
-            });
-            limits
-                .post_probe_with_limits(PostProbeContext {
-                    client: &client,
-                    worker_url: &worker_url,
-                    probe_secret: &probe_secret,
-                    body: &body,
-                    region_id: &region,
-                    monitor_id,
-                    run_bypass,
-                })
-                .await;
+    // Pré-calcular decisão de bypass por região para o modo warmup
+    // (Redis check serial antes da rajada paralela de HTTP)
+    let warmup_secs = (audit_interval * 2).max(7200);
+    let bypass_per_region: Vec<bool> = match bypass_mode {
+        BypassMode::Off => regions.iter().map(|_| false).collect(),
+        BypassMode::Full => regions.iter().map(|_| true).collect(),
+        BypassMode::Warmup => {
+            let mut decisions = Vec::with_capacity(regions.len());
+            for (region_name, _) in regions.iter() {
+                let key = format!("last_warmup_probe:{}:{}", monitor_id, region_name);
+                decisions.push(check_interval(state, &key, warmup_secs).await);
+            }
+            decisions
         }
-    }))
+    };
+
+    stream::iter(
+        regions
+            .iter()
+            .cloned()
+            .zip(bypass_per_region.into_iter())
+            .map(|((region_name, worker_url), run_bypass)| {
+                let client = client.clone();
+                let ingest_url = ingest_url.clone();
+                let probe_secret = probe_secret.clone();
+                let target_url = target_url.clone();
+                let limits = limits.clone();
+                let region = region_name;
+                async move {
+                    let body = json!({
+                        "monitor_id": monitor_id,
+                        "url": target_url,
+                        "ingest_url": ingest_url,
+                        "run_bypass": run_bypass,
+                        "is_manual": is_manual
+                    });
+                    limits
+                        .post_probe_with_limits(PostProbeContext {
+                            client: &client,
+                            worker_url: &worker_url,
+                            probe_secret: &probe_secret,
+                            body: &body,
+                            region_id: &region,
+                            monitor_id,
+                            run_bypass,
+                        })
+                        .await;
+                }
+            }),
+    )
     .buffer_unordered(parallel)
     .collect::<()>()
     .await;

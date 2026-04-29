@@ -858,6 +858,25 @@ export default async function MonitorDetailPage({
       `
     : []
 
+  // Readiness state para o motor de Edge Audit (migration 026)
+  type ReadinessRow = {
+    state: string; reason: string | null;
+    comparable_pairs: number; comparable_regions: number;
+    edge_hit_ratio: number; updated_at: Date | null;
+  }
+  const auditReadiness: ReadinessRow | null = activeView === 'infrastructure'
+    ? ((await sql<ReadinessRow[]>`
+        SELECT
+          audit_readiness_state              AS state,
+          audit_readiness_reason             AS reason,
+          audit_readiness_comparable_pairs   AS comparable_pairs,
+          audit_readiness_comparable_regions AS comparable_regions,
+          audit_readiness_edge_hit_ratio     AS edge_hit_ratio,
+          audit_readiness_updated_at         AS updated_at
+        FROM monitors WHERE id = ${id} AND user_id = ${user.id} LIMIT 1
+      `.catch(() => []))[0] ?? null)
+    : null
+
   const spikes = await sql<Spike[]>`
     WITH bucketed AS (
       SELECT
@@ -1830,7 +1849,18 @@ export default async function MonitorDetailPage({
 
               {activeView === 'infrastructure' && (
                 <div className="space-y-8">
-                  <BypassAudit data={hourlyBypass} regionLabels={regionLabels} />
+                  <BypassAudit
+                    data={hourlyBypass}
+                    regionLabels={regionLabels}
+                    readiness={auditReadiness ? {
+                      state: auditReadiness.state as 'disabled' | 'warmup' | 'enabled',
+                      reason: auditReadiness.reason,
+                      comparable_pairs: auditReadiness.comparable_pairs,
+                      comparable_regions: auditReadiness.comparable_regions,
+                      edge_hit_ratio: auditReadiness.edge_hit_ratio,
+                      updated_at: auditReadiness.updated_at,
+                    } : null}
+                  />
                 </div>
               )}
             </div>

@@ -30,18 +30,23 @@ pub async fn handler(
         return e;
     }
 
-    let monitor = sqlx::query_as!(
-        Monitor,
-        r#"SELECT id as "id!", user_id as "user_id!", url as "url!", name,
-                  check_interval_seconds as "check_interval_seconds!",
-                  alert_threshold_ms as "alert_threshold_ms!",
+    let monitor: Result<Option<Monitor>, _> = sqlx::query_as(
+        r#"SELECT id, user_id, url, name,
+                  check_interval_seconds, alert_threshold_ms,
                   audit_interval_seconds,
-                  is_active as "is_active!", created_at as "created_at!",
-                  notify_email, notify_email_enabled as "notify_email_enabled!",
-                  notify_slack_webhook, notify_slack_enabled as "notify_slack_enabled!"
+                  is_active, created_at,
+                  notify_email, notify_email_enabled,
+                  notify_slack_webhook, notify_slack_enabled,
+                  audit_readiness_state,
+                  audit_readiness_updated_at,
+                  audit_readiness_consecutive_hits,
+                  audit_readiness_reason,
+                  audit_readiness_comparable_pairs,
+                  audit_readiness_comparable_regions,
+                  audit_readiness_edge_hit_ratio
            FROM monitors WHERE id = $1 AND is_active = TRUE"#,
-        monitor_id
     )
+    .bind(monitor_id)
     .fetch_optional(&state.db)
     .await;
 
@@ -58,8 +63,13 @@ pub async fn handler(
     let run_bypass = payload.bypass.unwrap_or(true);
     let is_manual = payload.is_manual.unwrap_or(true); // Default to true if called via /dispatch API
 
+    let bypass_mode = if run_bypass {
+        runner::BypassMode::Full
+    } else {
+        runner::BypassMode::Off
+    };
     tokio::spawn(async move {
-        runner::dispatch_probes(&state, &monitor, regions, run_bypass, is_manual).await;
+        runner::dispatch_probes(&state, &monitor, regions, bypass_mode, is_manual).await;
     });
 
     (StatusCode::ACCEPTED, Json(json!({ "ok": true, "monitor_id": monitor_id, "bypass": run_bypass }))).into_response()

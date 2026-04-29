@@ -4,6 +4,7 @@ use axum::{
     response::IntoResponse,
 };
 use serde_json::json;
+use std::sync::Arc;
 
 use crate::{models::probe_result::ProbeResultPayload, routes::auth, AppState};
 
@@ -24,7 +25,7 @@ pub async fn handler(
     }
 
     tracing::info!("Ingest: received result for monitor {} from region {} | bypass_ttfb: {:?}", payload.monitor_id, payload.region, payload.bypass_ttfb_ms);
-    
+
     let mut final_result = Ok(());
 
     // 1. Rota de Auditoria (Bypass / Infraestrutura)
@@ -87,8 +88,7 @@ pub async fn handler(
 
     // 2. Rota de Monitoramento Natural
     // Persiste tanto probes bem-sucedidos (ttfb presente) quanto falhas (error presente).
-    // Falhas (timeout, empty reply, DNS fail) são métricas valiosas — permitem calcular
-    // uptime/SLA e detectar outages em tempo real.
+    let mut natural_inserted = false;
     if payload.ttfb_ms.is_some() || payload.error.is_some() {
         let probe_res = sqlx::query(
             r#"
@@ -133,11 +133,13 @@ pub async fn handler(
         .execute(&state.db)
         .await;
 
-        if let Err(e) = probe_res {
-            // Se for erro de monitoramento natural, logamos.
-            tracing::error!("Failed to insert natural probe result: {e}");
-            if final_result.is_ok() {
-                final_result = Err(e);
+        match probe_res {
+            Ok(_) => natural_inserted = true,
+            Err(e) => {
+                tracing::error!("Failed to insert natural probe result: {e}");
+                if final_result.is_ok() {
+                    final_result = Err(e);
+                }
             }
         }
     }
@@ -148,12 +150,12 @@ pub async fn handler(
             let db = state.db.clone();
             let monitor_id = payload.monitor_id;
             let tx = state.tx.clone();
-            
+
             tokio::spawn(async move {
                 let user_result = sqlx::query!("SELECT user_id FROM monitors WHERE id = $1", monitor_id)
                     .fetch_optional(&db)
                     .await;
-                
+
                 if let Ok(Some(row)) = user_result {
                     let msg = serde_json::json!({
                         "u": row.user_id,
@@ -163,11 +165,23 @@ pub async fn handler(
                 }
             });
 
-            // Disparar o detector de anomalias em background para não bloquear
+            // Detector de anomalias em background
             let state_clone = state.clone();
+            let payload_clone = payload.clone();
             tokio::spawn(async move {
-                crate::alerts::detector::check_for_anomalies(state_clone, payload).await;
+                crate::alerts::detector::check_for_anomalies(state_clone, payload_clone).await;
             });
+
+            // Bootstrap trigger: se monitor nunca foi avaliado e todas as regiões já responderam,
+            // dispara avaliação de readiness imediatamente (fora do tick de 15min)
+            if natural_inserted {
+                let state_bt = state.clone();
+                let monitor_id = payload.monitor_id;
+                tokio::spawn(async move {
+                    maybe_bootstrap_evaluate(state_bt, monitor_id).await;
+                });
+            }
+
             (StatusCode::CREATED, Json(json!({ "ok": true }))).into_response()
         },
         Err(e) => {
@@ -177,6 +191,91 @@ pub async fn handler(
                 Json(json!({ "error": "failed to store result" })),
             )
                 .into_response()
+        }
+    }
+}
+
+/// Verifica se o monitor está em bootstrap e se todas as regiões já responderam.
+/// Se sim, dispara avaliação de readiness e, se habilitado, bypass probes imediatos.
+async fn maybe_bootstrap_evaluate(state: AppState, monitor_id: uuid::Uuid) {
+    // 1. Verificar bootstrap (audit_readiness_updated_at IS NULL)
+    let is_bootstrap = sqlx::query_scalar::<_, bool>(
+        "SELECT audit_readiness_updated_at IS NULL FROM monitors WHERE id = $1",
+    )
+    .bind(monitor_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .unwrap_or(false);
+
+    if !is_bootstrap {
+        return;
+    }
+
+    // 2. Verificar se todas as regiões já responderam ao menos uma vez
+    let total_regions: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM regions WHERE enabled = TRUE AND lambda_url != ''",
+    )
+    .fetch_one(&state.db)
+    .await
+    .unwrap_or(0);
+
+    if total_regions == 0 {
+        return;
+    }
+
+    let responded_regions: i64 = sqlx::query_scalar(
+        "SELECT COUNT(DISTINCT region) FROM probe_results WHERE monitor_id = $1",
+    )
+    .bind(monitor_id)
+    .fetch_one(&state.db)
+    .await
+    .unwrap_or(0);
+
+    if responded_regions < total_regions {
+        return; // Nem todas as regiões responderam ainda
+    }
+
+    // 3. Disparar avaliação de readiness
+    tracing::info!("ingest: bootstrap trigger for monitor {monitor_id} ({responded_regions}/{total_regions} regions)");
+    let needs_dispatch = crate::scheduler::readiness::evaluate_and_persist(&state, monitor_id).await;
+
+    // 4. Se readiness habilitou/warmup no bootstrap: disparo imediato de bypass probe
+    if needs_dispatch {
+        let monitor: Option<crate::models::monitor::Monitor> = sqlx::query_as(
+            r#"SELECT id, user_id, url, name,
+                      check_interval_seconds, alert_threshold_ms,
+                      audit_interval_seconds,
+                      is_active, created_at,
+                      notify_email, notify_email_enabled,
+                      notify_slack_webhook, notify_slack_enabled,
+                      audit_readiness_state,
+                      audit_readiness_updated_at,
+                      audit_readiness_consecutive_hits,
+                      audit_readiness_reason,
+                      audit_readiness_comparable_pairs,
+                      audit_readiness_comparable_regions,
+                      audit_readiness_edge_hit_ratio
+               FROM monitors WHERE id = $1 AND is_active = TRUE"#,
+        )
+        .bind(monitor_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten();
+
+        if let Some(monitor) = monitor {
+            let regions = Arc::new(crate::scheduler::runner::fetch_regions(&state.db).await);
+            tracing::info!("ingest: bootstrap immediate bypass dispatch for monitor {monitor_id}");
+            crate::scheduler::runner::dispatch_probes(
+                &state,
+                &monitor,
+                regions,
+                crate::scheduler::runner::BypassMode::Full,
+                false,
+            )
+            .await;
         }
     }
 }
