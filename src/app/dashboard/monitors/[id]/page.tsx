@@ -3,7 +3,7 @@ import { PremiumTooltip } from '@/components/premium-tooltip'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { isCacheHit } from '@/lib/cache-utils'
+import { isCacheHit, getCacheDisplayLabel } from '@/lib/cache-utils'
 import sql from '@/lib/db'
 import { AutoRefresh } from './auto-refresh'
 import { TtfbChart, type ChartPoint } from './ttfb-chart'
@@ -1056,6 +1056,20 @@ export default async function MonitorDetailPage({
   const totalProbesCount = stats.reduce((acc, s) => acc + s.probe_count, 0);
   const globalHitRate = totalProbesCount > 0 ? Math.round((totalHitProbes / totalProbesCount) * 100) : 0;
 
+  const isGlobalDynamic = globalHitRate === 0 && stats.some(s => !isCacheHit(s.common_cache_status))
+  
+  // Find dominant status for label when 0%
+  const dominantStatusLabel = (() => {
+    if (globalHitRate > 0) return null
+    const counts: Record<string, number> = {}
+    stats.forEach(s => {
+      const label = getCacheDisplayLabel(s.common_cache_status || 'BYPASS')
+      counts[label] = (counts[label] || 0) + 1
+    })
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1])
+    return sorted.length > 0 ? sorted[0][0] : 'BYPASS'
+  })()
+
   const validUptimeStats = stats.filter(s => typeof s.uptime_pct === 'number');
   const globalUptime = validUptimeStats.length > 0
     ? validUptimeStats.reduce((acc, s) => acc + (s.uptime_pct || 0), 0) / validUptimeStats.length
@@ -1517,13 +1531,19 @@ export default async function MonitorDetailPage({
                                 <PremiumTooltip content={`Average cache hit rate from CDN edge cache during the last ${range} across all regions`}>
                                   <p className="cs-metric-card-label !text-[11px]">Global Cache Hit Rate</p>
                                 </PremiumTooltip>
-                                <PremiumTooltip content={globalHitRate === 0 ? 'No data available' : getCacheTooltip(globalHitRate, 'global')}>
+                                <PremiumTooltip content={globalHitRate === 0 ? (isGlobalDynamic ? 'Site is intentionally dynamic: All requests fetched from origin' : 'No data available') : getCacheTooltip(globalHitRate, 'global')}>
                                   <div className="flex items-center gap-2">
                                     <div className="flex items-baseline gap-0.5">
-                                      <span className={`text-[26px] font-black tracking-tight leading-none ${getCacheColor(globalHitRate, 'global')}`}>{globalHitRate}</span>
-                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getCacheColor(globalHitRate, 'global')}`}>%</span>
+                                      {isGlobalDynamic ? (
+                                        <span className="text-[20px] font-black tracking-tight leading-none text-zinc-500 uppercase">{dominantStatusLabel}</span>
+                                      ) : (
+                                        <>
+                                          <span className={`text-[26px] font-black tracking-tight leading-none ${getTtfbColorClass(avgTtfb, 'global')}`}>{globalHitRate}</span>
+                                          <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getTtfbColorClass(avgTtfb, 'global')}`}>%</span>
+                                        </>
+                                      )}
                                     </div>
-                                    <Zap className={`h-5 w-5 fill-current ${getCacheColor(globalHitRate, 'global')}`} />
+                                    {!isGlobalDynamic && <Zap className={`h-5 w-5 fill-current ${getCacheColor(globalHitRate, 'global')}`} />}
                                   </div>
                                 </PremiumTooltip>
                               </div>

@@ -256,7 +256,7 @@ export function PerformanceTable({ stats, regionLabels, regionDescriptions, glob
                             ) : Math.round(s.cache_hit_pct) >= 50 ? (
                               <span className="cs-badge-cache-miss">{Math.round(s.cache_hit_pct)}%</span>
                             ) : (
-                              Math.round(s.cache_hit_pct) === 0 && (!s.common_cache_status || isCacheBypass(s.common_cache_status)) ? (
+                              Math.round(s.cache_hit_pct) === 0 && (!s.common_cache_status || !isCacheHit(s.common_cache_status)) ? (
                                 <span className="cs-badge-cache-not-reported">
                                   {getCacheDisplayLabel(s.common_cache_status || 'BYPASS')}
                                 </span>
