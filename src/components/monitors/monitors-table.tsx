@@ -53,7 +53,7 @@ import {
 } from '@/app/dashboard/monitors/[id]/monitor-table-styles'
 
 import { MONITOR_TTFB, MONITOR_CACHE, getTtfbColorClass, getCacheColor, getTtfbTooltip, getCacheTooltip } from '@/lib/thresholds'
-import { isCacheHit, getCacheDisplayLabel } from '@/lib/cache-utils'
+import { isCacheHit, getCacheDisplayLabel, isCacheBypass } from '@/lib/cache-utils'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -175,9 +175,12 @@ function cacheHitTooltipText(pct: number): string {
 }
 
 function CacheHitBadge({ pct, status }: { pct: number | null; status: string | null }) {
-  const isIntentional = isCacheBypass(status)
+  const displayLabel = getCacheDisplayLabel(status)
+  // Strictly only show gray badge for intentional categories. 
+  // If status is MISS, it must be shown as 0% (red).
+  const isIntentional = isCacheBypass(status) && displayLabel !== 'MISS' && displayLabel !== 'HIT'
+
   if (pct === null || (Math.round(pct) === 0 && isIntentional)) {
-    const displayLabel = getCacheDisplayLabel(status)
     return (
       <PremiumTooltip
         content={pct === null ? "No cache-status header detected on recent probes." : "Site is intentionally dynamic: All requests fetched from origin."}
@@ -492,7 +495,8 @@ function buildMonitorColumns(
     cell: ({ getValue, row }) => {
       const pct = getValue()
       const m = row.original
-      const isIntentional = isCacheBypass(m.cacheStatusCurrent)
+      const displayLabel = getCacheDisplayLabel(m.cacheStatusCurrent)
+      const isIntentional = isCacheBypass(m.cacheStatusCurrent) && displayLabel !== 'MISS' && displayLabel !== 'HIT'
       if (pct === null || (Math.round(Number(pct)) === 0 && isIntentional)) {
         const displayLabel = getCacheDisplayLabel(m.cacheStatusCurrent)
         return (
