@@ -7,7 +7,6 @@ import {
   pct,
 } from './probe-waterfall.helpers'
 import { TIMING } from './timing-metrics-palette'
-import { TtfbLegendHelp } from './ttfb-legend-help'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 
 export interface WaterfallProbe {
@@ -35,7 +34,7 @@ const SEGS = {
   tls: { bg: TIMING.tls.bar, label: 'TLS' },
   edge: { bg: TIMING.edge.bar, label: 'Edge' },
   origin: { bg: TIMING.origin.bar, label: 'Origin' },
-  ttfb: { bg: TIMING.ttfb.bar, label: 'TTFB (unattributed)' },
+  ttfb: { bg: TIMING.ttfb.bar, label: 'TTFB' },
   download: { bg: TIMING.download.bar, label: 'Download' },
 } as const
 
@@ -137,7 +136,11 @@ export function ProbeWaterfall({
           // Portion of TTFB not explained by DNS, TLS, edge+origin Server-Timing entries
           const attributedTtfb = dns + tls + tcp + edge + origin
           const unknownTtfb = Math.max(0, ttfb - attributedTtfb)
-          const hasBreakdown = dns > 0 || tls > 0 || edge > 0 || origin > 0
+          
+          // We split the waterfall into two rows for the TTFB duration.
+          // Top row: A continuous bar for the total TTFB.
+          // Bottom row: The breakdown of DNS, TCP, TLS, Edge, Origin.
+          const hasBreakdown = dns > 0 || tcp > 0 || tls > 0 || edge > 0 || origin > 0
           const hasServerTiming = breakdownEntries(probe.server_timing_breakdown).length > 0
 
           const pop = extractPop(probe.served_by)
@@ -242,11 +245,7 @@ export function ProbeWaterfall({
                   )}
                   <span className="flex items-center gap-1.5">
                     <span className={`h-2 w-2 shrink-0 rounded-full ${SEGS.ttfb.bg}`} />
-                    <span className="inline-flex items-center gap-0.5">
-                      {SEGS.ttfb.label}
-                      <TtfbLegendHelp />
-                    </span>
-                    <span className={`font-bold ${TIMING.ttfb.text}`}>{formatMs(ttfb)}</span>
+                    {SEGS.ttfb.label} <span className={`font-bold ${TIMING.ttfb.text}`}>{formatMs(ttfb)}</span>
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className={`h-2 w-2 shrink-0 rounded-full ${SEGS.download.bg}`} />
@@ -260,83 +259,157 @@ export function ProbeWaterfall({
 
               {/* ── Main waterfall bar ── */}
               <div className="mt-2">
-                <div className="flex h-3.5 w-full overflow-hidden rounded bg-background/50">
-                  {hasBreakdown ? (
-                    <>
-                      {dns > 0 && (
+                <div className="flex h-7 w-full overflow-hidden rounded bg-background/50 ring-1 ring-inset ring-white/5 items-stretch gap-0">
+                  {/* We use flex-grow for pixel-perfect proportions without rounding gaps */}
+                  {ttfb > 0 && (
+                    <div 
+                      className="grid grid-rows-2 h-full shrink-0 gap-0" 
+                      style={{ flexGrow: ttfb, flexBasis: 0 }}
+                    >
+                      {/* Top: Continuous TTFB bar */}
+                      <div className="relative overflow-hidden">
                         <PremiumTooltip 
-                          content={`DNS: ${formatMs(dns)}`}
-                          className="h-full shrink-0"
-                          style={{ width: pct(dns, maxTotal) }}
-                        >
-                          <div className={`${SEGS.dns.bg} h-full w-full`} />
-                        </PremiumTooltip>
-                      )}
-                      {tcp > 0 && (
-                        <PremiumTooltip 
-                          content={`TCP: ${formatMs(tcp)}`}
-                          className="h-full shrink-0"
-                          style={{ width: pct(tcp, maxTotal) }}
-                        >
-                          <div className={`${SEGS.tcp.bg} h-full w-full`} />
-                        </PremiumTooltip>
-                      )}
-                      {tls > 0 && (
-                        <PremiumTooltip 
-                          content={`TLS: ${formatMs(tls)}`}
-                          className="h-full shrink-0"
-                          style={{ width: pct(tls, maxTotal) }}
-                        >
-                          <div className={`${SEGS.tls.bg} h-full w-full`} />
-                        </PremiumTooltip>
-                      )}
-                      {edge > 0 && (
-                        <PremiumTooltip 
-                          content={`Edge: ${formatMs(edge)}`}
-                          className="h-full shrink-0"
-                          style={{ width: pct(edge, maxTotal) }}
-                        >
-                          <div className={`${SEGS.edge.bg} h-full w-full`} />
-                        </PremiumTooltip>
-                      )}
-                      {origin > 0 && (
-                        <PremiumTooltip 
-                          content={`Origin: ${formatMs(origin)}`}
-                          className="h-full shrink-0"
-                          style={{ width: pct(origin, maxTotal) }}
-                        >
-                          <div className={`${SEGS.origin.bg} h-full w-full`} />
-                        </PremiumTooltip>
-                      )}
-                      {unknownTtfb > 1 && (
-                        <PremiumTooltip 
-                          content={`Unattributed TTFB: ${formatMs(unknownTtfb)}`}
-                          className="h-full shrink-0"
-                          style={{ width: pct(unknownTtfb, maxTotal) }}
+                          content={
+                            <span className="text-[10px] font-medium text-zinc-300">
+                              Total TTFB <span className={`font-bold ${TIMING.ttfb.text}`}>{formatMs(ttfb)}</span>
+                            </span>
+                          }
+                          className="!flex h-full w-full"
                         >
                           <div className={`${SEGS.ttfb.bg} h-full w-full`} />
                         </PremiumTooltip>
-                      )}
-                    </>
-                  ) : (
-                    ttfb > 0 && (
-                      <PremiumTooltip 
-                        content={`TTFB: ${formatMs(ttfb)} (no Server-Timing breakdown available)`}
-                        className="h-full w-full"
-                      >
-                        <div className={`${SEGS.ttfb.bg} h-full w-full`} />
-                      </PremiumTooltip>
-                    )
+                      </div>
+
+                      {/* Bottom: Breakdown */}
+                      <div className="flex h-full w-full overflow-hidden items-stretch gap-0">
+                        {hasBreakdown ? (
+                          <>
+                            {dns > 0 && (
+                              <div style={{ flexGrow: dns, flexBasis: 0 }} className="h-full">
+                                <PremiumTooltip 
+                                  content={
+                                    <span className="text-[10px] font-medium text-zinc-300">
+                                      DNS <span className={`font-bold ${TIMING.dns.text}`}>{formatMs(dns)}</span>
+                                    </span>
+                                  } 
+                                  className="!flex h-full w-full"
+                                >
+                                  <div className={`${SEGS.dns.bg} h-full w-full`} />
+                                </PremiumTooltip>
+                              </div>
+                            )}
+                            {tcp > 0 && (
+                              <div style={{ flexGrow: tcp, flexBasis: 0 }} className="h-full">
+                                <PremiumTooltip 
+                                  content={
+                                    <span className="text-[10px] font-medium text-zinc-300">
+                                      TCP <span className={`font-bold ${TIMING.tcp.text}`}>{formatMs(tcp)}</span>
+                                    </span>
+                                  } 
+                                  className="!flex h-full w-full"
+                                >
+                                  <div className={`${SEGS.tcp.bg} h-full w-full`} />
+                                </PremiumTooltip>
+                              </div>
+                            )}
+                            {tls > 0 && (
+                              <div style={{ flexGrow: tls, flexBasis: 0 }} className="h-full">
+                                <PremiumTooltip 
+                                  content={
+                                    <span className="text-[10px] font-medium text-zinc-300">
+                                      TLS <span className={`font-bold ${TIMING.tls.text}`}>{formatMs(tls)}</span>
+                                    </span>
+                                  } 
+                                  className="!flex h-full w-full"
+                                >
+                                  <div className={`${SEGS.tls.bg} h-full w-full`} />
+                                </PremiumTooltip>
+                              </div>
+                            )}
+                            {edge > 0 && (
+                              <div style={{ flexGrow: edge, flexBasis: 0 }} className="h-full">
+                                <PremiumTooltip 
+                                  content={
+                                    <span className="text-[10px] font-medium text-zinc-300">
+                                      Edge <span className={`font-bold ${TIMING.edge.text}`}>{formatMs(edge)}</span>
+                                    </span>
+                                  } 
+                                  className="!flex h-full w-full"
+                                >
+                                  <div className={`${SEGS.edge.bg} h-full w-full`} />
+                                </PremiumTooltip>
+                              </div>
+                            )}
+                            {origin > 0 && (
+                              <div style={{ flexGrow: origin, flexBasis: 0 }} className="h-full">
+                                <PremiumTooltip 
+                                  content={
+                                    <span className="text-[10px] font-medium text-zinc-300">
+                                      Origin <span className={`font-bold ${TIMING.origin.text}`}>{formatMs(origin)}</span>
+                                    </span>
+                                  } 
+                                  className="!flex h-full w-full"
+                                >
+                                  <div className={`${SEGS.origin.bg} h-full w-full`} />
+                                </PremiumTooltip>
+                              </div>
+                            )}
+                            {unknownTtfb > 0.5 && (
+                              <div style={{ flexGrow: unknownTtfb, flexBasis: 0 }} className="h-full">
+                                <PremiumTooltip 
+                                  panelSizing="hug"
+                                  interactive={true}
+                                  content={
+                                    <div className="text-[10px] leading-snug">
+                                      <div className="flex items-center gap-1.5 mb-1.5">
+                                        <span className="font-bold text-zinc-200">TTFB (unattributed)</span>
+                                        <span className={`font-bold ${TIMING.ttfb.text}`}>{formatMs(unknownTtfb)}</span>
+                                      </div>
+                                      <p className="mt-1 text-zinc-400">
+                                        Part of Time to First Byte not explained by DNS, TCP, TLS, or edge/origin slices from{' '}
+                                        <code className="rounded bg-white/5 px-1 font-mono text-[9px] text-zinc-300">Server-Timing</code>.
+                                      </p>
+                                      <p className="mt-1 text-zinc-400">
+                                        Large values often mean waiting on the edge or app after headers are parsed.
+                                      </p>
+                                    </div>
+                                  } 
+                                  className="!flex h-full w-full"
+                                >
+                                  <div className={`${SEGS.ttfb.bg} h-full w-full`} />
+                                </PremiumTooltip>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className={`${SEGS.ttfb.bg} h-full w-full`} />
+                        )}
+                      </div>
+                    </div>
                   )}
 
+                  {/* Download Section (Unique) */}
                   {download > 0 && (
-                    <PremiumTooltip 
-                      content={`Download: ${formatMs(download)}`}
-                      className="h-full shrink-0"
-                      style={{ width: pct(download, maxTotal) }}
+                    <div 
+                      className="h-full shrink-0" 
+                      style={{ flexGrow: download, flexBasis: 0 }}
                     >
-                      <div className={`${SEGS.download.bg} h-full w-full`} />
-                    </PremiumTooltip>
+                      <PremiumTooltip 
+                        content={
+                          <span className="text-[10px] font-medium text-zinc-300">
+                            Download <span className={`font-bold ${TIMING.download.text}`}>{formatMs(download)}</span>
+                          </span>
+                        }
+                        className="!flex h-full w-full"
+                      >
+                        <div className={`${SEGS.download.bg} h-full w-full`} />
+                      </PremiumTooltip>
+                    </div>
+                  )}
+
+                  {/* Remaining space to fill maxTotal scale */}
+                  {maxTotal > total && (
+                    <div style={{ flexGrow: maxTotal - total, flexBasis: 0 }} />
                   )}
                 </div>
 
