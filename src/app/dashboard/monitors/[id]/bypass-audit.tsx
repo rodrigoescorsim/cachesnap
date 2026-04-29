@@ -61,20 +61,6 @@ function AuditCTA({
     return <MonitorDispatchButtons monitorId={monitorId} variant="audit" />
   }
 
-  if (state === 'warmup') {
-    return (
-      <PremiumTooltip content="Collecting evidence before audit can run." direction="top">
-        <button
-          disabled
-          className="relative inline-flex h-9 items-center justify-center gap-2.5 rounded-xl border px-6 border-white/10 bg-white/5 text-zinc-500 cursor-not-allowed opacity-60 text-xs font-bold tracking-tight"
-        >
-          <Zap className="h-3.5 w-3.5" />
-          Warming Up...
-        </button>
-      </PremiumTooltip>
-    )
-  }
-
   return null
 }
 
@@ -506,11 +492,11 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                           <div className="flex flex-col items-end">
                             {isOriginHit ? (
                               <PremiumTooltip content="Origin latency unavailable because all requests were served from cache.">
-                                <div className="flex flex-col items-end cursor-help">
-                                  <span className="text-[11px] font-bold text-zinc-500 italic">
+                                <div className="flex flex-col items-end cursor-help opacity-40">
+                                  <span className="text-[10px] font-bold text-zinc-500 italic">
                                     Inconclusive
                                   </span>
-                                  <span className="text-[9px] font-black text-zinc-600 uppercase tracking-tighter">
+                                  <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">
                                     Origin Forced HIT
                                   </span>
                                 </div>
