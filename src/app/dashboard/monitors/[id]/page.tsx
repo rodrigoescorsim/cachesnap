@@ -1056,11 +1056,26 @@ export default async function MonitorDetailPage({
   const totalProbesCount = stats.reduce((acc, s) => acc + s.probe_count, 0);
   const globalHitRate = totalProbesCount > 0 ? Math.round((totalHitProbes / totalProbesCount) * 100) : 0;
 
-  const isGlobalDynamic = globalHitRate === 0 && stats.some(s => !isCacheHit(s.common_cache_status))
+  const isGlobalDynamic = globalHitRate === 0 && (stats.some(s => !isCacheHit(s.common_cache_status)) || latestProbes.some(p => !isCacheHit(p.common_cache_status)))
   
+  // Find current dominant status from Live data to help label historical 0%
+  const liveDominantStatus = (() => {
+    const counts: Record<string, number> = {}
+    latestProbes.forEach(p => {
+      const label = getCacheDisplayLabel(p.common_cache_status || 'BYPASS')
+      counts[label] = (counts[label] || 0) + 1
+    })
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1])
+    return sorted.length > 0 ? sorted[0][0] : null
+  })()
+
   // Find dominant status for label when 0%
   const dominantStatusLabel = (() => {
     if (globalHitRate > 0) return null
+    // If we have a clear live status (like DYNAMIC), prioritize it over historical MISS
+    if (liveDominantStatus && (liveDominantStatus === 'DYNAMIC' || liveDominantStatus === 'BYPASS')) {
+      return liveDominantStatus
+    }
     const counts: Record<string, number> = {}
     stats.forEach(s => {
       const label = getCacheDisplayLabel(s.common_cache_status || 'BYPASS')
@@ -1574,6 +1589,7 @@ export default async function MonitorDetailPage({
                         regionLabels={regionLabels}
                         regionDescriptions={regionDescriptions}
                         globalAvgTtfb={avgTtfb}
+                        liveDominantStatus={liveDominantStatus}
                       />
                     )}
                   </section>

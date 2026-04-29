@@ -52,6 +52,7 @@ interface PerformanceTableProps {
   regionLabels: Record<string, string>
   regionDescriptions: Record<string, string>
   globalAvgTtfb: number
+  liveDominantStatus?: string | null
 }
 
 const TOOLTIP_EDGE_DATA_UNAVAILABLE = 'Data not available yet'
@@ -68,7 +69,13 @@ export function regionRowCdnLabelTrimmed(
   return (resolveCdnLabel(provider, servedBy) ?? '').trim()
 }
 
-export function PerformanceTable({ stats, regionLabels, regionDescriptions, globalAvgTtfb }: PerformanceTableProps) {
+export function PerformanceTable({ 
+  stats, 
+  regionLabels, 
+  regionDescriptions, 
+  globalAvgTtfb,
+  liveDominantStatus 
+}: PerformanceTableProps) {
   const [expandedRegions, setExpandedRegions] = useState<Record<string, boolean>>({})
 
   const toggleRegion = (region: string, e: React.MouseEvent) => {
@@ -258,7 +265,9 @@ export function PerformanceTable({ stats, regionLabels, regionDescriptions, glob
                             ) : (
                               Math.round(s.cache_hit_pct) === 0 && (!s.common_cache_status || !isCacheHit(s.common_cache_status)) ? (
                                 <span className="cs-badge-cache-not-reported">
-                                  {getCacheDisplayLabel(s.common_cache_status || 'BYPASS')}
+                                  {Math.round(s.cache_hit_pct) === 0 && (liveDominantStatus === 'DYNAMIC' || liveDominantStatus === 'BYPASS') 
+                                    ? liveDominantStatus 
+                                    : getCacheDisplayLabel(s.common_cache_status || 'BYPASS')}
                                 </span>
                               ) : (
                                 <span className="cs-badge-cache-hit-rate-low">{Math.round(s.cache_hit_pct)}%</span>
