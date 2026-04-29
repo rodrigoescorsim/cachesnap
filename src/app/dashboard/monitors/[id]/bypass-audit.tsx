@@ -118,8 +118,8 @@ function RecheckButton({ monitorId }: { monitorId: string }) {
   )
 }
 
-function WarmupProgress({ readiness }: { readiness: AuditReadiness }) {
-  const pct = warmupProgressPercent(readiness)
+function WarmupProgress({ current, target = 8 }: { current: number; target?: number }) {
+  const pct = (current / target) * 100
   const isHigh = pct >= 100
 
   return (
@@ -128,9 +128,9 @@ function WarmupProgress({ readiness }: { readiness: AuditReadiness }) {
         <span className={isHigh ? 'text-emerald-400' : 'text-zinc-300'}>
           {isHigh ? 'High' : pct < 30 ? 'Low' : 'Medium'} Confidence
         </span>
-        <span className="text-zinc-700 opacity-50">/</span>
+        <span className="text-zinc-700 opacity-50">·</span>
         <span className="text-zinc-600">
-          {readiness.comparable_pairs} of 8 Samples
+          {current} of {target} Samples
         </span>
       </div>
       <div className="h-1 bg-white/5 rounded-full overflow-hidden w-full">
@@ -290,7 +290,6 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
               </button>
             ))}
           </div>
-          {canAudit && <div className="ml-2"><MonitorDispatchButtons monitorId={monitorId} variant="audit" /></div>}
         </div>
       </ViewSectionHeader>
 
@@ -298,9 +297,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
       {(readiness && hasAnyData) && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between px-1 gap-4 pt-1">
           <div className="flex items-center gap-8">
-             {(state === 'warmup' || state === 'enabled') && (
-               <WarmupProgress readiness={readiness} />
-             )}
+             <WarmupProgress current={filteredData.length} />
           </div>
           <div className="flex items-center gap-4">
              <div className="flex items-center gap-2">
@@ -365,7 +362,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                   {validForAvg > 0 ? (
                     <>
                       <span
-                        className={`text-5xl font-black tracking-tighter ${avgSavingMs > 0 ? 'text-metric-ttfb-fast drop-shadow-[0_0_12px_rgba(34,255,136,0.3)]' : 'text-amber-500'}`}
+                        className={`text-5xl font-black tracking-tighter ${avgSavingMs > 0 ? 'text-metric-ttfb-fast' : 'text-amber-500'}`}
                       >
                         {avgSavingMs > 0 ? '-' : '+'}
                         {Math.abs(Math.round(avgSavingMs))}ms
@@ -539,11 +536,6 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
               </table>
             </div>
           </div>
-
-          <p className="text-[10px] text-zinc-500 italic text-center font-bold uppercase tracking-wide opacity-50 px-1">
-            Statistical snapshots are persisted hourly. Previous windows provide a baseline for CDN
-            propagation stability.
-          </p>
         </>
       )}
     </div>
