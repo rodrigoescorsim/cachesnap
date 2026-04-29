@@ -98,6 +98,7 @@ const POP_CITY_MAP: Record<string, string> = {
   'HND': 'Tokyo',
   'ICN': 'Seoul',
   'BOM': 'Mumbai',
+  'MAA': 'Chennai',
   'DEL': 'Delhi',
   'SYD': 'Sydney',
   'MEL': 'Melbourne',
