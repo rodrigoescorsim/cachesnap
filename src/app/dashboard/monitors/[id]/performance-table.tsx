@@ -5,7 +5,7 @@ import { ChevronDown, ChevronUp, Zap, Gauge } from 'lucide-react'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import { extractPop, resolveCdnLabel, popToCity } from '@/lib/edge-helpers'
 import { isCacheHit, isCacheMiss, isCacheBypass, getCacheDisplayLabel } from '@/lib/cache-utils'
-import { getCacheColor, getCacheTooltip, getTtfbTooltip, getTtfbColorClass } from '@/lib/thresholds'
+import { getCacheColor, getCacheTooltip, getTtfbTooltip, getTtfbColorClass, getCacheHitTier } from '@/lib/thresholds'
 import {
   MONITOR_TABLE,
   BRAND_TABLE_SURFACE_GRADIENT,
@@ -271,9 +271,10 @@ export function PerformanceTable({
                                 : tier === 'mid' ? 'text-amber-400'
                                   : 'text-metric-bad'
                             
+                            const val = Number(s.cache_hit_pct)
                             return (
                               <span className={`${textClass} text-[13px] font-black tabular-nums`}>
-                                {s.cache_hit_pct.toFixed(1)}%
+                                {val.toFixed(1)}%
                               </span>
                             )
                           })()}

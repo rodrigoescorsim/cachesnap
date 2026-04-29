@@ -120,18 +120,23 @@ function RecheckButton({ monitorId }: { monitorId: string }) {
 
 function WarmupProgress({ readiness }: { readiness: AuditReadiness }) {
   const pct = warmupProgressPercent(readiness)
-  const remaining = remainingPairsNeeded(readiness)
+  const isHigh = pct >= 100
 
   return (
-    <div className="mt-2 space-y-1">
-      <div className="flex justify-between text-[9px] font-black text-zinc-600 uppercase tracking-widest">
-        <span>{readiness.comparable_pairs}/8 comparable pairs</span>
-        <span>{remaining} remaining</span>
+    <div className="flex flex-col gap-1.5 min-w-[140px]">
+      <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.15em]">
+        <span className={isHigh ? 'text-emerald-400' : 'text-zinc-300'}>
+          {isHigh ? 'High' : pct < 30 ? 'Low' : 'Medium'} Confidence
+        </span>
+        <span className="text-zinc-700 opacity-50">/</span>
+        <span className="text-zinc-600">
+          {readiness.comparable_pairs} of 8 Samples
+        </span>
       </div>
-      <div className="h-0.5 bg-white/5 rounded-full overflow-hidden">
+      <div className="h-1 bg-white/5 rounded-full overflow-hidden w-full">
         <div
-          className="h-full bg-amber-400/50 rounded-full transition-all duration-700"
-          style={{ width: `${pct}%` }}
+          className={`h-full rounded-full transition-all duration-700 ${isHigh ? 'bg-emerald-500' : 'bg-amber-500/50'}`}
+          style={{ width: `${Math.min(pct, 100)}%` }}
         />
       </div>
     </div>
@@ -146,22 +151,20 @@ function ReadinessBanner({
   monitorId: string
 }) {
   const state = readiness.state
-  const reason = resolveReason(readiness)
-  const Icon = state === 'disabled' ? AlertTriangle : Clock
-  const title = state === 'disabled' ? 'Edge Audit Unavailable' : 'Edge Audit Warming Up'
+  if (state !== 'disabled') return null // Warmup agora é indicador, não banner
 
+  const reason = resolveReason(readiness)
   return (
     <div className="cs-tint-warning p-4 flex gap-4 items-start">
       <div className="cs-card-wash opacity-40" />
-      <Icon className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+      <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
       <div className="relative z-10 space-y-1 flex-1">
         <h3 className="text-[10px] font-black text-amber-400 uppercase tracking-[0.15em]">
-          {title}
+          Edge Audit Unavailable
         </h3>
         {reason && (
           <p className="text-xs leading-relaxed text-amber-200/60 font-medium">{reason}</p>
         )}
-        {state === 'warmup' && <WarmupProgress readiness={readiness} />}
         <div className="pt-1">
           <RecheckButton monitorId={monitorId} />
         </div>
@@ -180,43 +183,68 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
   const badge = formatAuditBadge(readiness)
   const canAudit = isAuditButtonEnabled(readiness)
 
-  // Group data by hour
-  const itemsByHour = useMemo(() => {
-    const groups: Record<string, BypassPoint[]> = {}
-    data.forEach(item => {
-      const h = item.hour.toISOString()
-      if (!groups[h]) groups[h] = []
-      groups[h].push(item)
+  const [period, setPeriod] = useState<'1H' | '4H' | '24H' | '7D' | '30D'>('24H')
+  const periods = ['1H', '4H', '24H', '7D', '30D'] as const
+
+  const filteredData = useMemo(() => {
+    const now = new Date()
+    const msInHour = 3600000
+    const limit = period === '1H' ? msInHour :
+                 period === '4H' ? 4 * msInHour :
+                 period === '24H' ? 24 * msInHour :
+                 period === '7D' ? 7 * 24 * msInHour :
+                 30 * 24 * msInHour
+
+    return data.filter(item => (now.getTime() - item.hour.getTime()) <= limit)
+  }, [data, period])
+
+  // Aggregate by region
+  const aggregatedData = useMemo(() => {
+    const regions: Record<string, {
+      edge_ttfb: number[],
+      origin_ttfb: number[],
+      edge_hits: number,
+      origin_hits: number,
+      edge_statuses: string[],
+      origin_statuses: string[]
+    }> = {}
+
+    filteredData.forEach(item => {
+      if (!regions[item.region]) {
+        regions[item.region] = { edge_ttfb: [], origin_ttfb: [], edge_hits: 0, origin_hits: 0, edge_statuses: [], origin_statuses: [] }
+      }
+      const r = regions[item.region]
+      if (item.edge_ttfb > 0) r.edge_ttfb.push(item.edge_ttfb)
+      if (item.origin_ttfb > 0) r.origin_ttfb.push(item.origin_ttfb)
+      if (item.edge_cache_status?.toUpperCase() === 'HIT') r.edge_hits++
+      if (item.origin_cache_status?.toUpperCase() === 'HIT') r.origin_hits++
+      if (item.edge_cache_status) r.edge_statuses.push(item.edge_cache_status.toUpperCase())
+      if (item.origin_cache_status) r.origin_statuses.push(item.origin_cache_status.toUpperCase())
     })
-    return groups
-  }, [data])
 
-  const hours = useMemo(
-    () => Object.keys(itemsByHour).sort((a, b) => b.localeCompare(a)),
-    [itemsByHour],
-  )
-  const [selectedHour, setSelectedHour] = useState<string | null>(hours[0] || null)
+    return Object.entries(regions).map(([id, stats]) => ({
+      region: id,
+      edge_ttfb: stats.edge_ttfb.length > 0 ? stats.edge_ttfb.reduce((a, b) => a + b, 0) / stats.edge_ttfb.length : 0,
+      origin_ttfb: stats.origin_ttfb.length > 0 ? stats.origin_ttfb.reduce((a, b) => a + b, 0) / stats.origin_ttfb.length : 0,
+      edge_hit_ratio: stats.edge_statuses.length > 0 ? stats.edge_hits / stats.edge_statuses.length : 0,
+      origin_hit_ratio: stats.origin_statuses.length > 0 ? stats.origin_hits / stats.origin_statuses.length : 0,
+      last_edge_status: stats.edge_statuses[stats.edge_statuses.length - 1] || 'MISS',
+      last_origin_status: stats.origin_statuses[stats.origin_statuses.length - 1] || 'MISS',
+      sample_count: stats.edge_statuses.length
+    }))
+  }, [filteredData])
 
-  const currentItems = selectedHour ? itemsByHour[selectedHour] : []
+  const confirmedHitsCount = aggregatedData.filter(r => r.edge_hit_ratio > 0 && r.origin_hit_ratio === 0).length
+  const forcedHitRegionsCount = aggregatedData.filter(r => r.origin_hit_ratio > 0).length
+  const totalEdge = aggregatedData.reduce((sum, r) => sum + (r.edge_hit_ratio > 0 ? r.edge_ttfb : 0), 0)
+  const totalOrigin = aggregatedData.reduce((sum, r) => sum + (r.edge_hit_ratio > 0 ? r.origin_ttfb : 0), 0)
+  const validForAvg = aggregatedData.filter(r => r.edge_hit_ratio > 0).length
 
-  const confirmedHits = currentItems.filter(
-    item =>
-      item.edge_cache_status?.toUpperCase() === 'HIT' &&
-      item.origin_cache_status?.toUpperCase() !== 'HIT' &&
-      item.origin_cache_status?.toUpperCase() !== 'HIDDEN',
-  )
-
-  const bypassFails = currentItems.filter(
-    item => item.origin_cache_status?.toUpperCase() === 'HIT',
-  )
-
-  const totalEdge = confirmedHits.reduce((sum, item) => sum + item.edge_ttfb, 0)
-  const totalOrigin = confirmedHits.reduce((sum, item) => sum + item.origin_ttfb, 0)
-  const avgSavingMs =
-    confirmedHits.length > 0 ? (totalOrigin - totalEdge) / confirmedHits.length : 0
+  const avgSavingMs = validForAvg > 0 ? (totalOrigin - totalEdge) / validForAvg : 0
   const avgSavingPct = totalOrigin > 0 ? ((totalOrigin - totalEdge) / totalOrigin) * 100 : 0
 
-  const hasData = hours.length > 0
+  const hasData = filteredData.length > 0
+  const hasAnyData = data.length > 0
 
   // Snapshot readiness for timeline headers (Melhoria — Task 3.4)
   const snapshotMeta = formatSnapshotReadiness(readiness)
@@ -226,9 +254,14 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
     <div className="space-y-6 min-h-[200px]">
       {/* Section header with permanent state badge — Task 3.1 */}
       <ViewSectionHeader title="Edge Audit" showDot={true}>
-        <div className="flex items-center gap-3">
-          <span className={badge.cssClass}>{badge.label}</span>
-          <AuditCTA readiness={readiness} monitorId={monitorId} />
+        <div className="flex items-center gap-6">
+          {readiness && (state === 'warmup' || state === 'enabled') && (
+             <WarmupProgress readiness={readiness} />
+          )}
+          <div className="flex items-center gap-3">
+            <span className={badge.cssClass}>{badge.label}</span>
+            <AuditCTA readiness={readiness} monitorId={monitorId} />
+          </div>
         </div>
       </ViewSectionHeader>
 
@@ -236,102 +269,53 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
       {shouldShowBanner(readiness) && readiness && (
         <ReadinessBanner readiness={readiness} monitorId={monitorId} />
       )}
-
-      {/* No data and not enabled: don't show empty timeline */}
-      {!hasData && state !== 'enabled' && (
-        <div className="cs-card cs-card-glass p-8 text-center">
-          <p className="text-sm text-zinc-500 italic">
-            {state === 'warmup'
-              ? 'Audit data will appear here once the first probe completes.'
-              : 'No audit data yet. Enable effective caching to start.'}
-          </p>
-        </div>
-      )}
-
-      {/* Legacy empty state for enabled monitors with no data */}
-      {!hasData && state === 'enabled' && (
-        <div className="cs-card cs-card-glass p-12 text-center">
-          <p className="text-sm text-zinc-400 italic">
-            No hourly bypass events detected in the last 24h.
-          </p>
-          <p className="text-[11px] text-zinc-500 mt-2 uppercase tracking-widest font-bold">
-            Bypass probes run once per hour per region.
-          </p>
-        </div>
-      )}
-
-      {/* Audit timeline — only rendered when there is data AND state is not disabled (Melhoria UX) */}
-      {hasData && state !== 'disabled' && (
-        <>
-          {/* Time Explorer — Task 3.4: show comparable regions + confidence per snapshot */}
-          <div className="space-y-3">
-            <ViewSectionHeader title="Audit Timeline — Performance Snapshots" showDot={false}>
-              {canAudit && <MonitorDispatchButtons monitorId={monitorId} variant="audit" />}
-            </ViewSectionHeader>
-
-            {/* Snapshot metadata row */}
-            <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-600">
-              <span>
-                {snapshotMeta.comparableRegions} comparable{' '}
-                {snapshotMeta.comparableRegions === 1 ? 'region' : 'regions'}
-              </span>
-              <span className="opacity-30">·</span>
-              <span>Confidence: {snapshotMeta.confidence}</span>
-              <span className="opacity-30">·</span>
-              <span className={badge.cssClass} style={{ fontSize: '8px', padding: '1px 6px' }}>
-                {badge.label}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
-              {hours.map(h => {
-                const date = new Date(h)
-                const isActive = selectedHour === h
-
-                const diffMs = Date.now() - date.getTime()
-                const diffMin = Math.floor(diffMs / 60000)
-                const diffHours = Math.floor(diffMin / 60)
-
-                let relativeTime = ''
-                if (diffMin < 1) relativeTime = 'Just now'
-                else if (diffMin < 60) relativeTime = `${diffMin}m ago`
-                else if (diffHours < 24) relativeTime = `${diffHours}h ago`
-                else
-                  relativeTime = date.toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                  })
-
-                return (
-                  <PremiumTooltip
-                    key={h}
-                    content={`${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} at ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}`}
+      {/* Period Selector & Controls — Always show if monitor has history */}
+      {hasAnyData && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
+                {periods.map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setPeriod(p)}
+                    className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${
+                      period === p
+                        ? 'bg-white/10 text-white shadow-lg'
+                        : 'text-zinc-500 hover:text-zinc-300'
+                    }`}
                   >
-                    <button
-                      onClick={() => setSelectedHour(h)}
-                      className={`shrink-0 flex flex-col items-center justify-center min-w-[100px] h-14 rounded-xl border transition-all duration-300 active:scale-95 ${
-                        isActive
-                          ? 'border-[rgba(34,255,136,0.3)] bg-[rgba(34,255,136,0.08)] text-white shadow-[0_0_15px_rgba(34,255,136,0.08)]'
-                          : 'border-white/5 bg-white/[0.03] text-zinc-500 hover:bg-white/5 hover:text-zinc-300'
-                      }`}
-                    >
-                      <span
-                        className={`text-[12px] font-black uppercase tracking-tight ${isActive ? 'text-metric-ttfb-fast' : 'text-zinc-400'}`}
-                      >
-                        {relativeTime}
-                      </span>
-                      <span className="text-[9px] font-bold uppercase tracking-widest opacity-40">
-                        Snapshot
-                      </span>
-                    </button>
-                  </PremiumTooltip>
-                )
-              })}
+                    {p}
+                  </button>
+                ))}
+              </div>
+              <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest ml-2">
+                Analyze Average Performance
+              </span>
             </div>
+            {canAudit && <MonitorDispatchButtons monitorId={monitorId} variant="audit" />}
           </div>
 
-          {/* Bypass Failure Alert */}
-          {bypassFails.length > 0 && (
+          <ViewSectionHeader title={`Audit Analysis — Last ${period}`} showDot={false} />
+        </div>
+      )}
+
+      {/* Results Section */}
+      {!hasData && hasAnyData && (
+        <div className="cs-card cs-card-glass p-12 text-center border-dashed border-white/5 bg-white/[0.01]">
+           <p className="text-sm text-zinc-400 italic">
+            No audit samples detected in the last {period}.
+          </p>
+          <p className="text-[10px] text-zinc-500 mt-2 uppercase tracking-widest font-bold">
+            Data is aggregated hourly. Try selecting a broader timeframe.
+          </p>
+        </div>
+      )}
+
+      {hasData && (
+        <>
+          {/* Bypass Failure Alert — Show if any region in period is forced hit */}
+      {aggregatedData.some(r => r.origin_hit_ratio > 0) && (
             <div className="cs-tint-warning p-4 flex gap-4 items-start">
               <div className="cs-card-wash opacity-40" />
               <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5" />
@@ -342,7 +326,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                 <p className="text-xs leading-relaxed text-amber-200/60 font-medium">
                   Could not obtain Origin metrics in{' '}
                   <span className="text-amber-400 font-bold">
-                    {bypassFails.length} {bypassFails.length === 1 ? 'region' : 'regions'}
+                    {forcedHitRegionsCount} {forcedHitRegionsCount === 1 ? 'region' : 'regions'}
                   </span>{' '}
                   due to infrastructure optimizations that forced delivery via Edge (Cache HIT),
                   preventing a direct server measurement.
@@ -360,7 +344,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                   Global Impact Analysis
                 </div>
                 <div className="flex items-baseline gap-4">
-                  {confirmedHits.length > 0 ? (
+                  {validForAvg > 0 ? (
                     <>
                       <span
                         className={`text-5xl font-black tracking-tighter ${avgSavingMs > 0 ? 'text-metric-ttfb-fast drop-shadow-[0_0_12px_rgba(34,255,136,0.3)]' : 'text-amber-500'}`}
@@ -369,15 +353,17 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                         {Math.abs(Math.round(avgSavingMs))}ms
                       </span>
                       <div className="flex flex-col">
-                        <span
-                          className={`text-base font-bold ${avgSavingMs > 0 ? 'text-metric-ttfb-fast' : 'text-amber-500'}`}
-                        >
-                          {avgSavingMs > 0 ? '-' : '+'}
-                          {Math.abs(Math.round(avgSavingPct))}%{' '}
-                          {avgSavingMs > 0 ? 'Saved' : 'Added'}
-                        </span>
+                        <PremiumTooltip content={`Averaged over ${filteredData.length} total samples across ${aggregatedData.length} regions for the last ${period}.`}>
+                          <span
+                            className={`text-base font-bold cursor-help ${avgSavingMs > 0 ? 'text-metric-ttfb-fast' : 'text-amber-500'}`}
+                          >
+                            {avgSavingMs > 0 ? '-' : '+'}
+                            {Math.abs(Math.round(avgSavingPct))}%{' '}
+                            {avgSavingMs > 0 ? 'Saved' : 'Added'}
+                          </span>
+                        </PremiumTooltip>
                         <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
-                          {avgSavingMs > 0 ? 'CDN Edge Benefit' : 'Latency Penalty'}
+                          CDN Edge Benefit ({period})
                         </span>
                       </div>
                     </>
@@ -387,7 +373,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                       <div className="flex flex-col">
                         <span className="text-base font-bold text-zinc-600">No comparison yet</span>
                         <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
-                          Waiting for cache hit
+                          Waiting for cache hit in {period}
                         </span>
                       </div>
                     </>
@@ -398,14 +384,14 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
               <div className="flex flex-col sm:items-end gap-1.5 px-6 sm:border-l border-white/5">
                 <div className="flex items-center gap-2 font-black text-zinc-400 text-[10px] uppercase tracking-widest">
                   <span
-                    className={`h-2 w-2 rounded-full ${confirmedHits.length > 0 ? 'bg-[var(--brand-primary)] animate-pulse' : 'bg-zinc-700'}`}
+                    className={`h-2 w-2 rounded-full ${validForAvg > 0 ? 'bg-[var(--brand-primary)] animate-pulse' : 'bg-zinc-700'}`}
                   />
                   Edge (HIT) vs Origin (Direct)
                 </div>
                 <p className="text-[11px] text-zinc-500 max-w-[280px] sm:text-right leading-relaxed font-medium">
-                  {confirmedHits.length > 0
-                    ? `Analyzing comparative data for ${confirmedHits.length} regions with verified cache hits in this window.`
-                    : `Insufficient verified hits for a statistical comparative analysis.`}
+                  {validForAvg > 0
+                    ? `Analyzing average performance across ${validForAvg} regions with cache hits in the last ${period}.`
+                    : `No regions reported consistent cache hits during the ${period} window.`}
                 </p>
               </div>
             </div>
@@ -433,13 +419,10 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                   </tr>
                 </thead>
                 <tbody>
-                  {currentItems.map(row => {
-                    const isEdgeHit = row.edge_cache_status?.toUpperCase() === 'HIT'
-                    const isOriginHit = row.origin_cache_status?.toUpperCase() === 'HIT'
-                    const isValidComparison =
-                      isEdgeHit &&
-                      !isOriginHit &&
-                      row.origin_cache_status?.toUpperCase() !== 'HIDDEN'
+                  {aggregatedData.map(row => {
+                    const isEdgeHit = row.edge_hit_ratio > 0
+                    const isOriginHit = row.origin_hit_ratio > 0
+                    const isValidComparison = isEdgeHit && !isOriginHit
 
                     const itemSaving = row.origin_ttfb - row.edge_ttfb
                     const isSaving = itemSaving > 0
@@ -455,11 +438,13 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                             {isEdgeHit ? (
                               <div className="flex items-center gap-1.5 text-emerald-400">
                                 <Zap className="w-3 h-3 fill-current" />
-                                <span className="text-[10px] font-black uppercase tracking-widest">HIT</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest">
+                                  {Math.round(row.edge_hit_ratio * 100)}% HIT
+                                </span>
                               </div>
                             ) : (
                               <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
-                                {row.edge_cache_status?.toUpperCase() || 'MISS'}
+                                {row.last_edge_status}
                               </span>
                             )}
                             <span className="text-zinc-200 font-mono font-bold text-xs">
@@ -470,16 +455,18 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                         <td className="px-4 py-4 text-right">
                           <div className="flex items-center justify-end gap-2.5">
                             {isOriginHit ? (
-                              <span
-                                className="text-[10px] font-black text-zinc-700 tracking-[0.4em] px-2"
-                                title="Origin measurement unavailable (CDN served cache)"
-                              >
-                                ———
-                              </span>
+                              <div className="flex flex-col items-end opacity-40">
+                                <span className="text-[10px] font-black text-zinc-700 tracking-[0.4em] px-2">
+                                  ———
+                                </span>
+                                <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-tighter">
+                                  Forced HIT
+                                </span>
+                              </div>
                             ) : (
                               <>
                                 <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
-                                  {row.origin_cache_status?.toUpperCase() || 'MISS'}
+                                  {row.last_origin_status}
                                 </span>
                                 <span className="text-zinc-500 font-mono font-medium text-xs">
                                   {Math.round(row.origin_ttfb)}ms
@@ -491,23 +478,23 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                         <td className="px-4 py-4 text-right">
                           <div className="flex flex-col items-end">
                             {isOriginHit ? (
-                              <PremiumTooltip content="Origin latency unavailable because all requests were served from cache.">
+                              <PremiumTooltip content="Origin latency unavailable for this period because CDN served cache even on bypass attempts.">
                                 <div className="flex flex-col items-end cursor-help opacity-40">
                                   <span className="text-[10px] font-bold text-zinc-500 italic">
                                     Inconclusive
                                   </span>
                                   <span className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">
-                                    Origin Forced HIT
+                                    {row.sample_count} samples
                                   </span>
                                 </div>
                               </PremiumTooltip>
                             ) : !isValidComparison ? (
                               <div className="flex flex-col items-end opacity-40">
                                 <span className="text-[9px] font-black text-zinc-500 uppercase tracking-tight">
-                                  Analysis Pending
+                                  Initial Samples
                                 </span>
                                 <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-tighter">
-                                  Wait for HIT/MISS
+                                  {row.sample_count} samples
                                 </span>
                               </div>
                             ) : (
@@ -519,9 +506,9 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                                   {Math.abs(Math.round(itemSaving))}ms
                                 </span>
                                 <span
-                                  className={`text-[9px] font-black uppercase tracking-widest ${isSaving ? 'text-metric-ttfb-fast opacity-60' : 'text-amber-600'}`}
+                                  className={`text-[9px] font-black uppercase tracking-widest ${isSaving ? 'text-metric-ttfb-fast opacity-60' : 'text-metric-ttfb-fast opacity-60'}`}
                                 >
-                                  {isSaving ? 'Faster at Edge' : 'Latency Penalty'}
+                                  {Math.abs(Math.round((itemSaving / row.origin_ttfb) * 100))}% Benefit
                                 </span>
                               </div>
                             )}

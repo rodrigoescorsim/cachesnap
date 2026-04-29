@@ -82,3 +82,9 @@ export function getCacheTooltip(pct: number, type: 'monitor' | 'global' = 'monit
   return 'Low efficiency: Most requests go to origin.'
 }
 
+export function getCacheHitTier(pct: number): 'high' | 'mid' | 'low' {
+  if (pct >= MONITOR_CACHE.GOOD) return 'high'
+  if (pct >= MONITOR_CACHE.LOW) return 'mid'
+  return 'low'
+}
+
