@@ -1083,6 +1083,107 @@ export default async function MonitorDetailPage({
     ? Math.max(...latestProbes.map(p => p.last_probe_at ? new Date(p.last_probe_at).getTime() : 0))
     : null;
 
+  // GLOBAL WATERFALL AGGREGATES
+  const liveGlobalWaterfallProbe: WaterfallProbe | null = latestProbes.length > 0 ? {
+    region: 'Global',
+    dns_ms: Math.round(latestProbes.reduce((acc, p) => acc + (p.dns_ms || 0), 0) / latestProbes.length),
+    tls_ms: Math.round(latestProbes.reduce((acc, p) => acc + (p.tls_ms || 0), 0) / latestProbes.length),
+    ttfb_ms: liveAvgTtfb,
+    download_ms: Math.round(latestProbes.reduce((acc, p) => acc + (p.download_ms || 0), 0) / latestProbes.length),
+    total_ms: Math.round(latestProbes.reduce((acc, p) => acc + (p.total_ms || 0), 0) / latestProbes.length),
+    edge_ms: Math.round(latestProbes.reduce((acc, p) => acc + (p.edge_ms || 0), 0) / latestProbes.length),
+    origin_ms: Math.round(latestProbes.reduce((acc, p) => acc + (p.origin_ms || 0), 0) / latestProbes.length),
+    redirect_count: Math.round(latestProbes.reduce((acc, p) => acc + (p.redirect_count || 0), 0) / latestProbes.length),
+    cache_status: `${liveGlobalHitRate}% HIT`,
+    served_by: 'Multi-CDN',
+    cdn_provider: 'Various',
+    age_s: Math.round(latestProbes.reduce((acc, p) => acc + (p.max_age_s || 0), 0) / latestProbes.length),
+    server_timing_breakdown: {
+      tcp_ms: Math.round(latestProbes.reduce((acc, p) => acc + (p.tcp_ms || 0), 0) / latestProbes.length)
+    },
+    probed_at: new Date(latestDataAt || Date.now()),
+    ranges: {
+      dns_ms: (() => {
+        const vals = latestProbes.map(p => p.dns_ms).filter((v): v is number => v != null)
+        return vals.length > 0 ? { min: Math.min(...vals), max: Math.max(...vals) } : null
+      })(),
+      tcp_ms: (() => {
+        const vals = latestProbes.map(p => p.tcp_ms).filter((v): v is number => v != null)
+        return vals.length > 0 ? { min: Math.min(...vals), max: Math.max(...vals) } : null
+      })(),
+      tls_ms: (() => {
+        const vals = latestProbes.map(p => p.tls_ms).filter((v): v is number => v != null)
+        return vals.length > 0 ? { min: Math.min(...vals), max: Math.max(...vals) } : null
+      })(),
+      ttfb_ms: (() => {
+        const vals = latestProbes.map(p => p.ttfb_ms).filter((v): v is number => v != null)
+        return vals.length > 0 ? { min: Math.min(...vals), max: Math.max(...vals) } : null
+      })(),
+      edge_ms: (() => {
+        const vals = latestProbes.map(p => p.edge_ms).filter((v): v is number => v != null)
+        return vals.length > 0 ? { min: Math.min(...vals), max: Math.max(...vals) } : null
+      })(),
+      origin_ms: (() => {
+        const vals = latestProbes.map(p => p.origin_ms).filter((v): v is number => v != null)
+        return vals.length > 0 ? { min: Math.min(...vals), max: Math.max(...vals) } : null
+      })(),
+      download_ms: (() => {
+        const vals = latestProbes.map(p => p.download_ms).filter((v): v is number => v != null)
+        return vals.length > 0 ? { min: Math.min(...vals), max: Math.max(...vals) } : null
+      })(),
+    }
+  } : null;
+
+  const performanceGlobalWaterfallProbe: WaterfallProbe | null = stats.length > 0 ? {
+    region: 'Global',
+    dns_ms: Math.round(stats.reduce((acc, s) => acc + (s.dns_avg_ms || 0), 0) / stats.length),
+    tls_ms: Math.round(stats.reduce((acc, s) => acc + (s.tls_avg_ms || 0), 0) / stats.length),
+    ttfb_ms: avgTtfb,
+    download_ms: Math.round(stats.reduce((acc, s) => acc + (s.download_avg_ms || 0), 0) / stats.length),
+    total_ms: Math.round(stats.reduce((acc, s) => acc + (s.total_avg_ms || 0), 0) / stats.length),
+    edge_ms: Math.round(stats.reduce((acc, s) => acc + (s.edge_avg_ms || 0), 0) / stats.length),
+    origin_ms: Math.round(stats.reduce((acc, s) => acc + (s.origin_avg_ms || 0), 0) / stats.length),
+    redirect_count: Math.round(stats.reduce((acc, s) => acc + (s.redirect_avg || 0), 0) / stats.length),
+    cache_status: `${globalHitRate}% HIT`,
+    served_by: 'Multi-CDN',
+    cdn_provider: 'Various',
+    age_s: Math.round(stats.reduce((acc, s) => acc + (s.max_age_s || 0), 0) / stats.length),
+    server_timing_breakdown: {
+      tcp_ms: Math.round(stats.reduce((acc, s) => acc + (s.tcp_avg_ms || 0), 0) / stats.length)
+    },
+    probed_at: null,
+    ranges: {
+      dns_ms: (() => {
+        const vals = stats.map(s => s.dns_avg_ms).filter((v): v is number => v != null)
+        return vals.length > 0 ? { min: Math.min(...vals), max: Math.max(...vals) } : null
+      })(),
+      tcp_ms: (() => {
+        const vals = stats.map(s => s.tcp_avg_ms).filter((v): v is number => v != null)
+        return vals.length > 0 ? { min: Math.min(...vals), max: Math.max(...vals) } : null
+      })(),
+      tls_ms: (() => {
+        const vals = stats.map(s => s.tls_avg_ms).filter((v): v is number => v != null)
+        return vals.length > 0 ? { min: Math.min(...vals), max: Math.max(...vals) } : null
+      })(),
+      ttfb_ms: (() => {
+        const vals = stats.map(s => s.ttfb_avg_ms).filter((v): v is number => v != null)
+        return vals.length > 0 ? { min: Math.min(...vals), max: Math.max(...vals) } : null
+      })(),
+      edge_ms: (() => {
+        const vals = stats.map(s => s.edge_avg_ms).filter((v): v is number => v != null)
+        return vals.length > 0 ? { min: Math.min(...vals), max: Math.max(...vals) } : null
+      })(),
+      origin_ms: (() => {
+        const vals = stats.map(s => s.origin_avg_ms).filter((v): v is number => v != null)
+        return vals.length > 0 ? { min: Math.min(...vals), max: Math.max(...vals) } : null
+      })(),
+      download_ms: (() => {
+        const vals = stats.map(s => s.download_avg_ms).filter((v): v is number => v != null)
+        return vals.length > 0 ? { min: Math.min(...vals), max: Math.max(...vals) } : null
+      })(),
+    }
+  } : null;
+
   return (
     <div className="space-y-5">
       <RealTimeHub userId={user.id} watchId={monitor.id} pauseStorageKey={liveFreezeStorageKey} />
@@ -1263,50 +1364,68 @@ export default async function MonitorDetailPage({
                     />
 
                     {!isCollecting && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <Link
-                          href={buildViewHref('trends', range, monitor.id)}
-                          scroll={false}
-                          className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
-                        >
-                          <div className="cs-card-wash opacity-40" />
-                          <div className="relative z-10 flex items-center justify-between">
-                            <PremiumTooltip content="Average latency from recent probes across all regions">
-                              <p className="cs-metric-card-label !text-[11px]">Global TTFB</p>
-                            </PremiumTooltip>
-                            <PremiumTooltip content={validLiveTtfb.length === 0 ? 'No data available' : getTtfbTooltip(liveAvgTtfb, 'global')}>
-                              <div className="flex items-center gap-2">
-                                <div className="flex items-baseline gap-0.5">
-                                  <span className={`text-[26px] font-black tracking-tight leading-none ${getTtfbColorClass(liveAvgTtfb, 'global')}`}>{liveAvgTtfb}</span>
-                                  <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getTtfbColorClass(liveAvgTtfb, 'global')}`}>ms</span>
-                                </div>
-                                <Gauge className={`h-5 w-5 stroke-[2.5] ${getTtfbColorClass(liveAvgTtfb, 'global')}`} />
+                      <div className="cs-card cs-card-glass overflow-hidden border-white/10">
+                        <div className="cs-card-wash opacity-40" />
+                        <div className="relative z-10">
+                          {/* Metric Headers */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-white/5 border-b border-white/5">
+                            <Link
+                              href={buildViewHref('trends', range, monitor.id)}
+                              scroll={false}
+                              className="px-5 py-4 group hover:bg-white/[0.02] transition-colors block"
+                            >
+                              <div className="flex items-center justify-between">
+                                <PremiumTooltip content="Average latency from recent probes across all regions">
+                                  <p className="cs-metric-card-label !text-[11px]">Global TTFB</p>
+                                </PremiumTooltip>
+                                <PremiumTooltip content={validLiveTtfb.length === 0 ? 'No data available' : getTtfbTooltip(liveAvgTtfb, 'global')}>
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex items-baseline gap-0.5">
+                                      <span className={`text-[26px] font-black tracking-tight leading-none ${getTtfbColorClass(liveAvgTtfb, 'global')}`}>{liveAvgTtfb}</span>
+                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getTtfbColorClass(liveAvgTtfb, 'global')}`}>ms</span>
+                                    </div>
+                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${getTtfbColorClass(liveAvgTtfb, 'global')}`} />
+                                  </div>
+                                </PremiumTooltip>
                               </div>
-                            </PremiumTooltip>
-                          </div>
-                        </Link>
+                            </Link>
 
-                        <Link
-                          href={buildViewHref('infrastructure', range, monitor.id)}
-                          scroll={false}
-                          className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
-                        >
-                          <div className="cs-card-wash opacity-60" />
-                          <div className="relative z-10 flex items-center justify-between">
-                            <PremiumTooltip content="Average cache hit rate from recent probes across all regions">
-                              <p className="cs-metric-card-label !text-[11px]">Global Cache Hit Rate</p>
-                            </PremiumTooltip>
-                            <PremiumTooltip content={validLiveCache.length === 0 ? 'No data available' : getCacheTooltip(liveGlobalHitRate, 'global')}>
-                              <div className="flex items-center gap-2">
-                                <div className="flex items-baseline gap-0.5">
-                                  <span className={`text-[26px] font-black tracking-tight leading-none ${getCacheColor(liveGlobalHitRate, 'global')}`}>{liveGlobalHitRate}</span>
-                                  <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getCacheColor(liveGlobalHitRate, 'global')}`}>%</span>
-                                </div>
-                                <Zap className={`h-5 w-5 fill-current ${getCacheColor(liveGlobalHitRate, 'global')}`} />
+                            <Link
+                              href={buildViewHref('infrastructure', range, monitor.id)}
+                              scroll={false}
+                              className="px-5 py-4 group hover:bg-white/[0.02] transition-colors block"
+                            >
+                              <div className="flex items-center justify-between">
+                                <PremiumTooltip content="Average cache hit rate from recent probes across all regions">
+                                  <p className="cs-metric-card-label !text-[11px]">Global Cache Hit Rate</p>
+                                </PremiumTooltip>
+                                <PremiumTooltip content={validLiveCache.length === 0 ? 'No data available' : getCacheTooltip(liveGlobalHitRate, 'global')}>
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex items-baseline gap-0.5">
+                                      <span className={`text-[26px] font-black tracking-tight leading-none ${getCacheColor(liveGlobalHitRate, 'global')}`}>{liveGlobalHitRate}</span>
+                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getCacheColor(liveGlobalHitRate, 'global')}`}>%</span>
+                                    </div>
+                                    <Zap className={`h-5 w-5 fill-current ${getCacheColor(liveGlobalHitRate, 'global')}`} />
+                                  </div>
+                                </PremiumTooltip>
                               </div>
-                            </PremiumTooltip>
+                            </Link>
                           </div>
-                        </Link>
+
+                          {/* Global Waterfall Section */}
+                          {liveGlobalWaterfallProbe && (
+                            <div className="p-5 bg-black/10">
+                              <div className="flex items-center gap-2 mb-4">
+                                <h3 className="cs-view-section-title !text-[10px] !text-zinc-500">Global Performance Breakdown</h3>
+                              </div>
+                              <ProbeWaterfall
+                                probes={[liveGlobalWaterfallProbe]}
+                                regionLabels={{ 'Global': 'Global Aggregate' }}
+                                hideHeader={true}
+                              />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
 
@@ -1362,50 +1481,68 @@ export default async function MonitorDetailPage({
                     </ViewSectionHeader>
 
                     {!isCollecting && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <Link
-                          href={buildViewHref('trends', range, monitor.id)}
-                          scroll={false}
-                          className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
-                        >
-                          <div className="cs-card-wash opacity-40" />
-                          <div className="relative z-10 flex items-center justify-between">
-                            <PremiumTooltip content={`Average Time to First Byte during the last ${range} across all regions`}>
-                              <p className="cs-metric-card-label !text-[11px]">Global TTFB</p>
-                            </PremiumTooltip>
-                            <PremiumTooltip content={avgTtfb === 0 ? 'No data available' : getTtfbTooltip(avgTtfb, 'global')}>
-                              <div className="flex items-center gap-2">
-                                <div className="flex items-baseline gap-0.5">
-                                  <span className={`text-[26px] font-black tracking-tight leading-none ${getTtfbColorClass(avgTtfb, 'global')}`}>{avgTtfb}</span>
-                                  <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getTtfbColorClass(avgTtfb, 'global')}`}>ms</span>
-                                </div>
-                                <Gauge className={`h-5 w-5 stroke-[2.5] ${getTtfbColorClass(avgTtfb, 'global')}`} />
+                      <div className="cs-card cs-card-glass overflow-hidden border-white/10">
+                        <div className="cs-card-wash opacity-40" />
+                        <div className="relative z-10">
+                          {/* Metric Headers */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-white/5 border-b border-white/5">
+                            <Link
+                              href={buildViewHref('trends', range, monitor.id)}
+                              scroll={false}
+                              className="px-5 py-4 group hover:bg-white/[0.02] transition-colors block"
+                            >
+                              <div className="flex items-center justify-between">
+                                <PremiumTooltip content={`Average Time to First Byte during the last ${range} across all regions`}>
+                                  <p className="cs-metric-card-label !text-[11px]">Global TTFB</p>
+                                </PremiumTooltip>
+                                <PremiumTooltip content={avgTtfb === 0 ? 'No data available' : getTtfbTooltip(avgTtfb, 'global')}>
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex items-baseline gap-0.5">
+                                      <span className={`text-[26px] font-black tracking-tight leading-none ${getTtfbColorClass(avgTtfb, 'global')}`}>{avgTtfb}</span>
+                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getTtfbColorClass(avgTtfb, 'global')}`}>ms</span>
+                                    </div>
+                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${getTtfbColorClass(avgTtfb, 'global')}`} />
+                                  </div>
+                                </PremiumTooltip>
                               </div>
-                            </PremiumTooltip>
-                          </div>
-                        </Link>
+                            </Link>
 
-                        <Link
-                          href={buildViewHref('infrastructure', range, monitor.id)}
-                          scroll={false}
-                          className="cs-card px-5 py-3.5 group hover:ring-1 hover:ring-white/10 transition-all active:scale-[0.98] cursor-pointer block"
-                        >
-                          <div className="cs-card-wash opacity-60" />
-                          <div className="relative z-10 flex items-center justify-between">
-                            <PremiumTooltip content={`Average cache hit rate from CDN edge cache during the last ${range} across all regions`}>
-                              <p className="cs-metric-card-label !text-[11px]">Global Cache Hit Rate</p>
-                            </PremiumTooltip>
-                            <PremiumTooltip content={globalHitRate === 0 ? 'No data available' : getCacheTooltip(globalHitRate, 'global')}>
-                              <div className="flex items-center gap-2">
-                                <div className="flex items-baseline gap-0.5">
-                                  <span className={`text-[26px] font-black tracking-tight leading-none ${getCacheColor(globalHitRate, 'global')}`}>{globalHitRate}</span>
-                                  <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getCacheColor(globalHitRate, 'global')}`}>%</span>
-                                </div>
-                                <Zap className={`h-5 w-5 fill-current ${getCacheColor(globalHitRate, 'global')}`} />
+                            <Link
+                              href={buildViewHref('infrastructure', range, monitor.id)}
+                              scroll={false}
+                              className="px-5 py-4 group hover:bg-white/[0.02] transition-colors block"
+                            >
+                              <div className="flex items-center justify-between">
+                                <PremiumTooltip content={`Average cache hit rate from CDN edge cache during the last ${range} across all regions`}>
+                                  <p className="cs-metric-card-label !text-[11px]">Global Cache Hit Rate</p>
+                                </PremiumTooltip>
+                                <PremiumTooltip content={globalHitRate === 0 ? 'No data available' : getCacheTooltip(globalHitRate, 'global')}>
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex items-baseline gap-0.5">
+                                      <span className={`text-[26px] font-black tracking-tight leading-none ${getCacheColor(globalHitRate, 'global')}`}>{globalHitRate}</span>
+                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getCacheColor(globalHitRate, 'global')}`}>%</span>
+                                    </div>
+                                    <Zap className={`h-5 w-5 fill-current ${getCacheColor(globalHitRate, 'global')}`} />
+                                  </div>
+                                </PremiumTooltip>
                               </div>
-                            </PremiumTooltip>
+                            </Link>
                           </div>
-                        </Link>
+
+                          {/* Global Waterfall Section */}
+                          {performanceGlobalWaterfallProbe && (
+                            <div className="p-5 bg-black/10">
+                              <div className="flex items-center gap-2 mb-4">
+                                <h3 className="cs-view-section-title !text-[10px] !text-zinc-500">Global Performance Breakdown</h3>
+                              </div>
+                              <ProbeWaterfall
+                                probes={[performanceGlobalWaterfallProbe]}
+                                regionLabels={{ 'Global': 'Global Aggregate' }}
+                                hideHeader={true}
+                              />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                     {stats.length === 0 ? (

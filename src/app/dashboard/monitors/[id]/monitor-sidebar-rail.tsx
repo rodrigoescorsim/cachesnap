@@ -22,7 +22,7 @@ import {
   type PerformanceView,
 } from './monitor-href'
 
-const MONITORING_VIEWS = ['real-time', 'performance', 'trends', 'patterns', 'diagnostics'] as const
+const MONITORING_VIEWS = ['real-time', 'performance', 'trends', 'patterns'] as const
 const INFRASTRUCTURE_VIEW = 'infrastructure' as const
 
 const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {

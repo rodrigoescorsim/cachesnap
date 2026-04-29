@@ -6,10 +6,10 @@ import { PremiumTooltip } from '@/components/premium-tooltip'
 import { extractPop, resolveCdnLabel, popToCity } from '@/lib/edge-helpers'
 import { isCacheHit } from '@/lib/cache-utils'
 import { getCacheColor, getCacheTooltip, getTtfbTooltip, getTtfbColorClass } from '@/lib/thresholds'
-import { 
-  MONITOR_TABLE, 
-  BRAND_TABLE_SURFACE_GRADIENT, 
-  TH_TTFB_HEADER, 
+import {
+  MONITOR_TABLE,
+  BRAND_TABLE_SURFACE_GRADIENT,
+  TH_TTFB_HEADER,
   TH_TTFB_HEADER_ORIGIN,
   ttfbMetricCellClass,
   edgeTtfbMetricCellClass,
@@ -73,7 +73,7 @@ export function PerformanceTable({ stats, regionLabels, regionDescriptions }: Pe
   const toggleRegion = (region: string, e: React.MouseEvent) => {
     // If the click was on a link or button, don't toggle
     if ((e.target as HTMLElement).closest('a, button')) return
-    
+
     setExpandedRegions(prev => ({
       ...prev,
       [region]: !prev[region]
@@ -83,6 +83,12 @@ export function PerformanceTable({ stats, regionLabels, regionDescriptions }: Pe
   const hasEdgeData = stats.some(s => s.edge_hit_avg_ms !== null)
   const hasOriginData = stats.some(s => s.origin_miss_avg_ms !== null)
   const showSplitTtfb = hasEdgeData || hasOriginData
+
+  const sortedStats = [...stats].sort((a, b) => {
+    const valA = a.ttfb_avg_ms ?? 0
+    const valB = b.ttfb_avg_ms ?? 0
+    return valB - valA
+  })
 
   return (
     <div className={MONITOR_TABLE.outerWrapper}>
@@ -130,11 +136,11 @@ export function PerformanceTable({ stats, regionLabels, regionDescriptions }: Pe
             </tr>
           </thead>
           <tbody>
-            {stats.map((s) => {
+            {sortedStats.map((s) => {
               const servedFromLabel = regionRowServedFromLabel(s.common_served_by)
               const cdnLabel = regionRowCdnLabelTrimmed(s.common_cdn_provider, s.common_served_by)
               const isExpanded = !!expandedRegions[s.region]
-              
+
               const waterfallProbe: WaterfallProbe = {
                 region: s.region,
                 dns_ms: s.dns_avg_ms,
@@ -275,9 +281,9 @@ export function PerformanceTable({ stats, regionLabels, regionDescriptions }: Pe
                     <tr>
                       <td colSpan={showSplitTtfb ? 10 : 8} className="bg-black/20 px-4 py-4 border-b border-white/[0.05]">
                         <div className="animate-[cs-fade-in_0.3s_ease-out]">
-                          <ProbeWaterfall 
-                            probes={[waterfallProbe]} 
-                            regionLabels={regionLabels} 
+                          <ProbeWaterfall
+                            probes={[waterfallProbe]}
+                            regionLabels={regionLabels}
                             hideHeader={true}
                             hideLegend={false}
                           />

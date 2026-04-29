@@ -93,6 +93,12 @@ export function LiveTable({ probes, regionLabels, regionDescriptions }: LiveTabl
     }))
   }
 
+  const sortedProbes = [...probes].sort((a, b) => {
+    const valA = a.ttfb_ms ?? 0
+    const valB = b.ttfb_ms ?? 0
+    return valB - valA
+  })
+
   return (
     <div className={MONITOR_TABLE.outerWrapper}>
       <div className={BRAND_TABLE_SURFACE_GRADIENT} />
@@ -128,7 +134,7 @@ export function LiveTable({ probes, regionLabels, regionDescriptions }: LiveTabl
             </tr>
           </thead>
           <tbody className="divide-y divide-white/[0.02]">
-            {probes.map((p) => {
+            {sortedProbes.map((p) => {
               const isExpanded = expandedRegions[p.region]
               const pop = extractPop(p.common_served_by)
               const cdnLabel = resolveCdnLabel(p.common_cdn_provider, p.common_served_by)

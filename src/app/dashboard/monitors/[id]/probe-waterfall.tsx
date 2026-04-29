@@ -25,6 +25,8 @@ export interface WaterfallProbe {
   age_s: number | null
   server_timing_breakdown: Record<string, number> | null
   probed_at: Date | null
+  // Optional range data for aggregated views (Global Aggregate)
+  ranges?: Record<string, { min: number; max: number } | null>
 }
 
 // ── segment palette (for legend + bars) — matches timing-metrics-palette ───
@@ -43,6 +45,15 @@ const SEGS = {
 function formatMs(value: number | null): string {
   if (value == null) return '—'
   return `${Math.round(value)}ms`
+}
+
+function formatRangeMs(range: { min: number; max: number } | null | undefined): React.ReactNode {
+  if (!range) return null
+  return (
+    <span className="text-zinc-500 ml-1 font-normal">
+      (Min: {Math.round(range.min)}ms / Max: {Math.round(range.max)}ms)
+    </span>
+  )
 }
 
 // ── main component ───────────────────────────────────────────────────────────
@@ -269,6 +280,7 @@ export function ProbeWaterfall({
                           content={
                             <span className="text-[10px] font-medium text-zinc-300">
                               Total TTFB <span className={`font-bold ${TIMING.ttfb.text}`}>{formatMs(ttfb)}</span>
+                              {formatRangeMs(probe.ranges?.ttfb_ms)}
                             </span>
                           }
                           className="!flex h-full w-full"
@@ -287,6 +299,7 @@ export function ProbeWaterfall({
                                   content={
                                     <span className="text-[10px] font-medium text-zinc-300">
                                       DNS <span className={`font-bold ${TIMING.dns.text}`}>{formatMs(dns)}</span>
+                                      {formatRangeMs(probe.ranges?.dns_ms)}
                                     </span>
                                   } 
                                   className="!flex h-full w-full"
@@ -301,6 +314,7 @@ export function ProbeWaterfall({
                                   content={
                                     <span className="text-[10px] font-medium text-zinc-300">
                                       TCP <span className={`font-bold ${TIMING.tcp.text}`}>{formatMs(tcp)}</span>
+                                      {formatRangeMs(probe.ranges?.tcp_ms)}
                                     </span>
                                   } 
                                   className="!flex h-full w-full"
@@ -315,6 +329,7 @@ export function ProbeWaterfall({
                                   content={
                                     <span className="text-[10px] font-medium text-zinc-300">
                                       TLS <span className={`font-bold ${TIMING.tls.text}`}>{formatMs(tls)}</span>
+                                      {formatRangeMs(probe.ranges?.tls_ms)}
                                     </span>
                                   } 
                                   className="!flex h-full w-full"
@@ -329,6 +344,7 @@ export function ProbeWaterfall({
                                   content={
                                     <span className="text-[10px] font-medium text-zinc-300">
                                       Edge <span className={`font-bold ${TIMING.edge.text}`}>{formatMs(edge)}</span>
+                                      {formatRangeMs(probe.ranges?.edge_ms)}
                                     </span>
                                   } 
                                   className="!flex h-full w-full"
@@ -343,6 +359,7 @@ export function ProbeWaterfall({
                                   content={
                                     <span className="text-[10px] font-medium text-zinc-300">
                                       Origin <span className={`font-bold ${TIMING.origin.text}`}>{formatMs(origin)}</span>
+                                      {formatRangeMs(probe.ranges?.origin_ms)}
                                     </span>
                                   } 
                                   className="!flex h-full w-full"
@@ -395,6 +412,7 @@ export function ProbeWaterfall({
                         content={
                           <span className="text-[10px] font-medium text-zinc-300">
                             Download <span className={`font-bold ${TIMING.download.text}`}>{formatMs(download)}</span>
+                            {formatRangeMs(probe.ranges?.download_ms)}
                           </span>
                         }
                         className="!flex h-full w-full"
