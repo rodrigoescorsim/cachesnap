@@ -252,31 +252,34 @@ export function PerformanceTable({
                           position="top-center" 
                           direction="top"
                         >
-                          <VisualGlow value={s.cache_hit_pct}>
-                            {Math.round(s.cache_hit_pct) >= 95 ? (
-                              <span className="cs-badge-cache-hit">
-                                <Zap className="h-[10px] w-[10px] shrink-0 fill-current" aria-hidden />
-                                {Math.round(s.cache_hit_pct)}%
-                              </span>
-                            ) : Math.round(s.cache_hit_pct) >= 90 ? (
-                              <span className="cs-badge-cache-hit">{Math.round(s.cache_hit_pct)}%</span>
-                            ) : Math.round(s.cache_hit_pct) >= 50 ? (
-                              <span className="cs-badge-cache-miss">{Math.round(s.cache_hit_pct)}%</span>
-                            ) : (
-                              Math.round(s.cache_hit_pct) === 0 && (!s.common_cache_status || !isCacheHit(s.common_cache_status)) ? (
-                                <span className="cs-badge-cache-not-reported">
-                                  {Math.round(s.cache_hit_pct) === 0 && (liveDominantStatus === 'DYNAMIC' || liveDominantStatus === 'BYPASS' || liveDominantStatus === 'NO HEADER') 
-                                    ? liveDominantStatus 
-                                    : getCacheDisplayLabel(s.common_cache_status)}
+                          {(() => {
+                            const isIntentional = Math.round(s.cache_hit_pct) === 0 && (!s.common_cache_status || !isCacheHit(s.common_cache_status))
+                            if (isIntentional) {
+                              const label = (liveDominantStatus === 'DYNAMIC' || liveDominantStatus === 'BYPASS' || liveDominantStatus === 'NO HEADER') 
+                                ? liveDominantStatus 
+                                : getCacheDisplayLabel(s.common_cache_status)
+                              return (
+                                <span className="text-[10px] font-black uppercase text-zinc-500/90 tabular-nums">
+                                  {label}
                                 </span>
-                              ) : (
-                                <span className="cs-badge-cache-hit-rate-low">{Math.round(s.cache_hit_pct)}%</span>
                               )
-                            )}
-                          </VisualGlow>
+                            }
+                            
+                            const tier = getCacheHitTier(s.cache_hit_pct)
+                            const textClass = 
+                              tier === 'high' ? 'text-emerald-400'
+                                : tier === 'mid' ? 'text-amber-400'
+                                  : 'text-metric-bad'
+                            
+                            return (
+                              <span className={`${textClass} text-[13px] font-black tabular-nums`}>
+                                {s.cache_hit_pct.toFixed(1)}%
+                              </span>
+                            )
+                          })()}
                         </PremiumTooltip>
                       ) : (
-                        <span className="cs-badge-cache-dash">—</span>
+                        <span className="text-zinc-600">—</span>
                       )}
                     </td>
 

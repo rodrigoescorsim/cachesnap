@@ -98,22 +98,21 @@ export function BreakdownTable({ probes, regionLabels, regionDescriptions }: Bre
                     <td className="cs-table-compact-td text-center">
                       {cacheVariant === 'hit' && (
                         <PremiumTooltip content={p.cache_status?.includes(':') ? p.cache_status.split(':')[1].trim() : 'Cache hit observed'} position="top-center" direction="top">
-                          <span className="cs-badge-cache-hit">
-                            <Zap className="h-[10px] w-[10px] fill-current" />
+                          <span className="text-emerald-400 text-[10px] font-black uppercase tracking-tight">
                             {getCacheDisplayLabel(p.cache_status)}
                           </span>
                         </PremiumTooltip>
                       )}
                       {cacheVariant === 'miss' && (
                         <PremiumTooltip content={p.cache_status?.includes(':') ? p.cache_status.split(':')[1].trim() : 'Request was cacheable but not found in edge cache'} position="top-center" direction="top">
-                          <span className="cs-badge-cache-miss">
+                          <span className="text-metric-bad text-[10px] font-black uppercase tracking-tight">
                             {getCacheDisplayLabel(p.cache_status)}
                           </span>
                         </PremiumTooltip>
                       )}
                       {cacheVariant === 'not_reported' && (
                         <PremiumTooltip content={p.cache_status?.includes(':') ? p.cache_status.split(':')[1] : (p.cache_status || 'No cache header detected')} position="top-center" direction="top">
-                          <span className="cs-badge-cache-not-reported">
+                          <span className="text-zinc-500/90 text-[10px] font-black uppercase tracking-tight">
                             {getCacheDisplayLabel(p.cache_status || 'BYPASS')}
                           </span>
                         </PremiumTooltip>

@@ -35,6 +35,7 @@ import {
   RefreshCw,
   Search,
   Trash2,
+  Globe,
 } from 'lucide-react'
 import { MonitorDeleteConfirm } from '@/app/dashboard/monitors/[id]/monitor-delete-confirm'
 import {
@@ -176,7 +177,7 @@ function cacheHitTooltipText(pct: number): string {
 
 function CacheHitBadge({ pct, status }: { pct: number | null; status: string | null }) {
   const displayLabel = getCacheDisplayLabel(status)
-  // Strictly only show gray badge for intentional categories. 
+  // Strictly only show gray text for intentional categories. 
   // If status is MISS, it must be shown as 0% (red).
   const isIntentional = isCacheBypass(status) && displayLabel !== 'MISS' && displayLabel !== 'HIT'
 
@@ -187,21 +188,27 @@ function CacheHitBadge({ pct, status }: { pct: number | null; status: string | n
         position="top-center"
         direction="top"
       >
-        <span className="cs-badge-cache-not-reported uppercase text-[10px] font-black">{displayLabel}</span>
+        <div className="flex flex-col gap-[3px]">
+          <span className="text-[10px] font-black uppercase text-zinc-500/90 tabular-nums">
+            {displayLabel}
+          </span>
+        </div>
       </PremiumTooltip>
     )
   }
   const tip = cacheHitTooltipText(pct)
-  const cls = getCacheColor(pct, 'monitor') === 'text-metric-elite' ? 'text-metric-elite' : (
-    pct >= MONITOR_CACHE.GOOD ? 'cs-badge-cache-hit'
-      : pct >= MONITOR_CACHE.LOW ? 'cs-badge-cache-dynamic'
-        : 'cs-badge-cache-miss'
+  const tier = getCacheHitTier(pct)
+  const textClass = getCacheColor(pct, 'monitor') === 'text-metric-elite' ? 'text-metric-elite' : (
+    tier === 'high' ? 'text-emerald-400'
+      : tier === 'mid' ? 'text-amber-400'
+        : 'text-metric-bad'
   )
-  const textClass = getCacheColor(pct, 'monitor') === 'text-metric-elite' ? 'text-metric-elite' : ''
 
   return (
     <PremiumTooltip content={tip} position="top-center" direction="top">
-      <span className={`${cls} ${textClass} text-[12px] font-semibold`}>{pct.toFixed(1)}%</span>
+      <span className={`${textClass} text-[13px] font-black tabular-nums leading-none`}>
+        {pct.toFixed(1)}%
+      </span>
     </PremiumTooltip>
   )
 }
@@ -470,7 +477,7 @@ const HEADER_HELP: Record<string, string> = {
   avgTtfb24h: 'Average latency over the last 24 hours (P50).',
   cacheHit: 'Percentage of requests served from the CDN in the latest check. Higher is better.',
   hit24hAvg: 'Average cache efficiency over the last 24 hours.',
-  regions: 'Latency breakdown across geographic regions. "All clear" means no slow regions.',
+  regions: 'Latency breakdown across geographic regions. "Clear" means no slow or failing regions.',
   lastCheck: 'Time elapsed since the last data update.',
 }
 
@@ -753,85 +760,64 @@ function buildMonitorColumns(
         const errorOnes = m.regions.filter((r) => r.isError)
         const slowOnes = m.regions.filter((r) => r.isSlow)
         const hasIssues = errorOnes.length > 0 || slowOnes.length > 0
+        const isNew = m.status === 'active' && m.lastCheckedAt.getTime() === 0
 
-        if (!hasIssues) {
-          const isNew = m.status === 'active' && m.lastCheckedAt.getTime() === 0
-          if (isNew) {
-            return (
-              <div className="flex items-center justify-end gap-1.5">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 transition-colors duration-150 group-hover/row:text-zinc-400">
-                  Waiting...
-                </span>
-                <span className="h-1.5 w-1.5 rounded-full bg-sky-500/40 ring-1 ring-sky-500/20 animate-pulse" />
-              </div>
-            )
-          }
+        if (isNew) {
           return (
             <div className="flex items-center justify-end gap-1.5">
               <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 transition-colors duration-150 group-hover/row:text-zinc-400">
-                All clear
+                Waiting...
               </span>
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/40 ring-1 ring-emerald-500/20" />
+              <span className="h-1.5 w-1.5 rounded-full bg-sky-500/40 ring-1 ring-sky-500/20 animate-pulse" />
             </div>
           )
         }
 
-        // Error regions take priority (red), then slow regions (amber).
-        // Cap combined visible badges to avoid overflow.
-        const MAX_VISIBLE = 2
-        const errorVisible = errorOnes.slice(0, MAX_VISIBLE)
-        const remainingSlots = MAX_VISIBLE - errorVisible.length
-        const slowVisible = slowOnes.slice(0, remainingSlots)
-        const hiddenErrors = errorOnes.length - errorVisible.length
-        const hiddenSlow = slowOnes.length - slowVisible.length
-        const hiddenCount = hiddenErrors + hiddenSlow
-        const hiddenLabels = [
-          ...errorOnes.slice(errorVisible.length).map((r) => `${r.label} (error)`),
-          ...slowOnes.slice(slowVisible.length).map((r) => `${r.label} (slow)`),
-        ].join(', ')
-
         return (
-          <div className="flex flex-wrap items-center justify-end gap-1">
-            {errorVisible.map((r) => (
-              <PremiumTooltip
-                key={r.code}
-                content={`${r.label}: Connection failed — site unreachable from this region.`}
-                position="top-center"
-                direction="top"
-              >
-                <span className="cs-badge cs-badge-danger !px-1 !py-[1px] !text-[8px]">
-                  {r.flag} {r.label}
-                </span>
-              </PremiumTooltip>
-            ))}
-            {slowVisible.map((r) => (
-              <PremiumTooltip
-                key={r.code}
-                content={`${r.label}: TTFB is above the threshold in this region.`}
-                position="top-center"
-                direction="top"
-              >
-                <span className="cs-badge cs-badge-warning !px-1 !py-[1px] !text-[8px]">
-                  {r.flag} {r.label}
-                </span>
-              </PremiumTooltip>
-            ))}
-            {hiddenCount > 0 && (
-              <PremiumTooltip
-                content={hiddenLabels}
-                position="top-center"
-                direction="top"
-              >
-                <span className="cs-badge cs-badge-warning !px-1 !py-[1px] !text-[8px] cursor-help">
-                  +{hiddenCount}
-                </span>
-              </PremiumTooltip>
-            )}
-            <span className="text-[9px] font-semibold tabular-nums text-zinc-500">
-              {errorOnes.length > 0
-                ? `${errorOnes.length + slowOnes.length}/${m.totalRegionCount}`
-                : `${m.slowRegionCount}/${m.totalRegionCount}`}
-            </span>
+          <div className="flex flex-col gap-1 pl-4">
+            <div className="flex items-center gap-1.5">
+              <Globe className={`h-3 w-3 ${hasIssues ? (errorOnes.length > 0 ? 'text-red-400/50' : 'text-amber-400/50') : 'text-emerald-500/40'}`} />
+              <span className={`text-[11px] font-black uppercase tracking-tight ${hasIssues ? (errorOnes.length > 0 ? 'text-red-400' : 'text-amber-400') : 'text-zinc-400 group-hover/row:text-zinc-300'}`}>
+                {hasIssues 
+                  ? (errorOnes.length > 0 ? `${errorOnes.length} FAILING` : `${slowOnes.length} SLOW`) 
+                  : '8 REGIONS OK'}
+              </span>
+            </div>
+
+            {/* Segmented health strip: Using a visible 'track' to prevent the choppy/broken look */}
+            <div className="flex items-center gap-[2px] pl-[18px]">
+              {m.regions.map((r) => {
+                const status = r.isError ? 'error' : r.isSlow ? 'slow' : 'healthy'
+                const bgColor = status === 'error' ? '#f43f5e' : status === 'slow' ? '#F59E0B' : '#22FF88'
+
+                return (
+                  <PremiumTooltip
+                    key={r.code}
+                    content={
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-sm shrink-0">{r.flag}</span>
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-black uppercase tracking-tight text-[11px] leading-tight text-white">{r.label}</span>
+                          <span className="text-[10px] text-zinc-400 font-semibold leading-tight">
+                            {status === 'error' ? 'Connection failed' : status === 'slow' ? 'Slow latency' : 'Healthy performance'}
+                          </span>
+                        </div>
+                      </div>
+                    }
+                    position="top-center"
+                  >
+                    <div
+                      className="h-2 w-3 rounded-[1px] transition-all duration-300"
+                      style={{
+                        backgroundColor: bgColor,
+                        opacity: status === 'healthy' ? 0.4 : 1,
+                        boxShadow: status === 'error' ? '0 0 12px rgba(244, 63, 94, 0.5)' : status === 'slow' ? '0 0 12px rgba(245, 158, 11, 0.3)' : 'none'
+                      }}
+                    />
+                  </PremiumTooltip>
+                )
+              })}
+            </div>
           </div>
         )
       },
@@ -1013,8 +999,7 @@ export function MonitorsTable({
               <tr key={hg.id} className={MONITOR_TABLE.theadRow}>
                 {hg.headers.map((header) => {
                   const canSort = header.column.getCanSort()
-                  const isRightAligned =
-                    header.column.id === 'lastCheckedAt' || header.column.id === 'slowRegionCount'
+                  const isRightAligned = header.column.id === 'lastCheckedAt'
                   return (
                     <th
                       key={header.id}
@@ -1031,7 +1016,7 @@ export function MonitorsTable({
                         'cs-table-compact-th !py-3 !text-[9px] !font-black !tracking-[0.12em] !text-zinc-500',
                         'select-none whitespace-nowrap transition-colors duration-150',
                         canSort ? 'cursor-pointer hover:text-zinc-300' : '',
-                        isRightAligned ? 'text-right' : '',
+                        isRightAligned ? 'text-right pr-4' : 'pl-4',
                         header.column.getIsSorted() ? '!text-zinc-300' : '',
                       ]
                         .filter(Boolean)
