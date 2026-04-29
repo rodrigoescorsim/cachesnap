@@ -1345,7 +1345,7 @@ export default async function MonitorDetailPage({
               {activeView === 'performance' && (
                 <div className="space-y-6">
                   <section className="space-y-4">
-                    <ViewSectionHeader title="Period Performance">
+                    <ViewSectionHeader title={`Period Performance (${range})`}>
                       <div className="flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 dark:bg-white/5 px-1.5 border border-zinc-200 dark:border-white/10">
                         {['24h', '7d', '30d'].map((r) => (
                           <Link

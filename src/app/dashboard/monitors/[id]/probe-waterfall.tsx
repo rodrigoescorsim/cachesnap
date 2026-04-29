@@ -61,10 +61,7 @@ export function WaterfallLegend({ maxTotal }: { maxTotal: number }) {
                 className="flex items-center gap-1.5 text-[9px] font-medium text-zinc-500 dark:text-zinc-400"
               >
                 <span className={`h-2.5 w-2.5 shrink-0 rounded shadow-sm ring-1 ring-inset ring-black/5 dark:ring-white/10 ${seg.bg}`} />
-                <span className="inline-flex items-center gap-0">
-                  {seg.label}
-                  <TtfbLegendHelp />
-                </span>
+                <span>{seg.label}</span>
                 <span className={`h-2.5 w-2.5 shrink-0 rounded shadow-sm ring-1 ring-inset ring-black/5 dark:ring-white/10 ${dl.bg}`} />
                 {dl.label}
               </span>
