@@ -238,7 +238,13 @@ export function PerformanceTable({ stats, regionLabels, regionDescriptions, glob
                     </td>
                     <td className="cs-table-compact-td text-center">
                       {s.cache_hit_pct != null ? (
-                        <PremiumTooltip content={`${s.cache_hit_pct}% of requests were served from edge cache`} position="top-center" direction="top">
+                        <PremiumTooltip 
+                          content={Math.round(s.cache_hit_pct) === 0 && (!s.common_cache_status || s.common_cache_status.toUpperCase().includes('BYPASS')) 
+                            ? 'Bypass or No Cache: Requests fetched directly from origin' 
+                            : `${s.cache_hit_pct}% of requests were served from edge cache`} 
+                          position="top-center" 
+                          direction="top"
+                        >
                           <VisualGlow value={s.cache_hit_pct}>
                             {Math.round(s.cache_hit_pct) >= 95 ? (
                               <span className="cs-badge-cache-hit">
@@ -250,7 +256,11 @@ export function PerformanceTable({ stats, regionLabels, regionDescriptions, glob
                             ) : Math.round(s.cache_hit_pct) >= 50 ? (
                               <span className="cs-badge-cache-miss">{Math.round(s.cache_hit_pct)}%</span>
                             ) : (
-                              <span className="cs-badge-cache-hit-rate-low">{Math.round(s.cache_hit_pct)}%</span>
+                              Math.round(s.cache_hit_pct) === 0 && (!s.common_cache_status || s.common_cache_status.toUpperCase().includes('BYPASS')) ? (
+                                <span className="cs-badge-cache-not-reported">BYPASS</span>
+                              ) : (
+                                <span className="cs-badge-cache-hit-rate-low">{Math.round(s.cache_hit_pct)}%</span>
+                              )
                             )}
                           </VisualGlow>
                         </PremiumTooltip>
@@ -320,7 +330,7 @@ export function PerformanceTable({ stats, regionLabels, regionDescriptions, glob
                             return (
                               <PremiumTooltip content={`${regionLabels[s.region] ?? s.region} is ${absDiff.toFixed(1)}% ${diff < 0 ? 'faster' : 'slower'} than the global average (${globalAvgTtfb}ms)`}>
                                 <span className={`text-[12px] font-black tabular-nums ${colorClass}`}>
-                                  {absDiff < 1 ? '—' : `${sign}${Math.round(absDiff)}%`}
+                                  {`${sign}${Math.round(absDiff)}%`}
                                 </span>
                               </PremiumTooltip>
                             )

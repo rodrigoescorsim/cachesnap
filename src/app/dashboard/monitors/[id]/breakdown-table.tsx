@@ -100,15 +100,23 @@ export function BreakdownTable({ probes, regionLabels, regionDescriptions }: Bre
                     </td>
                     <td className="cs-table-compact-td text-center">
                       {cacheVariant === 'hit' && (
-                        <span className="cs-badge-cache-hit">
-                          <Zap className="h-[10px] w-[10px] fill-current" />
-                          {p.cache_status}
-                        </span>
+                        <PremiumTooltip content="Cache hit observed" position="top-center" direction="top">
+                          <span className="cs-badge-cache-hit">
+                            <Zap className="h-[10px] w-[10px] fill-current" />
+                            {p.cache_status}
+                          </span>
+                        </PremiumTooltip>
                       )}
-                      {cacheVariant === 'miss' && <span className="cs-badge-cache-miss">{p.cache_status}</span>}
-                      {cacheVariant === 'bypass' && <span className="cs-badge-cache-bypass">BYPASS</span>}
-                      {cacheVariant === 'dynamic' && <span className="cs-badge-cache-dynamic">DYNAMIC</span>}
-                      {cacheVariant === 'not_reported' && <span className="cs-badge-cache-not-reported">NONE</span>}
+                      {cacheVariant === 'miss' && (
+                        <PremiumTooltip content="Cacheable but not found in edge cache" position="top-center" direction="top">
+                          <span className="cs-badge-cache-miss">MISS</span>
+                        </PremiumTooltip>
+                      )}
+                      {cacheVariant !== 'hit' && cacheVariant !== 'miss' && (
+                        <PremiumTooltip content={p.cache_status?.includes(':') ? p.cache_status.split(':')[1] : (p.cache_status || 'No cache header detected')} position="top-center" direction="top">
+                          <span className="cs-badge-cache-not-reported">BYPASS</span>
+                        </PremiumTooltip>
+                      )}
                     </td>
                     <td className={`${ttfbMetricCellClass(p.ttfb_ms)} !px-3 !py-2 text-[13px] text-center`}>
                       <VisualGlow value={p.ttfb_ms}>

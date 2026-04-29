@@ -455,10 +455,16 @@ function headRequest(targetUrl) {
 function readCacheStatus(headers) {
   const providers = [
     'x-vercel-cache',     // Vercel
-    'x-cache',            // CloudFront / Fastly
+    'cf-cache-status',    // Cloudflare
+    'cache-status',       // RFC 9213 (Netlify, Fastly)
+    'x-cache',            // CloudFront / Fastly / Akamai / Bunny
     'x-cache-status',     // Nginx / Wikipedia
-    'cache-status',       // Netlify / General
-    'cf-cache-status',    // Cloudflare (last — often DYNAMIC on proxied requests)
+    'x-goog-cache-status', // Google Cloud
+    'x-ms-cache-status',  // Azure
+    'x-proxy-cache',      // Nginx Proxy
+    'x-ls-cache',         // LiteSpeed
+    'x-sucuri-cache',     // Sucuri
+    'x-gw-cache'          // GCore
   ];
 
   for (const header of providers) {
@@ -471,19 +477,36 @@ function readCacheStatus(headers) {
         return 'HIT';
       }
       
-      // 2. Precise MISS/BYPASS detection
-      if (upper.includes('MISS') || upper.includes('EXPIRED') || upper.includes('BYPASS') || upper.includes('DYNAMIC')) {
+      // 2. Precise BYPASS/DYNAMIC detection (Intentional origin fetch)
+      // Includes PASS (Varnish/Fastly), NO-CACHE (Azure), UNCALCULABLE (Akamai)
+      if (
+        upper.includes('BYPASS') || 
+        upper.includes('DYNAMIC') || 
+        upper.includes('PASS') || 
+        upper.includes('NONE') || 
+        upper.includes('NO-CACHE') || 
+        upper.includes('UNCALCULABLE')
+      ) {
+        const providerName = 
+          header.includes('cf') ? 'Cloudflare' : 
+          header.includes('vercel') ? 'Vercel' : 
+          header.includes('goog') ? 'Google' : 
+          header.includes('ms-') ? 'Azure' : 'Edge';
+        return `BYPASS:${providerName} ${upper}`;
+      }
+
+      // 3. Precise MISS detection (Failure to fetch from cache)
+      if (upper.includes('MISS') || upper.includes('EXPIRED')) {
         return 'MISS';
       }
       
-      // 3. Wikipedia PoP code detection (e.g. "CP5020 INT")
-      // These codes represent PoP identifiers without a clear HIT signal.
+      // 4. Wikipedia/Custom PoP code detection (e.g. "CP5020 INT")
       if (upper.startsWith('CP') && (upper.includes('INT') || upper.includes(' ') || upper.length < 15)) {
         return 'MISS';
       }
 
-      // 4. Default: return the first 10 characters for other custom headers
-      return upper.slice(0, 10).trim();
+      // 5. Default: return the first 15 characters for other custom headers
+      return upper.slice(0, 15).trim();
     }
   }
 

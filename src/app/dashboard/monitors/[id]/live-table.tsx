@@ -213,20 +213,26 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                       )}
                     </td>
                     <td className="cs-table-compact-td text-center">
-                      <PremiumTooltip content={isCacheHitStatus ? 'Cache hit observed' : 'Cache miss or bypass'} position="top-center" direction="top">
-                        {isCacheHitStatus && (
+                      {isCacheHitStatus ? (
+                        <PremiumTooltip content="Cache hit observed" position="top-center" direction="top">
                           <span className="cs-badge-cache-hit">
                             <Zap className="h-[10px] w-[10px] fill-current" />
                             {p.common_cache_status}
                           </span>
-                        )}
-                        {normalizedStatus === 'MISS' && <span className="cs-badge-cache-miss">MISS</span>}
-                        {normalizedStatus === 'BYPASS' && <span className="cs-badge-cache-bypass">BYPASS</span>}
-                        {normalizedStatus === 'DYNAMIC' && <span className="cs-badge-cache-dynamic">DYNAMIC</span>}
-                        {!isCacheHitStatus && normalizedStatus !== 'MISS' && normalizedStatus !== 'BYPASS' && normalizedStatus !== 'DYNAMIC' && (
-                          <span className="cs-badge-cache-not-reported">NONE</span>
-                        )}
-                      </PremiumTooltip>
+                        </PremiumTooltip>
+                      ) : normalizedStatus === 'MISS' ? (
+                        <PremiumTooltip content="Request was cacheable but not found in edge cache" position="top-center" direction="top">
+                          <span className="cs-badge-cache-miss">MISS</span>
+                        </PremiumTooltip>
+                      ) : normalizedStatus?.startsWith('BYPASS:') ? (
+                        <PremiumTooltip content={p.common_cache_status?.split(':')[1] ?? 'Bypassed edge cache'} position="top-center" direction="top">
+                          <span className="cs-badge-cache-not-reported">BYPASS</span>
+                        </PremiumTooltip>
+                      ) : (
+                        <PremiumTooltip content={p.common_cache_status?.includes(':') ? p.common_cache_status.split(':')[1] : (p.common_cache_status || 'No cache header detected')} position="top-center" direction="top">
+                          <span className="cs-badge-cache-not-reported">BYPASS</span>
+                        </PremiumTooltip>
+                      )}
                     </td>
                     <td className={`${isError ? 'cs-table-compact-td' : ttfbMetricCellClass(p.ttfb_ms)} !px-3 !py-2 text-[13px] text-center`}>
                       {isError ? (
