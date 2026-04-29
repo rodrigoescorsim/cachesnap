@@ -47,6 +47,7 @@ interface LiveTableProps {
   probes: LiveProbe[]
   regionLabels: Record<string, string>
   regionDescriptions: Record<string, string>
+  globalAvgTtfb: number
 }
 
 // --- Internal Helpers (replicated from page.tsx for fidelity) ---
@@ -82,15 +83,31 @@ function getSyncStatus(lastProbeAt: Date | null): { colorClass: string; tooltip:
   return { colorClass: 'text-zinc-500', tooltip: `Probe synchronized at ${date.toLocaleString()}`, text: timeText }
 }
 
-export function LiveTable({ probes, regionLabels, regionDescriptions }: LiveTableProps) {
+export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgTtfb }: LiveTableProps) {
   const [expandedRegions, setExpandedRegions] = useState<Record<string, boolean>>({})
 
   const toggleRegion = (region: string, e: React.MouseEvent) => {
-    e.stopPropagation()
+    // If the click was on a link or button, don't toggle
+    if ((e.target as HTMLElement).closest('a, button')) return
+
     setExpandedRegions(prev => ({
       ...prev,
       [region]: !prev[region]
     }))
+  }
+
+  const isAllExpanded = probes.length > 0 && probes.every(p => expandedRegions[p.region])
+
+  const toggleAll = () => {
+    if (isAllExpanded) {
+      setExpandedRegions({})
+    } else {
+      const all: Record<string, boolean> = {}
+      probes.forEach(p => {
+        all[p.region] = true
+      })
+      setExpandedRegions(all)
+    }
   }
 
   const sortedProbes = [...probes].sort((a, b) => {
@@ -106,7 +123,17 @@ export function LiveTable({ probes, regionLabels, regionDescriptions }: LiveTabl
         <table className={`${MONITOR_TABLE.tableBase} ${MONITOR_TABLE.transition} ${MONITOR_TABLE.tableDense}`}>
           <thead>
             <tr className={MONITOR_TABLE.theadRow}>
-              <th className="cs-table-compact-th w-8"></th>
+              <th className="w-8 px-2 py-2">
+                <PremiumTooltip content={isAllExpanded ? "Collapse all regions" : "Expand all regions"} position="top-center">
+                  <button
+                    onClick={toggleAll}
+                    className="flex items-center justify-center w-full h-full text-zinc-500 hover:text-zinc-300 transition-colors"
+                    aria-label={isAllExpanded ? "Collapse all" : "Expand all"}
+                  >
+                    {isAllExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                  </button>
+                </PremiumTooltip>
+              </th>
               <th className="cs-table-compact-th !text-center">
                 <PremiumTooltip content="Geographic region" position="top-center" direction="top">Region</PremiumTooltip>
               </th>
@@ -121,6 +148,9 @@ export function LiveTable({ probes, regionLabels, regionDescriptions }: LiveTabl
               </th>
               <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER}`}>
                 <PremiumTooltip content="Time to first byte" position="top-center" direction="top">TTFB</PremiumTooltip>
+              </th>
+              <th className="cs-table-compact-th !text-center">
+                <PremiumTooltip content="Performance compared to the live global average" position="top-center" direction="top">vs Global</PremiumTooltip>
               </th>
               <th className="cs-table-compact-th !text-center">
                 <PremiumTooltip content="Cache age (seconds)" position="top-center" direction="top">Age</PremiumTooltip>
@@ -211,6 +241,24 @@ export function LiveTable({ probes, regionLabels, regionDescriptions }: LiveTabl
                         </VisualGlow>
                       )}
                     </td>
+                    <td className="cs-table-compact-td-mono text-center">
+                      {!isError && p.ttfb_ms && globalAvgTtfb > 0 ? (() => {
+                        const diff = ((p.ttfb_ms - globalAvgTtfb) / globalAvgTtfb) * 100
+                        const absDiff = Math.abs(diff)
+                        
+                        // Up to +5% is considered "good/green"
+                        const colorClass = diff <= 5 ? 'text-emerald-400' : diff > 50 ? 'text-rose-400' : 'text-amber-400'
+                        const sign = diff >= 0 ? '+' : '-'
+                        
+                        return (
+                          <PremiumTooltip content={`${regionLabels[p.region] ?? p.region} is currently ${absDiff.toFixed(1)}% ${diff < 0 ? 'faster' : 'slower'} than the live global average (${globalAvgTtfb}ms)`}>
+                            <span className={`text-[12px] font-black tabular-nums ${colorClass}`}>
+                              {`${sign}${Math.round(absDiff)}%`}
+                            </span>
+                          </PremiumTooltip>
+                        )
+                      })() : <span className="text-zinc-600">—</span>}
+                    </td>
                     <td className="cs-table-compact-td text-right">
                       {age > 0 && ageVisual ? (
                         <PremiumTooltip content={ageVisual.tierHint} position="top-right" direction="top">
@@ -248,7 +296,7 @@ export function LiveTable({ probes, regionLabels, regionDescriptions }: LiveTabl
                   </tr>
                   {isExpanded && (
                     <tr>
-                      <td colSpan={9} className="bg-black/20 px-4 py-3 border-b border-white/[0.05]">
+                      <td colSpan={10} className="bg-black/20 px-4 py-3 border-b border-white/[0.05]">
                         <div className="animate-[cs-fade-in_0.3s_ease-out]">
                           <ProbeWaterfall
                             probes={[{

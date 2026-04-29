@@ -51,6 +51,7 @@ interface PerformanceTableProps {
   stats: RegionStat[]
   regionLabels: Record<string, string>
   regionDescriptions: Record<string, string>
+  globalAvgTtfb: number
 }
 
 const TOOLTIP_EDGE_DATA_UNAVAILABLE = 'Data not available yet'
@@ -67,7 +68,7 @@ export function regionRowCdnLabelTrimmed(
   return (resolveCdnLabel(provider, servedBy) ?? '').trim()
 }
 
-export function PerformanceTable({ stats, regionLabels, regionDescriptions }: PerformanceTableProps) {
+export function PerformanceTable({ stats, regionLabels, regionDescriptions, globalAvgTtfb }: PerformanceTableProps) {
   const [expandedRegions, setExpandedRegions] = useState<Record<string, boolean>>({})
 
   const toggleRegion = (region: string, e: React.MouseEvent) => {
@@ -78,6 +79,20 @@ export function PerformanceTable({ stats, regionLabels, regionDescriptions }: Pe
       ...prev,
       [region]: !prev[region]
     }))
+  }
+
+  const isAllExpanded = stats.length > 0 && stats.every(s => expandedRegions[s.region])
+
+  const toggleAll = () => {
+    if (isAllExpanded) {
+      setExpandedRegions({})
+    } else {
+      const all: Record<string, boolean> = {}
+      stats.forEach(s => {
+        all[s.region] = true
+      })
+      setExpandedRegions(all)
+    }
   }
 
   const hasEdgeData = stats.some(s => s.edge_hit_avg_ms !== null)
@@ -97,7 +112,17 @@ export function PerformanceTable({ stats, regionLabels, regionDescriptions }: Pe
         <table className={`${MONITOR_TABLE.tableBase} ${MONITOR_TABLE.transition} ${MONITOR_TABLE.tableDense}`}>
           <thead>
             <tr className={MONITOR_TABLE.theadRow}>
-              <th className="w-8 px-2 py-2"></th>
+              <th className="w-8 px-2 py-2">
+                <PremiumTooltip content={isAllExpanded ? "Collapse all regions" : "Expand all regions"} position="top-center">
+                  <button
+                    onClick={toggleAll}
+                    className="flex items-center justify-center w-full h-full text-zinc-500 hover:text-zinc-300 transition-colors"
+                    aria-label={isAllExpanded ? "Collapse all" : "Expand all"}
+                  >
+                    {isAllExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                  </button>
+                </PremiumTooltip>
+              </th>
               <th className="cs-table-compact-th !text-left pl-0">
                 <PremiumTooltip content="Geographic region" position="top-center" direction="top">Region</PremiumTooltip>
               </th>
@@ -121,11 +146,19 @@ export function PerformanceTable({ stats, regionLabels, regionDescriptions }: Pe
                   <th className={`cs-table-compact-th !text-center border-l border-white/5 ${TH_TTFB_HEADER}`}>
                     <PremiumTooltip content="Average latency" position="top-center" direction="top">Avg TTFB</PremiumTooltip>
                   </th>
+                  <th className="cs-table-compact-th !text-center">
+                    <PremiumTooltip content="Performance compared to the global average" position="top-center" direction="top">vs Global</PremiumTooltip>
+                  </th>
                 </>
               ) : (
-                <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER}`}>
-                  <PremiumTooltip content="Average latency" position="top-center" direction="top">Avg TTFB</PremiumTooltip>
-                </th>
+                <>
+                  <th className={`cs-table-compact-th !text-center ${TH_TTFB_HEADER}`}>
+                    <PremiumTooltip content="Average latency" position="top-center" direction="top">Avg TTFB</PremiumTooltip>
+                  </th>
+                  <th className="cs-table-compact-th !text-center">
+                    <PremiumTooltip content="Performance compared to the global average" position="top-center" direction="top">vs Global</PremiumTooltip>
+                  </th>
+                </>
               )}
               <th className="cs-table-compact-th !text-center whitespace-nowrap">
                 <PremiumTooltip content="Minimum and maximum latency" position="top-center" direction="top">Min / Max</PremiumTooltip>
@@ -249,13 +282,51 @@ export function PerformanceTable({ stats, regionLabels, regionDescriptions }: Pe
                             </VisualGlow>
                           </PremiumTooltip>
                         </td>
+                        <td className="cs-table-compact-td-mono text-center">
+                          {s.ttfb_avg_ms && globalAvgTtfb > 0 ? (() => {
+                            const diff = ((s.ttfb_avg_ms - globalAvgTtfb) / globalAvgTtfb) * 100
+                            const absDiff = Math.abs(diff)
+                            
+                            // Up to +5% is considered "good/green"
+                            const colorClass = diff <= 5 ? 'text-emerald-400' : diff > 50 ? 'text-rose-400' : 'text-amber-400'
+                            const sign = diff >= 0 ? '+' : '-'
+                            
+                            return (
+                              <PremiumTooltip content={`${regionLabels[s.region] ?? s.region} is ${absDiff.toFixed(1)}% ${diff < 0 ? 'faster' : 'slower'} than the global average (${globalAvgTtfb}ms)`}>
+                                <span className={`text-[12px] font-black tabular-nums ${colorClass}`}>
+                                  {`${sign}${Math.round(absDiff)}%`}
+                                </span>
+                              </PremiumTooltip>
+                            )
+                          })() : <span className="text-zinc-600">—</span>}
+                        </td>
                       </>
                     ) : (
-                      <td className={`${ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2`}>
-                        <VisualGlow value={s.ttfb_avg_ms}>
-                          {s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}
-                        </VisualGlow>
-                      </td>
+                      <>
+                        <td className={`${ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2`}>
+                          <VisualGlow value={s.ttfb_avg_ms}>
+                            {s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}
+                          </VisualGlow>
+                        </td>
+                        <td className="cs-table-compact-td-mono text-center">
+                          {s.ttfb_avg_ms && globalAvgTtfb > 0 ? (() => {
+                            const diff = ((s.ttfb_avg_ms - globalAvgTtfb) / globalAvgTtfb) * 100
+                            const absDiff = Math.abs(diff)
+                            
+                            // Up to +5% is considered "good/green"
+                            const colorClass = diff <= 5 ? 'text-emerald-400' : diff > 50 ? 'text-rose-400' : 'text-amber-400'
+                            const sign = diff >= 0 ? '+' : '-'
+                            
+                            return (
+                              <PremiumTooltip content={`${regionLabels[s.region] ?? s.region} is ${absDiff.toFixed(1)}% ${diff < 0 ? 'faster' : 'slower'} than the global average (${globalAvgTtfb}ms)`}>
+                                <span className={`text-[12px] font-black tabular-nums ${colorClass}`}>
+                                  {absDiff < 1 ? '—' : `${sign}${Math.round(absDiff)}%`}
+                                </span>
+                              </PremiumTooltip>
+                            )
+                          })() : <span className="text-zinc-600">—</span>}
+                        </td>
+                      </>
                     )}
 
                     <td className="cs-table-compact-td-mono text-right text-zinc-400">
@@ -279,7 +350,7 @@ export function PerformanceTable({ stats, regionLabels, regionDescriptions }: Pe
                   </tr>
                   {isExpanded && (
                     <tr>
-                      <td colSpan={showSplitTtfb ? 10 : 8} className="bg-black/20 px-4 py-4 border-b border-white/[0.05]">
+                      <td colSpan={showSplitTtfb ? 11 : 9} className="bg-black/20 px-4 py-4 border-b border-white/[0.05]">
                         <div className="animate-[cs-fade-in_0.3s_ease-out]">
                           <ProbeWaterfall
                             probes={[waterfallProbe]}

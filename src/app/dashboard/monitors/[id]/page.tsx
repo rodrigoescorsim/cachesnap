@@ -1434,6 +1434,7 @@ export default async function MonitorDetailPage({
                         probes={latestProbes}
                         regionLabels={regionLabels}
                         regionDescriptions={regionDescriptions}
+                        globalAvgTtfb={liveAvgTtfb}
                       />
                     ) : (
                       <div className="cs-card cs-card-glass min-h-[200px] flex flex-col items-center justify-center p-8 text-center animate-pulse">
@@ -1552,6 +1553,7 @@ export default async function MonitorDetailPage({
                         stats={stats}
                         regionLabels={regionLabels}
                         regionDescriptions={regionDescriptions}
+                        globalAvgTtfb={avgTtfb}
                       />
                     )}
                   </section>
