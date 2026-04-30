@@ -39,7 +39,7 @@ describe('cache-utils', () => {
       expect(isCacheHit('HIT')).toBe(true)
       expect(isCacheHit('STALE')).toBe(true)
       expect(isCacheHit('REFRESH_HIT')).toBe(true)
-      expect(isCacheHit('cloudflare HIT')).toBe(true)
+      expect(isCacheHit('HIT:cloudflare HIT')).toBe(true)
     })
 
     it('should return false for MISS or BYPASS', () => {
