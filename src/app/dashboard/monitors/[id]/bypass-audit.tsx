@@ -194,10 +194,10 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
 
   const badge = formatAuditBadge(readiness)
   const readinessState = resolveReadinessState(readiness)
-  const globalEmptyState = globalImpactEmptyStateCopy(readinessState, period)
 
   const [period, setPeriod] = useState<'1H' | '4H' | '24H' | '7D' | '30D'>('24H')
   const periods = ['1H', '4H', '24H', '7D', '30D'] as const
+  const globalEmptyState = globalImpactEmptyStateCopy(readinessState, period)
 
   const filteredData = useMemo(() => {
     const now = new Date()
