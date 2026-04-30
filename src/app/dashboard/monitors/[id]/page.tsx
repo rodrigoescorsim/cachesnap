@@ -1409,8 +1409,8 @@ export default async function MonitorDetailPage({
                                   <div className="flex items-center gap-2">
                                     <div className="flex items-baseline gap-0.5">
                                       {isCurrentlyWafBlocked && <ShieldAlert className="h-5 w-5 text-orange-400 mr-2" />}
-                                      <span className={`text-[26px] font-black tracking-tight leading-none ${isCurrentlyWafBlocked ? 'text-zinc-500' : getTtfbColorClass(currentGlobalTtfb, 'global')}`}>{currentGlobalTtfb}</span>
-                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${isCurrentlyWafBlocked ? 'text-zinc-500' : getTtfbColorClass(currentGlobalTtfb, 'global')}`}>ms</span>
+                                      <span className={`text-[26px] font-black tracking-tight leading-none ${isCurrentlyWafBlocked ? '!text-zinc-500' : getTtfbColorClass(currentGlobalTtfb, 'global')}`}>{currentGlobalTtfb}</span>
+                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${isCurrentlyWafBlocked ? '!text-zinc-500' : getTtfbColorClass(currentGlobalTtfb, 'global')}`}>ms</span>
                                     </div>
                                     <Gauge className={`h-5 w-5 stroke-[2.5] ${isCurrentlyWafBlocked ? 'text-zinc-500 opacity-50' : getTtfbColorClass(currentGlobalTtfb, 'global')}`} />
                                   </div>
