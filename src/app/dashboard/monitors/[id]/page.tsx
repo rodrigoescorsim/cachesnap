@@ -1394,14 +1394,12 @@ export default async function MonitorDetailPage({
                                   <p className="cs-metric-card-label !text-[11px]">Global TTFB</p>
                                 </PremiumTooltip>
                                 <PremiumTooltip content={validLiveTtfb.length === 0 ? 'No data available' : (isLiveGlobalWafBlocked ? 'WAF Interception: This latency reflects security filtering, not actual page load.' : getTtfbTooltip(liveAvgTtfb, 'global'))}>
-                                  <div className="flex items-center gap-2">
                                     <div className="flex items-baseline gap-0.5">
-                                      {isLiveGlobalWafBlocked && <ShieldAlert className="h-4 w-4 text-orange-400 mr-1" />}
-                                      <span className={`text-[26px] font-black tracking-tight leading-none ${isLiveGlobalWafBlocked ? 'text-orange-400' : getTtfbColorClass(liveAvgTtfb, 'global')}`}>{liveAvgTtfb}</span>
-                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${isLiveGlobalWafBlocked ? 'text-orange-400' : getTtfbColorClass(liveAvgTtfb, 'global')}`}>ms</span>
+                                      {isLiveGlobalWafBlocked && <ShieldAlert className="h-5 w-5 text-orange-400 mr-2" />}
+                                      <span className={`text-[26px] font-black tracking-tight leading-none ${isLiveGlobalWafBlocked ? 'text-zinc-500' : getTtfbColorClass(liveAvgTtfb, 'global')}`}>{liveAvgTtfb}</span>
+                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${isLiveGlobalWafBlocked ? 'text-zinc-500' : getTtfbColorClass(liveAvgTtfb, 'global')}`}>ms</span>
                                     </div>
-                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${isLiveGlobalWafBlocked ? 'text-orange-400' : getTtfbColorClass(liveAvgTtfb, 'global')}`} />
-                                  </div>
+                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${isLiveGlobalWafBlocked ? 'text-zinc-500 opacity-50' : getTtfbColorClass(liveAvgTtfb, 'global')}`} />
                                 </PremiumTooltip>
                               </div>
                             </Link>

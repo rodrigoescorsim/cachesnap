@@ -181,6 +181,7 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
               const sync = getSyncStatus(p.last_probe_at)
               const hops = Number(p.redirect_count ?? 0)
               const isStatusErr = isError || (p.status_code != null && p.status_code >= 400)
+              const isWafBlock = p.status_code === 401 || p.status_code === 403
               const statusColorClass = p.status_code != null && p.status_code < 400 ? 'cs-badge-flat-success' : 'cs-badge-flat-danger'
 
               return (
@@ -255,7 +256,7 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                         )
                       })()}
                     </td>
-                    <td className={`${isError ? 'cs-table-compact-td' : ttfbMetricCellClass(p.ttfb_ms)} !px-3 !py-2 text-[13px] text-center`}>
+                    <td className={`${isError ? 'cs-table-compact-td' : ttfbMetricCellClass(p.ttfb_ms)} !px-3 !py-2 text-[13px] text-center ${isWafBlock ? '!text-zinc-500' : ''}`}>
                       {isError ? (
                         <PremiumTooltip content={p.error ?? 'Connection error'} position="top-right" direction="top">
                           <span className="block max-w-[140px] truncate text-[10px] font-bold leading-tight text-red-400">
@@ -263,9 +264,11 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                           </span>
                         </PremiumTooltip>
                       ) : (
-                        <VisualGlow value={p.ttfb_ms}>
-                          {p.ttfb_ms != null ? `${Math.round(p.ttfb_ms)}ms` : '—'}
-                        </VisualGlow>
+                        <div className="flex items-center justify-center">
+                          <VisualGlow value={isWafBlock ? null : p.ttfb_ms}>
+                            {p.ttfb_ms != null ? `${Math.round(p.ttfb_ms)}ms` : '—'}
+                          </VisualGlow>
+                        </div>
                       )}
                     </td>
                     <td className="cs-table-compact-td-mono text-center">
@@ -306,9 +309,9 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                         )}
                         {isStatusErr ? (
                           <div className="flex items-center gap-1.5">
-                            {(p.status_code === 401 || p.status_code === 403) && (
+                             {(p.status_code === 401 || p.status_code === 403) && (
                               <PremiumTooltip content="WAF Detected: This site may be blocking automated requests from data centers in this region." position="top-right" direction="top">
-                                <ShieldAlert className="w-3 h-3 text-orange-400" />
+                                <ShieldAlert className="w-4 h-4 text-orange-400" />
                               </PremiumTooltip>
                             )}
                             <PremiumTooltip content={p.error || 'The edge server returned an error status or connection failed.'} position="top-right" direction="top">
