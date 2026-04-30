@@ -4,7 +4,7 @@ import React, { useState, Fragment } from 'react'
 import { ChevronDown, ChevronUp, Zap, Gauge } from 'lucide-react'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import { extractPop, resolveCdnLabel, popToCity } from '@/lib/edge-helpers'
-import { isCacheHit, isCacheMiss, isCacheBypass, getCacheDisplayLabel } from '@/lib/cache-utils'
+import { isCacheHit, getCacheDisplayLabel } from '@/lib/cache-utils'
 import { getCacheColor, getCacheTooltip, getTtfbTooltip, getTtfbColorClass, getCacheHitTier } from '@/lib/thresholds'
 import {
   MONITOR_TABLE,
@@ -18,7 +18,7 @@ import {
 import { VisualGlow } from '../../visual-glow'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
 
-interface RegionStat {
+export interface RegionStat {
   region: string
   probe_count: number
   ttfb_avg_ms: number | null
@@ -57,6 +57,24 @@ interface PerformanceTableProps {
 
 const TOOLTIP_EDGE_DATA_UNAVAILABLE = 'Data not available yet'
 
+const VS_GLOBAL_GOOD_PCT = 5
+const VS_GLOBAL_WARN_PCT = 50
+
+function VsGlobalCell({ ttfbMs, globalAvgTtfb, regionLabel }: { ttfbMs: number | null; globalAvgTtfb: number; regionLabel: string }) {
+  if (!ttfbMs || globalAvgTtfb <= 0) return <span className="text-zinc-600">—</span>
+  const diff = ((ttfbMs - globalAvgTtfb) / globalAvgTtfb) * 100
+  const absDiff = Math.abs(diff)
+  const colorClass = diff <= VS_GLOBAL_GOOD_PCT ? 'text-emerald-400' : diff > VS_GLOBAL_WARN_PCT ? 'text-rose-400' : 'text-amber-400'
+  const sign = diff >= 0 ? '+' : '-'
+  return (
+    <PremiumTooltip content={`${regionLabel} is ${absDiff.toFixed(1)}% ${diff < 0 ? 'faster' : 'slower'} than the global average (${globalAvgTtfb}ms)`}>
+      <span className={`text-[12px] font-black tabular-nums ${colorClass}`}>
+        {`${sign}${Math.round(absDiff)}%`}
+      </span>
+    </PremiumTooltip>
+  )
+}
+
 export function regionRowServedFromLabel(servedBy: string | null): string {
   if (!servedBy?.trim()) return ''
   return (popToCity(extractPop(servedBy) || '') || extractPop(servedBy) || '').trim()
@@ -79,7 +97,6 @@ export function PerformanceTable({
   const [expandedRegions, setExpandedRegions] = useState<Record<string, boolean>>({})
 
   const toggleRegion = (region: string, e: React.MouseEvent) => {
-    // If the click was on a link or button, don't toggle
     if ((e.target as HTMLElement).closest('a, button')) return
 
     setExpandedRegions(prev => ({
@@ -308,22 +325,7 @@ export function PerformanceTable({
                           </PremiumTooltip>
                         </td>
                         <td className="cs-table-compact-td-mono text-center">
-                          {s.ttfb_avg_ms && globalAvgTtfb > 0 ? (() => {
-                            const diff = ((s.ttfb_avg_ms - globalAvgTtfb) / globalAvgTtfb) * 100
-                            const absDiff = Math.abs(diff)
-                            
-                            // Up to +5% is considered "good/green"
-                            const colorClass = diff <= 5 ? 'text-emerald-400' : diff > 50 ? 'text-rose-400' : 'text-amber-400'
-                            const sign = diff >= 0 ? '+' : '-'
-                            
-                            return (
-                              <PremiumTooltip content={`${regionLabels[s.region] ?? s.region} is ${absDiff.toFixed(1)}% ${diff < 0 ? 'faster' : 'slower'} than the global average (${globalAvgTtfb}ms)`}>
-                                <span className={`text-[12px] font-black tabular-nums ${colorClass}`}>
-                                  {`${sign}${Math.round(absDiff)}%`}
-                                </span>
-                              </PremiumTooltip>
-                            )
-                          })() : <span className="text-zinc-600">—</span>}
+                          <VsGlobalCell ttfbMs={s.ttfb_avg_ms} globalAvgTtfb={globalAvgTtfb} regionLabel={regionLabels[s.region] ?? s.region} />
                         </td>
                       </>
                     ) : (
@@ -334,22 +336,7 @@ export function PerformanceTable({
                           </VisualGlow>
                         </td>
                         <td className="cs-table-compact-td-mono text-center">
-                          {s.ttfb_avg_ms && globalAvgTtfb > 0 ? (() => {
-                            const diff = ((s.ttfb_avg_ms - globalAvgTtfb) / globalAvgTtfb) * 100
-                            const absDiff = Math.abs(diff)
-                            
-                            // Up to +5% is considered "good/green"
-                            const colorClass = diff <= 5 ? 'text-emerald-400' : diff > 50 ? 'text-rose-400' : 'text-amber-400'
-                            const sign = diff >= 0 ? '+' : '-'
-                            
-                            return (
-                              <PremiumTooltip content={`${regionLabels[s.region] ?? s.region} is ${absDiff.toFixed(1)}% ${diff < 0 ? 'faster' : 'slower'} than the global average (${globalAvgTtfb}ms)`}>
-                                <span className={`text-[12px] font-black tabular-nums ${colorClass}`}>
-                                  {`${sign}${Math.round(absDiff)}%`}
-                                </span>
-                              </PremiumTooltip>
-                            )
-                          })() : <span className="text-zinc-600">—</span>}
+                          <VsGlobalCell ttfbMs={s.ttfb_avg_ms} globalAvgTtfb={globalAvgTtfb} regionLabel={regionLabels[s.region] ?? s.region} />
                         </td>
                       </>
                     )}
