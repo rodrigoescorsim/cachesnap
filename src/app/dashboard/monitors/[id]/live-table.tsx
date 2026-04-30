@@ -265,9 +265,11 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                         </PremiumTooltip>
                       ) : (
                         <div className="flex items-center justify-center">
-                          <VisualGlow value={isWafBlock ? null : p.ttfb_ms}>
-                            {p.ttfb_ms != null ? `${Math.round(p.ttfb_ms)}ms` : '—'}
-                          </VisualGlow>
+                          <PremiumTooltip content={isWafBlock ? "WAF Interception: This latency reflects security filtering, not actual page load." : (p.ttfb_ms ? getTtfbTooltip(p.ttfb_ms, 'regional') : 'No data')} position="top-right" direction="top">
+                            <VisualGlow value={isWafBlock ? null : p.ttfb_ms}>
+                              {p.ttfb_ms != null ? `${Math.round(p.ttfb_ms)}ms` : '—'}
+                            </VisualGlow>
+                          </PremiumTooltip>
                         </div>
                       )}
                     </td>
@@ -275,11 +277,11 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                       {!isError && p.ttfb_ms && globalAvgTtfb > 0 ? (() => {
                         const diff = ((p.ttfb_ms - globalAvgTtfb) / globalAvgTtfb) * 100
                         const absDiff = Math.abs(diff)
-                        
+
                         // Up to +5% is considered "good/green"
                         const colorClass = diff <= 5 ? 'text-emerald-400' : diff > 50 ? 'text-rose-400' : 'text-amber-400'
                         const sign = diff >= 0 ? '+' : '-'
-                        
+
                         return (
                           <PremiumTooltip content={`${regionLabels[p.region] ?? p.region} is currently ${absDiff.toFixed(1)}% ${diff < 0 ? 'faster' : 'slower'} than the live global average (${globalAvgTtfb}ms)`}>
                             <span className={`text-[12px] font-black tabular-nums ${colorClass}`}>
@@ -309,7 +311,7 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                         )}
                         {isStatusErr ? (
                           <div className="flex items-center gap-1.5">
-                             {(p.status_code === 401 || p.status_code === 403) && (
+                            {(p.status_code === 401 || p.status_code === 403) && (
                               <PremiumTooltip content="WAF Detected: This site may be blocking automated requests from data centers in this region." position="top-right" direction="top">
                                 <ShieldAlert className="w-4 h-4 text-orange-400" />
                               </PremiumTooltip>
