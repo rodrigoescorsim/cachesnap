@@ -46,6 +46,8 @@ export function getCacheDisplayLabel(status: string | null | undefined): string 
   if (!status || status === '—') return 'NO HEADER'
   const upper = status.toUpperCase()
   
+  if (upper.includes('LAMBDAGENERATED')) return 'DYNAMIC'
+
   if (upper.includes(':')) {
     const parts = upper.split(':')
     const details = parts[1].trim() // "Cloudflare DYNAMIC"

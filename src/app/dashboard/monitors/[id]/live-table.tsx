@@ -306,7 +306,7 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                         )}
                         {isStatusErr ? (
                           <PremiumTooltip content={p.error || 'The edge server returned an error status or connection failed.'} position="top-right" direction="top">
-                            <span className="cs-badge-flat cs-badge-flat-danger">ERR</span>
+                            <span className="cs-badge-flat cs-badge-flat-danger">{p.status_code || 'ERR'}</span>
                           </PremiumTooltip>
                         ) : (
                           <PremiumTooltip content="Successful request" position="top-right" direction="top">

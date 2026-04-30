@@ -25,7 +25,7 @@ export function extractPop(servedBy: string | null): string | null {
   if (fastlyMatch) return fastlyMatch[1]
 
   // 4. AWS CloudFront POP token (leading airport code)
-  const cfPop = servedBy.match(/^([A-Z]{3})\d+-[A-Z]\d+$/i)
+  const cfPop = servedBy.match(/^([A-Z]{3,4})\d+-[A-Z]\d+$/i)
   if (cfPop) return cfPop[1].toUpperCase()
 
   return null
@@ -59,10 +59,12 @@ const POP_CITY_MAP: Record<string, string> = {
   'MIA': 'Miami',
   'ATL': 'Atlanta',
   'CMH': 'Ohio',
+  'OHIO': 'Ohio',
   'CLE': 'Cleveland',
   'SEA': 'Seattle',
   'BFI': 'Seattle',
   'PDX': 'Oregon',
+  'HIO': 'Hillsboro, OR',
   'YUL': 'Montreal',
   'YYZ': 'Toronto',
 

@@ -166,7 +166,7 @@ export const handler = async (event) => {
   // 4. Report to CacheSnap ingest API
   const reportData = {
     ...result,
-    probe_version: "1.22"
+    probe_version: "1.24"
   };
   await sendToIngest(ingest_url, reportData, probeSecret);
 
@@ -195,12 +195,12 @@ async function measureUrl(targetUrl, isBypass = false) {
     };
 
     const requestHeaders = {
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-      Accept:
-        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.5',
-      'Accept-Encoding': 'gzip, deflate, br',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept-Encoding': 'gzip, deflate',
+      'Upgrade-Insecure-Requests': '1',
+      'Cache-Control': 'max-age=0',
     };
 
     const nonce = Math.random().toString(36).substring(2, 15);
@@ -212,11 +212,11 @@ async function measureUrl(targetUrl, isBypass = false) {
     if (isBypass) {
       requestHeaders['Cache-Control'] = 'no-cache, no-store, must-revalidate';
       requestHeaders['Pragma'] = 'no-cache';
-      requestHeaders['X-CacheSnap-Salt'] = nonce; // Only salt headers on bypass
+      requestHeaders['X-CacheSnap-Salt'] = nonce;
+      requestHeaders['X-CacheSnap-Bypass'] = 'true';
     }
     
-    requestHeaders['X-CacheSnap-Bypass'] = isBypass ? 'true' : 'false';
-    requestHeaders['Connection'] = 'close';
+    requestHeaders['Connection'] = 'keep-alive';
 
     const probeUrl = new URL(targetUrl);
     // Only use query params for bypass probes to force edge misses.
@@ -229,19 +229,30 @@ async function measureUrl(targetUrl, isBypass = false) {
     }
     const finalUrl = probeUrl.toString();
 
-    // Browser-like headers with unique UA per probe to prevent connection pooling
-    const dynamicUA = `CacheSnap-Probe/2.0.0 (Nonce:${nonce}; Region:${process.env.AWS_REGION})`;
+    // Use randomized Browser UAs to avoid fingerprinting
+    const browserUAs = [
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0'
+    ];
+    const selectedUA = browserUAs[Math.floor(Math.random() * browserUAs.length)];
+
+    const finalHeaders = {
+      ...requestHeaders,
+      'User-Agent': selectedUA,
+    };
+
+    // Only add identifying headers if explicitly in bypass/debug mode
+    if (isBypass) {
+      finalHeaders['X-CacheSnap-Nonce'] = nonce;
+    }
 
     const req = transport.get(
       finalUrl,
       {
-        headers: {
-          ...requestHeaders,
-          'X-CacheSnap-Nonce': nonce,
-          'User-Agent': dynamicUA,
-        },
+        headers: finalHeaders,
         timeout: 10000,
-        agent: false, // Hard disable of connection pooling
+        agent: false,
       },
       (res) => {
         timings.ttfbEnd = performance.now();
@@ -485,7 +496,8 @@ function readCacheStatus(headers) {
         upper.includes('PASS') || 
         upper.includes('NONE') || 
         upper.includes('NO-CACHE') || 
-        upper.includes('UNCALCULABLE')
+        upper.includes('UNCALCULABLE') ||
+        upper.includes('LAMBDAGENERATED')
       ) {
         const providerName = 
           header.includes('cf') ? 'Cloudflare' : 
