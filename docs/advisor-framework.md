@@ -31,7 +31,7 @@ Os diagnósticos seguem dois fluxos principais:
 | **Performance** | Benchmarking e eficiência | AD05, AD06, AD09, AD19, AD20, AD21 |
 | **Edge Audit** | Topologia e custos de CDN | AD03, AD10, AD20 |
 | **Trends** | Padrões e consistência | AD07, AD11, AD15, AD16, AD17, AD22, AD23, AD24 |
-| **Security** | Proteção e conformidade | AD07, AD12, AD13 |
+| **Security** | Proteção e conformidade | AD07, AD12, AD13, AD25 |
 | **Insights** | Consolidação e priorização | *Agregador de todos os itens (incl. AD19, AD22-24)* |
 
 ---
@@ -167,6 +167,12 @@ Os diagnósticos seguem dois fluxos principais:
 - **Gatilho**: Header Permissions-Policy ausente.
 - **Contexto**: Aba Security.
 - **Insight**: "Limite o acesso de scripts a recursos sensíveis (câmera, microfone) via Permissions-Policy."
+
+### AD25: Regional WAF Interference (Bot Protection)
+- **Tipo**: Alerta (Warning)
+- **Gatilho**: Status 401/403 constante em regiões Cloud enquanto outras passam.
+- **Contexto**: Aba Live, Security e Insights.
+- **Insight**: "WAF Detectado: Este site está bloqueando requisições automatizadas vindo de data centers nesta região. Métricas de rede (DNS/TCP/TLS) continuam válidas."
 
 ---
 
