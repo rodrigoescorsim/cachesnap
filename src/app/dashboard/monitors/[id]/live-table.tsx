@@ -266,7 +266,7 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                         </PremiumTooltip>
                       ) : (
                         <div className="flex items-center justify-center gap-1.5">
-                          <PremiumTooltip content={isWafBlock ? "WAF detected: this latency reflects security filtering, not page load speed." : (p.ttfb_ms ? getTtfbTooltip(p.ttfb_ms, 'regional') : 'No data')} position="top-right" direction="top">
+                          <PremiumTooltip content={isWafBlock ? "WAF detected: this latency reflects security filtering, not page load speed." : (p.ttfb_ms ? getTtfbTooltip(p.ttfb_ms, 'monitor') : 'No data')} position="top-right" direction="top">
                             <div className="flex items-center justify-center gap-1.5">
                               {isWafBlock && <ShieldAlert className="w-3.5 h-3.5 text-orange-400" />}
                               <VisualGlow value={isWafBlock ? null : p.ttfb_ms}>

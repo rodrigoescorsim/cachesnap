@@ -51,6 +51,13 @@ export async function GET() {
           / NULLIF(COUNT(*) FILTER (WHERE cache_status IS NOT NULL AND error IS NULL), 0),
           1
         )                                                                               AS cache_hit_avg_24h
+        ,
+        ROUND(
+          100.0
+          * COUNT(*) FILTER (WHERE error IS NULL AND status_code < 500)
+          / NULLIF(COUNT(*), 0),
+          1
+        )                                                                               AS uptime_24h
       FROM probe_results
       WHERE time > NOW() - INTERVAL '24 hours'
       GROUP BY monitor_id
@@ -134,6 +141,7 @@ export async function GET() {
       c.cache_hit_current                                                                    AS cache_hit_current,
       c.dominant_cache_status                                                                AS cache_status_current,
       h.cache_hit_avg_24h                                                                    AS cache_hit_avg_24h,
+      h.uptime_24h                                                                            AS uptime_24h,
       -- Positive = current better than 24h avg (percentage-point diff); null if no data
       CASE
         WHEN c.cache_hit_current IS NOT NULL AND h.cache_hit_avg_24h IS NOT NULL

@@ -16,8 +16,8 @@ use uuid::Uuid;
 // Thresholds v1 — revisados após Fase 6.3 via telemetria
 pub const MIN_SAMPLES_NORMAL: i64 = 1;
 const EDGE_HIT_RATIO_GATE: f64 = 0.1;
-const COMPARABLE_PAIRS_GATE: i32 = 1;
-const COMPARABLE_REGIONS_GATE: i32 = 1;
+const COMPARABLE_PAIRS_GATE: i32 = 8;
+const COMPARABLE_REGIONS_GATE: i32 = 4;
 const DYNAMIC_SITE_BYPASS_RATIO: f64 = 0.95;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

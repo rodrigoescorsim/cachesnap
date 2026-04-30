@@ -54,7 +54,7 @@ import {
   MONITOR_TABLE,
 } from '@/app/dashboard/monitors/[id]/monitor-table-styles'
 
-import { MONITOR_TTFB, MONITOR_CACHE, getTtfbColorClass, getCacheColor, getTtfbTooltip, getCacheTooltip } from '@/lib/thresholds'
+import { MONITOR_TTFB, MONITOR_CACHE, getTtfbTooltip, getCacheTooltip } from '@/lib/thresholds'
 import { isCacheHit, getCacheDisplayLabel, isCacheBypass } from '@/lib/cache-utils'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -199,8 +199,8 @@ function CacheHitBadge({ pct, status }: { pct: number | null; status: string | n
   }
   const tip = cacheHitTooltipText(pct)
   const tier = getCacheHitTier(pct)
-  const textClass = getCacheColor(pct, 'monitor') === 'text-metric-elite' ? 'text-metric-elite' : (
-    tier === 'high' ? 'text-emerald-400'
+  const textClass = (
+    tier === 'high' ? 'text-metric-ttfb-fast'
       : tier === 'mid' ? 'text-amber-400'
         : 'text-metric-bad'
   )
@@ -226,6 +226,49 @@ function DeltaChip({ value, inverted = false }: { value: number | null; inverted
       <Icon className="h-2.5 w-2.5 stroke-[3]" aria-hidden="true" />
       {Math.abs(value).toFixed(1)}%
     </span>
+  )
+}
+
+function UptimeBar({ value }: { value: number | null }) {
+  if (value === null) {
+    return <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500/80">No data</span>
+  }
+
+  const normalized = Math.min(100, Math.max(0, value))
+  const rounded = Math.round(normalized * 10) / 10
+  const fillColor =
+    rounded >= 99.9
+      ? '#2cff88'
+      : rounded >= 98
+        ? '#84cc16'
+        : rounded >= 95
+          ? '#f59e0b'
+          : '#f43f5e'
+  const fillWidth = rounded <= 0 ? 0 : Math.max(normalized, 2.5)
+
+  return (
+    <PremiumTooltip
+      content={`Successful checks in the last 24h: ${rounded.toFixed(1)}%.`}
+      position="top-right"
+      direction="top"
+    >
+      <div className="flex items-center justify-end gap-2.5">
+        <div className="relative h-1.5 w-16 overflow-hidden rounded-full bg-white/[0.07] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.025)]">
+          <div
+            className="h-full rounded-full transition-all"
+            style={{ width: `${fillWidth}%`, backgroundColor: fillColor }}
+          />
+          {rounded <= 0 && (
+            <div
+              className="absolute left-0 top-0 h-full w-[2px] rounded-full"
+              style={{ backgroundColor: '#f43f5e' }}
+              aria-hidden="true"
+            />
+          )}
+        </div>
+        <span className="inline-block w-[5.5ch] text-right text-[11px] font-bold tabular-nums text-zinc-300">{rounded.toFixed(1)}%</span>
+      </div>
+    </PremiumTooltip>
   )
 }
 
@@ -479,7 +522,7 @@ const HEADER_HELP: Record<string, string> = {
   cacheHit: 'Percentage of requests served from the CDN in the latest check. Higher is better.',
   hit24hAvg: 'Average cache efficiency over the last 24 hours.',
   regions: 'Latency breakdown across geographic regions. "Clear" means no slow or failing regions.',
-  lastCheck: 'Time elapsed since the last data update.',
+  uptime24h: 'Successful checks in the last 24 hours.',
 }
 
 // ─── Column definitions ───────────────────────────────────────────────────────
@@ -498,7 +541,7 @@ function buildMonitorColumns(
   const hit24hAvgColumn = col.accessor('cacheHitAvg24h', {
     id: 'cacheHitAvg24h',
     header: () => <MonitorsThTooltip label="Hit 24h Avg" description={HEADER_HELP.hit24hAvg} />,
-    size: 10,
+    size: 9,
     enableSorting: true,
     cell: ({ getValue, row }) => {
       const pct = getValue()
@@ -517,7 +560,7 @@ function buildMonitorColumns(
       }
       const tier = getCacheHitTier(Number(pct))
       const textClass =
-        tier === 'high' ? 'text-emerald-400'
+        tier === 'high' ? 'text-metric-ttfb-fast'
           : tier === 'mid' ? 'text-amber-400'
             : 'text-metric-bad'
       return (
@@ -525,7 +568,6 @@ function buildMonitorColumns(
           <span className={`text-[13px] font-black tabular-nums leading-none ${textClass}`}>
             {Number(pct).toFixed(1)}%
           </span>
-          <DeltaChip value={row.original.cacheHitDelta} />
         </div>
       )
     },
@@ -713,15 +755,14 @@ function buildMonitorColumns(
                 </span>
               </div>
             </PremiumTooltip>
-            <DeltaChip value={row.original.ttfbCurrentDelta} inverted />
           </div>
         )
       },
     }),
 
     col.accessor('ttfbAvg24h', {
-      header: () => <MonitorsThTooltip label="Avg TTFB 24h" description={HEADER_HELP.avgTtfb24h} />,
-      size: 13,
+      header: () => <MonitorsThTooltip label="TTFB 24h Avg" description={HEADER_HELP.avgTtfb24h} />,
+      size: 10,
       enableSorting: true,
       cell: ({ getValue, row }) => {
         const ms = getValue()
@@ -741,11 +782,10 @@ function buildMonitorColumns(
           )
         }
         return (
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center">
             <span className={`text-[13px] font-black tabular-nums leading-none ${m.isWafBlocked ? 'text-zinc-500' : ttfbClass(ms)}`}>
               {ms}<span className="ml-0.5 text-[9px] font-bold opacity-[0.55]">ms</span>
             </span>
-            <Sparkline data={row.original.ttfbSparkline} delta={row.original.ttfbCurrentDelta} />
           </div>
         )
       },
@@ -772,7 +812,7 @@ function buildMonitorColumns(
           description={HEADER_HELP.regions}
         />
       ),
-      size: 15,
+      size: 16,
       enableSorting: true,
       cell: ({ row }) => {
         const m = row.original
@@ -795,8 +835,8 @@ function buildMonitorColumns(
         return (
           <div className="flex flex-col gap-1 pl-4">
             <div className="flex items-center gap-1.5">
-              <Globe className={`h-3 w-3 ${hasIssues ? (errorOnes.length > 0 ? 'text-red-400/50' : 'text-amber-400/50') : 'text-emerald-500/40'}`} />
-              <span className={`text-[11px] font-black uppercase tracking-tight ${m.isWafBlocked ? 'text-orange-400/80' : (hasIssues ? (errorOnes.length > 0 ? 'text-red-400' : 'text-amber-400') : 'text-zinc-400 group-hover/row:text-zinc-300')}`}>
+              <Globe className={`h-3 w-3 ${hasIssues ? (errorOnes.length > 0 ? 'text-red-400/50' : 'text-amber-300/45') : 'text-emerald-500/40'}`} />
+              <span className={`text-[11px] font-black uppercase tracking-tight ${m.isWafBlocked ? 'text-orange-400/80' : (hasIssues ? (errorOnes.length > 0 ? 'text-red-400' : 'text-amber-300/90') : 'text-zinc-400 group-hover/row:text-zinc-300')}`}>
                 {m.isWafBlocked
                   ? 'WAF DETECTED'
                   : (hasIssues
@@ -832,7 +872,7 @@ function buildMonitorColumns(
                       style={{
                         backgroundColor: bgColor,
                         opacity: status === 'healthy' ? 0.4 : 1,
-                        boxShadow: status === 'error' ? '0 0 12px rgba(244, 63, 94, 0.5)' : status === 'slow' ? '0 0 12px rgba(245, 158, 11, 0.3)' : 'none'
+                        boxShadow: status === 'error' ? '0 0 6px rgba(244, 63, 94, 0.32)' : status === 'slow' ? '0 0 4px rgba(245, 158, 11, 0.14)' : 'none'
                       }}
                     />
                   </PremiumTooltip>
@@ -843,47 +883,13 @@ function buildMonitorColumns(
         )
       },
     }),
-
-    col.accessor('lastCheckedAt', {
-      header: () => <MonitorsThTooltip label="Last Check" description={HEADER_HELP.lastCheck} />,
+    col.accessor('uptime24h', {
+      id: 'uptime24h',
+      header: () => <MonitorsThTooltip label="Uptime 24h" description={HEADER_HELP.uptime24h} />,
       size: 9,
       enableSorting: true,
-      sortingFn: (a, b) =>
-        a.original.lastCheckedAt.getTime() - b.original.lastCheckedAt.getTime(),
-      cell: ({ getValue, row }) => {
-        const at = getValue()
-        const m = row.original
-        const { text, isRecent, freshness } = formatRelativeTime(at)
-        const isFullyDown = m.totalRegionCount > 0 && m.errorRegionCount >= m.totalRegionCount
-        const colorClass =
-          isFullyDown ? 'text-red-400'
-            : freshness === 'offline' ? 'text-red-400'
-              : freshness === 'stale' ? 'text-amber-400'
-                : isRecent ? 'text-emerald-400'
-                  : 'text-zinc-400 group-hover/row:text-zinc-300'
-        const tooltipContent = isFullyDown
-          ? `Site is unreachable — connection failed in all ${m.totalRegionCount} regions`
-          : m.errorRegionCount > 0
-            ? `${m.errorRegionCount} of ${m.totalRegionCount} regions reported a connection error`
-            : freshness === 'offline'
-              ? `Last check on ${at.toLocaleDateString()} — no data today`
-              : freshness === 'stale'
-                ? `Last check over 1h ago at ${at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })}`
-                : `Last check at ${at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })}.`
-        return (
-          <PremiumTooltip
-            content={tooltipContent}
-            position="top-right"
-            direction="top"
-          >
-            <span
-              className={`block cursor-default text-right text-[11px] font-semibold tabular-nums transition-colors duration-150 ${colorClass}`}
-            >
-              {text}
-            </span>
-          </PremiumTooltip>
-        )
-      },
+      sortingFn: (a, b) => (a.original.uptime24h ?? -1) - (b.original.uptime24h ?? -1),
+      cell: ({ getValue }) => <UptimeBar value={getValue()} />,
     }),
 
     col.display({
@@ -966,7 +972,7 @@ export function MonitorsTable({
     return displayMonitors.some((m) => m.cacheHitAvg24h !== null)
   }, [displayMonitors])
 
-  const monitorWidthPct = showHit24hAvgColumn ? 27 : 37
+  const monitorWidthPct = showHit24hAvgColumn ? 30 : 39
 
   const columns = useMemo(
     () => buildMonitorColumns(
@@ -1020,7 +1026,7 @@ export function MonitorsTable({
               <tr key={hg.id} className={MONITOR_TABLE.theadRow}>
                 {hg.headers.map((header) => {
                   const canSort = header.column.getCanSort()
-                  const isRightAligned = header.column.id === 'lastCheckedAt'
+                  const isRightAligned = header.column.id === 'uptime24h'
                   return (
                     <th
                       key={header.id}

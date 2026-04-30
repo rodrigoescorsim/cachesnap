@@ -9,7 +9,7 @@ const VALID_COMPARATORS = ['prev_hour', 'same_hour_prev_day', 'day_avg'] as cons
 const updateSchema = z.object({
   name: z.string().max(100).optional(),
   check_interval_seconds: z.number().int().min(1).optional(),
-  audit_interval_seconds: z.number().int().min(1).optional(),
+  audit_interval_seconds: z.number().int().min(0).optional(),
   is_active: z.boolean().optional(),
   notify_email: z.string().email().max(254).nullable().optional(),
   notify_email_enabled: z.boolean().optional(),

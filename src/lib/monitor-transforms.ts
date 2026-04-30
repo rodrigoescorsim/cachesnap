@@ -25,6 +25,7 @@ export interface MonitorSummaryRow {
   total_region_count: number | string
   error_region_count: number | string
   is_waf_blocked: boolean | number
+  uptime_24h: number | string | null
   last_checked_at: string | null
   sparkline: Array<number | string>
 }
@@ -68,6 +69,7 @@ export function toMonitor(row: MonitorSummaryRow): Monitor {
     totalRegionCount:  toNum(row.total_region_count),
     errorRegionCount:  toNum(row.error_region_count),
     isWafBlocked:      Boolean(row.is_waf_blocked),
+    uptime24h:         toNumOrNull(row.uptime_24h),
     // new Date(0) = epoch signals "never probed" — displayed as "–" in the UI
     lastCheckedAt:    row.last_checked_at ? new Date(row.last_checked_at) : new Date(0),
   }

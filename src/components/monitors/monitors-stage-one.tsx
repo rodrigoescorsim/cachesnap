@@ -252,7 +252,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
               icon={Gauge}
               iconClassName="stroke-[2.5]"
               valueClassName={getTtfbColorClass(liveTtfb, 'global')}
-              isElite={!isLoading && liveTtfb < GLOBAL_TTFB.ELITE}
+              isElite={false}
               trend={{
                 value: `${Math.abs(ttfbDelta)}%`,
                 tone: ttfbTrendTone,
@@ -442,4 +442,3 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
 
   )
 }
-

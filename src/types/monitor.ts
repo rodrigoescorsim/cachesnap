@@ -1,4 +1,5 @@
 import { MONITOR_TTFB, MONITOR_CACHE } from '@/lib/thresholds'
+import { getCacheDisplayLabel, isCacheBypass } from '@/lib/cache-utils'
 
 export type MonitorStatus = 'active' | 'paused'
 export type TtfbTier = 'fast' | 'med' | 'slow'
@@ -32,6 +33,7 @@ export interface Monitor {
   /** How many regions reported a connection error (timeout, empty reply, DNS fail) on their latest probe. */
   errorRegionCount: number
   isWafBlocked: boolean
+  uptime24h: number | null
   lastCheckedAt: Date
 }
 
@@ -139,6 +141,11 @@ export function monitorMatchesQuickFilter(
       return ttfb >= MONITOR_TTFB.FAST
     case 'low-cache-hit':
       // null = no cache header data → don't flag as "low"
-      return hit !== null && hit < MONITOR_CACHE.GOOD
+      const statusLabel = getCacheDisplayLabel(monitor.cacheStatusCurrent)
+      if (statusLabel === 'NO HEADER') return false
+      if (isCacheBypass(monitor.cacheStatusCurrent)) return false
+      const hasCurrentLowHit = hit !== null && hit < MONITOR_CACHE.GOOD
+      const has24hLowHit = monitor.cacheHitAvg24h !== null && monitor.cacheHitAvg24h < MONITOR_CACHE.GOOD
+      return hasCurrentLowHit || has24hLowHit
   }
 }

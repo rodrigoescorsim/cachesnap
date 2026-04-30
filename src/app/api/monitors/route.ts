@@ -8,7 +8,7 @@ const createSchema = z.object({
   url: z.string().url('Must be a valid URL'),
   name: z.string().max(100).optional(),
   check_interval_seconds: z.number().int().min(1).default(60),
-  audit_interval_seconds: z.number().int().min(1).default(3600),
+  audit_interval_seconds: z.number().int().min(0).default(0),
 })
 
 function normalizeMonitorUrl(rawUrl: string): string {
@@ -68,8 +68,8 @@ export async function POST(request: NextRequest) {
   }
 
   const [monitor] = await sql`
-    INSERT INTO monitors (user_id, url, name, check_interval_seconds, audit_interval_seconds)
-    VALUES (${user.id}, ${normalizedUrl}, ${name ?? null}, ${check_interval_seconds}, ${audit_interval_seconds})
+    INSERT INTO monitors (user_id, url, name, check_interval_seconds, audit_interval_seconds, audit_readiness_state)
+    VALUES (${user.id}, ${normalizedUrl}, ${name ?? null}, ${check_interval_seconds}, ${audit_interval_seconds}, 'disabled')
     RETURNING id, url, name, check_interval_seconds, audit_interval_seconds, is_active, created_at
   `
 
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       'Content-Type': 'application/json',
       'x-probe-secret': process.env.PROBE_SECRET ?? '' 
     },
-    body: JSON.stringify({}),
+    body: JSON.stringify({ bypass: false }),
   }).catch(() => {}) // fire-and-forget
 
   return NextResponse.json(monitor, { status: 201 })

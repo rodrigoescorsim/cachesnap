@@ -1,5 +1,5 @@
 import { extractPop, popToCity, resolveCdnLabel } from '@/lib/edge-helpers'
-import { isCacheHit } from '@/lib/cache-utils'
+import { isCacheHit, getCacheDisplayLabel } from '@/lib/cache-utils'
 import {
   breakdownColor,
   breakdownEntries,
@@ -211,7 +211,7 @@ export function ProbeWaterfall({
 
                     {probe.cache_status && (
                       <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase ${cacheClass(probe.cache_status)}`}>
-                        {probe.cache_status.toUpperCase()}
+                        {getCacheDisplayLabel(probe.cache_status)}
                       </span>
                     )}
 

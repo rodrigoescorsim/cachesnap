@@ -46,14 +46,29 @@ export function getCacheDisplayLabel(status: string | null | undefined): string 
   if (!status || status === '—') return 'NO HEADER'
   const upper = status.toUpperCase()
   
+  // 1. Priority keywords - if these exist anywhere, they are the status
+  if (upper.includes('HIT')) return 'HIT'
+  if (upper.includes('MISS')) return 'MISS'
+  if (upper.includes('BYPASS')) return 'BYPASS'
+  if (upper.includes('STALE')) return 'STALE'
+  if (upper.includes('DYNAMIC')) return 'DYNAMIC'
   if (upper.includes('LAMBDAGENERATED')) return 'DYNAMIC'
+  if (upper.includes('EXPIRED')) return 'EXPIRED'
+  if (upper.includes('REVALIDATED')) return 'REVALIDATED'
 
+  // 2. Fallback for colon-separated strings if no keyword found
   if (upper.includes(':')) {
     const parts = upper.split(':')
-    const details = parts[1].trim() // "Cloudflare DYNAMIC"
+    const details = parts[1].trim()
     const detailParts = details.split(' ')
-    // We take the last word, which is typically the status (HIT, MISS, DYNAMIC, etc.)
-    return detailParts[detailParts.length - 1]
+    const lastWord = detailParts[detailParts.length - 1]
+    
+    // Avoid returning provider names if we can
+    if (['CLOUDFRONT', 'CLOUDFLARE', 'AKAMAI', 'FASTLY'].includes(lastWord)) {
+      if (detailParts.length > 1) return detailParts[detailParts.length - 2]
+      return parts[0].trim() // Return the prefix (e.g. BYPASS)
+    }
+    return lastWord
   }
   
   return upper

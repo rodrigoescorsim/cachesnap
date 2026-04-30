@@ -24,10 +24,13 @@ function makeMonitor(overrides: Partial<Monitor> = {}): Monitor {
     cacheHitCurrent: 95,
     cacheHitAvg24h: 92,
     cacheHitDelta: 3,
+    cacheStatusCurrent: 'HIT',
     regions: [],
     slowRegionCount: 0,
     totalRegionCount: 4,
     errorRegionCount: 0,
+    isWafBlocked: false,
+    uptime24h: 100,
     lastCheckedAt: new Date(),
     ...overrides,
   }
@@ -157,6 +160,39 @@ describe('monitorMatchesQuickFilter', () => {
 
     it('fails when cache hit meets or exceeds GOOD threshold', () => {
       expect(monitorMatchesQuickFilter(makeMonitor({ cacheHitCurrent: MONITOR_CACHE.GOOD }), 'low-cache-hit')).toBe(false)
+    })
+
+    it('does not include NO HEADER in low-cache-hit even with low numeric value', () => {
+      expect(
+        monitorMatchesQuickFilter(
+          makeMonitor({ cacheHitCurrent: 10, cacheStatusCurrent: null }),
+          'low-cache-hit',
+        ),
+      ).toBe(false)
+    })
+
+    it('does not include BYPASS/DYNAMIC in low-cache-hit', () => {
+      expect(
+        monitorMatchesQuickFilter(
+          makeMonitor({ cacheHitCurrent: 10, cacheStatusCurrent: 'BYPASS' }),
+          'low-cache-hit',
+        ),
+      ).toBe(false)
+      expect(
+        monitorMatchesQuickFilter(
+          makeMonitor({ cacheHitCurrent: 10, cacheStatusCurrent: 'DYNAMIC' }),
+          'low-cache-hit',
+        ),
+      ).toBe(false)
+    })
+
+    it('includes monitor when 24h average cache hit is low (even if current is not low)', () => {
+      expect(
+        monitorMatchesQuickFilter(
+          makeMonitor({ cacheHitCurrent: 90, cacheHitAvg24h: 72, cacheStatusCurrent: 'HIT' }),
+          'low-cache-hit',
+        ),
+      ).toBe(true)
     })
   })
 })

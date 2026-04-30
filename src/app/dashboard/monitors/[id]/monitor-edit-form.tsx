@@ -121,13 +121,14 @@ export function MonitorEditForm({
 
   // VALIDATION
   const validate = useCallback((field: string, value: unknown, currentValues: FormValues) => {
+    const textValue = typeof value === 'string' ? value : String(value ?? '')
     if (field === 'notify_email' && currentValues.notify_email_enabled) {
       if (!value) return 'Email is required'
-      if (!value.includes('@')) return 'Invalid email address'
+      if (!textValue.includes('@')) return 'Invalid email address'
     }
     if (field === 'notify_slack_webhook' && currentValues.notify_slack_enabled) {
       if (!value) return 'Webhook URL is required'
-      if (!value.startsWith('http')) return 'Invalid webhook URL'
+      if (!textValue.startsWith('http')) return 'Invalid webhook URL'
     }
     if (field === 'alert_threshold_ms') {
       const n = Number(value)
@@ -323,6 +324,7 @@ export function MonitorEditForm({
               <CustomSelect
                 value={values.audit_interval_seconds}
                 options={[
+                  { value: 0, label: 'Disabled' },
                   { value: 900, label: '15 minutes' },
                   { value: 1800, label: '30 minutes' },
                   { value: 3600, label: '60 minutes' },
@@ -803,4 +805,3 @@ export function MonitorEditForm({
     </div>
   )
 }
-

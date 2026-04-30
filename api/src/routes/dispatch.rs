@@ -60,7 +60,7 @@ pub async fn handler(
     };
 
     let regions = Arc::new(runner::fetch_regions(&state.db).await);
-    let run_bypass = payload.bypass.unwrap_or(true);
+    let run_bypass = payload.bypass.unwrap_or(false);
     let is_manual = payload.is_manual.unwrap_or(true); // Default to true if called via /dispatch API
 
     let bypass_mode = if run_bypass {

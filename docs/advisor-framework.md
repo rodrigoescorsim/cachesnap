@@ -168,11 +168,11 @@ Os diagnósticos seguem dois fluxos principais:
 - **Contexto**: Aba Security.
 - **Insight**: "Limite o acesso de scripts a recursos sensíveis (câmera, microfone) via Permissions-Policy."
 
-### AD25: Regional WAF Interference (Bot Protection)
+### AD25: Regional WAF Interference (Allowlist Recommendation)
 - **Tipo**: Alerta (Warning)
 - **Gatilho**: Status 401/403 constante em regiões Cloud enquanto outras passam.
 - **Contexto**: Aba Live, Security e Insights.
-- **Insight**: "WAF Detectado: Este site está bloqueando requisições automatizadas vindo de data centers nesta região. Métricas de rede (DNS/TCP/TLS) continuam válidas."
+- **Insight**: "Filtragem de segurança detectada. Seu WAF está bloqueando nossos probes (provavelmente Bot Protection), criando pontos cegos no monitoramento. Considere adicionar nossos IPs à sua allowlist para obter métricas reais de performance."
 
 ---
 

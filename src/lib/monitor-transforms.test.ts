@@ -77,6 +77,8 @@ function makeRow(overrides: Partial<MonitorSummaryRow> = {}): MonitorSummaryRow 
     slow_region_count: 0,
     total_region_count: 1,
     error_region_count: 0,
+    is_waf_blocked: false,
+    uptime_24h: '99.9',
     last_checked_at: '2026-04-19T10:00:00.000Z',
     sparkline: [100, 110, 120, 115],
     ...overrides,
@@ -121,6 +123,11 @@ describe('toMonitor', () => {
   it('maps sparkline array, coercing string entries to numbers', () => {
     const m = toMonitor(makeRow({ sparkline: ['100', '120', 130] }))
     expect(m.ttfbSparkline).toEqual([100, 120, 130])
+  })
+
+  it('maps uptime_24h to uptime24h', () => {
+    const m = toMonitor(makeRow({ uptime_24h: '98.7' }))
+    expect(m.uptime24h).toBe(98.7)
   })
 
   it('returns empty sparkline for empty array', () => {
