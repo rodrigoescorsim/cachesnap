@@ -28,7 +28,7 @@ async fn compute_cycle(state: &AppState) -> Result<(), anyhow::Error> {
 
     // Distinct (monitor_id, region) pairs with data in this bucket
     let pairs = sqlx::query_as::<_, (Uuid, String)>(
-        "SELECT DISTINCT monitor_id, region FROM probe_results_hourly WHERE bucket = $1",
+        "SELECT DISTINCT ph.monitor_id, ph.region FROM probe_results_hourly ph JOIN monitors m ON ph.monitor_id = m.id WHERE ph.bucket = $1",
     )
     .bind(bucket_hour)
     .fetch_all(&state.db)

@@ -1031,14 +1031,15 @@ export default async function MonitorDetailPage({
     return sorted.length > 0 ? sorted[0][0] : 'NO HEADER'
   })()
 
-  const isLiveGlobalWafBlocked = latestProbes.length > 0 && 
+    const isLiveGlobalWafBlocked = latestProbes.length > 0 && 
     latestProbes.filter(p => Number(p.status_code) == 401 || Number(p.status_code) == 403).length >= (latestProbes.length / 2);
 
   const activeStats = stats.filter(s => s.probe_count > 0);
   const isGlobalWafBlocked = activeStats.length > 0 &&
     activeStats.filter(s => Number(s.common_status_code) == 401 || Number(s.common_status_code) == 403).length >= (activeStats.length / 2);
 
-  const isCurrentlyWafBlocked = !!(isLiveGlobalWafBlocked || isGlobalWafBlocked);
+  // If in performance tab, prioritize the historical WAF state
+  const isCurrentlyWafBlocked = activeTab === 'performance' ? isGlobalWafBlocked : isLiveGlobalWafBlocked;
 
   // AGGREGATE CALCULATIONS FOR SUMMARY CARDS
   const avgTtfb = stats.length > 0
