@@ -1036,7 +1036,7 @@ export default async function MonitorDetailPage({
 
   const activeStats = stats.filter(s => Number(s.probe_count) > 0);
   const isGlobalWafBlocked = activeStats.length > 0 &&
-    activeStats.filter(s => Number(s.common_status_code) == 401 || Number(s.common_status_code) == 403).length >= (activeStats.length / 2);
+    activeStats.filter(s => Number(s.common_status_code) == 401 || Number(s.common_status_code) == 403).length >= Math.max(1, activeStats.length * 0.25);
 
   // If in performance tab, prioritize the historical WAF state
   const isCurrentlyWafBlocked = activeTab === 'performance' ? !!isGlobalWafBlocked : !!isLiveGlobalWafBlocked;
