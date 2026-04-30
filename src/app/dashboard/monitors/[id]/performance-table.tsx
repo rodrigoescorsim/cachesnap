@@ -305,23 +305,27 @@ export function PerformanceTable({
 
                     {showSplitTtfb ? (
                       <>
-                         <td className={`${isWafBlock ? '!text-zinc-500' : edgeTtfbMetricCellClass(s.edge_hit_avg_ms)} !text-[13px] !py-2`}>
+                         <td className={`${isWafBlock ? '!text-zinc-500 text-right font-bold tabular-nums' : edgeTtfbMetricCellClass(s.edge_hit_avg_ms)} !text-[13px] !py-2`}>
                            <PremiumTooltip content={isWafBlock ? "WAF Interception: This latency reflects security filtering, not actual page load." : "Average cache latency"} position="top-right" direction="top">
-                             <VisualGlow value={isWafBlock ? null : s.edge_hit_avg_ms}>
-                               {s.edge_hit_avg_ms != null ? `${Math.round(s.edge_hit_avg_ms)}ms` : '—'}
-                             </VisualGlow>
+                             <div className="flex items-center justify-end">
+                               <VisualGlow value={isWafBlock ? null : s.edge_hit_avg_ms}>
+                                 {s.edge_hit_avg_ms != null ? `${Math.round(s.edge_hit_avg_ms)}ms` : '—'}
+                               </VisualGlow>
+                             </div>
                            </PremiumTooltip>
                          </td>
-                         <td className={`${isWafBlock ? '!text-zinc-500' : originTtfbMetricCellClass(s.origin_miss_avg_ms)} !text-[13px] !py-2`}>
+                         <td className={`${isWafBlock ? '!text-zinc-500 text-right font-bold tabular-nums' : originTtfbMetricCellClass(s.origin_miss_avg_ms)} !text-[13px] !py-2`}>
                            <PremiumTooltip content={isWafBlock ? "WAF Interception: This latency reflects security filtering, not actual page load." : "Average origin latency"} position="top-right" direction="top">
-                             <VisualGlow value={isWafBlock ? null : s.origin_miss_avg_ms}>
-                               {s.origin_miss_avg_ms != null ? `${Math.round(s.origin_miss_avg_ms)}ms` : '—'}
-                             </VisualGlow>
+                             <div className="flex items-center justify-end">
+                               <VisualGlow value={isWafBlock ? null : s.origin_miss_avg_ms}>
+                                 {s.origin_miss_avg_ms != null ? `${Math.round(s.origin_miss_avg_ms)}ms` : '—'}
+                               </VisualGlow>
+                             </div>
                            </PremiumTooltip>
                          </td>
-                         <td className={`${isWafBlock ? '!text-zinc-500' : ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2 border-l border-white/5`}>
+                         <td className={`${isWafBlock ? '!text-zinc-500 text-right font-bold tabular-nums' : ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2 border-l border-white/5`}>
                            <PremiumTooltip content={isWafBlock ? "WAF Interception: This latency reflects security filtering, not actual page load." : "Average latency for this region"} position="top-right" direction="top">
-                             <div className="flex items-center justify-center gap-1.5">
+                             <div className="flex items-center justify-end gap-1.5">
                                {isWafBlock && <ShieldAlert className="w-3.5 h-3.5 text-orange-400" />}
                                <VisualGlow value={isWafBlock ? null : s.ttfb_avg_ms}>
                                  {s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}
@@ -335,9 +339,9 @@ export function PerformanceTable({
                       </>
                     ) : (
                       <>
-                        <td className={`${isWafBlock ? '!text-zinc-500' : ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2`}>
+                        <td className={`${isWafBlock ? '!text-zinc-500 text-right font-bold tabular-nums' : ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2`}>
                           <PremiumTooltip content={isWafBlock ? "WAF Interception: This latency reflects security filtering, not actual page load." : "Average latency for this region"} position="top-right" direction="top">
-                            <div className="flex items-center justify-center gap-1.5">
+                            <div className="flex items-center justify-end gap-1.5">
                               {isWafBlock && <ShieldAlert className="w-3.5 h-3.5 text-orange-400" />}
                               <VisualGlow value={isWafBlock ? null : s.ttfb_avg_ms}>
                                 {s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}

@@ -1032,10 +1032,12 @@ export default async function MonitorDetailPage({
   })()
 
   const isLiveGlobalWafBlocked = latestProbes.length > 0 && 
-    latestProbes.filter(p => p.status_code === 401 || p.status_code === 403).length >= (latestProbes.length / 2);
+    latestProbes.filter(p => p.status_code == 401 || p.status_code == 403).length >= (latestProbes.length / 2);
 
   const isGlobalWafBlocked = stats.length > 0 &&
-    stats.filter(s => s.common_status_code === 401 || s.common_status_code === 403).length >= (stats.length / 2);
+    stats.filter(s => s.common_status_code == 401 || s.common_status_code == 403).length >= (stats.length / 2);
+
+  const isCurrentlyWafBlocked = isLiveGlobalWafBlocked || isGlobalWafBlocked;
 
   // AGGREGATE CALCULATIONS FOR SUMMARY CARDS
   const avgTtfb = stats.length > 0
@@ -1045,6 +1047,9 @@ export default async function MonitorDetailPage({
   const totalHitProbes = stats.reduce((acc, s) => acc + Math.round((s.cache_hit_pct || 0) * s.probe_count / 100), 0);
   const totalProbesCount = stats.reduce((acc, s) => acc + s.probe_count, 0);
   const globalHitRate = totalProbesCount > 0 ? Math.round((totalHitProbes / totalProbesCount) * 100) : 0;
+
+  const currentGlobalTtfb = activeTab === 'performance' ? avgTtfb : liveAvgTtfb;
+  const currentGlobalHitRate = activeTab === 'performance' ? globalHitRate : liveGlobalHitRate;
 
   const isGlobalDynamic = globalHitRate === 0 && (stats.length > 0 || latestProbes.length > 0)
   
@@ -1398,14 +1403,14 @@ export default async function MonitorDetailPage({
                                 <PremiumTooltip content="Average latency from recent probes across all regions">
                                   <p className="cs-metric-card-label !text-[11px]">Global TTFB</p>
                                 </PremiumTooltip>
-                                <PremiumTooltip content={validLiveTtfb.length === 0 ? 'No data available' : ((isLiveGlobalWafBlocked || isGlobalWafBlocked) ? 'WAF Interception: This latency reflects security filtering, not actual page load.' : getTtfbTooltip(liveAvgTtfb, 'global'))}>
+                                <PremiumTooltip content={validLiveTtfb.length === 0 && activeTab !== 'performance' ? 'No data available' : (isCurrentlyWafBlocked ? 'WAF Interception: This latency reflects security filtering, not actual page load.' : getTtfbTooltip(currentGlobalTtfb, 'global'))}>
                                   <div className="flex items-center gap-2">
                                     <div className="flex items-baseline gap-0.5">
-                                      {(isLiveGlobalWafBlocked || isGlobalWafBlocked) && <ShieldAlert className="h-5 w-5 text-orange-400 mr-2" />}
-                                      <span className={`text-[26px] font-black tracking-tight leading-none ${(isLiveGlobalWafBlocked || isGlobalWafBlocked) ? 'text-zinc-500' : getTtfbColorClass(liveAvgTtfb, 'global')}`}>{liveAvgTtfb}</span>
-                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${(isLiveGlobalWafBlocked || isGlobalWafBlocked) ? 'text-zinc-500' : getTtfbColorClass(liveAvgTtfb, 'global')}`}>ms</span>
+                                      {isCurrentlyWafBlocked && <ShieldAlert className="h-5 w-5 text-orange-400 mr-2" />}
+                                      <span className={`text-[26px] font-black tracking-tight leading-none ${isCurrentlyWafBlocked ? 'text-zinc-500' : getTtfbColorClass(currentGlobalTtfb, 'global')}`}>{currentGlobalTtfb}</span>
+                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${isCurrentlyWafBlocked ? 'text-zinc-500' : getTtfbColorClass(currentGlobalTtfb, 'global')}`}>ms</span>
                                     </div>
-                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${(isLiveGlobalWafBlocked || isGlobalWafBlocked) ? 'text-zinc-500 opacity-50' : getTtfbColorClass(liveAvgTtfb, 'global')}`} />
+                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${isCurrentlyWafBlocked ? 'text-zinc-500 opacity-50' : getTtfbColorClass(currentGlobalTtfb, 'global')}`} />
                                   </div>
                                 </PremiumTooltip>
                               </div>
@@ -1420,19 +1425,19 @@ export default async function MonitorDetailPage({
                                 <PremiumTooltip content="Average cache hit rate from recent probes across all regions">
                                   <p className="cs-metric-card-label !text-[11px]">Global Cache Hit Rate</p>
                                 </PremiumTooltip>
-                                <PremiumTooltip content={liveGlobalHitRate === 0 ? (isLiveGlobalDynamic ? 'Site is intentionally dynamic: All requests fetched from origin' : 'No data available') : getCacheTooltip(liveGlobalHitRate, 'global')}>
+                                <PremiumTooltip content={activeTab === 'performance' ? `${globalHitRate}% average cache hit rate over the selected period` : getCacheTooltip(liveGlobalHitRate, 'global')}>
                                   <div className="flex items-center gap-2">
                                     <div className="flex items-baseline gap-0.5">
-                                      {isLiveGlobalDynamic ? (
-                                        <span className="text-[20px] font-black tracking-tight leading-none text-zinc-500 uppercase">{liveDominantStatusLabel}</span>
+                                      {currentGlobalHitRate === 0 ? (
+                                        <span className="text-[20px] font-black tracking-tight leading-none text-zinc-500 uppercase">{activeTab === 'performance' ? dominantStatusLabel : liveDominantStatusLabel}</span>
                                       ) : (
                                         <>
-                                          <span className={`text-[26px] font-black tracking-tight leading-none ${getCacheColor(liveGlobalHitRate, 'global')}`}>{liveGlobalHitRate}</span>
-                                          <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getCacheColor(liveGlobalHitRate, 'global')}`}>%</span>
+                                          <span className={`text-[26px] font-black tracking-tight leading-none ${activeTab === 'performance' ? 'text-zinc-200' : getCacheColor(currentGlobalHitRate, 'global')}`}>{currentGlobalHitRate}</span>
+                                          <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${activeTab === 'performance' ? 'text-zinc-200' : getCacheColor(currentGlobalHitRate, 'global')}`}>%</span>
                                         </>
                                       )}
                                     </div>
-                                    {!isLiveGlobalDynamic && <Zap className={`h-5 w-5 fill-current ${getCacheColor(liveGlobalHitRate, 'global')}`} />}
+                                    {currentGlobalHitRate > 0 && <Zap className={`h-5 w-5 fill-current ${activeTab === 'performance' ? 'text-zinc-200' : getCacheColor(currentGlobalHitRate, 'global')}`} />}
                                   </div>
                                 </PremiumTooltip>
                               </div>
