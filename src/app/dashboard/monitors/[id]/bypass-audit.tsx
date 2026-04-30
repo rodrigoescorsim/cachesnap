@@ -17,7 +17,6 @@ import {
   resolveReason,
   shouldShowBanner,
   formatAuditBadge,
-  isAuditButtonEnabled,
 } from './bypass-audit.helpers'
 
 export type { AuditReadiness }
@@ -39,11 +38,6 @@ interface BypassAuditProps {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-
-function ReadinessBadge({ readiness }: { readiness: AuditReadiness | null | undefined }) {
-  const badge = formatAuditBadge(readiness)
-  return <span className={badge.cssClass}>{badge.label}</span>
-}
 
 function AuditCTA({
   readiness,
@@ -148,23 +142,30 @@ function ReadinessBanner({
   monitorId: string
 }) {
   const state = readiness.state
-  if (state !== 'disabled') return null
+  if (state === 'enabled') return null
 
   const reason = resolveReason(readiness)
+  const isWarmup = state === 'warmup'
   return (
-    <div className="cs-tint-warning p-4 flex gap-4 items-start">
+    <div className={`${isWarmup ? 'cs-tint-success' : 'cs-tint-warning'} p-4 flex gap-4 items-start`}>
       <div className="cs-card-wash opacity-40" />
-      <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+      {isWarmup ? (
+        <Clock className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+      ) : (
+        <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+      )}
       <div className="relative z-10 space-y-1 flex-1">
-        <h3 className="text-[10px] font-black text-amber-400 uppercase tracking-[0.15em]">
-          Edge Audit Unavailable
+        <h3 className={`text-[10px] font-black uppercase tracking-[0.15em] ${isWarmup ? 'text-emerald-400' : 'text-amber-400'}`}>
+          {isWarmup ? 'Edge Audit Warming Up' : 'Edge Audit Unavailable'}
         </h3>
         {reason && (
-          <p className="text-xs leading-relaxed text-amber-200/60 font-medium">{reason}</p>
+          <p className={`text-xs leading-relaxed font-medium ${isWarmup ? 'text-emerald-200/70' : 'text-amber-200/60'}`}>{reason}</p>
         )}
-        <div className="pt-1">
-          <RecheckButton monitorId={monitorId} />
-        </div>
+        {!isWarmup && (
+          <div className="pt-1">
+            <RecheckButton monitorId={monitorId} />
+          </div>
+        )}
       </div>
     </div>
   )
@@ -176,9 +177,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
   const { id } = useParams()
   const monitorId = id as string
 
-  const state = resolveReadinessState(readiness)
   const badge = formatAuditBadge(readiness)
-  const canAudit = isAuditButtonEnabled(readiness)
 
   const [period, setPeriod] = useState<'1H' | '4H' | '24H' | '7D' | '30D'>('24H')
   const periods = ['1H', '4H', '24H', '7D', '30D'] as const
@@ -288,10 +287,10 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
       </ViewSectionHeader>
 
       {/* Info Bar — Readiness & Confidence (Integrated Status Line) */}
-      {(readiness && hasAnyData) && (
+      {readiness && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between px-1 gap-4 pt-1">
           <div className="flex items-center gap-8">
-             <WarmupProgress current={filteredData.length} />
+             <WarmupProgress current={readiness.comparable_pairs} />
           </div>
           <div className="flex items-center gap-4">
              <div className="flex items-center gap-2">

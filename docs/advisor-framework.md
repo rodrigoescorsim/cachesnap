@@ -1,14 +1,25 @@
 # CacheSnap Advisor Framework — v1.0
 
-Este documento define como o motor de conselhos do CacheSnap se integra à interface. O objetivo é fornecer diagnósticos contextuais baseados na tela que o usuário está navegando.
+Este documento define a inteligência do CacheSnap, separando diagnósticos de urgência (Alertas) de sugestões de otimização (Conselhos).
 
 ---
 
 ## 🎯 Estratégia de Entrega (Modelo Híbrido)
 
-Para maximizar a utilidade, os conselhos seguem dois fluxos:
-1. **Contextual (Reativo)**: Cards ou "pills" exibidos diretamente nas abas técnicas (Live, Edge Audit, etc.) quando um problema é detectado na visualização atual.
-2. **Consolidado (Estratégico)**: Uma lista única e priorizada na aba **Insights**, servindo como um "Executive Summary" para otimização do monitor.
+Os diagnósticos seguem dois fluxos principais:
+1. **Contextual (Reativo)**: Exibido nas abas técnicas (Live, Edge Audit, etc.) quando um problema é detectado na visualização atual.
+2. **Consolidado (Estratégico)**: Uma lista priorizada na aba **Insights**, servindo como um "Executive Summary".
+
+---
+
+## 🏷️ Taxonomia e Diferenciação Semântica
+
+| Tipo | Foco | Urgência | Destino Principal |
+| :--- | :--- | :--- | :--- |
+| **Alerta (Critical)** | Disponibilidade e Erros Críticos | Imediata | Push (Slack/Email) |
+| **Alerta (Warning)** | Degradação severa de performance | Alta | Push + Dashboard |
+| **Conselho (Info)** | Otimização e Protocolos | Roadmap | Aba Insights |
+| **Conselho (Best Practice)** | Segurança e Conformidade | Baixa | Aba Security |
 
 ---
 
@@ -19,95 +30,112 @@ Para maximizar a utilidade, os conselhos seguem dois fluxos:
 | **Live** | Saúde imediata e protocolos | AD01, AD02, AD04, AD08, AD14 |
 | **Performance** | Benchmarking e eficiência | AD05, AD06, AD09 |
 | **Edge Audit** | Topologia e custos de CDN | AD03, AD10 |
-| **Trends** | Padrões e consistência | AD07, AD11 |
+| **Trends** | Padrões e consistência | AD07, AD11, AD15, AD16, AD17 |
 | **Security** | Proteção e conformidade | AD07, AD12, AD13 |
-| **Insights** | Consolidação e priorização | *Agregador de todos os conselhos* |
+| **Insights** | Consolidação e priorização | *Agregador de todos os itens* |
 
 ---
 
-## ⚡ 1. Live Dashboard (Handshake & DNS)
+## 🚨 1. Alertas (Dano & Urgência)
 
 ### AD14: Alerta de Erros Críticos (Origin Health)
-- **Contexto**: Exibido no topo do Live Dashboard e Insights com badge "CRITICAL".
+- **Tipo**: Alerta (Critical)
 - **Gatilho**: Qualquer erro 5xx detectado ou taxa de 4xx > 5% na última hora.
+- **Contexto**: Exibido no topo de todas as telas e enviado via Push.
 - **Insight**: "{percent}% dos requests retornando erro {status}. Investigue o origin imediatamente."
 
-### AD01: Upgrade para TLS 1.3
-- **Contexto**: Exibido no breakdown de TTFB quando a barra de TLS (roxa) está acima da média.
-- **Gatilho**: Uso de TLS 1.2 ou inferior.
-- **Insight**: "Você está perdendo ~100ms em handshakes desnecessários. O TLS 1.3 resolveria isso com 1-RTT."
+### AD15: Desvio de Curto Prazo (1H vs 24H)
+- **Tipo**: Alerta (Warning)
+- **Gatilho**: Média de TTFB da última 1 hora > 40% acima da média das últimas 24 horas.
+- **Contexto**: Aba Trends e Insights.
+- **Insight**: "Performance degradou {percent}% na última hora em relação à média diária."
 
-### AD02: Ativar OCSP Stapling
-- **Contexto**: Exibido no detalhe da região na tabela Live.
-- **Gatilho**: Latência de TLS inconsistente em regiões remotas.
-- **Insight**: "O browser está perdendo tempo validando seu certificado. O Stapling traria essa prova já no handshake."
+### AD16: Tendência de Degradação (24H vs 7D)
+- **Tipo**: Alerta (Warning)
+- **Gatilho**: Média de TTFB das últimas 24 horas > 25% acima da média dos últimos 7 dias.
+- **Contexto**: Aba Trends e Insights.
+- **Insight**: "Degradação sustentada de {percent}% nas últimas 24h em relação à semana passada."
 
-### AD08: Otimização de DNS
-- **Contexto**: Exibido quando a barra de DNS (azul) é > 50ms.
-- **Gatilho**: Resolução DNS lenta em POPs específicos.
-- **Insight**: "Seu DNS está levando mais tempo que o próprio processamento do Edge. Considere um provedor Anycast premium."
-
----
-
-## 📊 2. Performance View (Eficiência & Benchmarking)
-
-### AD05: Implementar Cache-Control "Stale-While-Revalidate"
-- **Contexto**: Exibido na tabela de performance histórica ao detectar MISS frequente.
-- **Gatilho**: Monitor com baixo Hit Ratio e TTFB de origem alto.
-- **Insight**: "Não faça seu usuário esperar a origem. Sirva o cache antigo enquanto revalida em background."
-
-### AD09: Benchmark "Vs Global" Negativo
-- **Contexto**: Exibido quando uma região está > 50% mais lenta que a média global.
-- **Gatilho**: TTFB regional muito acima do benchmark global.
-- **Insight**: "Esta região está operando em 'Degraded State'. Verifique o roteamento do provedor local."
-
----
-
-## 🌐 3. Edge Audit (Topologia & Custo)
+### AD17: Regressão de Performance (7D vs 30D)
+- **Tipo**: Alerta (Warning)
+- **Gatilho**: Média de TTFB dos últimos 7 dias > 15% acima da média dos últimos 30 dias.
+- **Contexto**: Aba Insights.
+- **Insight**: "Regressão sistemática de {percent}% detectada esta semana em relação ao último mês."
 
 ### AD03: Otimizar Terminação TLS na Borda (Edge)
-- **Contexto**: Exibido no painel de Global Impact Analysis.
-- **Gatilho**: Handshake TLS transoceânico (ex: Handshake de 400ms em Sydney).
-- **Insight**: "Seu SSL está sendo resolvido muito longe do usuário. Verifique se o seu plano de CDN inclui POPs nesta região."
+- **Tipo**: Alerta (Warning)
+- **Gatilho**: Handshake TLS transoceânico (ex: Handshake de 400ms em regiões remotas).
+- **Contexto**: Aba Edge Audit e Performance.
+- **Insight**: "Seu SSL está sendo resolvido muito longe do usuário. Verifique a cobertura da sua CDN."
 
-### AD10: Ajuste de Price Class (CloudFront/CDNs)
-- **Contexto**: Exibido quando o Edge Audit detecta falha sistemática de bypass em regiões específicas.
-- **Gatilho**: Bypass retorna HIT consistentemente em regiões de alto custo (Ásia/África).
-- **Insight**: "Sua CDN pode estar economizando custos ao ignorar POPs caros, forçando o tráfego para regiões distantes."
-
----
-
-## 📈 4. Trends & Security (Padrões de Longo Prazo)
-
-### AD07: Forçar HSTS (Strict-Transport-Security)
-- **Contexto**: Exibido na aba Trends ou Security.
-- **Gatilho**: Header HSTS ausente.
-- **Insight**: "Elimine o redirecionamento 301 inicial. Forçar HTTPS no browser economiza um RTT completo no primeiro acesso."
+### AD09: Benchmark "Vs Global" Negativo
+- **Tipo**: Alerta (Warning)
+- **Gatilho**: TTFB regional > 50% mais lento que a média global.
+- **Contexto**: Aba Performance.
+- **Insight**: "Esta região está operando em 'Degraded State' comparada ao resto do mundo."
 
 ### AD11: Consistência de Cache (Zombie Cache)
-- **Contexto**: Exibido na aba Trends ao detectar Headers de `Age` muito discrepantes entre regiões.
+- **Tipo**: Alerta (Warning)
 - **Gatilho**: `Age` header variando > 24h entre POPs para o mesmo recurso.
-- **Insight**: "Seu cache está 'preso' em algumas regiões (Zombie Cache). Considere uma política de purga mais agressiva."
+- **Contexto**: Aba Trends.
+- **Insight**: "Seu cache está 'preso' em algumas regiões (Zombie Cache). Considere uma purga agressiva."
 
 ---
 
-## 🛡️ 5. Security Audit (Proteção & Conformidade)
+## 💡 2. Conselhos (Oportunidade & Melhoria)
+
+### AD01: Upgrade para TLS 1.3
+- **Tipo**: Conselho (Info)
+- **Gatilho**: Uso de TLS 1.2 ou inferior.
+- **Contexto**: Breakdown de TTFB na aba Live.
+- **Insight**: "Você está perdendo ~100ms em handshakes. O TLS 1.3 resolveria isso com 1-RTT."
+
+### AD02: Ativar OCSP Stapling
+- **Tipo**: Conselho (Info)
+- **Gatilho**: Latência de TLS inconsistente em regiões remotas.
+- **Contexto**: Tabela Live (detalhe da região).
+- **Insight**: "O Stapling traria a prova de validade do certificado já no handshake, economizando tempo."
+
+### AD08: Otimização de DNS
+- **Tipo**: Conselho (Info)
+- **Gatilho**: Resolução DNS > 50ms.
+- **Contexto**: Barra de DNS na aba Live.
+- **Insight**: "Seu DNS está lento. Considere um provedor Anycast premium para acelerar o primeiro byte."
+
+### AD05: Implementar Cache-Control "Stale-While-Revalidate"
+- **Tipo**: Conselho (Info)
+- **Gatilho**: Baixo Hit Ratio + TTFB de origem alto.
+- **Contexto**: Aba Performance.
+- **Insight**: "Sirva o cache antigo enquanto revalida em background para eliminar a espera da origem."
+
+### AD10: Ajuste de Price Class (CDN)
+- **Tipo**: Conselho (Info)
+- **Gatilho**: Bypass retorna HIT consistentemente em regiões de alto custo (Ásia/África).
+- **Contexto**: Aba Edge Audit.
+- **Insight**: "Sua CDN pode estar ignorando POPs caros por configuração de custo. Verifique seu Price Class."
+
+### AD07: Forçar HSTS (Strict-Transport-Security)
+- **Tipo**: Conselho (Best Practice)
+- **Gatilho**: Header HSTS ausente.
+- **Contexto**: Aba Security e Trends.
+- **Insight**: "Elimine o redirecionamento 301 inicial forçando HTTPS no browser."
 
 ### AD12: Implementar Content-Security-Policy (CSP)
-- **Contexto**: Exibido na aba Security.
-- **Gatilho**: Header `Content-Security-Policy` ausente ou muito permissivo (`unsafe-inline`).
-- **Insight**: "Seu site está vulnerável a ataques de XSS. Defina uma política de CSP estrita para proteger seus usuários."
+- **Tipo**: Conselho (Best Practice)
+- **Gatilho**: Header CSP ausente ou inseguro.
+- **Contexto**: Aba Security.
+- **Insight**: "Proteja seus usuários contra ataques XSS definindo uma política de CSP estrita."
 
 ### AD13: Restringir Permissions-Policy
-- **Contexto**: Exibido na aba Security.
-- **Gatilho**: Header `Permissions-Policy` ausente.
-- **Insight**: "Limite o acesso de scripts de terceiros a recursos sensíveis como câmera e microfone. Adicione uma Permissions-Policy para maior controle."
+- **Tipo**: Conselho (Best Practice)
+- **Gatilho**: Header Permissions-Policy ausente.
+- **Contexto**: Aba Security.
+- **Insight**: "Limite o acesso de scripts a recursos sensíveis (câmera, microfone) via Permissions-Policy."
 
 ---
 
-## 💡 6. Insights (Centralizador de Inteligência)
+## ⚙️ Configuração & Integração
 
-A aba **Insights** funciona como o "Executive Summary" do monitor. Ela não gera novos gatilhos, mas consome todos os gatilhos disparados pelas outras abas e os organiza em um formato de lista de tarefas (To-Do List).
-
-- **Ordenação**: Impacto na Performance (High -> Low).
-- **Ação**: Cada item linka diretamente para a tela onde o problema foi detectado (ex: "Ver no Edge Audit").
+- **Thresholds**: Todos os gatilhos percentuais são configuráveis por monitor.
+- **Alertas**: Itens marcados como "Alerta" (Critical/Warning) possuem toggle para notificação Push.
+- **Insights Tab**: Atua como o agregador central, ordenando todos os itens ativos por severidade.
