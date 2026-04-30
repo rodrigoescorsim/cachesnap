@@ -4,6 +4,8 @@ import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { shouldRefresh } from './real-time-hub.helpers'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+
 interface Props {
   /** The current logged-in user ID, used for server-side SSE filtering. */
   userId?: string
@@ -28,8 +30,7 @@ export function RealTimeHub({ userId, watchId, debounceMs = 1_000, pauseStorageK
       return
     }
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-    const es = new EventSource(`${apiUrl}/api/events?user_id=${userId}`)
+    const es = new EventSource(`${API_URL}/api/events?user_id=${userId}`)
 
     es.onmessage = (event) => {
       const incomingId = event.data.trim()
@@ -42,7 +43,6 @@ export function RealTimeHub({ userId, watchId, debounceMs = 1_000, pauseStorageK
       )
       if (isFrozen) return
 
-      // Debounce: batch rapid multi-region updates into a single refresh
       if (timerRef.current) clearTimeout(timerRef.current)
       timerRef.current = setTimeout(() => router.refresh(), debounceMs)
     }

@@ -18,9 +18,6 @@ import {
   shouldShowBanner,
   formatAuditBadge,
   isAuditButtonEnabled,
-  warmupProgressPercent,
-  remainingPairsNeeded,
-  formatSnapshotReadiness,
 } from './bypass-audit.helpers'
 
 export type { AuditReadiness }
@@ -151,7 +148,7 @@ function ReadinessBanner({
   monitorId: string
 }) {
   const state = readiness.state
-  if (state !== 'disabled') return null // Warmup agora é indicador, não banner
+  if (state !== 'disabled') return null
 
   const reason = resolveReason(readiness)
   return (
@@ -188,13 +185,15 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
 
   const filteredData = useMemo(() => {
     const now = new Date()
-    const msInHour = 3600000
-    const limit = period === '1H' ? msInHour :
-                 period === '4H' ? 4 * msInHour :
-                 period === '24H' ? 24 * msInHour :
-                 period === '7D' ? 7 * 24 * msInHour :
-                 30 * 24 * msInHour
-
+    const MS_PER_HOUR = 3_600_000
+    const PERIOD_MS: Record<typeof periods[number], number> = {
+      '1H':  MS_PER_HOUR,
+      '4H':  4  * MS_PER_HOUR,
+      '24H': 24 * MS_PER_HOUR,
+      '7D':  7  * 24 * MS_PER_HOUR,
+      '30D': 30 * 24 * MS_PER_HOUR,
+    }
+    const limit = PERIOD_MS[period]
     return data.filter(item => (now.getTime() - item.hour.getTime()) <= limit)
   }, [data, period])
 
@@ -255,13 +254,8 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
   const hasData = filteredData.length > 0
   const hasAnyData = data.length > 0
 
-  // Snapshot readiness for timeline headers (Melhoria — Task 3.4)
-  const snapshotMeta = formatSnapshotReadiness(readiness)
-
   return (
-    // min-h prevents layout shift when transitioning between states (Melhoria #4)
     <div className="space-y-6 min-h-[200px]">
-      {/* Main Header — Task: Standardize with Performance screen */}
       <ViewSectionHeader 
         title={
           <div className="flex items-center gap-2">
@@ -310,7 +304,6 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
         </div>
       )}
 
-      {/* Reason banner (disabled / warmup) — Task 3.2 */}
       {shouldShowBanner(readiness) && readiness && (
         <ReadinessBanner readiness={readiness} monitorId={monitorId} />
       )}
@@ -521,7 +514,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                                   {Math.abs(Math.round(itemSaving))}ms
                                 </span>
                                 <span
-                                  className={`text-[9px] font-black uppercase tracking-widest ${isSaving ? 'text-metric-ttfb-fast opacity-60' : 'text-metric-ttfb-fast opacity-60'}`}
+                                  className="text-[9px] font-black uppercase tracking-widest text-metric-ttfb-fast opacity-60"
                                 >
                                   {Math.abs(Math.round((itemSaving / row.origin_ttfb) * 100))}% Benefit
                                 </span>

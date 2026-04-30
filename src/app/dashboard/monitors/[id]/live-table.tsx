@@ -18,9 +18,9 @@ import {
 import {
   ProbeWaterfall
 } from './probe-waterfall'
-import { isCacheHit, isCacheMiss, isCacheBypass, getCacheDisplayLabel } from '@/lib/cache-utils'
+import { isCacheHit, isCacheMiss, getCacheDisplayLabel } from '@/lib/cache-utils'
 
-interface LiveProbe {
+export interface LiveProbe {
   region: string
   ttfb_ms: number | null
   download_ms: number | null
@@ -49,8 +49,6 @@ interface LiveTableProps {
   regionDescriptions: Record<string, string>
   globalAvgTtfb: number
 }
-
-// --- Internal Helpers (replicated from page.tsx for fidelity) ---
 
 function formatCacheAgeShort(seconds: number): React.ReactNode {
   const unitStyle = "text-[9px] opacity-70 ml-0.5 font-medium"
@@ -87,7 +85,6 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
   const [expandedRegions, setExpandedRegions] = useState<Record<string, boolean>>({})
 
   const toggleRegion = (region: string, e: React.MouseEvent) => {
-    // If the click was on a link or button, don't toggle
     if ((e.target as HTMLElement).closest('a, button')) return
 
     setExpandedRegions(prev => ({

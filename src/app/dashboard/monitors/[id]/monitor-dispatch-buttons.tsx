@@ -5,10 +5,6 @@ import { useRouter } from 'next/navigation'
 import { PauseCircle, Snowflake } from 'lucide-react'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 
-/** 
- * Renders the primary action triggers for manual probes. 
- * Refined 'Run Probe Now' version with Title Case and premium SaaS aesthetics.
- */
 export function MonitorDispatchButtons({
   monitorId,
   variant = 'default',
@@ -93,7 +89,6 @@ export function MonitorDispatchButtons({
     }
 
     const nextFrozen = !isFrozen
-    // Fallback if not controlled externally
     window.localStorage.setItem(liveFreezeStorageKey, nextFrozen ? '1' : '0')
     if (nextFrozen) {
       window.localStorage.setItem(`${liveFreezeStorageKey}_at`, String(Date.now()))
@@ -168,10 +163,8 @@ export function MonitorDispatchButtons({
                   : 'border border-teal-300/25 bg-zinc-900/55 text-zinc-300 hover:border-teal-300/45 hover:bg-zinc-800/70 hover:text-zinc-100'
               }`}
             >
-              {/* Frozen state gets the pause icon to signal "resume updates" action. */}
               {isFrozen ? <PauseCircle className="h-3.5 w-3.5" /> : <Snowflake className="h-3.5 w-3.5" />}
               <span className="whitespace-nowrap">
-                {/* Visual hierarchy: secondary when idle, more prominent when frozen. */}
                 {isFrozen ? 'Frozen' : 'Freeze View'}
               </span>
             </button>

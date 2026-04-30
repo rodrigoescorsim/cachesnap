@@ -15,6 +15,7 @@ export interface AuditReadiness {
 }
 
 export const COMPARABLE_PAIRS_GATE = 8
+export const COMPARABLE_REGIONS_GATE = 4
 
 // ── State resolution ──────────────────────────────────────────────────────────
 
@@ -77,7 +78,7 @@ export function isAuditButtonEnabled(readiness: AuditReadiness | null | undefine
   return resolveReadinessState(readiness) === 'enabled'
 }
 
-// ── Warmup progress (Melhoria #3) ─────────────────────────────────────────────
+// ── Warmup progress ───────────────────────────────────────────────────────────
 
 /**
  * Progress toward the comparable_pairs gate (0–100).
@@ -116,7 +117,11 @@ export function formatSnapshotReadiness(
   const regions = readiness?.comparable_regions ?? 0
 
   const confidence: 'low' | 'medium' | 'high' =
-    pairs >= 8 && regions >= 4 ? 'high' : pairs >= 4 ? 'medium' : 'low'
+    pairs >= COMPARABLE_PAIRS_GATE && regions >= COMPARABLE_REGIONS_GATE
+      ? 'high'
+      : pairs >= COMPARABLE_PAIRS_GATE / 2
+        ? 'medium'
+        : 'low'
 
   return { comparableRegions: regions, confidence, state }
 }

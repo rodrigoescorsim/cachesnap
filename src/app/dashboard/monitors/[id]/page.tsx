@@ -18,8 +18,8 @@ import { ViewSectionHeader, LiveDot } from '@/components/dashboard/dashboard-ui'
 import { extractPop, popToCity, resolveCdnLabel } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
 import { MonitorSidebarRail } from './monitor-sidebar-rail'
-import { LiveTable } from './live-table'
-import { PerformanceTable } from './performance-table'
+import { LiveTable, type LiveProbe } from './live-table'
+import { PerformanceTable, type RegionStat } from './performance-table'
 import {
   buildMonitorHref,
   buildViewHref,
@@ -60,58 +60,7 @@ import {
   originTtfbMetricCellClass,
 } from './monitor-table-styles'
 
-interface RegionStat {
-  region: string
-  probe_count: number
-  ttfb_avg_ms: number | null
-  edge_hit_avg_ms: number | null
-  origin_miss_avg_ms: number | null
-  bypass_ttfb_avg_ms: number | null
-  ttfb_p95_ms: number | null
-  ttfb_min_ms: number | null
-  ttfb_max_ms: number | null
-  download_avg_ms: number | null
-  total_avg_ms: number | null
-  dns_avg_ms: number | null
-  tcp_avg_ms: number | null
-  tls_avg_ms: number | null
-  edge_avg_ms: number | null
-  origin_avg_ms: number | null
-  redirect_avg: number | null
-  common_served_by: string | null
-  common_cdn_provider: string | null
-  common_http_version: string | null
-  common_cache_status: string | null
-  error_count: number
-  cache_hit_pct: number | null
-  uptime_pct: number | null
-  max_age_s: number | null
-  last_probe_at: Date | null
-}
-
-/** One row per region: latest probe only (real-time table). */
-interface LatestProbeRow {
-  region: string
-  ttfb_ms: number | null
-  download_ms: number | null
-  total_ms: number | null
-  dns_ms: number | null
-  tcp_ms: number | null
-  tls_ms: number | null
-  edge_ms: number | null
-  origin_ms: number | null
-  redirect_count: number | null
-  common_served_by: string | null
-  common_cdn_provider: string | null
-  common_http_version: string | null
-  common_cache_status: string | null
-  status_code: number | null
-  error: string | null
-  max_age_s: number | null
-  last_probe_at: Date | null
-  probe_version: string | null
-  server_timing_breakdown: Record<string, number> | null
-}
+type LatestProbeRow = LiveProbe
 
 interface WeekTrend {
   region: string

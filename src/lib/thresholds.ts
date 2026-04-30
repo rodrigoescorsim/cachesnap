@@ -52,7 +52,7 @@ export function getTtfbColorClass(ms: number, type: 'monitor' | 'global' = 'moni
 }
 
 export function getCacheColor(pct: number, type: 'monitor' | 'global' = 'monitor') {
-  const t = type === 'global' ? GLOBAL_CACHE : { GOOD: MONITOR_CACHE.GOOD, FAIR: MONITOR_CACHE.LOW, PERFECT: 98 }
+  const t = type === 'global' ? GLOBAL_CACHE : { GOOD: MONITOR_CACHE.GOOD, FAIR: MONITOR_CACHE.LOW, PERFECT: GLOBAL_CACHE.PERFECT }
   if (pct >= t.PERFECT) return 'text-metric-elite'
   if (pct >= t.GOOD) return 'text-metric-ttfb-fast'
   if (pct >= t.FAIR) return 'text-amber-400'
@@ -74,7 +74,7 @@ export function getTtfbTooltip(ms: number, type: 'monitor' | 'global' = 'monitor
 }
 
 export function getCacheTooltip(pct: number, type: 'monitor' | 'global' = 'monitor'): string {
-  const t = type === 'global' ? GLOBAL_CACHE : { GOOD: MONITOR_CACHE.GOOD, FAIR: MONITOR_CACHE.LOW, PERFECT: 98 }
+  const t = type === 'global' ? GLOBAL_CACHE : { GOOD: MONITOR_CACHE.GOOD, FAIR: MONITOR_CACHE.LOW, PERFECT: GLOBAL_CACHE.PERFECT }
   if (pct >= 100) return '100% cache hit: All requests served from CDN.'
   if (pct >= t.PERFECT) return 'Very high cache: Almost all requests use CDN.'
   if (pct >= t.GOOD) return 'Good efficiency: Most requests use CDN.'
