@@ -82,6 +82,7 @@ function getSyncStatus(lastProbeAt: Date | null): { colorClass: string; tooltip:
 }
 
 export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgTtfb }: LiveTableProps) {
+  const isDebug = process.env.NODE_ENV === 'development'
   const [expandedRegions, setExpandedRegions] = useState<Record<string, boolean>>({})
 
   const toggleRegion = (region: string, e: React.MouseEvent) => {
@@ -158,6 +159,11 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
               <th className="cs-table-compact-th !text-center">
                 <PremiumTooltip content="Time of last check" position="top-center" direction="top">Sync</PremiumTooltip>
               </th>
+              {isDebug && (
+                <th className="cs-table-compact-th !text-center">
+                  <PremiumTooltip content="Probe lambda version" position="top-center" direction="top">Version</PremiumTooltip>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-white/[0.02]">
@@ -314,10 +320,15 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                         {sync.text}
                       </PremiumTooltip>
                     </td>
+                    {isDebug && (
+                      <td className="cs-table-compact-td text-center text-[10px] text-zinc-500 font-mono">
+                        {p.probe_version || '—'}
+                      </td>
+                    )}
                   </tr>
                   {isExpanded && (
                     <tr>
-                      <td colSpan={10} className="bg-black/20 px-4 py-3 border-b border-white/[0.05]">
+                      <td colSpan={isDebug ? 11 : 10} className="bg-black/20 px-4 py-3 border-b border-white/[0.05]">
                         <div className="animate-[cs-fade-in_0.3s_ease-out]">
                           <ProbeWaterfall
                             probes={[{
