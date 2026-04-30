@@ -36,6 +36,7 @@ import {
   Search,
   Trash2,
   Globe,
+  ShieldAlert,
 } from 'lucide-react'
 import { MonitorDeleteConfirm } from '@/app/dashboard/monitors/[id]/monitor-delete-confirm'
 import {
@@ -572,7 +573,7 @@ function buildMonitorColumns(
 
                 if (isDown) {
                   return (
-                    <span className="cs-badge cs-badge-danger shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px] !font-black">
+                    <span className="cs-badge cs-badge-danger shrink-0 !gap-1 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase">
                       <span className="relative flex h-1.5 w-1.5 shrink-0">
                         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
                         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-400" />
@@ -583,7 +584,7 @@ function buildMonitorColumns(
                 }
                 if (isDegraded) {
                   return (
-                    <span className="cs-badge cs-badge-danger shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px]">
+                    <span className="cs-badge cs-badge-danger shrink-0 !gap-1 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase">
                       <span className="relative flex h-1.5 w-1.5 shrink-0">
                         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-400" />
                       </span>
@@ -594,7 +595,7 @@ function buildMonitorColumns(
                 // Show actual sync status instead of misleading "Active" when data is old
                 if (isActive && freshness === 'offline' && !hasNeverBeenChecked) {
                   return (
-                    <span className="cs-badge cs-badge-danger shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px]">
+                    <span className="cs-badge cs-badge-danger shrink-0 !gap-1 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase">
                       <span className="relative flex h-1.5 w-1.5 shrink-0">
                         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-400" />
                       </span>
@@ -604,7 +605,7 @@ function buildMonitorColumns(
                 }
                 if (isActive && freshness === 'stale') {
                   return (
-                    <span className="cs-badge cs-badge-warning shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px]">
+                    <span className="cs-badge cs-badge-warning shrink-0 !gap-1 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase">
                       <span className="relative flex h-1.5 w-1.5 shrink-0">
                         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400" />
                       </span>
@@ -614,7 +615,7 @@ function buildMonitorColumns(
                 }
                 if (isActive) {
                   return (
-                    <span className="cs-badge cs-badge-success shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px]">
+                    <span className="cs-badge cs-badge-success shrink-0 !gap-1.5 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase">
                       <span className="relative flex h-1.5 w-1.5 shrink-0">
                         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
                         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -624,11 +625,26 @@ function buildMonitorColumns(
                   )
                 }
                 return (
-                  <span className="cs-badge cs-badge-warning shrink-0 !px-1.5 !py-0 !text-[8px]">
+                  <span className="cs-badge cs-badge-warning shrink-0 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase">
                     Paused
                   </span>
                 )
               })()}
+
+              {m.isWafBlocked && (
+                <PremiumTooltip content="Security interference (WAF) detected in multiple regions. Latency metrics reflect filtering speed, not site performance.">
+                  <span className="cs-badge shrink-0 !gap-1.5 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase"
+                    style={{
+                      backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                      color: '#fb923c',
+                      borderColor: 'rgba(249, 115, 22, 0.2)',
+                    }}
+                  >
+                    <ShieldAlert className="h-2.5 w-2.5 text-orange-400" />
+                    WAF Active
+                  </span>
+                </PremiumTooltip>
+              )}
             </div>
             <PremiumTooltip
               content={
@@ -686,13 +702,16 @@ function buildMonitorColumns(
         return (
           <div className="flex flex-col gap-[3px]">
             <PremiumTooltip
-              content={getTtfbTooltip(ms, 'monitor')}
+              content={m.isWafBlocked ? "WAF detected: this latency reflects security filtering, not page load speed." : getTtfbTooltip(ms, 'monitor')}
               position="top-center"
               direction="top"
             >
-              <span className={`text-[14px] font-black leading-none tabular-nums ${ttfbClass(ms)}`}>
-                {ms}<span className="ml-0.5 text-[9px] font-bold opacity-[0.55]">ms</span>
-              </span>
+              <div className="flex items-center gap-1.5">
+                {m.isWafBlocked && <ShieldAlert className="h-3.5 w-3.5 text-orange-400" />}
+                <span className={`text-[14px] font-black leading-none tabular-nums ${m.isWafBlocked ? 'text-zinc-500' : ttfbClass(ms)}`}>
+                  {ms}<span className="ml-0.5 text-[9px] font-bold opacity-[0.55]">ms</span>
+                </span>
+              </div>
             </PremiumTooltip>
             <DeltaChip value={row.original.ttfbCurrentDelta} inverted />
           </div>
@@ -723,7 +742,7 @@ function buildMonitorColumns(
         }
         return (
           <div className="flex items-center gap-2.5">
-            <span className={`text-[13px] font-black tabular-nums leading-none ${ttfbClass(ms)}`}>
+            <span className={`text-[13px] font-black tabular-nums leading-none ${m.isWafBlocked ? 'text-zinc-500' : ttfbClass(ms)}`}>
               {ms}<span className="ml-0.5 text-[9px] font-bold opacity-[0.55]">ms</span>
             </span>
             <Sparkline data={row.original.ttfbSparkline} delta={row.original.ttfbCurrentDelta} />
@@ -736,7 +755,7 @@ function buildMonitorColumns(
       header: () => <MonitorsThTooltip label="Cache Hit" description={HEADER_HELP.cacheHit} />,
       size: 10,
       enableSorting: true,
-    cell: ({ getValue, row }) => <CacheHitBadge pct={getValue()} status={row.original.cacheStatusCurrent} />,
+      cell: ({ getValue, row }) => <CacheHitBadge pct={getValue()} status={row.original.cacheStatusCurrent} />,
     }),
 
     ...(includeHit24hAvg ? [hit24hAvgColumn] : []),
@@ -777,10 +796,12 @@ function buildMonitorColumns(
           <div className="flex flex-col gap-1 pl-4">
             <div className="flex items-center gap-1.5">
               <Globe className={`h-3 w-3 ${hasIssues ? (errorOnes.length > 0 ? 'text-red-400/50' : 'text-amber-400/50') : 'text-emerald-500/40'}`} />
-              <span className={`text-[11px] font-black uppercase tracking-tight ${hasIssues ? (errorOnes.length > 0 ? 'text-red-400' : 'text-amber-400') : 'text-zinc-400 group-hover/row:text-zinc-300'}`}>
-                {hasIssues 
-                  ? (errorOnes.length > 0 ? `${errorOnes.length} FAILING` : `${slowOnes.length} SLOW`) 
-                  : '8 REGIONS OK'}
+              <span className={`text-[11px] font-black uppercase tracking-tight ${m.isWafBlocked ? 'text-orange-400/80' : (hasIssues ? (errorOnes.length > 0 ? 'text-red-400' : 'text-amber-400') : 'text-zinc-400 group-hover/row:text-zinc-300')}`}>
+                {m.isWafBlocked
+                  ? 'WAF DETECTED'
+                  : (hasIssues
+                    ? (errorOnes.length > 0 ? `${errorOnes.length} FAILING` : `${slowOnes.length} SLOW`)
+                    : '8 REGIONS OK')}
               </span>
             </div>
 
@@ -836,10 +857,10 @@ function buildMonitorColumns(
         const isFullyDown = m.totalRegionCount > 0 && m.errorRegionCount >= m.totalRegionCount
         const colorClass =
           isFullyDown ? 'text-red-400'
-          : freshness === 'offline' ? 'text-red-400'
-          : freshness === 'stale' ? 'text-amber-400'
-          : isRecent ? 'text-emerald-400'
-          : 'text-zinc-400 group-hover/row:text-zinc-300'
+            : freshness === 'offline' ? 'text-red-400'
+              : freshness === 'stale' ? 'text-amber-400'
+                : isRecent ? 'text-emerald-400'
+                  : 'text-zinc-400 group-hover/row:text-zinc-300'
         const tooltipContent = isFullyDown
           ? `Site is unreachable — connection failed in all ${m.totalRegionCount} regions`
           : m.errorRegionCount > 0

@@ -31,6 +31,7 @@ export interface Monitor {
   totalRegionCount: number
   /** How many regions reported a connection error (timeout, empty reply, DNS fail) on their latest probe. */
   errorRegionCount: number
+  isWafBlocked: boolean
   lastCheckedAt: Date
 }
 

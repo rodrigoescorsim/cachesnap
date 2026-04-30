@@ -213,7 +213,7 @@ const MONITOR_HEADER_CARD =
 
 /** Status pills in the monitor title bar — consistent shell + interactive hover. */
 const MONITOR_HEADER_STATUS_BADGE =
-  'inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-border bg-white/5 px-2.5 py-0 text-[10px] font-bold uppercase tracking-tight transition-colors hover:bg-white/10 text-zinc-300'
+  'inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border border-border bg-white/5 px-2.5 py-0 text-[9px] font-bold uppercase tracking-widest transition-colors hover:bg-white/10 text-zinc-300'
 
 /** Active monitor dot — soft mint glow + pulse (“system alive”). */
 const MONITOR_HEADER_ACTIVE_DOT =
@@ -1031,16 +1031,6 @@ export default async function MonitorDetailPage({
     return sorted.length > 0 ? sorted[0][0] : 'NO HEADER'
   })()
 
-    const isLiveGlobalWafBlocked = latestProbes.length > 0 && 
-    latestProbes.filter(p => Number(p.status_code) == 401 || Number(p.status_code) == 403).length >= (latestProbes.length / 2);
-
-  const activeStats = stats.filter(s => Number(s.probe_count) > 0);
-  const isGlobalWafBlocked = activeStats.length > 0 &&
-    activeStats.filter(s => Number(s.common_status_code) == 401 || Number(s.common_status_code) == 403).length >= Math.max(1, activeStats.length * 0.25);
-
-  // If in performance tab, prioritize the historical WAF state
-  const isCurrentlyWafBlocked = activeTab === 'performance' ? !!isGlobalWafBlocked : !!isLiveGlobalWafBlocked;
-
   // AGGREGATE CALCULATIONS FOR SUMMARY CARDS
   const avgTtfb = stats.length > 0
     ? Math.round(stats.reduce((acc, s) => acc + (s.ttfb_avg_ms || 0), 0) / stats.length)
@@ -1052,6 +1042,15 @@ export default async function MonitorDetailPage({
 
   const currentGlobalTtfb = activeTab === 'performance' ? avgTtfb : liveAvgTtfb;
   const currentGlobalHitRate = activeTab === 'performance' ? globalHitRate : liveGlobalHitRate;
+
+  // Unified WAF detection for the global header to ensure consistency across views
+  // Threshold: at least 2 regions blocked (or 1 if only 1 region is monitored) to avoid single-region flukes
+  const wafHistoricalCount = stats.filter(s => Number(s.common_status_code) == 401 || Number(s.common_status_code) == 403).length;
+  const wafLiveCount = latestProbes.filter(p => Number(p.status_code) == 401 || Number(p.status_code) == 403).length;
+  
+  const hasHistoricalWaf = wafHistoricalCount >= Math.min(2, stats.filter(s => Number(s.probe_count) > 0).length);
+  const hasLiveWaf = wafLiveCount >= Math.min(2, latestProbes.length);
+  const isCurrentlyWafBlocked = hasHistoricalWaf || hasLiveWaf;
 
   const isGlobalDynamic = globalHitRate === 0 && (stats.length > 0 || latestProbes.length > 0)
   
@@ -1242,6 +1241,15 @@ export default async function MonitorDetailPage({
                 </div>
               </PremiumTooltip>
 
+              {isCurrentlyWafBlocked && (
+                <PremiumTooltip content="Security interference (WAF) detected in multiple regions. Latency metrics reflect filtering speed, not site performance.">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/20 shadow-[0_0_12px_rgba(249,115,22,0.1)]">
+                    <ShieldAlert className="w-3.5 h-3.5 text-orange-400" />
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-orange-400">WAF Active</span>
+                  </div>
+                </PremiumTooltip>
+              )}
+
 
 
               {globalSyncStatus === 'live' ? (
@@ -1405,7 +1413,7 @@ export default async function MonitorDetailPage({
                                 <PremiumTooltip content="Average latency from recent probes across all regions">
                                   <p className="cs-metric-card-label !text-[11px]">Global TTFB</p>
                                 </PremiumTooltip>
-                                <PremiumTooltip content={validLiveTtfb.length === 0 && activeTab !== 'performance' ? 'No data available' : (isCurrentlyWafBlocked ? 'WAF Interception: This latency reflects security filtering, not actual page load.' : getTtfbTooltip(currentGlobalTtfb, 'global'))}>
+                                <PremiumTooltip content={validLiveTtfb.length === 0 && activeTab !== 'performance' ? 'No data available' : (isCurrentlyWafBlocked ? 'WAF detected: this latency reflects security filtering, not page load speed.' : getTtfbTooltip(currentGlobalTtfb, 'global'))}>
                                   <div className="flex items-center gap-2">
                                     <div className="flex items-baseline gap-0.5">
                                       {isCurrentlyWafBlocked && <ShieldAlert className="h-5 w-5 text-orange-400 mr-2" />}
@@ -1530,13 +1538,14 @@ export default async function MonitorDetailPage({
                                 <PremiumTooltip content={`Average Time to First Byte during the last ${range} across all regions`}>
                                   <p className="cs-metric-card-label !text-[11px]">Global TTFB</p>
                                 </PremiumTooltip>
-                                <PremiumTooltip content={avgTtfb === 0 ? 'No data available' : getTtfbTooltip(avgTtfb, 'global')}>
+                                <PremiumTooltip content={isCurrentlyWafBlocked ? 'WAF detected: this latency reflects security filtering, not page load speed.' : (avgTtfb === 0 ? 'No data available' : getTtfbTooltip(avgTtfb, 'global'))}>
                                   <div className="flex items-center gap-2">
                                     <div className="flex items-baseline gap-0.5">
-                                      <span className={`text-[26px] font-black tracking-tight leading-none ${getTtfbColorClass(avgTtfb, 'global')}`}>{avgTtfb}</span>
-                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getTtfbColorClass(avgTtfb, 'global')}`}>ms</span>
+                                      {isCurrentlyWafBlocked && <ShieldAlert className="h-5 w-5 text-orange-400 mr-2" />}
+                                      <span className={`text-[26px] font-black tracking-tight leading-none ${isCurrentlyWafBlocked ? '!text-zinc-500' : getTtfbColorClass(avgTtfb, 'global')}`}>{avgTtfb}</span>
+                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${isCurrentlyWafBlocked ? '!text-zinc-500' : getTtfbColorClass(avgTtfb, 'global')}`}>ms</span>
                                     </div>
-                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${getTtfbColorClass(avgTtfb, 'global')}`} />
+                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${isCurrentlyWafBlocked ? '!text-zinc-500 opacity-50' : getTtfbColorClass(avgTtfb, 'global')}`} />
                                   </div>
                                 </PremiumTooltip>
                               </div>

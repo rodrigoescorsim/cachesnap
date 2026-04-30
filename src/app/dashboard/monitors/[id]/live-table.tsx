@@ -265,11 +265,14 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                           </span>
                         </PremiumTooltip>
                       ) : (
-                        <div className="flex items-center justify-center">
-                          <PremiumTooltip content={isWafBlock ? "WAF Interception: This latency reflects security filtering, not actual page load." : (p.ttfb_ms ? getTtfbTooltip(p.ttfb_ms, 'regional') : 'No data')} position="top-right" direction="top">
-                            <VisualGlow value={isWafBlock ? null : p.ttfb_ms}>
-                              {p.ttfb_ms != null ? `${Math.round(p.ttfb_ms)}ms` : '—'}
-                            </VisualGlow>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <PremiumTooltip content={isWafBlock ? "WAF detected: this latency reflects security filtering, not page load speed." : (p.ttfb_ms ? getTtfbTooltip(p.ttfb_ms, 'regional') : 'No data')} position="top-right" direction="top">
+                            <div className="flex items-center justify-center gap-1.5">
+                              {isWafBlock && <ShieldAlert className="w-3.5 h-3.5 text-orange-400" />}
+                              <VisualGlow value={isWafBlock ? null : p.ttfb_ms}>
+                                {p.ttfb_ms != null ? `${Math.round(p.ttfb_ms)}ms` : '—'}
+                              </VisualGlow>
+                            </div>
                           </PremiumTooltip>
                         </div>
                       )}
@@ -285,7 +288,7 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
 
                         return (
                           <PremiumTooltip content={`${regionLabels[p.region] ?? p.region} is currently ${absDiff.toFixed(1)}% ${diff < 0 ? 'faster' : 'slower'} than the live global average (${globalAvgTtfb}ms)`}>
-                            <span className={`text-[12px] font-black tabular-nums ${colorClass}`}>
+                            <span className={`text-[12px] font-black tabular-nums ${isWafBlock ? 'text-zinc-500' : colorClass}`}>
                               {`${sign}${Math.round(absDiff)}%`}
                             </span>
                           </PremiumTooltip>
@@ -312,12 +315,7 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                         )}
                         {isStatusErr ? (
                           <div className="flex items-center gap-1.5">
-                            {(p.status_code === 401 || p.status_code === 403) && (
-                              <PremiumTooltip content="WAF Detected: This site may be blocking automated requests from data centers in this region." position="top-right" direction="top">
-                                <ShieldAlert className="w-4 h-4 text-orange-400" />
-                              </PremiumTooltip>
-                            )}
-                            <PremiumTooltip content={p.error || 'The edge server returned an error status or connection failed.'} position="top-right" direction="top">
+                            <PremiumTooltip content={isWafBlock ? 'Blocked by edge security (WAF)' : (p.error || 'The edge server returned an error status or connection failed.')} position="top-right" direction="top">
                               <span className="cs-badge-flat cs-badge-flat-danger">{p.status_code || 'ERR'}</span>
                             </PremiumTooltip>
                           </div>
