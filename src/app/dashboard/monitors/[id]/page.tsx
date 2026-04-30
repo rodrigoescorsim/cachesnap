@@ -1032,12 +1032,13 @@ export default async function MonitorDetailPage({
   })()
 
   const isLiveGlobalWafBlocked = latestProbes.length > 0 && 
-    latestProbes.filter(p => p.status_code == 401 || p.status_code == 403).length >= (latestProbes.length / 2);
+    latestProbes.filter(p => Number(p.status_code) == 401 || Number(p.status_code) == 403).length >= (latestProbes.length / 2);
 
-  const isGlobalWafBlocked = stats.length > 0 &&
-    stats.filter(s => s.common_status_code == 401 || s.common_status_code == 403).length >= (stats.length / 2);
+  const activeStats = stats.filter(s => s.probe_count > 0);
+  const isGlobalWafBlocked = activeStats.length > 0 &&
+    activeStats.filter(s => Number(s.common_status_code) == 401 || Number(s.common_status_code) == 403).length >= (activeStats.length / 2);
 
-  const isCurrentlyWafBlocked = isLiveGlobalWafBlocked || isGlobalWafBlocked;
+  const isCurrentlyWafBlocked = !!(isLiveGlobalWafBlocked || isGlobalWafBlocked);
 
   // AGGREGATE CALCULATIONS FOR SUMMARY CARDS
   const avgTtfb = stats.length > 0
