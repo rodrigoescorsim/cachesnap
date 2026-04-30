@@ -33,8 +33,6 @@ export function LiveActivityHeader({ monitorId, freezeStorageKey, latestDataAt }
       if (latestDataAt > freezeStartedAtMs + 5000) {
         window.localStorage.setItem(freezeStorageKey, '0')
         window.localStorage.removeItem(`${freezeStorageKey}_at`)
-        setIsFrozen(false)
-        setFreezeStartedAtMs(null)
       }
     }
   }, [isFrozen, latestDataAt, freezeStartedAtMs, freezeStorageKey])

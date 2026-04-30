@@ -331,6 +331,7 @@ export function TtfbChart({
     const ttfbTotal = (showGlobalTtfb ? 1 : 0) + ttfbVisible.length
     if (ttfbTotal === 1) {
       const remaining = showGlobalTtfb ? 'global' : ttfbVisible[0]
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (activeTtfbRegion !== remaining) setActiveTtfbRegion(remaining)
     }
 
@@ -755,15 +756,19 @@ export function TtfbChart({
       return
     }
 
-    const chartType = hoveredChart === 'network' ? 'net' : (hoveredChart || 'ttfb')
+    const chartType: 'ttfb' | 'cache' | 'net' = hoveredChart === 'network'
+      ? 'net'
+      : hoveredChart === 'cache'
+        ? 'cache'
+        : 'ttfb'
     const svgRect = svgElement.getBoundingClientRect()
     const relativeX = (e.clientX - svgRect.left) * (W / svgRect.width)
 
     const idx = Math.round(((relativeX - PAD.left) / CW) * (allBuckets.length - 1))
     if (idx >= 0 && idx < allBuckets.length) {
-      updateHoveredIdx(idx, chartType as any)
+      updateHoveredIdx(idx, chartType)
     } else {
-      updateHoveredIdx(null, chartType as any)
+      updateHoveredIdx(null, chartType)
     }
   }
 
@@ -829,7 +834,7 @@ export function TtfbChart({
   const cacheGridOpacity = (value: number) => (value === 95 ? 0.1 : 0.04)
   const cacheThresholdOpacity = 0.3
 
-  const XAxisLabels = () => {
+  const renderXAxisLabels = () => {
     if (allBuckets.length < 2) return null
     const count = allBuckets.length
     const step = Math.max(1, Math.floor(count / 5))
@@ -856,7 +861,7 @@ export function TtfbChart({
     )
   }
 
-  const GuideLine = ({ source }: { source: 'ttfb' | 'cache' | 'net' }) => {
+  const renderGuideLine = (source: 'ttfb' | 'cache' | 'net') => {
     const idx = source === 'ttfb' ? hoveredTtfbIdx : source === 'cache' ? hoveredCacheIdx : hoveredNetIdx
     if (idx === null) return null
     const x = toX(idx)
@@ -1356,8 +1361,8 @@ export function TtfbChart({
                     <text x={PAD.left - 6} y={toYTtfb(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}ms</text>
                   </g>
                 ))}
-                <XAxisLabels />
-                <GuideLine source="ttfb" />
+                {renderXAxisLabels()}
+                {renderGuideLine('ttfb')}
                 {regions.map(region => {
                   if (!selectedTtfbRegions.has(region)) return null
                   const m = byRegion[region]
@@ -1569,8 +1574,8 @@ export function TtfbChart({
                       <text x={PAD.left - 6} y={toYCache(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}%</text>
                     </g>
                   ))}
-                  <XAxisLabels />
-                  <GuideLine source="cache" />
+                  {renderXAxisLabels()}
+                  {renderGuideLine('cache')}
 
                   {hasCacheData ? (
                     <>
@@ -1780,8 +1785,8 @@ export function TtfbChart({
                     <text x={PAD.left - 6} y={toYNet(v) + 4} textAnchor="end" fontSize={9} fill="currentColor" fillOpacity={0.4}>{v}ms</text>
                   </g>
                 ))}
-                <XAxisLabels />
-                <GuideLine source="net" />
+                {renderXAxisLabels()}
+                {renderGuideLine('net')}
                 {showGlobalNet && (
                   <g onClick={() => handleLineClick('global', 'net')} className="cursor-pointer">
                     <path

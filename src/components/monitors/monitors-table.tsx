@@ -1145,7 +1145,7 @@ export function MonitorsTable({
                 {searchQuery.trim() ? (
                   <>
                     Nothing matched{' '}
-                    <span className="font-bold text-zinc-500">"{searchQuery.trim()}"</span>.
+                    <span className="font-bold text-zinc-500">&quot;{searchQuery.trim()}&quot;</span>.
                     Try another name or URL.
                   </>
                 ) : (

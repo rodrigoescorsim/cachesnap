@@ -121,14 +121,10 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
   // ── Optimistic state ───────────────────────────────────────────────────────
   const [optimisticStatus, setOptimisticStatus] = useState<Record<string, 'active' | 'paused'>>({})
 
-  // Clear optimistic status when underlying data updates (prop monitors change or refetch occurs)
-  useEffect(() => {
-    setOptimisticStatus({})
-  }, [monitors])
-
   const displayMonitors = useMemo(() => {
+    const monitorIds = new Set(monitors.map((m) => m.id))
     return monitors.map((m) =>
-      optimisticStatus[m.id] ? { ...m, status: optimisticStatus[m.id] } : m,
+      monitorIds.has(m.id) && optimisticStatus[m.id] ? { ...m, status: optimisticStatus[m.id] } : m,
     )
   }, [monitors, optimisticStatus])
 

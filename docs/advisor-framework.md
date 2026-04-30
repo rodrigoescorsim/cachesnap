@@ -16,7 +16,7 @@ Para maximizar a utilidade, os conselhos seguem dois fluxos:
 
 | Tela | Foco do Diagnóstico | Conselhos Aplicáveis |
 | :--- | :--- | :--- |
-| **Live** | Saúde imediata e protocolos | AD01, AD02, AD04, AD08 |
+| **Live** | Saúde imediata e protocolos | AD01, AD02, AD04, AD08, AD14 |
 | **Performance** | Benchmarking e eficiência | AD05, AD06, AD09 |
 | **Edge Audit** | Topologia e custos de CDN | AD03, AD10 |
 | **Trends** | Padrões e consistência | AD07, AD11 |
@@ -26,6 +26,11 @@ Para maximizar a utilidade, os conselhos seguem dois fluxos:
 ---
 
 ## ⚡ 1. Live Dashboard (Handshake & DNS)
+
+### AD14: Alerta de Erros Críticos (Origin Health)
+- **Contexto**: Exibido no topo do Live Dashboard e Insights com badge "CRITICAL".
+- **Gatilho**: Qualquer erro 5xx detectado ou taxa de 4xx > 5% na última hora.
+- **Insight**: "{percent}% dos requests retornando erro {status}. Investigue o origin imediatamente."
 
 ### AD01: Upgrade para TLS 1.3
 - **Contexto**: Exibido no breakdown de TTFB quando a barra de TLS (roxa) está acima da média.

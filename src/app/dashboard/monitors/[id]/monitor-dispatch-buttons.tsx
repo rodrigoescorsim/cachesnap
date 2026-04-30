@@ -20,22 +20,20 @@ export function MonitorDispatchButtons({
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [cooldown, setCooldown] = useState(0)
-  const [error, setError] = useState<string | null>(null)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
-
   const isCompact = variant === 'compact'
   const isAudit = variant === 'audit'
   const cooldownPeriod = isAudit ? 60 : 30
-  const liveFreezeStorageKey = freezeStorageKey ?? `live_updates_frozen_${monitorId}`
+  const [cooldown, setCooldown] = useState(() => {
+    if (typeof window === 'undefined') return 0
+    const lastClick = window.localStorage.getItem(`last_dispatch_${variant}_${monitorId}`)
+    if (!lastClick) return 0
+    const diff = Math.floor((Date.now() - Number(lastClick)) / 1000)
+    return diff < cooldownPeriod ? cooldownPeriod - diff : 0
+  })
+  const [error, setError] = useState<string | null>(null)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
 
-  useEffect(() => {
-    const lastClick = localStorage.getItem(`last_dispatch_${variant}_${monitorId}`)
-    if (lastClick) {
-      const diff = Math.floor((Date.now() - Number(lastClick)) / 1000)
-      if (diff < cooldownPeriod) setCooldown(cooldownPeriod - diff)
-    }
-  }, [monitorId, variant, cooldownPeriod])
+  const liveFreezeStorageKey = freezeStorageKey ?? `live_updates_frozen_${monitorId}`
 
   useEffect(() => {
     if (cooldown > 0) {

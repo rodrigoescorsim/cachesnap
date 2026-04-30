@@ -111,6 +111,7 @@ export function MonitorEditForm({
     alert_trend_global_enabled: alertTrendGlobalEnabled,
     alert_trend_global_threshold_factor: alertTrendGlobalThresholdFactor,
   })
+  type FormValues = typeof values
 
   // TRACKING STATE
   const [status, setStatus] = useState<SaveStatus>('idle')
@@ -119,7 +120,7 @@ export function MonitorEditForm({
   const isInitialMount = useRef(true)
 
   // VALIDATION
-  const validate = useCallback((field: string, value: any, currentValues: typeof values) => {
+  const validate = useCallback((field: string, value: unknown, currentValues: FormValues) => {
     if (field === 'notify_email' && currentValues.notify_email_enabled) {
       if (!value) return 'Email is required'
       if (!value.includes('@')) return 'Invalid email address'
@@ -159,7 +160,7 @@ export function MonitorEditForm({
   }, [])
 
   // SAVING LOGIC
-  const triggerSave = useCallback(async (current: typeof values) => {
+  const triggerSave = useCallback(async (current: FormValues) => {
     const emailErr = validate('notify_email', current.notify_email, current)
     const slackErr = validate('notify_slack_webhook', current.notify_slack_webhook, current)
     const thresholdErr = validate('alert_threshold_ms', current.alert_threshold_ms, current)
@@ -249,7 +250,7 @@ export function MonitorEditForm({
     return () => clearTimeout(timeout)
   }, [values, triggerSave])
 
-  const handleInputChange = (field: keyof typeof values, value: any) => {
+  const handleInputChange = (field: keyof FormValues, value: FormValues[keyof FormValues]) => {
     setValues(prev => {
       const next = { ...prev, [field]: value }
       if (field === 'notify_email_enabled' && !value) {
@@ -592,7 +593,7 @@ export function MonitorEditForm({
                 <label htmlFor={`${p}-alert_ttfb_trend_enabled`} className="cursor-pointer select-none flex-1">
                   <span className="text-xs font-bold text-zinc-200 block">Response time drift</span>
                   <span className="text-xs text-zinc-400 leading-relaxed">
-                    Alert when your site's response time shifts significantly compared to a reference window — useful for catching gradual slowdowns.
+                    Alert when your site&apos;s response time shifts significantly compared to a reference window — useful for catching gradual slowdowns.
                   </span>
 
                   <div className={`mt-3 space-y-3 transition-opacity ${values.alert_ttfb_trend_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
@@ -772,7 +773,7 @@ export function MonitorEditForm({
                 className={`w-full h-11 cs-input ${errors.notify_email ? 'cs-input-error' : ''}`}
               />
               {errors.notify_email && <span className="cs-error-msg">{errors.notify_email}</span>}
-              <p className="text-xs text-zinc-400 leading-relaxed">We'll send a message every time an alert fires or recovers.</p>
+              <p className="text-xs text-zinc-400 leading-relaxed">We&apos;ll send a message every time an alert fires or recovers.</p>
             </div>
 
             <div className="space-y-4">

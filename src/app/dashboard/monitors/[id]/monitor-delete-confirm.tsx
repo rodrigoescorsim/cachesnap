@@ -19,14 +19,10 @@ export function MonitorDeleteConfirm({
   const [isPending, startTransition] = useTransition()
   const [confirmValue, setConfirmValue] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [portalNode, setPortalNode] = useState<HTMLElement | null>(null)
+  const [portalNode] = useState<HTMLElement | null>(() => (typeof document === 'undefined' ? null : document.body))
   const confirmInputRef = useRef<HTMLInputElement>(null)
   const normalizedConfirm = confirmValue.trim().toUpperCase()
   const canDelete = normalizedConfirm === 'DELETE'
-
-  useEffect(() => {
-    setPortalNode(document.body)
-  }, [])
 
   useEffect(() => {
     if (!portalNode) return

@@ -72,7 +72,7 @@ export function MonitorCardActions({ monitorId, monitorLabel }: Props) {
             Delete monitor?
           </p>
           <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
-            "{monitorLabel}" and all probe data and alerts will be permanently removed.
+            &quot;{monitorLabel}&quot; and all probe data and alerts will be permanently removed.
           </p>
 
           <div className="mt-3 flex items-center justify-end gap-2">
