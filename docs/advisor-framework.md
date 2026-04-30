@@ -28,11 +28,11 @@ Os diagnósticos seguem dois fluxos principais:
 | Tela | Foco do Diagnóstico | Conselhos Aplicáveis |
 | :--- | :--- | :--- |
 | **Live** | Saúde imediata e protocolos | AD01, AD02, AD04, AD08, AD14 |
-| **Performance** | Benchmarking e eficiência | AD05, AD06, AD09, AD20, AD21 |
+| **Performance** | Benchmarking e eficiência | AD05, AD06, AD09, AD19, AD20, AD21 |
 | **Edge Audit** | Topologia e custos de CDN | AD03, AD10, AD20 |
 | **Trends** | Padrões e consistência | AD07, AD11, AD15, AD16, AD17 |
 | **Security** | Proteção e conformidade | AD07, AD12, AD13 |
-| **Insights** | Consolidação e priorização | *Agregador de todos os itens* |
+| **Insights** | Consolidação e priorização | *Agregador de todos os itens (incl. AD19)* |
 
 ---
 
@@ -73,6 +73,12 @@ Os diagnósticos seguem dois fluxos principais:
 - **Gatilho**: TTFB regional > 50% mais lento que a média global.
 - **Contexto**: Aba Performance.
 - **Insight**: "Esta região está operando em 'Degraded State' comparada ao resto do mundo."
+
+### AD19: Abismo de Performance Regional
+- **Tipo**: Alerta (Warning)
+- **Gatilho**: (Hit Rate Global > 80%) + (TTFB da pior região > 2.5x a melhor).
+- **Contexto**: Aba Performance e Insights.
+- **Insight**: "Mesmo com cache alto, a região {pior} está muito lenta comparada às demais. Verifique a topologia da sua CDN nesta localidade."
 
 ### AD11: Consistência de Cache (Zombie Cache)
 - **Tipo**: Alerta (Warning)
