@@ -19,6 +19,7 @@ import {
   ProbeWaterfall
 } from './probe-waterfall'
 import { isCacheHit, isCacheMiss, getCacheDisplayLabel } from '@/lib/cache-utils'
+import { getTtfbTooltip, getTtfbColorClass } from '@/lib/thresholds'
 
 export interface LiveProbe {
   region: string
