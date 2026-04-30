@@ -166,7 +166,7 @@ export const handler = async (event) => {
   // 4. Report to CacheSnap ingest API
   const reportData = {
     ...result,
-    probe_version: "1.24"
+    probe_version: "1.28"
   };
   await sendToIngest(ingest_url, reportData, probeSecret);
 
@@ -198,7 +198,7 @@ async function measureUrl(targetUrl, isBypass = false) {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
       'Accept-Language': 'en-US,en;q=0.9',
-      'Accept-Encoding': 'gzip, deflate',
+      'Accept-Encoding': 'gzip, deflate, br',
       'Upgrade-Insecure-Requests': '1',
       'Cache-Control': 'max-age=0',
     };
@@ -229,23 +229,11 @@ async function measureUrl(targetUrl, isBypass = false) {
     }
     const finalUrl = probeUrl.toString();
 
-    // Use randomized Browser UAs to avoid fingerprinting
-    const browserUAs = [
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0'
-    ];
-    const selectedUA = browserUAs[Math.floor(Math.random() * browserUAs.length)];
-
     const finalHeaders = {
       ...requestHeaders,
-      'User-Agent': selectedUA,
     };
 
-    // Only add identifying headers if explicitly in bypass/debug mode
-    if (isBypass) {
-      finalHeaders['X-CacheSnap-Nonce'] = nonce;
-    }
+    // ── Probing Engine ──
 
     const req = transport.get(
       finalUrl,

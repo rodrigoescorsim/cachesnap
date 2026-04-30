@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Zap, ChevronDown, ChevronUp, Activity } from 'lucide-react'
+import { Zap, ChevronDown, ChevronUp, Activity, ShieldAlert } from 'lucide-react'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import { VisualGlow } from '../../visual-glow'
 import {
@@ -305,9 +305,16 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                           </PremiumTooltip>
                         )}
                         {isStatusErr ? (
-                          <PremiumTooltip content={p.error || 'The edge server returned an error status or connection failed.'} position="top-right" direction="top">
-                            <span className="cs-badge-flat cs-badge-flat-danger">{p.status_code || 'ERR'}</span>
-                          </PremiumTooltip>
+                          <div className="flex items-center gap-1.5">
+                            {(p.status_code === 401 || p.status_code === 403) && (
+                              <PremiumTooltip content="WAF Detected: This site may be blocking automated requests from data centers in this region." position="top-right" direction="top">
+                                <ShieldAlert className="w-3 h-3 text-orange-400" />
+                              </PremiumTooltip>
+                            )}
+                            <PremiumTooltip content={p.error || 'The edge server returned an error status or connection failed.'} position="top-right" direction="top">
+                              <span className="cs-badge-flat cs-badge-flat-danger">{p.status_code || 'ERR'}</span>
+                            </PremiumTooltip>
+                          </div>
                         ) : (
                           <PremiumTooltip content="Successful request" position="top-right" direction="top">
                             <span className={`cs-badge-flat ${statusColorClass}`}>{p.status_code || '200'}</span>
