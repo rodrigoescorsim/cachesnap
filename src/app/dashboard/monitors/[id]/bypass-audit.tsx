@@ -18,6 +18,7 @@ import {
   shouldShowBanner,
   formatAuditBadge,
 } from './bypass-audit.helpers'
+import { isCacheHit } from '@/lib/cache-utils'
 
 export type { AuditReadiness }
 
@@ -212,8 +213,8 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
         regions[item.region] = { edge_ttfb: [], origin_ttfb: [], edge_hits: 0, origin_hits: 0, edge_statuses: [], origin_statuses: [] }
       }
       const r = regions[item.region]
-      const isEdgeHit = item.edge_cache_status?.toUpperCase() === 'HIT'
-      const isOriginHit = item.origin_cache_status?.toUpperCase() === 'HIT'
+      const isEdgeHit = isCacheHit(item.edge_cache_status)
+      const isOriginHit = isCacheHit(item.origin_cache_status)
 
       if (item.edge_ttfb > 0) r.edge_ttfb.push(item.edge_ttfb)
       // Only push origin TTFB if it was NOT a forced hit, to avoid polluting the average

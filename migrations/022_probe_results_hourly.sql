@@ -5,7 +5,7 @@ SELECT
     monitor_id,
     region,
     COUNT(*) FILTER (
-        WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING')
+        WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT')
     )                                                                          AS hit_count,
     COUNT(*)                                                                   AS total_count,
     SUM(ttfb_ms)                                                               AS ttfb_sum_ms,

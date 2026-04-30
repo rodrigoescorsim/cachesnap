@@ -26,8 +26,8 @@ pub async fn run(state: AppState) {
                 AVG(ttfb_ms) as ttfb_avg_ms,
                 STDDEV(ttfb_ms) as ttfb_stddev_ms,
                 COUNT(*) as sample_count,
-                -- Cálculo centralizado de cache hit rate: HIT, STALE, REVALIDATED, UPDATING
-                (COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING'))) :: FLOAT / 
+                -- Cálculo centralizado de cache hit rate: HIT, STALE, REVALIDATED, UPDATING, REVALIDATE, REFRESH_HIT
+                (COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT'))) :: FLOAT / 
                 NULLIF(COUNT(*), 0) as cache_hit_rate
             FROM probe_results
             WHERE time > NOW() - INTERVAL '7 days'

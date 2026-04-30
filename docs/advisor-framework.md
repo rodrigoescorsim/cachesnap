@@ -28,8 +28,8 @@ Os diagnósticos seguem dois fluxos principais:
 | Tela | Foco do Diagnóstico | Conselhos Aplicáveis |
 | :--- | :--- | :--- |
 | **Live** | Saúde imediata e protocolos | AD01, AD02, AD04, AD08, AD14 |
-| **Performance** | Benchmarking e eficiência | AD05, AD06, AD09 |
-| **Edge Audit** | Topologia e custos de CDN | AD03, AD10 |
+| **Performance** | Benchmarking e eficiência | AD05, AD06, AD09, AD20, AD21 |
+| **Edge Audit** | Topologia e custos de CDN | AD03, AD10, AD20 |
 | **Trends** | Padrões e consistência | AD07, AD11, AD15, AD16, AD17 |
 | **Security** | Proteção e conformidade | AD07, AD12, AD13 |
 | **Insights** | Consolidação e priorização | *Agregador de todos os itens* |
@@ -79,6 +79,18 @@ Os diagnósticos seguem dois fluxos principais:
 - **Gatilho**: `Age` header variando > 24h entre POPs para o mesmo recurso.
 - **Contexto**: Aba Trends.
 - **Insight**: "Seu cache está 'preso' em algumas regiões (Zombie Cache). Considere uma purga agressiva."
+
+### AD20: Latência em HIT (Edge Delivery Slow)
+- **Tipo**: Alerta (Warning)
+- **Gatilho**: Hit Rate > 80% combinada com TTFB > 250ms (Default Configurável).
+- **Contexto**: Aba Performance, Edge Audit e Insights.
+- **Insight**: "Seu cache está funcionando bem (Hit Rate alto), mas a latência de entrega está acima do esperado ({ttfb}ms). Verifique processamento pesado no Edge ou latência de storage da CDN."
+
+### AD21: Cache Thrashing (Invalidação Frenética)
+- **Tipo**: Alerta (Warning)
+- **Gatilho**: Média de `Age` < 60s combinada com Hit Rate < 40%.
+- **Contexto**: Aba Performance e Insights.
+- **Insight**: "Seu cache está expirando ou sendo invalidado muito rápido. Verifique headers de s-maxage ou excesso de purges automáticos."
 
 ---
 

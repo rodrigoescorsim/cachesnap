@@ -609,7 +609,7 @@ export default async function MonitorDetailPage({
       region,
       COUNT(*)::int                              AS probe_count,
       ROUND(AVG(ttfb_ms)::numeric, 0)::int            AS ttfb_avg_ms,
-      ROUND(AVG(ttfb_ms) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING'))::numeric, 0)::int AS edge_hit_avg_ms,
+      ROUND(AVG(ttfb_ms) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT'))::numeric, 0)::int AS edge_hit_avg_ms,
       ROUND(AVG(ttfb_ms) FILTER (WHERE (cache_status ILIKE '%MISS%' OR cache_status = 'DYNAMIC' OR cache_status = 'BYPASS' OR cache_status = 'EXPIRED') AND cache_status != 'HIDDEN')::numeric, 0)::int AS origin_miss_avg_ms,
       (
         SELECT ROUND(AVG(origin_ttfb_ms)::numeric, 0)::int 
@@ -636,7 +636,7 @@ export default async function MonitorDetailPage({
       MODE() WITHIN GROUP (ORDER BY cache_status) AS common_cache_status,
       COUNT(*) FILTER (WHERE error IS NOT NULL)::int AS error_count,
       ROUND(
-        100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING')) / NULLIF(COUNT(*), 0), 1
+        100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT')) / NULLIF(COUNT(*), 0), 1
       )                                          AS cache_hit_pct,
       ROUND(
         100.0 * COUNT(*) FILTER (WHERE error IS NULL AND status_code < 500)
@@ -653,7 +653,7 @@ export default async function MonitorDetailPage({
   const prevStats = await sql<{ ttfb_avg_ms: number; cache_hit_pct: number; uptime_pct: number }[]>`
     SELECT
       ROUND(AVG(ttfb_ms)::numeric, 0)::int            AS ttfb_avg_ms,
-      ROUND(100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING')) / NULLIF(COUNT(*), 0), 1) AS cache_hit_pct,
+      ROUND(100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT')) / NULLIF(COUNT(*), 0), 1) AS cache_hit_pct,
       ROUND(100.0 * COUNT(*) FILTER (WHERE error IS NULL AND status_code < 500) / NULLIF(COUNT(*), 0), 1) AS uptime_pct
     FROM probe_results
     WHERE monitor_id = ${id}
@@ -770,7 +770,7 @@ export default async function MonitorDetailPage({
             AND cache_status <> 'HIDDEN'
         ) = 0 THEN NULL
         ELSE ROUND(
-          100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING'))
+          100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT'))
                  / NULLIF(
                    COUNT(*) FILTER (
                      WHERE cache_status IS NOT NULL
@@ -870,7 +870,7 @@ export default async function MonitorDetailPage({
           )::int                                                                  AS ttfb_p95,
           ROUND(
             100.0 * COUNT(*) FILTER (WHERE cache_status IN
-              ('HIT', 'STALE', 'REVALIDATED', 'UPDATING'))
+              ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT'))
             / NULLIF(COUNT(*), 0), 0
           )::int                                                                  AS cache_hit_pct,
           COUNT(*)::int                                                           AS sample_count
@@ -888,7 +888,7 @@ export default async function MonitorDetailPage({
           ROUND(AVG(ttfb_ms)::numeric, 0)::int                                   AS ttfb_avg,
           ROUND(
             100.0 * COUNT(*) FILTER (WHERE cache_status IN
-              ('HIT', 'STALE', 'REVALIDATED', 'UPDATING'))
+              ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT'))
             / NULLIF(COUNT(*), 0), 0
           )::int                                                                  AS cache_hit_pct,
           COUNT(*)::int                                                           AS sample_count

@@ -78,7 +78,7 @@ Some probe runs include a **bypass** path that measures the **origin** (or non-e
 
 - **Window:** Rolling **7 days** of successful probes (`error` excluded) per monitor × region.
 - **Refresh:** Recalculated on a **fixed interval** (worker runs on an hourly ticker in `baseline/calculator.rs`).
-- **Fields:** **TTFB mean and standard deviation**, **sample count**, and a **cache hit rate** (share of results whose cache status is in HIT, STALE, REVALIDATED, or UPDATING).
+- **Fields:** **TTFB mean and standard deviation**, **sample count**, and a **cache hit rate** (share of results whose cache status is in HIT, STALE, REVALIDATED, UPDATING, REVALIDATE, or REFRESH_HIT).
 
 ---
 
@@ -163,7 +163,7 @@ If no channel is configured or the API key is missing, alerts are still **stored
 ### 5. Cache hit rate low (` cache_hit_low `)
 
 - **When:** The **24-hour rolling average cache hit rate** for a monitor + region falls below the configured threshold and at least **5 probes** have been collected.
-- **Formula:** `(COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING')) / NULLIF(COUNT(*), 0)) x 100`.
+- **Formula:** `(COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT')) / NULLIF(COUNT(*), 0)) x 100`.
 - **Stored fields:** `actual_ms` = observed hit %, `baseline_ms` = configured threshold %.
 - **Diagnosis:** Auto-generated summary (e.g. "Cache hit rate dropped to 62.3% (threshold: 80%)") with recommended action covering TTL, Cache-Control headers, and dynamic content ratio.
 - **Rate limit:** At most **one** alert per **monitor + region** per **24 hours**.
