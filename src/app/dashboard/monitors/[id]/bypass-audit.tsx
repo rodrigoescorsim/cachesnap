@@ -17,6 +17,8 @@ import {
   resolveReason,
   shouldShowBanner,
   formatAuditBadge,
+  globalImpactEmptyStateCopy,
+  regionalBenefitPendingLabel,
 } from './bypass-audit.helpers'
 import { isCacheHit } from '@/lib/cache-utils'
 
@@ -110,25 +112,37 @@ function RecheckButton({ monitorId }: { monitorId: string }) {
   )
 }
 
-function WarmupProgress({ current, target = 8 }: { current: number; target?: number }) {
-  const pct = (current / target) * 100
-  const isHigh = pct >= 100
+function WarmupProgress({
+  pairsCurrent,
+  pairsTarget = 8,
+  regionsCurrent,
+  regionsTarget = 4,
+}: {
+  pairsCurrent: number
+  pairsTarget?: number
+  regionsCurrent: number
+  regionsTarget?: number
+}) {
+  const pairsPct = (pairsCurrent / pairsTarget) * 100
+  const regionsPct = (regionsCurrent / regionsTarget) * 100
+  const progressPct = Math.min(pairsPct, regionsPct)
+  const isHigh = pairsPct >= 100 && regionsPct >= 100
 
   return (
     <div className="flex flex-col gap-1.5 min-w-[140px]">
       <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.15em]">
         <span className={isHigh ? 'text-emerald-400' : 'text-zinc-300'}>
-          {isHigh ? 'High' : pct < 30 ? 'Low' : 'Medium'} Confidence
+          {isHigh ? 'High' : progressPct < 30 ? 'Low' : 'Medium'} Confidence
         </span>
         <span className="text-zinc-700 opacity-50">·</span>
         <span className="text-zinc-600">
-          {current} of {target} Samples
+          Pairs {pairsCurrent}/{pairsTarget} · Regions {regionsCurrent}/{regionsTarget}
         </span>
       </div>
       <div className="h-1 bg-white/5 rounded-full overflow-hidden w-full">
         <div
           className={`h-full rounded-full transition-all duration-700 ${isHigh ? 'bg-emerald-500' : 'bg-amber-500/50'}`}
-          style={{ width: `${Math.min(pct, 100)}%` }}
+          style={{ width: `${Math.min(progressPct, 100)}%` }}
         />
       </div>
     </div>
@@ -179,6 +193,8 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
   const monitorId = id as string
 
   const badge = formatAuditBadge(readiness)
+  const readinessState = resolveReadinessState(readiness)
+  const globalEmptyState = globalImpactEmptyStateCopy(readinessState, period)
 
   const [period, setPeriod] = useState<'1H' | '4H' | '24H' | '7D' | '30D'>('24H')
   const periods = ['1H', '4H', '24H', '7D', '30D'] as const
@@ -291,7 +307,10 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
       {readiness && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between px-1 gap-4 pt-1">
           <div className="flex items-center gap-8">
-             <WarmupProgress current={readiness.comparable_pairs} />
+             <WarmupProgress
+               pairsCurrent={readiness.comparable_pairs}
+               regionsCurrent={readiness.comparable_regions}
+             />
           </div>
           <div className="flex items-center gap-4">
              <div className="flex items-center gap-2">
@@ -379,9 +398,9 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                     <>
                       <span className="text-5xl font-black tracking-tighter text-zinc-700">—ms</span>
                       <div className="flex flex-col">
-                        <span className="text-base font-bold text-zinc-600">No comparison yet</span>
+                        <span className="text-base font-bold text-zinc-600">{globalEmptyState.title}</span>
                         <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
-                          Waiting for cache hit in {period}
+                          {globalEmptyState.subtitle}
                         </span>
                       </div>
                     </>
@@ -489,7 +508,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                               <PremiumTooltip content="Origin latency unavailable for this period because CDN served cache even on bypass attempts (100% of samples).">
                                 <div className="flex flex-col items-end cursor-help">
                                   <span className="text-[11px] font-bold text-zinc-400 italic">
-                                    Inconclusive
+                                    Origin hidden by edge cache
                                   </span>
                                   <span className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter opacity-70">
                                     {row.sample_count} samples
@@ -499,7 +518,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                             ) : !isValidComparison ? (
                               <div className="flex flex-col items-end opacity-60">
                                 <span className="text-[10px] font-black text-zinc-400 uppercase tracking-tight">
-                                  {row.origin_hit_ratio > 0 ? 'Mixed Signal' : 'Initial Samples'}
+                                  {regionalBenefitPendingLabel(row.origin_hit_ratio > 0)}
                                 </span>
                                 <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-tighter">
                                   {row.sample_count} samples

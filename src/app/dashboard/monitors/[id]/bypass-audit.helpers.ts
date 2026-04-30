@@ -125,3 +125,25 @@ export function formatSnapshotReadiness(
 
   return { comparableRegions: regions, confidence, state }
 }
+
+// ── Copy helpers ───────────────────────────────────────────────────────────────
+
+export function globalImpactEmptyStateCopy(
+  state: AuditStateValue,
+  period: string,
+): { title: string; subtitle: string } {
+  if (state === 'warmup') {
+    return {
+      title: 'Collecting comparable pairs',
+      subtitle: `Need more comparable samples in ${period}`,
+    }
+  }
+  return {
+    title: 'No comparison yet',
+    subtitle: `No comparable samples in ${period}`,
+  }
+}
+
+export function regionalBenefitPendingLabel(hasOriginSignal: boolean): string {
+  return hasOriginSignal ? 'Not comparable yet' : 'Need more comparable samples'
+}

@@ -8,6 +8,8 @@ import {
   warmupProgressPercent,
   remainingPairsNeeded,
   formatSnapshotReadiness,
+  globalImpactEmptyStateCopy,
+  regionalBenefitPendingLabel,
   type AuditReadiness,
 } from './bypass-audit.helpers'
 
@@ -195,5 +197,36 @@ describe('formatSnapshotReadiness', () => {
     expect(result.state).toBe('enabled')
     expect(result.confidence).toBe('low')
     expect(result.comparableRegions).toBe(0)
+  })
+})
+
+// ── copy helpers ───────────────────────────────────────────────────────────────
+
+describe('globalImpactEmptyStateCopy', () => {
+  it('returns warmup-specific copy', () => {
+    const copy = globalImpactEmptyStateCopy('warmup', '24H')
+    expect(copy.title).toBe('Collecting comparable pairs')
+    expect(copy.subtitle).toBe('Need more comparable samples in 24H')
+  })
+
+  it('returns default empty-state copy for enabled/disabled', () => {
+    expect(globalImpactEmptyStateCopy('enabled', '7D')).toEqual({
+      title: 'No comparison yet',
+      subtitle: 'No comparable samples in 7D',
+    })
+    expect(globalImpactEmptyStateCopy('disabled', '7D')).toEqual({
+      title: 'No comparison yet',
+      subtitle: 'No comparable samples in 7D',
+    })
+  })
+})
+
+describe('regionalBenefitPendingLabel', () => {
+  it('returns not-comparable label when origin has signal', () => {
+    expect(regionalBenefitPendingLabel(true)).toBe('Not comparable yet')
+  })
+
+  it('returns needs-samples label when origin has no signal', () => {
+    expect(regionalBenefitPendingLabel(false)).toBe('Need more comparable samples')
   })
 })

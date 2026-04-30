@@ -30,9 +30,9 @@ Os diagnósticos seguem dois fluxos principais:
 | **Live** | Saúde imediata e protocolos | AD01, AD02, AD04, AD08, AD14 |
 | **Performance** | Benchmarking e eficiência | AD05, AD06, AD09, AD19, AD20, AD21 |
 | **Edge Audit** | Topologia e custos de CDN | AD03, AD10, AD20 |
-| **Trends** | Padrões e consistência | AD07, AD11, AD15, AD16, AD17 |
+| **Trends** | Padrões e consistência | AD07, AD11, AD15, AD16, AD17, AD22, AD23, AD24 |
 | **Security** | Proteção e conformidade | AD07, AD12, AD13 |
-| **Insights** | Consolidação e priorização | *Agregador de todos os itens (incl. AD19)* |
+| **Insights** | Consolidação e priorização | *Agregador de todos os itens (incl. AD19, AD22-24)* |
 
 ---
 
@@ -61,6 +61,24 @@ Os diagnósticos seguem dois fluxos principais:
 - **Gatilho**: Média de TTFB dos últimos 7 dias > 15% acima da média dos últimos 30 dias.
 - **Contexto**: Aba Insights.
 - **Insight**: "Regressão sistemática de {percent}% detectada esta semana em relação ao último mês."
+
+### AD22: Queda Abrupta de Cache (1H vs 24H)
+- **Tipo**: Alerta (Warning)
+- **Gatilho**: Hit Rate da última 1 hora caiu > 30% em relação à média das últimas 24 horas.
+- **Contexto**: Aba Trends e Insights.
+- **Insight**: "A taxa de cache global caiu {percent}% na última hora. Verifique mudanças em query strings ou purges inesperados."
+
+### AD23: Degradação de Eficiência de Borda (24H vs 7D)
+- **Tipo**: Alerta (Warning)
+- **Gatilho**: Hit Rate das últimas 24 horas caiu > 20% em relação à média dos últimos 7 dias.
+- **Contexto**: Aba Trends e Insights.
+- **Insight**: "Eficiência de cache degradada em {percent}% no último dia em relação à média semanal."
+
+### AD24: Regressão de Cache a Longo Prazo (7D vs 30D)
+- **Tipo**: Alerta (Warning)
+- **Gatilho**: Hit Rate dos últimos 7 dias caiu > 10% em relação à média dos últimos 30 dias.
+- **Contexto**: Aba Insights.
+- **Insight**: "Sua CDN está perdendo eficiência gradualmente ({percent}% esta semana vs mês passado)."
 
 ### AD03: Otimizar Terminação TLS na Borda (Edge)
 - **Tipo**: Alerta (Warning)
