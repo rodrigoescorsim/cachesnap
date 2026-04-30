@@ -635,6 +635,7 @@ export default async function MonitorDetailPage({
       MODE() WITHIN GROUP (ORDER BY cdn_provider) AS common_cdn_provider,
       MODE() WITHIN GROUP (ORDER BY http_version) AS common_http_version,
       MODE() WITHIN GROUP (ORDER BY cache_status) AS common_cache_status,
+      MODE() WITHIN GROUP (ORDER BY status_code) AS common_status_code,
       COUNT(*) FILTER (WHERE error IS NOT NULL)::int AS error_count,
       ROUND(
         100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT')) / NULLIF(COUNT(*), 0), 1
@@ -655,7 +656,8 @@ export default async function MonitorDetailPage({
     SELECT
       ROUND(AVG(ttfb_ms)::numeric, 0)::int            AS ttfb_avg_ms,
       ROUND(100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT')) / NULLIF(COUNT(*), 0), 1) AS cache_hit_pct,
-      ROUND(100.0 * COUNT(*) FILTER (WHERE error IS NULL AND status_code < 500) / NULLIF(COUNT(*), 0), 1) AS uptime_pct
+      ROUND(100.0 * COUNT(*) FILTER (WHERE error IS NULL AND status_code < 500) / NULLIF(COUNT(*), 0), 1) AS uptime_pct,
+      MODE() WITHIN GROUP (ORDER BY status_code) AS common_status_code
     FROM probe_results
     WHERE monitor_id = ${id}
       AND time > NOW() - (2 * CAST(${dbInterval} AS interval))
@@ -1032,6 +1034,9 @@ export default async function MonitorDetailPage({
   const isLiveGlobalWafBlocked = latestProbes.length > 0 && 
     latestProbes.filter(p => p.status_code === 401 || p.status_code === 403).length >= (latestProbes.length / 2);
 
+  const isGlobalWafBlocked = stats.length > 0 &&
+    stats.filter(s => s.common_status_code === 401 || s.common_status_code === 403).length >= (stats.length / 2);
+
   // AGGREGATE CALCULATIONS FOR SUMMARY CARDS
   const avgTtfb = stats.length > 0
     ? Math.round(stats.reduce((acc, s) => acc + (s.ttfb_avg_ms || 0), 0) / stats.length)
@@ -1393,13 +1398,15 @@ export default async function MonitorDetailPage({
                                 <PremiumTooltip content="Average latency from recent probes across all regions">
                                   <p className="cs-metric-card-label !text-[11px]">Global TTFB</p>
                                 </PremiumTooltip>
-                                <PremiumTooltip content={validLiveTtfb.length === 0 ? 'No data available' : (isLiveGlobalWafBlocked ? 'WAF Interception: This latency reflects security filtering, not actual page load.' : getTtfbTooltip(liveAvgTtfb, 'global'))}>
+                                <PremiumTooltip content={validLiveTtfb.length === 0 ? 'No data available' : ((isLiveGlobalWafBlocked || isGlobalWafBlocked) ? 'WAF Interception: This latency reflects security filtering, not actual page load.' : getTtfbTooltip(liveAvgTtfb, 'global'))}>
+                                  <div className="flex items-center gap-2">
                                     <div className="flex items-baseline gap-0.5">
-                                      {isLiveGlobalWafBlocked && <ShieldAlert className="h-5 w-5 text-orange-400 mr-2" />}
-                                      <span className={`text-[26px] font-black tracking-tight leading-none ${isLiveGlobalWafBlocked ? 'text-zinc-500' : getTtfbColorClass(liveAvgTtfb, 'global')}`}>{liveAvgTtfb}</span>
-                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${isLiveGlobalWafBlocked ? 'text-zinc-500' : getTtfbColorClass(liveAvgTtfb, 'global')}`}>ms</span>
+                                      {(isLiveGlobalWafBlocked || isGlobalWafBlocked) && <ShieldAlert className="h-5 w-5 text-orange-400 mr-2" />}
+                                      <span className={`text-[26px] font-black tracking-tight leading-none ${(isLiveGlobalWafBlocked || isGlobalWafBlocked) ? 'text-zinc-500' : getTtfbColorClass(liveAvgTtfb, 'global')}`}>{liveAvgTtfb}</span>
+                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${(isLiveGlobalWafBlocked || isGlobalWafBlocked) ? 'text-zinc-500' : getTtfbColorClass(liveAvgTtfb, 'global')}`}>ms</span>
                                     </div>
-                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${isLiveGlobalWafBlocked ? 'text-zinc-500 opacity-50' : getTtfbColorClass(liveAvgTtfb, 'global')}`} />
+                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${(isLiveGlobalWafBlocked || isGlobalWafBlocked) ? 'text-zinc-500 opacity-50' : getTtfbColorClass(liveAvgTtfb, 'global')}`} />
+                                  </div>
                                 </PremiumTooltip>
                               </div>
                             </Link>

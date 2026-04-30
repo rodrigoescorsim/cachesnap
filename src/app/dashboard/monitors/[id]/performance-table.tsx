@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, Fragment } from 'react'
-import { ChevronDown, ChevronUp, Zap, Gauge } from 'lucide-react'
+import { ChevronDown, ChevronUp, Zap, Gauge, ShieldAlert } from 'lucide-react'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import { extractPop, resolveCdnLabel, popToCity } from '@/lib/edge-helpers'
 import { isCacheHit, getCacheDisplayLabel } from '@/lib/cache-utils'
@@ -45,6 +45,7 @@ export interface RegionStat {
   uptime_pct: number | null
   max_age_s: number | null
   last_probe_at: Date | null
+  common_status_code: number | null
 }
 
 interface PerformanceTableProps {
@@ -197,6 +198,7 @@ export function PerformanceTable({
               const servedFromLabel = regionRowServedFromLabel(s.common_served_by)
               const cdnLabel = regionRowCdnLabelTrimmed(s.common_cdn_provider, s.common_served_by)
               const isExpanded = !!expandedRegions[s.region]
+              const isWafBlock = s.common_status_code === 401 || s.common_status_code === 403
 
               const waterfallProbe: WaterfallProbe = {
                 region: s.region,
@@ -303,37 +305,45 @@ export function PerformanceTable({
 
                     {showSplitTtfb ? (
                       <>
-                        <td className={`${edgeTtfbMetricCellClass(s.edge_hit_avg_ms)} !text-[13px] !py-2`}>
-                          <PremiumTooltip content="Average cache latency" position="top-right" direction="top">
-                            <VisualGlow value={s.edge_hit_avg_ms}>
-                              {s.edge_hit_avg_ms != null ? `${Math.round(s.edge_hit_avg_ms)}ms` : '—'}
-                            </VisualGlow>
-                          </PremiumTooltip>
-                        </td>
-                        <td className={`${originTtfbMetricCellClass(s.origin_miss_avg_ms)} !text-[13px] !py-2`}>
-                          <PremiumTooltip content="Average origin latency" position="top-right" direction="top">
-                            <VisualGlow value={s.origin_miss_avg_ms}>
-                              {s.origin_miss_avg_ms != null ? `${Math.round(s.origin_miss_avg_ms)}ms` : '—'}
-                            </VisualGlow>
-                          </PremiumTooltip>
-                        </td>
-                        <td className={`${ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2 border-l border-white/5`}>
-                          <PremiumTooltip content="Average latency for this region" position="top-right" direction="top">
-                            <VisualGlow value={s.ttfb_avg_ms}>
-                              {s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}
-                            </VisualGlow>
-                          </PremiumTooltip>
-                        </td>
+                         <td className={`${isWafBlock ? '!text-zinc-500' : edgeTtfbMetricCellClass(s.edge_hit_avg_ms)} !text-[13px] !py-2`}>
+                           <PremiumTooltip content={isWafBlock ? "WAF Interception: This latency reflects security filtering, not actual page load." : "Average cache latency"} position="top-right" direction="top">
+                             <VisualGlow value={isWafBlock ? null : s.edge_hit_avg_ms}>
+                               {s.edge_hit_avg_ms != null ? `${Math.round(s.edge_hit_avg_ms)}ms` : '—'}
+                             </VisualGlow>
+                           </PremiumTooltip>
+                         </td>
+                         <td className={`${isWafBlock ? '!text-zinc-500' : originTtfbMetricCellClass(s.origin_miss_avg_ms)} !text-[13px] !py-2`}>
+                           <PremiumTooltip content={isWafBlock ? "WAF Interception: This latency reflects security filtering, not actual page load." : "Average origin latency"} position="top-right" direction="top">
+                             <VisualGlow value={isWafBlock ? null : s.origin_miss_avg_ms}>
+                               {s.origin_miss_avg_ms != null ? `${Math.round(s.origin_miss_avg_ms)}ms` : '—'}
+                             </VisualGlow>
+                           </PremiumTooltip>
+                         </td>
+                         <td className={`${isWafBlock ? '!text-zinc-500' : ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2 border-l border-white/5`}>
+                           <PremiumTooltip content={isWafBlock ? "WAF Interception: This latency reflects security filtering, not actual page load." : "Average latency for this region"} position="top-right" direction="top">
+                             <div className="flex items-center justify-center gap-1.5">
+                               {isWafBlock && <ShieldAlert className="w-3.5 h-3.5 text-orange-400" />}
+                               <VisualGlow value={isWafBlock ? null : s.ttfb_avg_ms}>
+                                 {s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}
+                               </VisualGlow>
+                             </div>
+                           </PremiumTooltip>
+                         </td>
                         <td className="cs-table-compact-td-mono text-center">
                           <VsGlobalCell ttfbMs={s.ttfb_avg_ms} globalAvgTtfb={globalAvgTtfb} regionLabel={regionLabels[s.region] ?? s.region} />
                         </td>
                       </>
                     ) : (
                       <>
-                        <td className={`${ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2`}>
-                          <VisualGlow value={s.ttfb_avg_ms}>
-                            {s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}
-                          </VisualGlow>
+                        <td className={`${isWafBlock ? '!text-zinc-500' : ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2`}>
+                          <PremiumTooltip content={isWafBlock ? "WAF Interception: This latency reflects security filtering, not actual page load." : "Average latency for this region"} position="top-right" direction="top">
+                            <div className="flex items-center justify-center gap-1.5">
+                              {isWafBlock && <ShieldAlert className="w-3.5 h-3.5 text-orange-400" />}
+                              <VisualGlow value={isWafBlock ? null : s.ttfb_avg_ms}>
+                                {s.ttfb_avg_ms != null ? `${Math.round(s.ttfb_avg_ms)}ms` : '—'}
+                              </VisualGlow>
+                            </div>
+                          </PremiumTooltip>
                         </td>
                         <td className="cs-table-compact-td-mono text-center">
                           <VsGlobalCell ttfbMs={s.ttfb_avg_ms} globalAvgTtfb={globalAvgTtfb} regionLabel={regionLabels[s.region] ?? s.region} />
