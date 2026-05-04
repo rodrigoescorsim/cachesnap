@@ -225,25 +225,21 @@ export function GlobalMetricCard({
       {!isSystemStatus ? (
         <>
           <div className={`relative z-10 flex items-baseline justify-between gap-2 ${isCompact ? 'mt-1.5' : 'mt-2'}`}>
-            {valueTooltip ? (
-              <PremiumTooltip content={valueTooltip} position="top-left">
-                <p className={`cursor-help ${valueSizeClass} font-black tracking-tighter leading-none ${isElite ? 'text-metric-elite drop-shadow-[0_0_12px_rgba(34,255,136,0.4)]' : (valueClassName ?? 'text-zinc-100')}`}>
+            <div className="flex items-baseline gap-2.5">
+              {valueTooltip ? (
+                <PremiumTooltip content={valueTooltip} position="top-left">
+                  <p className={`cursor-help ${valueSizeClass} font-black tracking-tighter leading-none ${isElite ? 'text-metric-elite drop-shadow-[0_0_12px_rgba(34,255,136,0.4)]' : (valueClassName ?? 'text-zinc-100')}`}>
+                    {value}
+                  </p>
+                </PremiumTooltip>
+              ) : (
+                <p className={`${valueSizeClass} font-black tracking-tighter leading-none ${isElite ? 'text-metric-elite drop-shadow-[0_0_12px_rgba(34,255,136,0.4)]' : (valueClassName ?? 'text-zinc-100')}`}>
                   {value}
                 </p>
-              </PremiumTooltip>
-            ) : (
-              <p className={`${valueSizeClass} font-black tracking-tighter leading-none ${isElite ? 'text-metric-elite drop-shadow-[0_0_12px_rgba(34,255,136,0.4)]' : (valueClassName ?? 'text-zinc-100')}`}>
-                {value}
-              </p>
-            )}
+              )}
 
-            <div className="flex flex-col items-end">
-              {badge ? (
-                <span className={`cs-badge ${badge.className ?? 'cs-badge-success'} !min-h-0 ${isCompact ? '!py-px !px-1.5 !text-[8px]' : '!py-0.5 !px-2 !text-[9px]'}`}>
-                  {badge.text}
-                </span>
-              ) : trend ? (
-                <div className="flex flex-col items-end gap-1">
+              {trend && (
+                <div className="flex items-baseline gap-1">
                   {trend.tooltip ? (
                     <PremiumTooltip content={trend.tooltip} position="top-right">
                       <span className={`cursor-help inline-flex items-center gap-1 ${trendTextClass} font-extrabold tabular-nums ${toneClassMap[trend.tone ?? 'neutral']}`}>
@@ -258,11 +254,27 @@ export function GlobalMetricCard({
                     </span>
                   )}
                 </div>
+              )}
+            </div>
+
+            <div className="flex flex-col items-end">
+              {badge ? (
+                <span className={`cs-badge ${badge.className ?? 'cs-badge-success'} !min-h-0 ${isCompact ? '!py-px !px-1.5 !text-[8px]' : '!py-0.5 !px-2 !text-[9px]'}`}>
+                  {badge.text}
+                </span>
+              ) : isCompact && statusFooter ? (
+                <p className="text-[10px] font-medium leading-none text-zinc-500 whitespace-nowrap">
+                  <span className={`font-black uppercase tracking-widest ${toneClassMap[statusFooter.tone]}`}>
+                    {statusFooter.label}
+                  </span>
+                  <span className="text-zinc-700 mx-1.5">/</span>
+                  <span className="text-zinc-400 font-semibold">{statusFooter.context}</span>
+                </p>
               ) : null}
             </div>
           </div>
 
-          {typeof progress === 'number' ? (
+          {typeof progress === 'number' && !isCompact ? (
             <div className={`relative z-10 overflow-hidden rounded-full bg-white/5 shadow-inner ${isCompact ? 'mt-2.5 h-1' : 'mt-4.5 h-1.5'}`}>
               <div
                 className="h-full rounded-full transition-all duration-1000"
@@ -275,7 +287,7 @@ export function GlobalMetricCard({
             </div>
           ) : null}
 
-          {(subtitle || metaBadge) && (
+          {(subtitle || metaBadge) && !isCompact && (
             <div
               className={`relative z-10 flex items-center gap-2 ${isCompact ? 'mt-2' : progress === undefined ? 'mt-3' : 'mt-2.5'}`}
             >
@@ -288,23 +300,14 @@ export function GlobalMetricCard({
             </div>
           )}
 
-          {statusFooter &&
-            (isCompact ? (
-              <p className="relative z-10 mt-2 text-[10px] font-medium leading-snug text-zinc-500">
-                <span className={`font-semibold uppercase tracking-wide ${toneClassMap[statusFooter.tone]}`}>
-                  {statusFooter.label}
-                </span>
-                <span className="text-zinc-600"> · </span>
-                {statusFooter.context}
-              </p>
-            ) : (
-              <div className="relative z-10 mt-3 flex flex-col gap-1">
-                <span className={`text-[10px] font-black tracking-widest ${toneClassMap[statusFooter.tone]}`}>
-                  {statusFooter.label}
-                </span>
-                <p className="text-[11px] font-medium leading-snug text-zinc-500">{statusFooter.context}</p>
-              </div>
-            ))}
+          {statusFooter && !isCompact && (
+            <div className="relative z-10 mt-3 flex flex-col gap-1">
+              <span className={`text-[10px] font-black tracking-widest ${toneClassMap[statusFooter.tone]}`}>
+                {statusFooter.label}
+              </span>
+              <p className="text-[11px] font-medium leading-snug text-zinc-500">{statusFooter.context}</p>
+            </div>
+          )}
         </>
       ) : (
         <div className="relative z-10 mt-1.5 min-w-0 space-y-1" aria-label="Monitor health counts">
