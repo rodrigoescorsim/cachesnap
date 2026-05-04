@@ -39,6 +39,17 @@ export function resolveReason(readiness: AuditReadiness | null | undefined): str
   return readiness?.reason ?? ''
 }
 
+/**
+ * Banner body when Edge Audit is disabled. BYPASS/dynamic monitors keep the backend reason verbatim.
+ */
+export function edgeAuditDisabledBannerBody(readiness: AuditReadiness): string {
+  const r = (readiness.reason ?? '').trim()
+  if (/dynamic|BYPASS|cacheable content/i.test(r)) {
+    return r
+  }
+  return 'Edge Audit compares edge cache hits with origin misses. We need probe responses that expose cache or CDN signals (such as HIT/MISS, Age, or CDN-specific cache headers) across enough regions. Until that signal is visible, comparison stays off. Sites that strip or hide cache headers may never unlock this audit.'
+}
+
 // ── Banner visibility ─────────────────────────────────────────────────────────
 
 /** Banner (reason card) should appear whenever audit is not fully enabled. */

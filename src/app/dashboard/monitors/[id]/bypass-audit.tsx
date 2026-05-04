@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo, useTransition, useEffect, useRef } from 'react'
-import { Clock, Zap, AlertTriangle, RefreshCw, ChevronDown, ChevronUp, Gauge, ShieldAlert } from 'lucide-react'
-import { useParams, useRouter } from 'next/navigation'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { Clock, Zap, AlertTriangle, ChevronDown, ChevronUp, Gauge, ShieldAlert, Activity } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { MonitorDispatchButtons } from './monitor-dispatch-buttons'
 import { ViewSectionHeader } from '@/components/dashboard/dashboard-ui'
 import {
@@ -14,8 +14,8 @@ import { PremiumTooltip } from '@/components/premium-tooltip'
 import {
   type AuditReadiness,
   resolveReadinessState,
-  resolveReason,
   shouldShowBanner,
+  edgeAuditDisabledBannerBody,
   formatAuditBadge,
   globalImpactEmptyStateCopy,
   regionalBenefitPendingLabel,
@@ -45,66 +45,19 @@ interface BypassAuditProps {
 const COMPARABLE_PAIRS_GATE = 8
 const COMPARABLE_REGIONS_GATE = 4
 
-function RecheckButton({ monitorId }: { monitorId: string }) {
-  const [isPending, startTransition] = useTransition()
-  const router = useRouter()
-  const [error, setError] = useState<string | null>(null)
-
-  const handleRecheck = () => {
-    startTransition(async () => {
-      setError(null)
-      try {
-        const res = await fetch(`/api/monitors/${monitorId}/evaluate-readiness`, { method: 'POST' })
-        if (!res.ok) throw new Error('Failed to trigger recheck')
-        router.refresh()
-      } catch (err) {
-        setError('Connection error. Try again.')
-      }
-    })
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <button
-        onClick={handleRecheck}
-        disabled={isPending}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 transition-all group"
-      >
-        <RefreshCw className={`w-3 h-3 text-zinc-400 group-hover:text-white transition-colors ${isPending ? 'animate-spin' : ''}`} />
-        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 group-hover:text-white">
-          {isPending ? 'Rechecking...' : 'Trigger Recheck'}
-        </span>
-      </button>
-      {error && <p className="text-[9px] font-bold text-red-400">{error}</p>}
-    </div>
-  )
-}
-
-function ReadinessBanner({
-  readiness,
-  monitorId,
-}: {
-  readiness: AuditReadiness
-  monitorId: string
-}) {
+function ReadinessBanner({ readiness }: { readiness: AuditReadiness }) {
   const state = readiness.state
   if (state === 'enabled' || state === 'warmup') return null
 
-  const reason = resolveReason(readiness)
   return (
     <div className="cs-tint-warning p-4 flex gap-4 items-start">
       <div className="cs-card-wash opacity-40" />
       <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
       <div className="relative z-10 space-y-1 flex-1">
-        <h3 className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-400">
+        <h3 className="text-[10px] font-black uppercase tracking-widest text-amber-400">
           Edge Audit Unavailable
         </h3>
-        {reason && (
-          <p className="text-xs leading-relaxed font-medium text-amber-200/60">{reason}</p>
-        )}
-        <div className="pt-1">
-          <RecheckButton monitorId={monitorId} />
-        </div>
+        <p className="text-xs leading-relaxed font-medium text-amber-200/60">{edgeAuditDisabledBannerBody(readiness)}</p>
       </div>
     </div>
   )
@@ -208,6 +161,26 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
     return filteredData.reduce((sum, r) => sum + (Number(r.sample_count) || 1), 0)
   }, [filteredData])
 
+  // --- Advisor / Polishing Logic ---
+  const validRegionsForAdvisor = useMemo(() => 
+    aggregatedData.filter(r => r.edge_hits > 0 && r.origin_misses > 0),
+    [aggregatedData]
+  )
+
+  const bestRegion = useMemo(() => 
+    [...validRegionsForAdvisor].sort((a, b) => {
+      const aSaving = (a.origin_ttfb - a.edge_ttfb) / a.origin_ttfb
+      const bSaving = (b.origin_ttfb - b.edge_ttfb) / b.origin_ttfb
+      return bSaving - aSaving
+    })[0],
+    [validRegionsForAdvisor]
+  )
+
+  const worstRegion = useMemo(() => 
+    [...validRegionsForAdvisor].sort((a, b) => b.edge_ttfb - a.edge_ttfb)[0],
+    [validRegionsForAdvisor]
+  )
+
   const hasData = filteredData.length > 0
   const hasAnyData = data.length > 0
 
@@ -219,12 +192,15 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
     <div className="space-y-6 min-h-[200px]">
       <ViewSectionHeader 
         title={
-          <div className="flex items-center gap-2">
-            <span>Edge Audit</span>
-            <span className="text-zinc-600 font-bold uppercase tracking-widest text-[11px] opacity-60">·</span>
-            <span className="text-zinc-500 font-black uppercase tracking-[0.2em] text-[11px]">
-              {period}
-            </span>
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-2">
+              <span>How much your Edge is actually delivering</span>
+              <span className="text-zinc-600 font-bold uppercase tracking-widest text-[11px] opacity-60">·</span>
+              <span className="text-zinc-500 font-black uppercase tracking-widest text-[11px]">
+                {period}
+              </span>
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">Edge Audit Baseline</span>
           </div>
         } 
         showDot={true}
@@ -255,8 +231,8 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
           <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
             <div className="space-y-2">
               <div className="flex items-center gap-3">
-                <div className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.25em]">
-                  Global Impact Analysis
+                <div className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">
+                  Edge Benefit (HIT vs Origin)
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="h-1 w-1 rounded-full bg-zinc-700" />
@@ -285,26 +261,21 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                     </span>
                     <div className="flex flex-col">
                       <PremiumTooltip content={`Averaged over ${totalSamples} samples across ${comparableRegions.length} valid regions.`}>
-                        <span
-                          className={`text-base font-bold cursor-help ${
-                            avgSavingMs > 0 ? 'text-metric-ttfb-fast' : avgSavingMs < 0 ? 'text-metric-ttfb-slow' : 'text-zinc-400'
-                          }`}
-                        >
-                          {avgSavingMs > 0 ? (
-                            <>
-                              {Math.abs(Math.round(avgSavingPct))}% Faster
-                            </>
-                          ) : avgSavingMs < 0 ? (
-                            <>
-                              {Math.abs(Math.round(avgSavingPct))}% Slower
-                            </>
-                          ) : (
-                            <>0% Same</>
-                          )}
-                        </span>
+                        <div className="flex items-center gap-1.5 cursor-help">
+                          <Gauge className={`w-4 h-4 ${avgSavingMs > 0 ? 'text-metric-ttfb-fast' : 'text-amber-500'}`} />
+                          <span className={`text-base font-bold ${avgSavingMs > 0 ? 'text-metric-ttfb-fast' : 'text-amber-500'}`}>
+                            {avgSavingMs > 0 ? (
+                              <>{Math.abs(Math.round(avgSavingPct))}% faster</>
+                            ) : avgSavingMs < 0 ? (
+                              <>{Math.abs(Math.round(avgSavingPct))}% slower</>
+                            ) : (
+                              <>0% same</>
+                            )}
+                          </span>
+                        </div>
                       </PremiumTooltip>
                       <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
-                        CDN Edge Benefit ({period})
+                        on average compared to origin
                       </span>
                     </div>
                   </>
@@ -325,7 +296,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
             <div className="flex flex-col sm:items-end gap-1.5 px-6 sm:border-l border-white/5">
               <div className="flex items-center gap-2 font-black text-zinc-400 text-[10px] uppercase tracking-widest">
                 <span className={`h-2 w-2 rounded-full ${comparableRegions.length > 0 ? 'bg-[var(--brand-primary)] animate-pulse' : 'bg-zinc-700'}`} />
-                Edge (HIT) vs Origin (Direct)
+                Real Delivery Analysis
               </div>
               <p className="text-[11px] text-zinc-500 max-w-[280px] sm:text-right leading-relaxed font-medium">
                 {comparableRegions.length > 0
@@ -336,9 +307,37 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
           </div>
         </div>
 
+        {/* Edge Advisor Card */}
+        {comparableRegions.length > 0 && (
+          <div className="cs-card px-6 py-4 border-t-0 bg-white/[0.02]">
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-1">
+                <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                  <Activity className="w-3 h-3 text-[var(--brand-primary)]" />
+                  Edge Advisor Summary
+                </h4>
+                <p className="text-xs text-zinc-500 font-medium leading-relaxed">
+                  Your site is leveraging the edge very effectively across most regions. 
+                  {bestRegion && ` Best performance: ${regionLabels[bestRegion.region] ?? bestRegion.region} is ${Math.round(((bestRegion.origin_ttfb - bestRegion.edge_ttfb) / bestRegion.origin_ttfb) * 100)}% faster.`}
+                </p>
+              </div>
+                  <div className="flex items-center gap-4 border-l border-white/5 pl-6">
+                <div className="space-y-0.5">
+                  <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest block">Next Opportunity</span>
+                  <p className="text-[11px] text-zinc-400 font-bold">
+                    {worstRegion && worstRegion !== bestRegion 
+                      ? `Review ${regionLabels[worstRegion.region] ?? worstRegion.region} (Edge HIT: ${Math.round(worstRegion.edge_ttfb)}ms)` 
+                      : 'Maintain current s-maxage strategy.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Readiness Banner for Disabled/Error states */}
         {shouldShowBanner(readiness) && readiness.state !== 'warmup' && (
-          <ReadinessBanner readiness={readiness} monitorId={monitorId} />
+          <ReadinessBanner readiness={readiness} />
         )}
 
         {/* Partial Signal Alert */}
@@ -347,7 +346,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
             <div className="cs-card-wash opacity-40" />
             <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5" />
             <div className="relative z-10 space-y-1">
-              <h3 className="text-[10px] font-black text-amber-400 uppercase tracking-[0.15em]">Partial Signal Optimization</h3>
+              <h3 className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Partial Signal Optimization</h3>
               <p className="text-xs leading-relaxed text-amber-200/60 font-medium">
                 Could not obtain Origin metrics in some regions due to infrastructure optimizations (Forced Hits).
               </p>
@@ -364,19 +363,25 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                 <thead>
                   <tr className={MONITOR_TABLE.theadRow}>
                     <th className="px-4 py-3 text-left text-[10px] font-black text-zinc-500 uppercase tracking-widest">Region</th>
-                    <th className="px-4 py-3 text-right text-[10px] font-black text-zinc-500 uppercase tracking-widest">Edge (HIT)</th>
-                    <th className="px-4 py-3 text-right text-[10px] font-black text-zinc-500 uppercase tracking-widest">Origin (Direct)</th>
-                    <th
-                      className="px-4 py-3 text-right text-[10px] font-black text-zinc-500 uppercase tracking-widest"
-                      title="Green: edge faster than origin for this region. Red: edge slower than origin (same as MISS)."
-                    >
-                      Latency delta
+                    <th className="px-4 py-3 text-right">
+                      <PremiumTooltip content="Average TTFB when content is served from the CDN Edge cache.">
+                        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest cursor-help border-b border-zinc-800 hover:border-zinc-600 transition-colors">Edge (HIT)</span>
+                      </PremiumTooltip>
                     </th>
-                    <th
-                      className="px-4 py-3 text-right text-[10px] font-black text-zinc-500 uppercase tracking-widest"
-                      title="Green: lower latency vs origin. Red: higher latency vs origin (same as ms, same signal as MISS)."
-                    >
-                      Reduction %
+                    <th className="px-4 py-3 text-right">
+                      <PremiumTooltip content="Average TTFB when the CDN must fetch content directly from your origin server.">
+                        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest cursor-help border-b border-zinc-800 hover:border-zinc-600 transition-colors">Origin (Direct)</span>
+                      </PremiumTooltip>
+                    </th>
+                    <th className="px-4 py-3 text-right">
+                      <PremiumTooltip content="Green: edge faster than origin for this region. Red: edge slower than origin (same as MISS).">
+                        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest cursor-help border-b border-zinc-800 hover:border-zinc-600 transition-colors">Latency delta</span>
+                      </PremiumTooltip>
+                    </th>
+                    <th className="px-4 py-3 text-right">
+                      <PremiumTooltip content="Green: lower latency vs origin. Red: higher latency vs origin (same as ms, same signal as MISS).">
+                        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest cursor-help border-b border-zinc-800 hover:border-zinc-600 transition-colors">Reduction %</span>
+                      </PremiumTooltip>
                     </th>
                   </tr>
                 </thead>
@@ -397,9 +402,18 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                       ? `MISS (${row.origin_misses} ${row.origin_misses === 1 ? 'sample' : 'samples'})`
                       : `HIT (${row.origin_hits} samples)`
 
+                    const isBest = bestRegion && row.region === bestRegion.region
+                    const isWorst = worstRegion && row.region === worstRegion.region && row.edge_ttfb > (bestRegion?.edge_ttfb || 0) * 1.5
+
                     return (
-                      <tr key={row.region} className={MONITOR_TABLE.tbodyRow}>
-                        <td className="px-4 py-4 text-zinc-200 font-bold">{regionLabels[row.region] ?? row.region}</td>
+                      <tr key={row.region} className={`${MONITOR_TABLE.tbodyRow} ${isBest ? 'bg-emerald-400/[0.03]' : ''} ${isWorst ? 'bg-amber-400/[0.01]' : ''} transition-colors group`}>
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2">
+                            <span className="text-zinc-200 font-bold">{regionLabels[row.region] ?? row.region}</span>
+                            {isBest && <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest border border-emerald-500/30 px-1.5 py-0.5 rounded leading-none">Best Performance</span>}
+                            {isWorst && <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest border border-amber-500/20 px-1.5 py-0.5 rounded leading-none">Lowest Performance</span>}
+                          </div>
+                        </td>
                         
                         {/* Edge (HIT) Column */}
                         <td className="px-4 py-4 text-right">
@@ -444,7 +458,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                               <div className="flex items-center gap-1.5 text-zinc-500">
                                 <ShieldAlert className="w-3 h-3" />
                                 <PremiumTooltip content={originSampleText} position="top-right">
-                                  <span className="text-[9px] font-black uppercase tracking-tighter cursor-help border-b border-white/5">FORCED HIT (CDN)</span>
+                                  <span className="text-[9px] font-black uppercase tracking-widest cursor-help border-b border-white/5">FORCED HIT (CDN)</span>
                                 </PremiumTooltip>
                                 <span className="text-zinc-600 font-mono font-bold text-xs ml-1">—</span>
                               </div>
@@ -456,34 +470,21 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
 
                         {/* Latency delta */}
                         <td className="px-4 py-4 text-right">
-                          {itemSaving !== 0 ? (
-                            <div
-                              className={`text-xs font-bold ${itemSaving > 0 ? 'text-metric-ttfb-fast' : 'text-metric-ttfb-slow'}`}
-                              title={
-                                itemSaving > 0
-                                  ? 'Edge faster than origin for this region (average).'
-                                  : 'Edge slower than origin for this region (average).'
-                              }
-                            >
-                              {Math.abs(Math.round(itemSaving))}ms
-                            </div>
+                          {canCompare ? (
+                            <span className={`text-xs font-bold ${itemSaving > 0 ? 'text-metric-ttfb-fast' : 'text-amber-500'}`}>
+                              {itemSaving > 0 ? '-' : '+'}{Math.abs(Math.round(itemSaving))}ms
+                            </span>
                           ) : (
                             <span className="text-zinc-600">—</span>
                           )}
                         </td>
+
                         {/* Reduction % vs origin TTFB */}
                         <td className="px-4 py-4 text-right">
-                          {itemSaving !== 0 && reductionPct != null ? (
-                            <div
-                              className={`text-xs font-bold tabular-nums ${itemSaving > 0 ? 'text-metric-ttfb-fast' : 'text-metric-ttfb-slow'}`}
-                              title={
-                                itemSaving > 0
-                                  ? 'Smaller share of origin latency when the edge answers from cache.'
-                                  : 'Edge adds latency vs origin; shown as a percent of origin TTFB.'
-                              }
-                            >
+                          {canCompare && reductionPct !== null ? (
+                            <span className={`text-xs font-bold tabular-nums ${itemSaving > 0 ? 'text-metric-ttfb-fast' : 'text-amber-500/60'}`}>
                               {Math.abs(Math.round(reductionPct))}%
-                            </div>
+                            </span>
                           ) : (
                             <span className="text-zinc-600">—</span>
                           )}

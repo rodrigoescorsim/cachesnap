@@ -10,6 +10,7 @@ import {
   formatSnapshotReadiness,
   globalImpactEmptyStateCopy,
   regionalBenefitPendingLabel,
+  edgeAuditDisabledBannerBody,
   type AuditReadiness,
 } from './bypass-audit.helpers'
 
@@ -59,6 +60,23 @@ describe('resolveReason', () => {
 
   it('returns empty string when readiness is null', () => {
     expect(resolveReason(null)).toBe('')
+  })
+})
+
+// ── edgeAuditDisabledBannerBody ────────────────────────────────────────────────
+
+describe('edgeAuditDisabledBannerBody', () => {
+  it('returns backend reason for dynamic / BYPASS monitors', () => {
+    const msg = 'Target URL is consistently dynamic (BYPASS).'
+    expect(edgeAuditDisabledBannerBody(makeReadiness({ reason: msg }))).toBe(msg)
+  })
+
+  it('returns canonical cache-signal copy for generic disabled reasons', () => {
+    const body = edgeAuditDisabledBannerBody(
+      makeReadiness({ reason: 'Insufficient data — waiting for probes from all regions.' }),
+    )
+    expect(body).toContain('HIT/MISS')
+    expect(body).toContain('strip or hide')
   })
 })
 

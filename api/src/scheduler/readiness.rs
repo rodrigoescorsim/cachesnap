@@ -305,7 +305,7 @@ fn generate_reason(
             if is_dynamic {
                 "Target URL is consistently dynamic (BYPASS). Infrastructure auditing is only applicable to cacheable content.".into()
             } else if insufficient {
-                "Insufficient data — waiting for probes from all regions.".into()
+                "Not enough comparable probes yet: we need visible cache or CDN signals (HIT/MISS, Age, CDN cache headers) to pair edge hits with origin misses. Sites that strip or hide those headers may never enable Edge Audit.".into()
             } else {
                 "No verified edge cache hits yet. Waiting for effective cache before enabling audit.".into()
             }
@@ -434,7 +434,7 @@ mod tests {
 
         // Disabled - Insufficient data (samples)
         let r2 = generate_reason(&AuditState::Disabled, &metrics, false, true);
-        assert!(r2.contains("Insufficient data"));
+        assert!(r2.contains("cache or CDN"));
 
         // Disabled - Dynamic site
         let r3 = generate_reason(&AuditState::Disabled, &metrics, true, false);
@@ -475,7 +475,7 @@ mod tests {
             .fetch_one(&pool)
             .await.unwrap();
         assert_eq!(row.0, "disabled");
-        assert!(row.1.unwrap().contains("Insufficient data"));
+        assert!(row.1.unwrap().contains("cache or CDN"));
 
         // 3. Add probe data (hits)
         for _ in 0..5 {
