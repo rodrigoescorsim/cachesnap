@@ -98,6 +98,26 @@ describe('monitorMatchesSearch', () => {
     expect(monitorMatchesSearch(m, 'google')).toBe(false)
     expect(monitorMatchesSearch(m, 'apple')).toBe(false)
   })
+
+  it('numeric cache filter ignores BYPASS (hit % is not a CDN quality signal)', () => {
+    const bypass = makeMonitor({
+      name: 'dyn.example',
+      url: 'https://dyn.example',
+      cacheHitCurrent: 0,
+      cacheStatusCurrent: 'BYPASS',
+    })
+    expect(monitorMatchesSearch(bypass, 'hit < 50')).toBe(false)
+  })
+
+  it('keyword miss does not match intentional BYPASS', () => {
+    const bypass = makeMonitor({
+      name: 'dyn.example',
+      url: 'https://dyn.example',
+      cacheHitCurrent: 0,
+      cacheStatusCurrent: 'BYPASS',
+    })
+    expect(monitorMatchesSearch(bypass, 'miss')).toBe(false)
+  })
 })
 
 // ─── monitorMatchesQuickFilter ────────────────────────────────────────────────
@@ -123,6 +143,19 @@ describe('monitorMatchesQuickFilter', () => {
     it('fails when cache hit is strictly below GOOD threshold (with data)', () => {
       expect(monitorMatchesQuickFilter(makeMonitor({ ttfbCurrent: 50, cacheHitCurrent: MONITOR_CACHE.GOOD - 1 }), 'healthy')).toBe(false)
     })
+
+    it('passes for intentional BYPASS when numeric hit is low (delivery is dynamic, not a cache failure)', () => {
+      expect(
+        monitorMatchesQuickFilter(
+          makeMonitor({
+            ttfbCurrent: MONITOR_TTFB.FAST - 1,
+            cacheHitCurrent: 0,
+            cacheStatusCurrent: 'BYPASS',
+          }),
+          'healthy',
+        ),
+      ).toBe(true)
+    })
   })
 
   describe('"degraded"', () => {
@@ -136,6 +169,20 @@ describe('monitorMatchesQuickFilter', () => {
 
     it('does not flag null cache hit as degraded', () => {
       expect(monitorMatchesQuickFilter(makeMonitor({ ttfbCurrent: 100, cacheHitCurrent: null }), 'degraded')).toBe(false)
+    })
+
+    it('does not treat BYPASS + low numeric hit as degraded when TTFB is fine and no region errors', () => {
+      expect(
+        monitorMatchesQuickFilter(
+          makeMonitor({
+            ttfbCurrent: 100,
+            cacheHitCurrent: 0,
+            cacheStatusCurrent: 'BYPASS',
+            errorRegionCount: 0,
+          }),
+          'degraded',
+        ),
+      ).toBe(false)
     })
   })
 
@@ -223,6 +270,16 @@ describe('monitorHealthScore', () => {
 
   it('does not apply outage penalty when errorRegionCount is 0', () => {
     const m = makeMonitor({ errorRegionCount: 0, totalRegionCount: 4, ttfbCurrent: 50, cacheHitCurrent: null })
+    expect(monitorHealthScore(m)).toBe(100)
+  })
+
+  it('does not penalize BYPASS for low numeric hit%', () => {
+    const m = makeMonitor({
+      ttfbCurrent: 50,
+      cacheHitCurrent: 0,
+      cacheStatusCurrent: 'BYPASS',
+      errorRegionCount: 0,
+    })
     expect(monitorHealthScore(m)).toBe(100)
   })
 })

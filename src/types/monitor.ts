@@ -50,6 +50,17 @@ export function getCacheHitTier(pct: number): CacheHitTier {
 }
 
 /**
+ * When false, numeric `cacheHitCurrent` must not drive health filters or scores — same idea as
+ * quick-filter "low-cache-hit" (NO HEADER; BYPASS / DYNAMIC / etc. are intentional, not a failed 0%).
+ */
+export function monitorCacheHitIsComparable(m: Monitor): boolean {
+  const statusLabel = getCacheDisplayLabel(m.cacheStatusCurrent)
+  if (statusLabel === 'NO HEADER') return false
+  if (isCacheBypass(m.cacheStatusCurrent)) return false
+  return true
+}
+
+/**
  * Per-monitor health 0–100 (pessimistic components so the global summary can use min()).
  * Aligns with quick-filter "healthy": TTFB < FAST threshold and cache unset or > GOOD threshold.
  */
@@ -64,7 +75,11 @@ export function monitorHealthScore(m: Monitor): number {
   if (m.ttfbCurrent >= MONITOR_TTFB.FAST) {
     score -= Math.min(55, Math.round((m.ttfbCurrent - MONITOR_TTFB.FAST) * 0.4))
   }
-  if (m.cacheHitCurrent !== null && m.cacheHitCurrent <= MONITOR_CACHE.GOOD) {
+  if (
+    monitorCacheHitIsComparable(m) &&
+    m.cacheHitCurrent !== null &&
+    m.cacheHitCurrent <= MONITOR_CACHE.GOOD
+  ) {
     score -= Math.round((MONITOR_CACHE.GOOD - m.cacheHitCurrent) * 1.2)
   }
   return Math.max(0, Math.min(100, score))
@@ -98,10 +113,10 @@ export function monitorMatchesSearch(monitor: Monitor, query: string): boolean {
       if (op === '<=') return monitor.ttfbCurrent <= val
     }
 
-    // 2. Cache: "cache > 80", "hit < 50"
+    // 2. Cache: "cache > 80", "hit < 50" (skip when % is not comparable — bypass / no header)
     const cacheMatch = part.match(/^(?:cache|hit)\s*([><=:]+)\s*(\d+)/)
     if (cacheMatch) {
-      if (monitor.cacheHitCurrent === null) return false
+      if (!monitorCacheHitIsComparable(monitor) || monitor.cacheHitCurrent === null) return false
       const op = cacheMatch[1]
       const val = parseInt(cacheMatch[2], 10)
       if (op === '>') return monitor.cacheHitCurrent > val
@@ -113,7 +128,11 @@ export function monitorMatchesSearch(monitor: Monitor, query: string): boolean {
 
     // 3. Special Keywords
     if (part === 'cache miss' || part === 'miss')
-      return monitor.cacheHitCurrent !== null && monitor.cacheHitCurrent < 100
+      return (
+        monitorCacheHitIsComparable(monitor) &&
+        monitor.cacheHitCurrent !== null &&
+        monitor.cacheHitCurrent < 100
+      )
     if (part === 'active') return monitor.status === 'active'
     if (part === 'paused') return monitor.status === 'paused'
 
@@ -134,16 +153,21 @@ export function monitorMatchesQuickFilter(
   const hit = monitor.cacheHitCurrent
   switch (filter) {
     case 'healthy':
-      return monitor.errorRegionCount === 0 && ttfb < MONITOR_TTFB.FAST && (hit === null || hit >= MONITOR_CACHE.GOOD)
+      return (
+        monitor.errorRegionCount === 0 &&
+        ttfb < MONITOR_TTFB.FAST &&
+        (!monitorCacheHitIsComparable(monitor) || hit === null || hit >= MONITOR_CACHE.GOOD)
+      )
     case 'degraded':
-      return monitor.errorRegionCount > 0 || ttfb >= MONITOR_TTFB.FAST || (hit !== null && hit < MONITOR_CACHE.GOOD)
+      return (
+        monitor.errorRegionCount > 0 ||
+        ttfb >= MONITOR_TTFB.FAST ||
+        (monitorCacheHitIsComparable(monitor) && hit !== null && hit < MONITOR_CACHE.GOOD)
+      )
     case 'high-ttfb':
       return ttfb >= MONITOR_TTFB.FAST
     case 'low-cache-hit':
-      // null = no cache header data → don't flag as "low"
-      const statusLabel = getCacheDisplayLabel(monitor.cacheStatusCurrent)
-      if (statusLabel === 'NO HEADER') return false
-      if (isCacheBypass(monitor.cacheStatusCurrent)) return false
+      if (!monitorCacheHitIsComparable(monitor)) return false
       const hasCurrentLowHit = hit !== null && hit < MONITOR_CACHE.GOOD
       const has24hLowHit = monitor.cacheHitAvg24h !== null && monitor.cacheHitAvg24h < MONITOR_CACHE.GOOD
       return hasCurrentLowHit || has24hLowHit
