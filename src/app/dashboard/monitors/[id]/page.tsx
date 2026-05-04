@@ -793,18 +793,77 @@ export default async function MonitorDetailPage({
   `
 
   const hourlyBypass = (activeView === 'infrastructure' || activeView === 'diagnostics')
-    ? await sql<{ hour: Date; region: string; edge_ttfb: number; origin_ttfb: number; savings: number; edge_cache_status: string | null; origin_cache_status: string | null }[]>`
+    ? await sql<{ 
+        hour: Date; 
+        region: string; 
+        edge_ttfb: number; 
+        origin_ttfb: number; 
+        edge_hit_count: number;
+        origin_miss_count: number;
+        sample_count: number; 
+        savings: number; 
+        edge_cache_status: string | null; 
+        origin_cache_status: string | null 
+      }[]>`
+        WITH combined AS (
+          -- 1. Dedicated Audit/Bypass probes (Both metrics in one row)
+          SELECT 
+            time, region, 
+            edge_ttfb_ms, origin_ttfb_ms, 
+            edge_cache_status, origin_cache_status
+          FROM audit_results
+          WHERE monitor_id = ${id} AND time > NOW() - CAST(${dbInterval} AS interval)
+
+          UNION ALL
+
+          -- 2. Organic HITs from regular probes (Contributes to Edge average)
+          SELECT 
+            time, region, 
+            ttfb_ms AS edge_ttfb_ms, NULL::FLOAT AS origin_ttfb_ms, 
+            cache_status AS edge_cache_status, NULL AS origin_cache_status
+          FROM probe_results
+          WHERE monitor_id = ${id} AND time > NOW() - CAST(${dbInterval} AS interval)
+            AND ttfb_ms IS NOT NULL
+            AND (
+              UPPER(cache_status) LIKE '%HIT%' OR 
+              UPPER(cache_status) LIKE '%STALE%' OR 
+              UPPER(cache_status) LIKE '%REVALIDATE%' OR 
+              UPPER(cache_status) LIKE '%UPDATING%'
+            )
+
+          UNION ALL
+
+          -- 3. Organic MISSes/Bypasses from regular probes (Contributes to Origin average)
+          SELECT 
+            time, region, 
+            NULL::FLOAT AS edge_ttfb_ms, ttfb_ms AS origin_ttfb_ms, 
+            NULL AS edge_cache_status, cache_status AS origin_cache_status
+          FROM probe_results
+          WHERE monitor_id = ${id} AND time > NOW() - CAST(${dbInterval} AS interval)
+            AND ttfb_ms IS NOT NULL
+            AND (
+              UPPER(cache_status) LIKE '%MISS%' OR 
+              UPPER(cache_status) LIKE '%EXPIRED%' OR 
+              UPPER(cache_status) LIKE '%ERROR%' OR
+              UPPER(cache_status) LIKE '%BYPASS%' OR
+              UPPER(cache_status) LIKE '%DYNAMIC%' OR
+              UPPER(cache_status) LIKE '%PASS%' OR
+              UPPER(cache_status) LIKE '%NONE%' OR
+              UPPER(cache_status) LIKE '%UNCALCULABLE%'
+            )
+        )
         SELECT
           date_trunc('hour', time) AS hour,
           region,
           AVG(edge_ttfb_ms) AS edge_ttfb,
           AVG(origin_ttfb_ms) AS origin_ttfb,
-          AVG(origin_ttfb_ms - edge_ttfb_ms) AS savings,
+          COUNT(edge_ttfb_ms) AS edge_hit_count,
+          COUNT(origin_ttfb_ms) AS origin_miss_count,
+          COUNT(*) AS sample_count,
+          COALESCE(AVG(origin_ttfb_ms - edge_ttfb_ms), 0) AS savings,
           MODE() WITHIN GROUP (ORDER BY edge_cache_status) AS edge_cache_status,
           MODE() WITHIN GROUP (ORDER BY origin_cache_status) AS origin_cache_status
-        FROM audit_results
-        WHERE monitor_id = ${id}
-          AND time > NOW() - CAST(${dbInterval} AS interval)
+        FROM combined
         GROUP BY 1, 2
         ORDER BY 1 DESC, 2 ASC
       `
@@ -1882,7 +1941,7 @@ export default async function MonitorDetailPage({
 
           {activeTab === 'security' && (
             <div className="space-y-4">
-              <ViewSectionHeader title="Security Headers Audit" showDot={false} />
+              <ViewSectionHeader title="Security Headers Audit" />
 
               {!security && securityByRegion.length === 0 && (
                 <p className="text-sm text-zinc-400">No security data yet.</p>
@@ -1935,16 +1994,20 @@ export default async function MonitorDetailPage({
 
                         return (
                           <section className="space-y-4">
-                            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
-                              <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                              SSL / TLS Profile
-                            </h3>
-                            <div className="relative overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
+                            <div className="relative overflow-hidden rounded-2xl border border-border bg-surface p-6 shadow-sm">
                               <div className={BRAND_CARD_SURFACE_GRADIENT} />
-                              <div className="relative border-b border-border/80 px-6 py-5">
-                                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                                  <div className="min-w-0 space-y-2">
-                                    <div className="flex flex-wrap items-center gap-2">
+                              <div className="relative">
+                                <div className="mb-6 flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-start sm:justify-between">
+                                  <div className="min-w-0 space-y-1">
+                                    <h3 className="flex items-center gap-2 text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                                      <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-500" aria-hidden />
+                                      SSL / TLS Profile
+                                    </h3>
+                                    <p className="text-sm text-zinc-500">
+                                      Leaf certificate observed on the TLS handshake for this probe profile. New probes may refresh issuer
+                                      metadata.
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-2 pt-1">
                                       <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white/5 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
                                         <Lock className="h-3 w-3 shrink-0 text-emerald-500/90" aria-hidden />
                                         Encrypted
@@ -1955,13 +2018,9 @@ export default async function MonitorDetailPage({
                                         </span>
                                       ) : null}
                                     </div>
-                                    <p className="max-w-xl text-xs leading-relaxed text-zinc-500">
-                                      Leaf certificate observed on the TLS handshake for this probe profile. New probes may refresh issuer
-                                      metadata.
-                                    </p>
                                   </div>
                                   <div
-                                    className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 ${urgent
+                                    className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 sm:justify-end ${urgent
                                       ? 'border-red-500/30 bg-red-500/10'
                                       : 'border-emerald-500/25 bg-emerald-500/[0.07]'
                                       }`}
@@ -1980,10 +2039,9 @@ export default async function MonitorDetailPage({
                                     </div>
                                   </div>
                                 </div>
-                              </div>
 
-                              <div className="relative flex flex-col border-b border-border/60 px-6 py-3 sm:flex-row sm:items-start sm:py-2.5">
-                                <div className="min-w-0 flex-1 border-b border-border/50 pb-3 sm:border-b-0 sm:border-r sm:border-border/60 sm:pb-0 sm:pr-5">
+                                <div className="relative flex flex-col border-b border-border/60 py-3 sm:flex-row sm:items-start sm:py-2.5">
+                                  <div className="min-w-0 flex-1 border-b border-border/50 pb-3 sm:border-b-0 sm:border-r sm:border-border/60 sm:pb-0 sm:pr-5">
                                   <p className="text-[9px] font-bold uppercase tracking-tight text-zinc-500">Certificate identity</p>
                                   <p className="mt-0.5 truncate text-sm font-semibold leading-snug text-zinc-50">
                                     {ssl.subject_cn || monitorHostname || '—'}
@@ -1991,19 +2049,19 @@ export default async function MonitorDetailPage({
                                   {ssl.subject_o ? (
                                     <p className="mt-0.5 truncate text-[11px] leading-snug text-zinc-500">{ssl.subject_o}</p>
                                   ) : null}
+                                  </div>
+                                  <div className="min-w-0 flex-1 pt-3 sm:pt-0 sm:pl-5">
+                                    <p className="text-[9px] font-bold uppercase tracking-tight text-zinc-500">Issuing authority</p>
+                                    <p className="mt-0.5 truncate text-sm font-semibold leading-snug text-zinc-100">
+                                      {ssl.issuer_o || ssl.issuer_cn || ssl.issuer || 'Unknown CA'}
+                                    </p>
+                                    {ssl.issuer_o && ssl.issuer_cn && ssl.issuer_o !== ssl.issuer_cn ? (
+                                      <p className="mt-0.5 truncate text-[11px] leading-snug text-zinc-500">{ssl.issuer_cn}</p>
+                                    ) : null}
+                                  </div>
                                 </div>
-                                <div className="min-w-0 flex-1 pt-3 sm:pt-0 sm:pl-5">
-                                  <p className="text-[9px] font-bold uppercase tracking-tight text-zinc-500">Issuing authority</p>
-                                  <p className="mt-0.5 truncate text-sm font-semibold leading-snug text-zinc-100">
-                                    {ssl.issuer_o || ssl.issuer_cn || ssl.issuer || 'Unknown CA'}
-                                  </p>
-                                  {ssl.issuer_o && ssl.issuer_cn && ssl.issuer_o !== ssl.issuer_cn ? (
-                                    <p className="mt-0.5 truncate text-[11px] leading-snug text-zinc-500">{ssl.issuer_cn}</p>
-                                  ) : null}
-                                </div>
-                              </div>
 
-                              <div className="relative space-y-3 px-6 py-4">
+                                <div className="relative space-y-3 py-4">
                                 <div className="flex flex-wrap items-center justify-between gap-3">
                                   <p className="text-[10px] font-bold uppercase tracking-tight text-zinc-500">Validity window</p>
                                   {totalDays != null && renewalPct != null ? (
@@ -2031,10 +2089,10 @@ export default async function MonitorDetailPage({
                                     <span className="font-mono text-zinc-300">{formatCertDate(ssl.valid_to)}</span>
                                   </span>
                                 </div>
-                              </div>
+                                </div>
 
                               {fpDisp || ssl.bits != null ? (
-                                <div className="relative grid gap-4 border-t border-border/80 px-6 py-5 md:grid-cols-2">
+                                <div className="relative grid gap-4 border-t border-border/80 py-5 md:grid-cols-2">
                                   {fpDisp ? (
                                     <div className="space-y-1.5">
                                       <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight text-zinc-500">
@@ -2054,6 +2112,7 @@ export default async function MonitorDetailPage({
                                   ) : null}
                                 </div>
                               ) : null}
+                              </div>
                             </div>
                           </section>
                         )
@@ -2065,7 +2124,10 @@ export default async function MonitorDetailPage({
                         <div className="relative">
                           <div className="mb-6 flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-start sm:justify-between">
                             <div className="min-w-0 space-y-1">
-                              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Global Security Profile</h3>
+                              <h3 className="flex items-center gap-2 text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                                <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-500" aria-hidden />
+                                Global Security Profile
+                              </h3>
                               <p className="text-sm text-zinc-500">
                                 Which security headers were observed on the latest probes. Score is out of nine tracked headers.
                               </p>

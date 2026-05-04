@@ -20,7 +20,7 @@ import {
   globalImpactEmptyStateCopy,
   regionalBenefitPendingLabel,
 } from './bypass-audit.helpers'
-import { isCacheHit, getCacheDisplayLabel } from '@/lib/cache-utils'
+import { isCacheHit, isCacheMiss } from '@/lib/cache-utils'
 
 export type { AuditReadiness }
 
@@ -29,6 +29,9 @@ interface BypassPoint {
   region: string
   edge_ttfb: number
   origin_ttfb: number
+  edge_hit_count: number
+  origin_miss_count: number
+  sample_count: number
   edge_cache_status: string
   origin_cache_status: string
 }
@@ -139,91 +142,76 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
     return data.filter(item => (now.getTime() - item.hour.getTime()) <= limit)
   }, [data, period])
 
-  // ── Global Aggregation (for Status & Confidence) ──────────────────────────
-  const totalAggregatedData = useMemo(() => {
-    const regions: Record<string, { edge_ttfb: number[], origin_ttfb: number[], edge_statuses: string[], origin_statuses: string[], edge_hits: number, origin_hits: number }> = {}
-    
-    data.forEach(item => {
-      if (!regions[item.region]) {
-        regions[item.region] = { edge_ttfb: [], origin_ttfb: [], edge_statuses: [], origin_hits: 0, edge_hits: 0, origin_statuses: [] }
-      }
-      const r = regions[item.region]
-      const isEdgeHit = isCacheHit(item.edge_cache_status)
-      const isOriginHit = isCacheHit(item.origin_cache_status)
-      if (item.edge_ttfb > 0) r.edge_ttfb.push(item.edge_ttfb)
-      if (item.origin_ttfb > 0 && !isOriginHit) r.origin_ttfb.push(item.origin_ttfb)
-      if (isEdgeHit) r.edge_hits++
-      if (isOriginHit) r.origin_hits++
-      if (item.edge_cache_status) r.edge_statuses.push(item.edge_cache_status.toUpperCase())
-      if (item.origin_cache_status) r.origin_statuses.push(item.origin_cache_status.toUpperCase())
-    })
-
-    return Object.entries(regions).map(([id, stats]) => ({
-      region: id,
-      comparable_samples: stats.edge_ttfb.length
-    }))
-  }, [data])
-
-  const liveMatched = totalAggregatedData.reduce((sum, s) => sum + s.comparable_samples, 0)
-  const liveVerified = totalAggregatedData.filter(s => s.comparable_samples > 0).length
-
-  // ── Filtered Aggregation (for Table & Charts) ──────────────────────────────
+  // ── Aggregation Logic ──────────────────────────────────────────────────────
   const aggregatedData = useMemo(() => {
     const regions: Record<string, {
-      edge_ttfb: number[],
-      origin_ttfb: number[],
-      edge_statuses: string[],
-      origin_statuses: string[],
+      total_edge_ttfb: number,
+      total_origin_ttfb: number,
       edge_hits: number,
-      origin_hits: number,
+      origin_misses: number,
     }> = {}
 
     filteredData.forEach(item => {
       if (!regions[item.region]) {
-        regions[item.region] = { edge_ttfb: [], origin_ttfb: [], edge_statuses: [], origin_hits: 0, edge_hits: 0, origin_statuses: [] }
+        regions[item.region] = { 
+          total_edge_ttfb: 0, 
+          total_origin_ttfb: 0, 
+          edge_hits: 0, 
+          origin_misses: 0 
+        }
       }
       const r = regions[item.region]
-      const isEdgeHit = isCacheHit(item.edge_cache_status)
-      const isOriginHit = isCacheHit(item.origin_cache_status)
+      const hits = Number(item.edge_hit_count || 0)
+      const misses = Number(item.origin_miss_count || 0)
 
-      if (item.edge_ttfb > 0) r.edge_ttfb.push(item.edge_ttfb)
-      if (item.origin_ttfb > 0 && !isOriginHit) r.origin_ttfb.push(item.origin_ttfb)
-
-      if (isEdgeHit) r.edge_hits++
-      if (isOriginHit) r.origin_hits++
-      if (item.edge_cache_status) r.edge_statuses.push(item.edge_cache_status.toUpperCase())
-      if (item.origin_cache_status) r.origin_statuses.push(item.origin_cache_status.toUpperCase())
+      r.edge_hits += hits
+      r.origin_misses += misses
+      
+      if (item.edge_ttfb > 0) {
+        r.total_edge_ttfb += (item.edge_ttfb * hits)
+      }
+      if (item.origin_ttfb > 0) {
+        r.total_origin_ttfb += (item.origin_ttfb * misses)
+      }
     })
 
     return Object.entries(regions).map(([id, stats]) => {
-      const originHitRatio = stats.origin_statuses.length > 0 ? stats.origin_hits / stats.origin_statuses.length : 0
       return {
         region: id,
-        edge_ttfb: stats.edge_ttfb.length > 0 ? stats.edge_ttfb.reduce((a, b) => a + b, 0) / stats.edge_ttfb.length : 0,
-        origin_ttfb: stats.origin_ttfb.length > 0 ? stats.origin_ttfb.reduce((a, b) => a + b, 0) / stats.origin_ttfb.length : 0,
-        edge_hit_ratio: stats.edge_statuses.length > 0 ? stats.edge_hits / stats.edge_statuses.length : 0,
-        origin_hit_ratio: originHitRatio,
-        is_forced_hit: originHitRatio >= 1 && stats.origin_statuses.length > 0,
-        last_edge_status: stats.edge_statuses[stats.edge_statuses.length - 1] || 'MISS',
-        last_origin_status: stats.origin_statuses[stats.origin_statuses.length - 1] || 'MISS',
-        sample_count: stats.edge_statuses.length,
-        comparable_samples: stats.edge_ttfb.length // Count of valid audit pairs
+        edge_ttfb: stats.edge_hits > 0 ? stats.total_edge_ttfb / stats.edge_hits : 0,
+        origin_ttfb: stats.origin_misses > 0 ? stats.total_origin_ttfb / stats.origin_misses : 0,
+        edge_hits: stats.edge_hits,
+        origin_misses: stats.origin_misses,
+        origin_hits: 0, // Not used for the main table row logic anymore
       }
     })
   }, [filteredData])
 
-  const validForAvg = aggregatedData.filter(r => r.edge_hit_ratio > 0 && !r.is_forced_hit).length
-  const forcedHitRegionsCount = aggregatedData.filter(r => r.is_forced_hit).length
-  const totalEdge = aggregatedData.reduce((sum, r) => sum + (r.edge_hit_ratio > 0 && !r.is_forced_hit ? r.edge_ttfb : 0), 0)
-  const totalOrigin = aggregatedData.reduce((sum, r) => sum + (r.edge_hit_ratio > 0 && !r.is_forced_hit ? r.origin_ttfb : 0), 0)
+  // Global Impact: Compare average of Edge Hits vs Origin Misses in comparable regions
+  const comparableRegions = aggregatedData.filter(r => r.edge_hits > 0 && r.origin_misses > 0)
+  const totalEdgeTtfb = comparableRegions.reduce((sum, r) => sum + r.edge_ttfb, 0)
+  const totalOriginTtfb = comparableRegions.reduce((sum, r) => sum + r.origin_ttfb, 0)
+  
+  const avgSavingMs = comparableRegions.length > 0 ? (totalOriginTtfb - totalEdgeTtfb) / comparableRegions.length : 0
+  const avgSavingPct = totalOriginTtfb > 0 ? ((totalOriginTtfb - totalEdgeTtfb) / totalOriginTtfb) * 100 : 0
 
-  const avgSavingMs = validForAvg > 0 ? (totalOrigin - totalEdge) / validForAvg : 0
-  const avgSavingPct = totalOrigin > 0 ? ((totalOrigin - totalEdge) / totalOrigin) * 100 : 0
+  // Confidence indicators based on total unfiltered data
+  const totalAggregatedData = useMemo(() => {
+    const counts: Record<string, number> = {}
+    data.forEach(item => {
+      counts[item.region] = (counts[item.region] || 0) + 1
+    })
+    return Object.keys(counts).length
+  }, [data])
+
+  const totalSamples = useMemo(() => {
+    return filteredData.reduce((sum, r) => sum + (Number(r.sample_count) || 1), 0)
+  }, [filteredData])
 
   const hasData = filteredData.length > 0
   const hasAnyData = data.length > 0
 
-  const isLiveActive = liveMatched >= COMPARABLE_PAIRS_GATE && liveVerified >= COMPARABLE_REGIONS_GATE
+  const isLiveActive = data.length >= COMPARABLE_PAIRS_GATE && totalAggregatedData >= COMPARABLE_REGIONS_GATE
   const statusLabel = isLiveActive ? 'Active' : badge.label
   const statusColor = isLiveActive ? 'text-emerald-400' : badge.cssClass.replace('cs-badge', '')
 
@@ -279,17 +267,40 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
               </div>
 
               <div className="flex items-baseline gap-4">
-                {validForAvg > 0 ? (
+                {comparableRegions.length > 0 ? (
                   <>
-                    <span className={`text-5xl font-black tracking-tighter ${avgSavingMs > 0 ? 'text-metric-ttfb-fast' : 'text-amber-500'}`}>
-                      {avgSavingMs > 0 ? '-' : '+'}
+                    <span
+                      className={`text-5xl font-black tracking-tighter ${
+                        avgSavingMs > 0 ? 'text-metric-ttfb-fast' : avgSavingMs < 0 ? 'text-metric-ttfb-slow' : 'text-zinc-500'
+                      }`}
+                      title={
+                        avgSavingMs > 0
+                          ? 'Average edge response is faster than origin in this period.'
+                          : avgSavingMs < 0
+                            ? 'Average edge response is slower than origin in this period.'
+                            : undefined
+                      }
+                    >
                       {Math.abs(Math.round(avgSavingMs))}ms
                     </span>
                     <div className="flex flex-col">
-                      <PremiumTooltip content={`Averaged over ${filteredData.length} samples across ${aggregatedData.length} regions.`}>
-                        <span className={`text-base font-bold cursor-help ${avgSavingMs > 0 ? 'text-metric-ttfb-fast' : 'text-amber-500'}`}>
-                          {avgSavingMs > 0 ? '-' : '+'}
-                          {Math.abs(Math.round(avgSavingPct))}% {avgSavingMs > 0 ? 'Saved' : 'Added'}
+                      <PremiumTooltip content={`Averaged over ${totalSamples} samples across ${comparableRegions.length} valid regions.`}>
+                        <span
+                          className={`text-base font-bold cursor-help ${
+                            avgSavingMs > 0 ? 'text-metric-ttfb-fast' : avgSavingMs < 0 ? 'text-metric-ttfb-slow' : 'text-zinc-400'
+                          }`}
+                        >
+                          {avgSavingMs > 0 ? (
+                            <>
+                              {Math.abs(Math.round(avgSavingPct))}% Faster
+                            </>
+                          ) : avgSavingMs < 0 ? (
+                            <>
+                              {Math.abs(Math.round(avgSavingPct))}% Slower
+                            </>
+                          ) : (
+                            <>0% Same</>
+                          )}
                         </span>
                       </PremiumTooltip>
                       <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
@@ -313,12 +324,12 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
 
             <div className="flex flex-col sm:items-end gap-1.5 px-6 sm:border-l border-white/5">
               <div className="flex items-center gap-2 font-black text-zinc-400 text-[10px] uppercase tracking-widest">
-                <span className={`h-2 w-2 rounded-full ${validForAvg > 0 ? 'bg-[var(--brand-primary)] animate-pulse' : 'bg-zinc-700'}`} />
+                <span className={`h-2 w-2 rounded-full ${comparableRegions.length > 0 ? 'bg-[var(--brand-primary)] animate-pulse' : 'bg-zinc-700'}`} />
                 Edge (HIT) vs Origin (Direct)
               </div>
               <p className="text-[11px] text-zinc-500 max-w-[280px] sm:text-right leading-relaxed font-medium">
-                {validForAvg > 0
-                  ? `Analyzing average performance across ${validForAvg} regions with ${filteredData.length} audit samples in the last ${period}.`
+                {comparableRegions.length > 0
+                  ? `Analyzing average performance across ${comparableRegions.length} regions with ${totalSamples} audit samples in the last ${period}.`
                   : `Waiting for infrastructure telemetry to establish a performance baseline.`}
               </p>
             </div>
@@ -331,14 +342,14 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
         )}
 
         {/* Partial Signal Alert */}
-        {hasData && aggregatedData.some(r => r.origin_hit_ratio > 0) && (
+        {hasData && aggregatedData.some(r => r.origin_hits > 0) && (
           <div className="cs-tint-warning p-4 flex gap-4 items-start">
             <div className="cs-card-wash opacity-40" />
             <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5" />
             <div className="relative z-10 space-y-1">
               <h3 className="text-[10px] font-black text-amber-400 uppercase tracking-[0.15em]">Partial Signal Optimization</h3>
               <p className="text-xs leading-relaxed text-amber-200/60 font-medium">
-                Could not obtain Origin metrics in {forcedHitRegionsCount} regions due to infrastructure optimizations.
+                Could not obtain Origin metrics in some regions due to infrastructure optimizations (Forced Hits).
               </p>
             </div>
           </div>
@@ -355,45 +366,127 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                     <th className="px-4 py-3 text-left text-[10px] font-black text-zinc-500 uppercase tracking-widest">Region</th>
                     <th className="px-4 py-3 text-right text-[10px] font-black text-zinc-500 uppercase tracking-widest">Edge (HIT)</th>
                     <th className="px-4 py-3 text-right text-[10px] font-black text-zinc-500 uppercase tracking-widest">Origin (Direct)</th>
-                    <th className="px-4 py-3 text-right text-[10px] font-black text-zinc-500 uppercase tracking-widest">Real Benefit</th>
+                    <th
+                      className="px-4 py-3 text-right text-[10px] font-black text-zinc-500 uppercase tracking-widest"
+                      title="Green: edge faster than origin for this region. Red: edge slower than origin (same as MISS)."
+                    >
+                      Latency delta
+                    </th>
+                    <th
+                      className="px-4 py-3 text-right text-[10px] font-black text-zinc-500 uppercase tracking-widest"
+                      title="Green: lower latency vs origin. Red: higher latency vs origin (same as ms, same signal as MISS)."
+                    >
+                      Reduction %
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {aggregatedData.map(row => {
-                    const isEdgeHit = row.edge_hit_ratio > 0
-                    const isOriginHit = row.is_forced_hit
-                    const itemSaving = row.origin_ttfb - row.edge_ttfb
+                    const hasEdgeHits = row.edge_hits > 0
+                    const hasOriginMisses = row.origin_misses > 0
+                    const hasOriginHits = row.origin_hits > 0
+                    const canCompare = hasEdgeHits && hasOriginMisses
+                    const itemSaving = canCompare ? (row.origin_ttfb - row.edge_ttfb) : 0
+                    const reductionPct =
+                      canCompare && row.origin_ttfb > 0
+                        ? ((row.origin_ttfb - row.edge_ttfb) / row.origin_ttfb) * 100
+                        : null
+                    
+                    const edgeSampleText = `HIT (${row.edge_hits} ${row.edge_hits === 1 ? 'sample' : 'samples'})`
+                    const originSampleText = hasOriginMisses 
+                      ? `MISS (${row.origin_misses} ${row.origin_misses === 1 ? 'sample' : 'samples'})`
+                      : `HIT (${row.origin_hits} samples)`
+
                     return (
                       <tr key={row.region} className={MONITOR_TABLE.tbodyRow}>
                         <td className="px-4 py-4 text-zinc-200 font-bold">{regionLabels[row.region] ?? row.region}</td>
+                        
+                        {/* Edge (HIT) Column */}
                         <td className="px-4 py-4 text-right">
                           <div className="flex items-center justify-end gap-2.5">
-                            {isEdgeHit ? (
-                              <div className="flex items-center gap-1.5 text-emerald-400">
-                                <Zap className="w-3 h-3 fill-current" />
-                                <span className="text-[10px] font-black uppercase tracking-widest">{Math.round(row.edge_hit_ratio * 100)}% HIT</span>
+                            <div className={`flex items-center gap-1.5 ${hasEdgeHits ? 'text-emerald-400' : 'text-zinc-600'}`}>
+                              {hasEdgeHits ? (
+                                <>
+                                  <Zap className="w-3 h-3 fill-current" />
+                                  <PremiumTooltip content={edgeSampleText} position="top-right">
+                                    <span className="text-[10px] font-black uppercase tracking-widest cursor-help border-b border-white/5 hover:border-current/30 transition-colors">
+                                      HIT
+                                    </span>
+                                  </PremiumTooltip>
+                                </>
+                              ) : (
+                                <PremiumTooltip content={edgeSampleText} position="top-right">
+                                  <span className="text-zinc-600 font-bold tracking-widest cursor-help border-b border-white/5">—</span>
+                                </PremiumTooltip>
+                              )}
+                            </div>
+                            <span className="text-zinc-200 font-mono font-bold text-xs">
+                              {hasEdgeHits ? `${Math.round(row.edge_ttfb)}ms` : '—'}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Origin (Direct) Column */}
+                        <td className="px-4 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2.5">
+                            {hasOriginMisses ? (
+                              <>
+                                <div className="flex items-center gap-1.5 text-metric-ttfb-slow">
+                                  <PremiumTooltip content={originSampleText} position="top-right">
+                                    <span className="text-[10px] font-black uppercase tracking-widest cursor-help border-b border-white/5 hover:border-current/30 transition-colors">
+                                      MISS
+                                    </span>
+                                  </PremiumTooltip>
+                                </div>
+                                <span className="text-zinc-200 font-mono font-bold text-xs">{Math.round(row.origin_ttfb)}ms</span>
+                              </>
+                            ) : hasOriginHits ? (
+                              <div className="flex items-center gap-1.5 text-zinc-500">
+                                <ShieldAlert className="w-3 h-3" />
+                                <PremiumTooltip content={originSampleText} position="top-right">
+                                  <span className="text-[9px] font-black uppercase tracking-tighter cursor-help border-b border-white/5">FORCED HIT (CDN)</span>
+                                </PremiumTooltip>
+                                <span className="text-zinc-600 font-mono font-bold text-xs ml-1">—</span>
                               </div>
                             ) : (
-                              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{getCacheDisplayLabel(row.last_edge_status)}</span>
-                            )}
-                            <span className="text-zinc-200 font-mono font-bold text-xs">{Math.round(row.edge_ttfb)}ms</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2.5">
-                            {isOriginHit ? (
-                              <span className="text-[9px] font-black text-zinc-500 uppercase tracking-tighter">FORCED HIT (CDN)</span>
-                            ) : (
-                              <span className="text-zinc-200 font-mono font-bold text-xs">{row.origin_ttfb > 0 ? `${Math.round(row.origin_ttfb)}ms` : '—'}</span>
+                              <span className="text-zinc-600 font-bold tracking-widest">—</span>
                             )}
                           </div>
                         </td>
+
+                        {/* Latency delta */}
                         <td className="px-4 py-4 text-right">
-                          {itemSaving !== 0 && row.origin_ttfb > 0 ? (
-                            <div className={`text-xs font-bold ${itemSaving > 0 ? 'text-metric-ttfb-fast' : 'text-amber-500'}`}>
-                              {itemSaving > 0 ? '-' : '+'}{Math.abs(Math.round(itemSaving))}ms
+                          {itemSaving !== 0 ? (
+                            <div
+                              className={`text-xs font-bold ${itemSaving > 0 ? 'text-metric-ttfb-fast' : 'text-metric-ttfb-slow'}`}
+                              title={
+                                itemSaving > 0
+                                  ? 'Edge faster than origin for this region (average).'
+                                  : 'Edge slower than origin for this region (average).'
+                              }
+                            >
+                              {Math.abs(Math.round(itemSaving))}ms
                             </div>
-                          ) : <span className="text-zinc-600">—</span>}
+                          ) : (
+                            <span className="text-zinc-600">—</span>
+                          )}
+                        </td>
+                        {/* Reduction % vs origin TTFB */}
+                        <td className="px-4 py-4 text-right">
+                          {itemSaving !== 0 && reductionPct != null ? (
+                            <div
+                              className={`text-xs font-bold tabular-nums ${itemSaving > 0 ? 'text-metric-ttfb-fast' : 'text-metric-ttfb-slow'}`}
+                              title={
+                                itemSaving > 0
+                                  ? 'Smaller share of origin latency when the edge answers from cache.'
+                                  : 'Edge adds latency vs origin; shown as a percent of origin TTFB.'
+                              }
+                            >
+                              {Math.abs(Math.round(reductionPct))}%
+                            </div>
+                          ) : (
+                            <span className="text-zinc-600">—</span>
+                          )}
                         </td>
                       </tr>
                     )

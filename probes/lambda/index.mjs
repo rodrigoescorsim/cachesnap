@@ -111,7 +111,7 @@ export const handler = async (event) => {
       console.log(`[probe] Step 1: Bypass-First check for ${url}`);
       const bypassUrl = appendBypassParam(url);
       const bypassMetrics = await measureUrl(bypassUrl, true);
-      
+
       // Store Origin Measurements (Auditoria)
       result.bypass_ttfb_ms = bypassMetrics.ttfb_ms;
       result.bypass_total_ms = bypassMetrics.total_ms;
@@ -134,22 +134,22 @@ export const handler = async (event) => {
 
       // Reativo: se o provedor respeitou o bypass (não foi HIT cacheado) e não teve erro, medimos a Borda
       if (!isConfirmedHit && !bypassMetrics.error) {
-         console.log(`[probe] Step 2: Immediate Normal check (Bypass was ${cacheStatus})`);
-         const normalMetrics = await measureUrl(url, false);
-         
-         // Atualiza as métricas Naturais (Edge) refletindo o tempo real do usuário
-         result.ttfb_ms = normalMetrics.ttfb_ms;
-         result.download_ms = normalMetrics.download_ms;
-         result.total_ms = normalMetrics.total_ms;
-         result.dns_ms = normalMetrics.dns_ms;
-         result.tcp_ms = normalMetrics.tcp_ms;
-         result.tls_ms = normalMetrics.tls_ms;
-         result.status_code = normalMetrics.status_code;
-         result.cache_status = normalMetrics.cache_status;
-         result.served_by = normalMetrics.served_by;
-         result.cdn_provider = normalMetrics.cdn_provider;
+        console.log(`[probe] Step 2: Immediate Normal check (Bypass was ${cacheStatus})`);
+        const normalMetrics = await measureUrl(url, false);
+
+        // Atualiza as métricas Naturais (Edge) refletindo o tempo real do usuário
+        result.ttfb_ms = normalMetrics.ttfb_ms;
+        result.download_ms = normalMetrics.download_ms;
+        result.total_ms = normalMetrics.total_ms;
+        result.dns_ms = normalMetrics.dns_ms;
+        result.tcp_ms = normalMetrics.tcp_ms;
+        result.tls_ms = normalMetrics.tls_ms;
+        result.status_code = normalMetrics.status_code;
+        result.cache_status = normalMetrics.cache_status;
+        result.served_by = normalMetrics.served_by;
+        result.cdn_provider = normalMetrics.cdn_provider;
       } else {
-         console.log(`[probe] Step 2 Skipped: Bypass resulted in HIT or Error. Falling back single measurement.`);
+        console.log(`[probe] Step 2 Skipped: Bypass resulted in HIT or Error. Falling back single measurement.`);
       }
 
     } else {
@@ -158,7 +158,7 @@ export const handler = async (event) => {
       const metrics = await measureUrl(url, false);
       Object.assign(result, metrics);
     }
-    
+
   } catch (err) {
     result.error = err.message;
   }
@@ -215,7 +215,7 @@ async function measureUrl(targetUrl, isBypass = false) {
       requestHeaders['X-CacheSnap-Salt'] = nonce;
       requestHeaders['X-CacheSnap-Bypass'] = 'true';
     }
-    
+
     requestHeaders['Connection'] = 'keep-alive';
 
     const probeUrl = new URL(targetUrl);
@@ -250,7 +250,7 @@ async function measureUrl(targetUrl, isBypass = false) {
 
         res.on('end', () => {
           timings.end = performance.now();
-          
+
           if (res.socket) {
             res.socket.setKeepAlive(false);
             res.socket.unref();
@@ -269,18 +269,18 @@ async function measureUrl(targetUrl, isBypass = false) {
             h['cf-cache-status'] != null ||
             h['cf-ray'] != null;
 
-          const isCloudfront = 
-            h['x-amz-cf-id'] != null || 
+          const isCloudfront =
+            h['x-amz-cf-id'] != null ||
             h['x-amz-cf-pop'] != null ||
             (h['server'] || '').toLowerCase().includes('cloudfront');
 
           let servedBy = null;
           if (isCloudflare) {
-             servedBy = h['cf-ray'] || h['x-amz-cf-pop'] || null;
+            servedBy = h['cf-ray'] || h['x-amz-cf-pop'] || null;
           } else if (isCloudfront) {
-             servedBy = h['x-amz-cf-pop'] || h['x-amz-cf-id'] || null;
+            servedBy = h['x-amz-cf-pop'] || h['x-amz-cf-id'] || null;
           }
-          
+
           if (!servedBy) {
             servedBy =
               h['x-vercel-id'] ||    // Vercel
@@ -306,7 +306,7 @@ async function measureUrl(targetUrl, isBypass = false) {
             originMs = parsed.origin_ms;
             breakdown = parsed.breakdown;
           }
-          
+
           if (!breakdown) breakdown = {};
           if (timings.tcpEnd != null) {
             const tcpStart = timings.dnsEnd != null ? timings.dnsEnd : timings.start;
@@ -470,28 +470,28 @@ function readCacheStatus(headers) {
     const value = headers[header];
     if (value) {
       const upper = value.toUpperCase();
-      
+
       // 1. Precise HIT detection (includes tiered/stale hits)
       if (upper.includes('HIT') || upper.includes('STALE') || upper.includes('REVALIDATED')) {
         return 'HIT';
       }
-      
+
       // 2. Precise BYPASS/DYNAMIC detection (Intentional origin fetch)
       // Includes PASS (Varnish/Fastly), NO-CACHE (Azure), UNCALCULABLE (Akamai)
       if (
-        upper.includes('BYPASS') || 
-        upper.includes('DYNAMIC') || 
-        upper.includes('PASS') || 
-        upper.includes('NONE') || 
-        upper.includes('NO-CACHE') || 
+        upper.includes('BYPASS') ||
+        upper.includes('DYNAMIC') ||
+        upper.includes('PASS') ||
+        upper.includes('NONE') ||
+        upper.includes('NO-CACHE') ||
         upper.includes('UNCALCULABLE') ||
         upper.includes('LAMBDAGENERATED')
       ) {
-        const providerName = 
-          header.includes('cf') ? 'Cloudflare' : 
-          header.includes('vercel') ? 'Vercel' : 
-          header.includes('goog') ? 'Google' : 
-          header.includes('ms-') ? 'Azure' : 'Edge';
+        const providerName =
+          header.includes('cf') ? 'Cloudflare' :
+            header.includes('vercel') ? 'Vercel' :
+              header.includes('goog') ? 'Google' :
+                header.includes('ms-') ? 'Azure' : 'Edge';
         return `BYPASS:${providerName} ${upper}`;
       }
 
@@ -499,14 +499,14 @@ function readCacheStatus(headers) {
       if (upper.includes('MISS') || upper.includes('EXPIRED')) {
         return 'MISS';
       }
-      
+
       // 4. Wikipedia/Custom PoP code detection (e.g. "CP5020 INT")
       if (upper.startsWith('CP') && (upper.includes('INT') || upper.includes(' ') || upper.length < 15)) {
         return 'MISS';
       }
 
-      // 5. Default: return the first 15 characters for other custom headers
-      return upper.slice(0, 15).trim();
+      // 5. Default: return the first 64 characters for other custom headers
+      return upper.slice(0, 64).trim();
     }
   }
 

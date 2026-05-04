@@ -55,6 +55,7 @@ export function getCacheDisplayLabel(status: string | null | undefined): string 
   if (upper.includes('LAMBDAGENERATED')) return 'DYNAMIC'
   if (upper.includes('EXPIRED')) return 'EXPIRED'
   if (upper.includes('REVALIDATED')) return 'REVALIDATED'
+  if (upper.includes('ERROR')) return 'MISS'
 
   // 2. Fallback for colon-separated strings if no keyword found
   if (upper.includes(':')) {
