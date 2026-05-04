@@ -44,7 +44,7 @@ const SEGS = {
 // ── helpers ─────────────────────────────────────────────────────────────────
 
 function formatMs(value: number | null): string {
-  if (value == null) return '—'
+  if (value == null || value <= 0) return '—'
   return `${Math.round(value)}ms`
 }
 

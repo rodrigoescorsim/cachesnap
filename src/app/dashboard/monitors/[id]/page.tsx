@@ -533,11 +533,13 @@ function safeHostname(url: string): string | null {
 }
 
 function formatMs(value: number | null): string {
-  if (value == null) return '-'
+  if (value == null || value <= 0) return '—'
   return `${Math.round(value)}ms`
 }
 
 import { BypassAudit } from './bypass-audit'
+import { AdvisorCard } from '@/components/advisor/advisor-card'
+import { deriveMonitorDetailLiveAdvisor, deriveMonitorPerformancePeriodAdvisor } from '@/components/advisor/advisor-card.helpers'
 
 
 export default async function MonitorDetailPage({
@@ -1100,8 +1102,9 @@ export default async function MonitorDetailPage({
   const totalProbesCount = stats.reduce((acc, s) => acc + s.probe_count, 0);
   const globalHitRate = totalProbesCount > 0 ? Math.round((totalHitProbes / totalProbesCount) * 100) : 0;
 
-  const currentGlobalTtfb = activeTab === 'performance' ? avgTtfb : liveAvgTtfb;
-  const currentGlobalHitRate = activeTab === 'performance' ? globalHitRate : liveGlobalHitRate;
+  const isHistoricalView = activeTab === 'performance' && activeView !== 'real-time';
+  const currentGlobalTtfb = isHistoricalView ? avgTtfb : liveAvgTtfb;
+  const currentGlobalHitRate = isHistoricalView ? globalHitRate : liveGlobalHitRate;
 
   // Unified WAF detection for the global header to ensure consistency across views
   // Threshold: at least 2 regions blocked (or 1 if only 1 region is monitored) to avoid single-region flukes
@@ -1164,6 +1167,42 @@ export default async function MonitorDetailPage({
   const healthDelta = hasHistory ? healthScore - prevHealthScore : 0;
   const ttfbDelta = hasHistory ? avgTtfb - prevAvgTtfb : 0;
   const cacheDelta = hasHistory ? globalHitRate - prevGlobalHitRate : 0;
+
+  // ADVISOR INPUTS
+  const slowLiveRegionCount = validLiveTtfb.filter(p => (p.ttfb_ms ?? 0) > 300).length
+  const liveVsPeriodPct = avgTtfb > 0 ? Math.round(((liveAvgTtfb - avgTtfb) / avgTtfb) * 100) : 0
+  const worstWeekTrendRegion = weekTrend.length > 0
+    ? weekTrend.reduce((w, t) => t.change_pct > w.change_pct ? t : w)
+    : null
+  // isDown / isDegraded already render dedicated banners above the tab rail — suppress advisor.
+  const liveAdvisorState = (isDown || isDegraded) ? null : deriveMonitorDetailLiveAdvisor({
+    monitorId: monitor.id,
+    url: monitor.url,
+    liveAvgTtfb,
+    periodAvgTtfb: avgTtfb,
+    liveGlobalHitRate,
+    hasLiveCacheData: validLiveCache.length > 0,
+    liveDominantStatus,
+    errorRegionCount: errorLatestProbes.length,
+    slowRegionCount: slowLiveRegionCount,
+    totalRegionCount: latestProbes.length,
+    ttfbVsPeriodPct: liveVsPeriodPct,
+  })
+  const performanceAdvisorState = deriveMonitorPerformancePeriodAdvisor({
+    monitorId: monitor.id,
+    url: monitor.url,
+    range,
+    avgTtfb,
+    prevAvgTtfb,
+    globalHitRate,
+    prevGlobalHitRate,
+    hasHistory,
+    worstRegion: worstWeekTrendRegion
+      ? { label: regionLabels[worstWeekTrendRegion.region] ?? worstWeekTrendRegion.region, changePct: Math.round(worstWeekTrendRegion.change_pct) }
+      : null,
+    spikeCount: spikes.length,
+  })
+
   const liveFreezeStorageKey = `live_updates_frozen_${monitor.id}`
   const latestDataAt = latestProbes.length > 0
     ? Math.max(...latestProbes.map(p => p.last_probe_at ? new Date(p.last_probe_at).getTime() : 0))
@@ -1451,6 +1490,9 @@ export default async function MonitorDetailPage({
             <div>
               {activeView === 'real-time' && (
                 <div id="real-time-view" className="space-y-6">
+                  {liveAdvisorState && (
+                    <AdvisorCard state={liveAdvisorState} variant="compact" />
+                  )}
                   <section id="live-metrics-section" className="space-y-4">
                     <LiveActivityHeader
                       monitorId={monitor.id}
@@ -1473,14 +1515,16 @@ export default async function MonitorDetailPage({
                                 <PremiumTooltip content="Average latency from recent probes across all regions">
                                   <p className="cs-metric-card-label !text-[11px]">Global TTFB</p>
                                 </PremiumTooltip>
-                                <PremiumTooltip content={validLiveTtfb.length === 0 && activeTab !== 'performance' ? 'No data available' : (isCurrentlyWafBlocked ? 'WAF detected: this latency reflects security filtering, not page load speed.' : getTtfbTooltip(currentGlobalTtfb, 'global'))}>
+                                <PremiumTooltip content={isHistoricalView ? getTtfbTooltip(currentGlobalTtfb, 'global') : (validLiveTtfb.length === 0 ? 'No data available' : (isCurrentlyWafBlocked ? 'WAF detected: this latency reflects security filtering, not page load speed.' : getTtfbTooltip(currentGlobalTtfb, 'global')))}>
                                   <div className="flex items-center gap-2">
                                     <div className="flex items-baseline gap-0.5">
                                       {isCurrentlyWafBlocked && <ShieldAlert className="h-5 w-5 text-orange-400 mr-2" />}
-                                      <span className={`text-[26px] font-black tracking-tight leading-none ${isCurrentlyWafBlocked ? '!text-zinc-500' : getTtfbColorClass(currentGlobalTtfb, 'global')}`}>{currentGlobalTtfb}</span>
-                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${isCurrentlyWafBlocked ? '!text-zinc-500' : getTtfbColorClass(currentGlobalTtfb, 'global')}`}>ms</span>
+                                      <span className={`text-[26px] font-black tracking-tight leading-none ${(currentGlobalTtfb === 0 || isCurrentlyWafBlocked) ? '!text-zinc-500' : getTtfbColorClass(currentGlobalTtfb, 'global')}`}>
+                                        {currentGlobalTtfb > 0 ? currentGlobalTtfb : '—'}
+                                      </span>
+                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${(currentGlobalTtfb === 0 || isCurrentlyWafBlocked) ? '!text-zinc-500' : getTtfbColorClass(currentGlobalTtfb, 'global')}`}>ms</span>
                                     </div>
-                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${isCurrentlyWafBlocked ? 'text-zinc-500 opacity-50' : getTtfbColorClass(currentGlobalTtfb, 'global')}`} />
+                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${(currentGlobalTtfb === 0 || isCurrentlyWafBlocked) ? 'text-zinc-500 opacity-50' : getTtfbColorClass(currentGlobalTtfb, 'global')}`} />
                                   </div>
                                 </PremiumTooltip>
                               </div>
@@ -1495,11 +1539,11 @@ export default async function MonitorDetailPage({
                                 <PremiumTooltip content="Average cache hit rate from recent probes across all regions">
                                   <p className="cs-metric-card-label !text-[11px]">Global Cache Hit Rate</p>
                                 </PremiumTooltip>
-                                  <PremiumTooltip content={activeTab === 'performance' ? `${globalHitRate}% average cache hit rate over the selected period` : getCacheTooltip(liveGlobalHitRate, 'global')}>
+                                  <PremiumTooltip content={isHistoricalView ? `${globalHitRate}% average cache hit rate over the selected period` : getCacheTooltip(liveGlobalHitRate, 'global')}>
                                     <div className="flex items-center gap-2">
                                       <div className="flex items-baseline gap-0.5">
                                         {currentGlobalHitRate === 0 ? (
-                                          <span className="text-[20px] font-black tracking-tight leading-none text-zinc-500 uppercase">{activeTab === 'performance' ? dominantStatusLabel : liveDominantStatusLabel}</span>
+                                          <span className="text-[20px] font-black tracking-tight leading-none text-zinc-500 uppercase">{isHistoricalView ? dominantStatusLabel : liveDominantStatusLabel}</span>
                                         ) : (
                                           <>
                                             <span className={`text-[26px] font-black tracking-tight leading-none ${getCacheColor(currentGlobalHitRate, 'global')}`}>{currentGlobalHitRate}</span>
@@ -1554,6 +1598,9 @@ export default async function MonitorDetailPage({
 
               {activeView === 'performance' && (
                 <div className="space-y-6">
+                  {performanceAdvisorState && (
+                    <AdvisorCard state={performanceAdvisorState} />
+                  )}
                   <section className="space-y-4">
                     <ViewSectionHeader
                       title={
@@ -1602,10 +1649,12 @@ export default async function MonitorDetailPage({
                                   <div className="flex items-center gap-2">
                                     <div className="flex items-baseline gap-0.5">
                                       {isCurrentlyWafBlocked && <ShieldAlert className="h-5 w-5 text-orange-400 mr-2" />}
-                                      <span className={`text-[26px] font-black tracking-tight leading-none ${isCurrentlyWafBlocked ? '!text-zinc-500' : getTtfbColorClass(avgTtfb, 'global')}`}>{avgTtfb}</span>
-                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${isCurrentlyWafBlocked ? '!text-zinc-500' : getTtfbColorClass(avgTtfb, 'global')}`}>ms</span>
+                                      <span className={`text-[26px] font-black tracking-tight leading-none ${(avgTtfb === 0 || isCurrentlyWafBlocked) ? '!text-zinc-500' : getTtfbColorClass(avgTtfb, 'global')}`}>
+                                        {avgTtfb > 0 ? avgTtfb : '—'}
+                                      </span>
+                                      <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${(avgTtfb === 0 || isCurrentlyWafBlocked) ? '!text-zinc-500' : getTtfbColorClass(avgTtfb, 'global')}`}>ms</span>
                                     </div>
-                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${isCurrentlyWafBlocked ? '!text-zinc-500 opacity-50' : getTtfbColorClass(avgTtfb, 'global')}`} />
+                                    <Gauge className={`h-5 w-5 stroke-[2.5] ${(avgTtfb === 0 || isCurrentlyWafBlocked) ? '!text-zinc-500 opacity-50' : getTtfbColorClass(avgTtfb, 'global')}`} />
                                   </div>
                                 </PremiumTooltip>
                               </div>

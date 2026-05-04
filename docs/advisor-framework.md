@@ -1,5 +1,14 @@
 # CacheSnap Advisor Framework — v1.0
 
+> **Status de implementação (Maio 2026):** A fase inicial do framework foi implementada.
+> Ver [`advisor-framework-implementation.md`](./advisor-framework-implementation.md) para o resumo técnico completo, arquitetura, integração por tela e cobertura de testes.
+>
+> **O que está live:** `derivePortfolioAdvisor` (Overview + Insights), `deriveMonitorDetailLiveAdvisor` (aba Live), `deriveMonitorPerformancePeriodAdvisor` (aba Performance). Componente `<AdvisorCard>` com variantes `default` e `compact`.
+>
+> **O que ainda é planejamento:** A taxonomia AD01–AD25 abaixo descreve a visão completa do framework. Os itens AD03, AD09, AD11, AD14–AD17, AD19–AD25 ainda não foram implementados.
+
+---
+
 Este documento define a inteligência do CacheSnap, separando diagnósticos de urgência (Alertas) de sugestões de otimização (Conselhos).
 
 ---

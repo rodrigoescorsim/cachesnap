@@ -40,6 +40,8 @@ import {
   globalTtfbFooterContextCompact,
   globalTtfbFooterPill,
 } from '@/lib/global-metric-copy'
+import { AdvisorCard } from '@/components/advisor/advisor-card'
+import { derivePortfolioAdvisor } from '@/components/advisor/advisor-card.helpers'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -210,6 +212,11 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
   const hitTrendTone = hitDelta > 0 ? 'success' : hitDelta < 0 ? 'danger' : 'neutral'
   const hitTrendIcon = hitDelta > 0 ? ArrowUp : hitDelta < 0 ? ArrowDown : Minus
 
+  const advisorState = useMemo(
+    () => derivePortfolioAdvisor(displayMonitors),
+    [displayMonitors],
+  )
+
   const handleOptimisticToggle = useCallback((id: string, status: 'active' | 'paused') => {
     setOptimisticStatus((prev) => ({ ...prev, [id]: status }))
   }, [])
@@ -282,6 +289,11 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
             />
           </div>
         </ViewSection>
+
+        {/* ── Advisor ─────────────────────────────────────────────────────── */}
+        {!isLoading && advisorState && (
+          <AdvisorCard state={advisorState} />
+        )}
 
         {/* ── Search & Filter bar ──────────────────────────────────────────── */}
         <ViewSection>

@@ -53,6 +53,8 @@ import {
   globalTtfbFooterContext,
   globalTtfbFooterPill,
 } from '@/lib/global-metric-copy'
+import { AdvisorCard } from '@/components/advisor/advisor-card'
+import { derivePortfolioAdvisor } from '@/components/advisor/advisor-card.helpers'
 
 // ─── Severity styles ──────────────────────────────────────────────────────────
 
@@ -808,6 +810,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
 
   const insights = useMemo(() => deriveInsights(monitors), [monitors])
   const ttfbTrend = useMemo(() => aggregateTtfbTrend(monitors), [monitors])
+  const advisorState = useMemo(() => derivePortfolioAdvisor(monitors), [monitors])
 
   const alertMonitors = useMemo(
     () =>
@@ -880,6 +883,11 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
             </div>
           )}
         </div>
+
+        {/* ── Advisor summary ──────────────────────────────────────────────── */}
+        {!isLoading && advisorState && advisorState.severity !== 'good' && (
+          <AdvisorCard state={advisorState} />
+        )}
 
         <ViewSection aria-label="Global Health Overview">
           <ViewSectionHeader title="Global Health Overview" showDot={false} />
