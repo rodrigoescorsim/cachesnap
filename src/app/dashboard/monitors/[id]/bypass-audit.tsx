@@ -85,10 +85,10 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
     const now = new Date()
     const MS_PER_HOUR = 3_600_000
     const PERIOD_MS: Record<typeof periods[number], number> = {
-      '1H':  MS_PER_HOUR,
-      '4H':  4  * MS_PER_HOUR,
+      '1H': MS_PER_HOUR,
+      '4H': 4 * MS_PER_HOUR,
       '24H': 24 * MS_PER_HOUR,
-      '7D':  7  * 24 * MS_PER_HOUR,
+      '7D': 7 * 24 * MS_PER_HOUR,
       '30D': 30 * 24 * MS_PER_HOUR,
     }
     const limit = PERIOD_MS[period]
@@ -106,11 +106,11 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
 
     filteredData.forEach(item => {
       if (!regions[item.region]) {
-        regions[item.region] = { 
-          total_edge_ttfb: 0, 
-          total_origin_ttfb: 0, 
-          edge_hits: 0, 
-          origin_misses: 0 
+        regions[item.region] = {
+          total_edge_ttfb: 0,
+          total_origin_ttfb: 0,
+          edge_hits: 0,
+          origin_misses: 0
         }
       }
       const r = regions[item.region]
@@ -119,7 +119,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
 
       r.edge_hits += hits
       r.origin_misses += misses
-      
+
       if (item.edge_ttfb > 0) {
         r.total_edge_ttfb += (item.edge_ttfb * hits)
       }
@@ -129,14 +129,22 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
     })
 
     return Object.entries(regions).map(([id, stats]) => {
+      const edge_ttfb = stats.edge_hits > 0 ? stats.total_edge_ttfb / stats.edge_hits : 0
+      const origin_ttfb = stats.origin_misses > 0 ? stats.total_origin_ttfb / stats.origin_misses : 0
+
       return {
         region: id,
-        edge_ttfb: stats.edge_hits > 0 ? stats.total_edge_ttfb / stats.edge_hits : 0,
-        origin_ttfb: stats.origin_misses > 0 ? stats.total_origin_ttfb / stats.origin_misses : 0,
+        edge_ttfb,
+        origin_ttfb,
         edge_hits: stats.edge_hits,
         origin_misses: stats.origin_misses,
-        origin_hits: 0, // Not used for the main table row logic anymore
+        origin_hits: 0,
       }
+    }).sort((a, b) => {
+      // Sort by reduction % (descending)
+      const aPct = a.origin_ttfb > 0 ? (a.origin_ttfb - a.edge_ttfb) / a.origin_ttfb : -1
+      const bPct = b.origin_ttfb > 0 ? (b.origin_ttfb - b.edge_ttfb) / b.origin_ttfb : -1
+      return bPct - aPct
     })
   }, [filteredData])
 
@@ -144,7 +152,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
   const comparableRegions = aggregatedData.filter(r => r.edge_hits > 0 && r.origin_misses > 0)
   const totalEdgeTtfb = comparableRegions.reduce((sum, r) => sum + r.edge_ttfb, 0)
   const totalOriginTtfb = comparableRegions.reduce((sum, r) => sum + r.origin_ttfb, 0)
-  
+
   const avgSavingMs = comparableRegions.length > 0 ? (totalOriginTtfb - totalEdgeTtfb) / comparableRegions.length : 0
   const avgSavingPct = totalOriginTtfb > 0 ? ((totalOriginTtfb - totalEdgeTtfb) / totalOriginTtfb) * 100 : 0
 
@@ -162,12 +170,12 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
   }, [filteredData])
 
   // --- Advisor / Polishing Logic ---
-  const validRegionsForAdvisor = useMemo(() => 
+  const validRegionsForAdvisor = useMemo(() =>
     aggregatedData.filter(r => r.edge_hits > 0 && r.origin_misses > 0),
     [aggregatedData]
   )
 
-  const bestRegion = useMemo(() => 
+  const bestRegion = useMemo(() =>
     [...validRegionsForAdvisor].sort((a, b) => {
       const aSaving = (a.origin_ttfb - a.edge_ttfb) / a.origin_ttfb
       const bSaving = (b.origin_ttfb - b.edge_ttfb) / b.origin_ttfb
@@ -176,8 +184,12 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
     [validRegionsForAdvisor]
   )
 
-  const worstRegion = useMemo(() => 
-    [...validRegionsForAdvisor].sort((a, b) => b.edge_ttfb - a.edge_ttfb)[0],
+  const worstRegion = useMemo(() =>
+    [...validRegionsForAdvisor].sort((a, b) => {
+      const aSaving = a.origin_ttfb > 0 ? (a.origin_ttfb - a.edge_ttfb) / a.origin_ttfb : 0
+      const bSaving = b.origin_ttfb > 0 ? (b.origin_ttfb - b.edge_ttfb) / b.origin_ttfb : 0
+      return aSaving - bSaving
+    })[0],
     [validRegionsForAdvisor]
   )
 
@@ -190,7 +202,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
 
   return (
     <div className="space-y-6 min-h-[200px]">
-      <ViewSectionHeader 
+      <ViewSectionHeader
         title={
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-2">
@@ -202,7 +214,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
             </div>
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">Edge Audit Baseline</span>
           </div>
-        } 
+        }
         showDot={true}
       >
         <div className="flex items-center gap-2">
@@ -211,11 +223,10 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
-                className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${
-                  period === p
-                    ? 'bg-white/10 text-white shadow-lg'
-                    : 'text-zinc-500 hover:text-zinc-300'
-                }`}
+                className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${period === p
+                  ? 'bg-white/10 text-white shadow-lg'
+                  : 'text-zinc-500 hover:text-zinc-300'
+                  }`}
               >
                 {p}
               </button>
@@ -246,9 +257,8 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                 {comparableRegions.length > 0 ? (
                   <>
                     <span
-                      className={`text-5xl font-black tracking-tighter ${
-                        avgSavingMs > 0 ? 'text-metric-ttfb-fast' : avgSavingMs < 0 ? 'text-metric-ttfb-slow' : 'text-zinc-500'
-                      }`}
+                      className={`text-4xl font-black tracking-tighter ${avgSavingMs > 0 ? 'text-metric-ttfb-fast' : avgSavingMs < 0 ? 'text-metric-ttfb-slow' : 'text-zinc-500'
+                        }`}
                       title={
                         avgSavingMs > 0
                           ? 'Average edge response is faster than origin in this period.'
@@ -262,8 +272,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                     <div className="flex flex-col">
                       <PremiumTooltip content={`Averaged over ${totalSamples} samples across ${comparableRegions.length} valid regions.`}>
                         <div className="flex items-center gap-1.5 cursor-help">
-                          <Gauge className={`w-4 h-4 ${avgSavingMs > 0 ? 'text-metric-ttfb-fast' : 'text-amber-500'}`} />
-                          <span className={`text-base font-bold ${avgSavingMs > 0 ? 'text-metric-ttfb-fast' : 'text-amber-500'}`}>
+                          <span className={`text-2xl font-black ${avgSavingMs > 0 ? 'text-metric-ttfb-fast' : 'text-metric-ttfb-slow'}`}>
                             {avgSavingMs > 0 ? (
                               <>{Math.abs(Math.round(avgSavingPct))}% faster</>
                             ) : avgSavingMs < 0 ? (
@@ -317,17 +326,18 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                   Edge Advisor Summary
                 </h4>
                 <p className="text-xs text-zinc-500 font-medium leading-relaxed">
-                  Your site is leveraging the edge very effectively across most regions. 
-                  {bestRegion && ` Best performance: ${regionLabels[bestRegion.region] ?? bestRegion.region} is ${Math.round(((bestRegion.origin_ttfb - bestRegion.edge_ttfb) / bestRegion.origin_ttfb) * 100)}% faster.`}
+                  Your site is leveraging the edge very effectively across most regions.
+                  {bestRegion && ` Maximum benefit: ${regionLabels[bestRegion.region] ?? bestRegion.region} is ${Math.round(((bestRegion.origin_ttfb - bestRegion.edge_ttfb) / bestRegion.origin_ttfb) * 100)}% faster than origin.`}
                 </p>
               </div>
-                  <div className="flex items-center gap-4 border-l border-white/5 pl-6">
+              <div className="flex items-center gap-4 border-l border-white/5 pl-6">
                 <div className="space-y-0.5">
                   <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest block">Next Opportunity</span>
                   <p className="text-[11px] text-zinc-400 font-bold">
-                    {worstRegion && worstRegion !== bestRegion 
-                      ? `Review ${regionLabels[worstRegion.region] ?? worstRegion.region} (Edge HIT: ${Math.round(worstRegion.edge_ttfb)}ms)` 
-                      : 'Maintain current s-maxage strategy.'}
+                    {worstRegion && worstRegion !== bestRegion ? (() => {
+                      const saving = Math.round(((worstRegion.origin_ttfb - worstRegion.edge_ttfb) / worstRegion.origin_ttfb) * 100);
+                      return `Review ${regionLabels[worstRegion.region] ?? worstRegion.region} (${saving < 0 ? `${Math.abs(saving)}% loss` : `Only ${saving}% benefit`})`;
+                    })() : 'Maintain current s-maxage strategy.'}
                   </p>
                 </div>
               </div>
@@ -396,9 +406,9 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                       canCompare && row.origin_ttfb > 0
                         ? ((row.origin_ttfb - row.edge_ttfb) / row.origin_ttfb) * 100
                         : null
-                    
+
                     const edgeSampleText = `HIT (${row.edge_hits} ${row.edge_hits === 1 ? 'sample' : 'samples'})`
-                    const originSampleText = hasOriginMisses 
+                    const originSampleText = hasOriginMisses
                       ? `MISS (${row.origin_misses} ${row.origin_misses === 1 ? 'sample' : 'samples'})`
                       : `HIT (${row.origin_hits} samples)`
 
@@ -410,11 +420,11 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-2">
                             <span className="text-zinc-200 font-bold">{regionLabels[row.region] ?? row.region}</span>
-                            {isBest && <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest border border-emerald-500/30 px-1.5 py-0.5 rounded leading-none">Best Performance</span>}
-                            {isWorst && <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest border border-amber-500/20 px-1.5 py-0.5 rounded leading-none">Lowest Performance</span>}
+                            {isBest && <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest border border-emerald-500/30 px-1.5 py-0.5 rounded leading-none">Max Edge Benefit</span>}
+                            {isWorst && <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest border border-amber-500/20 px-1.5 py-0.5 rounded leading-none">Low Edge Benefit</span>}
                           </div>
                         </td>
-                        
+
                         {/* Edge (HIT) Column */}
                         <td className="px-4 py-4 text-right">
                           <div className="flex items-center justify-end gap-2.5">
@@ -471,8 +481,8 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                         {/* Latency delta */}
                         <td className="px-4 py-4 text-right">
                           {canCompare ? (
-                            <span className={`text-xs font-bold ${itemSaving > 0 ? 'text-metric-ttfb-fast' : 'text-amber-500'}`}>
-                              {itemSaving > 0 ? '-' : '+'}{Math.abs(Math.round(itemSaving))}ms
+                            <span className={`text-xs font-bold ${itemSaving > 0 ? 'text-metric-ttfb-fast' : 'text-metric-ttfb-slow'}`}>
+                              {Math.abs(Math.round(itemSaving))}ms
                             </span>
                           ) : (
                             <span className="text-zinc-600">—</span>
@@ -482,7 +492,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                         {/* Reduction % vs origin TTFB */}
                         <td className="px-4 py-4 text-right">
                           {canCompare && reductionPct !== null ? (
-                            <span className={`text-xs font-bold tabular-nums ${itemSaving > 0 ? 'text-metric-ttfb-fast' : 'text-amber-500/60'}`}>
+                            <span className={`text-xs font-bold tabular-nums ${itemSaving > 0 ? 'text-metric-ttfb-fast' : 'text-metric-ttfb-slow'}`}>
                               {Math.abs(Math.round(reductionPct))}%
                             </span>
                           ) : (
