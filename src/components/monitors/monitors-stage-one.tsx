@@ -188,6 +188,10 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
       ? Number((withCache24h.reduce((sum, m) => sum + m.cacheHitAvg24h!, 0) / withCache24h.length).toFixed(1))
       : 0
 
+    // Network-wide Trends (Real-time vs 24h Baseline)
+    const ttfbDelta = calculateTrend(liveTtfb, avgTtfb24h)
+    const hitDelta = calculateTrend(liveHit, avgHit24h)
+
     return {
       activeCount: active.length,
       liveTtfb,
