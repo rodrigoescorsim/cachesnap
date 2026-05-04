@@ -1435,21 +1435,21 @@ export default async function MonitorDetailPage({
                                 <PremiumTooltip content="Average cache hit rate from recent probes across all regions">
                                   <p className="cs-metric-card-label !text-[11px]">Global Cache Hit Rate</p>
                                 </PremiumTooltip>
-                                <PremiumTooltip content={activeTab === 'performance' ? `${globalHitRate}% average cache hit rate over the selected period` : getCacheTooltip(liveGlobalHitRate, 'global')}>
-                                  <div className="flex items-center gap-2">
-                                    <div className="flex items-baseline gap-0.5">
-                                      {currentGlobalHitRate === 0 ? (
-                                        <span className="text-[20px] font-black tracking-tight leading-none text-zinc-500 uppercase">{activeTab === 'performance' ? dominantStatusLabel : liveDominantStatusLabel}</span>
-                                      ) : (
-                                        <>
-                                          <span className={`text-[26px] font-black tracking-tight leading-none ${activeTab === 'performance' ? 'text-zinc-200' : getCacheColor(currentGlobalHitRate, 'global')}`}>{currentGlobalHitRate}</span>
-                                          <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${activeTab === 'performance' ? 'text-zinc-200' : getCacheColor(currentGlobalHitRate, 'global')}`}>%</span>
-                                        </>
-                                      )}
+                                  <PremiumTooltip content={activeTab === 'performance' ? `${globalHitRate}% average cache hit rate over the selected period` : getCacheTooltip(liveGlobalHitRate, 'global')}>
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex items-baseline gap-0.5">
+                                        {currentGlobalHitRate === 0 ? (
+                                          <span className="text-[20px] font-black tracking-tight leading-none text-zinc-500 uppercase">{activeTab === 'performance' ? dominantStatusLabel : liveDominantStatusLabel}</span>
+                                        ) : (
+                                          <>
+                                            <span className={`text-[26px] font-black tracking-tight leading-none ${getCacheColor(currentGlobalHitRate, 'global')}`}>{currentGlobalHitRate}</span>
+                                            <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getCacheColor(currentGlobalHitRate, 'global')}`}>%</span>
+                                          </>
+                                        )}
+                                      </div>
+                                      {currentGlobalHitRate > 0 && <Zap className={`h-5 w-5 fill-current ${getCacheColor(currentGlobalHitRate, 'global')}`} />}
                                     </div>
-                                    {currentGlobalHitRate > 0 && <Zap className={`h-5 w-5 fill-current ${activeTab === 'performance' ? 'text-zinc-200' : getCacheColor(currentGlobalHitRate, 'global')}`} />}
-                                  </div>
-                                </PremiumTooltip>
+                                  </PremiumTooltip>
                               </div>
                             </Link>
                           </div>
@@ -1567,8 +1567,8 @@ export default async function MonitorDetailPage({
                                         <span className="text-[20px] font-black tracking-tight leading-none text-zinc-500 uppercase">{dominantStatusLabel}</span>
                                       ) : (
                                         <>
-                                          <span className={`text-[26px] font-black tracking-tight leading-none ${getTtfbColorClass(avgTtfb, 'global')}`}>{globalHitRate}</span>
-                                          <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getTtfbColorClass(avgTtfb, 'global')}`}>%</span>
+                                          <span className={`text-[26px] font-black tracking-tight leading-none ${getCacheColor(globalHitRate, 'global')}`}>{globalHitRate}</span>
+                                          <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getCacheColor(globalHitRate, 'global')}`}>%</span>
                                         </>
                                       )}
                                     </div>

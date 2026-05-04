@@ -1,0 +1,24 @@
+<svg viewBox="0 0 445 122" xmlns="http://www.w3.org/2000/svg">
+  <rect width="445" height="122" fill="#061224"/>
+  
+  <g transform="translate(65, 61)">
+
+    <line x1="-38.97" y1="22.5" x2="0" y2="0" stroke="#22FF88" stroke-width="4.0" stroke-linecap="round"/>
+    <line x1="0" y1="0" x2="0" y2="-45" stroke="#22FF88" stroke-width="4.0" stroke-linecap="round"/>
+    <line x1="0" y1="0" x2="38.97" y2="22.5" stroke="#22FF88" stroke-width="4.0" stroke-linecap="round"/>
+
+    <polygon 
+      points="0,-45 38.97,-22.5 38.97,22.5 0,45 -38.97,22.5 -38.97,-22.5" 
+      fill="none" stroke="#ffffff" stroke-width="6.0"
+      stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+
+  <!-- Texto com stroke arredondado para suavizar bordas -->
+  <text 
+    x="134" y="77" 
+    font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+    font-size="62" font-weight="300" letter-spacing="0.2"
+    stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"
+    paint-order="stroke fill"
+    fill="#ffffff">cache<tspan fill="#22FF88" stroke="#22FF88">snap</tspan></text>
+</svg>
