@@ -326,17 +326,17 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
                   Edge Advisor Summary
                 </h4>
                 <p className="text-xs text-zinc-500 font-medium leading-relaxed">
-                  Your site is leveraging the edge very effectively across most regions.
-                  {bestRegion && ` Maximum benefit: ${regionLabels[bestRegion.region] ?? bestRegion.region} is ${Math.round(((bestRegion.origin_ttfb - bestRegion.edge_ttfb) / bestRegion.origin_ttfb) * 100)}% faster than origin.`}
+                  Leveraging edge effectively across most regions. 
+                  {bestRegion && ` Max benefit: ${regionLabels[bestRegion.region] ?? bestRegion.region} (+${Math.round(((bestRegion.origin_ttfb - bestRegion.edge_ttfb) / bestRegion.origin_ttfb) * 100)}% faster).`}
                 </p>
               </div>
               <div className="flex items-center gap-4 border-l border-white/5 pl-6">
                 <div className="space-y-0.5">
-                  <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest block">Next Opportunity</span>
+                  <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest block">Next Target</span>
                   <p className="text-[11px] text-zinc-400 font-bold">
                     {worstRegion && worstRegion !== bestRegion ? (() => {
                       const saving = Math.round(((worstRegion.origin_ttfb - worstRegion.edge_ttfb) / worstRegion.origin_ttfb) * 100);
-                      return `Review ${regionLabels[worstRegion.region] ?? worstRegion.region} (${saving < 0 ? `${Math.abs(saving)}% loss` : `Only ${saving}% benefit`})`;
+                      return `${regionLabels[worstRegion.region] ?? worstRegion.region} shows low gain (${saving < 0 ? `${Math.abs(saving)}% loss` : `${saving}% benefit`}). Review cache headers.`;
                     })() : 'Maintain current s-maxage strategy.'}
                   </p>
                 </div>
