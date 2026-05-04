@@ -29,6 +29,11 @@ import {
 } from '@/lib/thresholds'
 import { calculateTrend } from '@/lib/metrics-math'
 import {
+  isCacheHit,
+  getCacheDisplayLabel,
+  isCacheBypass,
+} from '@/lib/cache-utils'
+import {
   GLOBAL_CACHE_TREND_TOOLTIP,
   GLOBAL_CACHE_VALUE_TOOLTIP,
   GLOBAL_TTFB_TREND_TOOLTIP,
@@ -161,7 +166,13 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
       ? Math.round(active.reduce((sum, m) => sum + m.ttfbCurrent, 0) / active.length)
       : 0
 
-    const withCacheData = active.filter((m) => m.cacheHitCurrent !== null)
+    const withCacheData = active.filter((m) => {
+      if (m.cacheHitCurrent === null) return false
+      const label = getCacheDisplayLabel(m.cacheStatusCurrent)
+      if (label === 'NO HEADER') return false
+      if (isCacheBypass(m.cacheStatusCurrent)) return false
+      return true
+    })
     const liveHit = withCacheData.length > 0
       ? Number((withCacheData.reduce((sum, m) => sum + m.cacheHitCurrent!, 0) / withCacheData.length).toFixed(1))
       : 0
@@ -171,7 +182,13 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
       ? Math.round(active.reduce((sum, m) => sum + m.ttfbAvg24h, 0) / active.length)
       : 0
 
-    const withCache24h = active.filter((m) => m.cacheHitAvg24h !== null)
+    const withCache24h = active.filter((m) => {
+      if (m.cacheHitAvg24h === null) return false
+      const label = getCacheDisplayLabel(m.cacheStatusCurrent)
+      if (label === 'NO HEADER') return false
+      if (isCacheBypass(m.cacheStatusCurrent)) return false
+      return true
+    })
     const avgHit24h = withCache24h.length > 0
       ? Number((withCache24h.reduce((sum, m) => sum + m.cacheHitAvg24h!, 0) / withCache24h.length).toFixed(1))
       : 0
