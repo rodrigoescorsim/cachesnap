@@ -54,6 +54,9 @@ export async function POST(request: NextRequest) {
   const { url, name, check_interval_seconds, audit_interval_seconds } = parsed.data
   const normalizedUrl = normalizeMonitorUrl(url)
 
+  // Se o nome não for fornecido, geramos um automaticamente a partir da URL (excluindo o protocolo)
+  const finalName = name || normalizedUrl.replace(/^https?:\/\//, '')
+
   // Prevenir duplicatas para o mesmo usuário
   const existing = await sql`
     SELECT id FROM monitors 
@@ -69,7 +72,7 @@ export async function POST(request: NextRequest) {
 
   const [monitor] = await sql`
     INSERT INTO monitors (user_id, url, name, check_interval_seconds, audit_interval_seconds, audit_readiness_state)
-    VALUES (${user.id}, ${normalizedUrl}, ${name ?? null}, ${check_interval_seconds}, ${audit_interval_seconds}, 'disabled')
+    VALUES (${user.id}, ${normalizedUrl}, ${finalName}, ${check_interval_seconds}, ${audit_interval_seconds}, 'disabled')
     RETURNING id, url, name, check_interval_seconds, audit_interval_seconds, is_active, created_at
   `
 

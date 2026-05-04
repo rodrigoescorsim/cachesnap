@@ -584,122 +584,128 @@ function buildMonitorColumns(
         const isActive = m.status === 'active'
         return (
           <div className="flex min-w-0 flex-col gap-[3px]">
-            <div className="flex items-center gap-1.5">
-              <span className="truncate text-[13px] font-black tracking-tight text-white/90 transition-colors duration-150 group-hover/row:text-white">
-                {m.name}
-              </span>
-              {(() => {
-                const { freshness } = formatRelativeTime(m.lastCheckedAt)
-                const hasNeverBeenChecked = m.lastCheckedAt.getTime() === 0
-                const isDown = isActive && m.totalRegionCount > 0 && m.errorRegionCount >= m.totalRegionCount
-                const isDegraded = isActive && m.errorRegionCount > 0 && !isDown
-
-                if (isActive && hasNeverBeenChecked) {
-                  return (
-                    <span
-                      className="cs-badge shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px] !font-black"
-                      style={{
-                        backgroundColor: 'rgba(56, 189, 248, 0.1)',
-                        color: '#38bdf8',
-                        borderColor: 'rgba(56, 189, 248, 0.2)',
-                      }}
-                    >
-                      <span className="relative flex h-1.5 w-1.5 shrink-0">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75" />
-                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-400" />
-                      </span>
-                      ANALYZING
-                    </span>
-                  )
-                }
-
-                if (isDown) {
-                  return (
-                    <span className="cs-badge cs-badge-danger shrink-0 !gap-1 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase">
-                      <span className="relative flex h-1.5 w-1.5 shrink-0">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
-                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-400" />
-                      </span>
-                      DOWN
-                    </span>
-                  )
-                }
-                if (isDegraded) {
-                  return (
-                    <span className="cs-badge cs-badge-danger shrink-0 !gap-1 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase">
-                      <span className="relative flex h-1.5 w-1.5 shrink-0">
-                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-400" />
-                      </span>
-                      DEGRADED
-                    </span>
-                  )
-                }
-                // Show actual sync status instead of misleading "Active" when data is old
-                if (isActive && freshness === 'offline' && !hasNeverBeenChecked) {
-                  return (
-                    <span className="cs-badge cs-badge-danger shrink-0 !gap-1 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase">
-                      <span className="relative flex h-1.5 w-1.5 shrink-0">
-                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-400" />
-                      </span>
-                      Offline
-                    </span>
-                  )
-                }
-                if (isActive && freshness === 'stale') {
-                  return (
-                    <span className="cs-badge cs-badge-warning shrink-0 !gap-1 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase">
-                      <span className="relative flex h-1.5 w-1.5 shrink-0">
-                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400" />
-                      </span>
-                      Stale
-                    </span>
-                  )
-                }
-                if (isActive) {
-                  return (
-                    <span className="cs-badge cs-badge-success shrink-0 !gap-1.5 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase">
-                      <span className="relative flex h-1.5 w-1.5 shrink-0">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                      </span>
-                      Active
-                    </span>
-                  )
-                }
-                return (
-                  <span className="cs-badge cs-badge-warning shrink-0 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase">
-                    Paused
-                  </span>
-                )
-              })()}
-
-              {m.isWafBlocked && (
-                <PremiumTooltip content="Security interference (WAF) detected in multiple regions. Latency metrics reflect filtering speed, not site performance.">
-                  <span className="cs-badge shrink-0 !gap-1.5 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase"
-                    style={{
-                      backgroundColor: 'rgba(249, 115, 22, 0.1)',
-                      color: '#fb923c',
-                      borderColor: 'rgba(249, 115, 22, 0.2)',
-                    }}
-                  >
-                    <ShieldAlert className="h-2.5 w-2.5 text-orange-400" />
-                    WAF Active
-                  </span>
-                </PremiumTooltip>
-              )}
-            </div>
             <PremiumTooltip
-              content={
-                <p className="break-all font-mono text-[11px] font-normal leading-snug tracking-normal text-zinc-200">
-                  {m.url}
-                </p>
-              }
               position="top-left"
               direction="top"
+              content={
+                <div className="w-64 space-y-2.5 p-1.5">
+                  <div className="space-y-0.5">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Monitor Identity</p>
+                    <p className="text-[13px] font-black text-white">{m.name}</p>
+                  </div>
+                  <div className="space-y-0.5 border-t border-white/5 pt-2">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-500">Target Endpoint</p>
+                    <p className="break-all font-mono text-[11px] text-zinc-300 leading-relaxed">{m.url}</p>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-white/5 pt-2">
+                    <div className="space-y-0.5">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-500">Status</p>
+                      <p className={`text-[10px] font-black uppercase tracking-widest ${isActive ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {isActive ? 'Active' : 'Paused'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              }
             >
-              <span className="max-w-[220px] cursor-default truncate font-mono text-[10.5px] font-medium text-zinc-400 transition-colors duration-150 group-hover/row:text-zinc-300">
-                {m.url.replace(/^https?:\/\//, '')}
-              </span>
+              <div className="flex flex-col min-w-0 gap-[3px] cursor-default">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-[12px] font-black tracking-tight text-white/90 transition-colors duration-150 group-hover/row:text-white">
+                    {m.name}
+                  </span>
+                  {(() => {
+                    const { freshness } = formatRelativeTime(m.lastCheckedAt)
+                    const hasNeverBeenChecked = m.lastCheckedAt.getTime() === 0
+                    const isDown = isActive && m.totalRegionCount > 0 && m.errorRegionCount >= m.totalRegionCount
+                    const isDegraded = isActive && m.errorRegionCount > 0 && !isDown
+
+                    if (isActive && hasNeverBeenChecked) {
+                      return (
+                        <span
+                          className="cs-badge shrink-0 !gap-1 !px-1.5 !py-0 !text-[8px] !font-black"
+                          style={{
+                            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                            color: '#38bdf8',
+                            borderColor: 'rgba(56, 189, 248, 0.2)',
+                          }}
+                        >
+                          <span className="relative flex h-1.5 w-1.5 shrink-0">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75" />
+                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-sky-400" />
+                          </span>
+                          ANALYZING
+                        </span>
+                      )
+                    }
+
+                    if (isDown) {
+                      return (
+                        <span className="cs-badge cs-badge-danger shrink-0 !gap-1 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase">
+                          <span className="relative flex h-1.5 w-1.5 shrink-0">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
+                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-400" />
+                          </span>
+                          DOWN
+                        </span>
+                      )
+                    }
+                    if (isDegraded) {
+                      return (
+                        <span className="cs-badge cs-badge-danger shrink-0 !gap-1 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase">
+                          <span className="relative flex h-1.5 w-1.5 shrink-0">
+                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-400" />
+                          </span>
+                          DEGRADED
+                        </span>
+                      )
+                    }
+                    // Show actual sync status instead of misleading "Active" when data is old
+                    if (isActive && freshness === 'offline' && !hasNeverBeenChecked) {
+                      return (
+                        <span className="cs-badge cs-badge-danger shrink-0 !gap-1 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase">
+                          <span className="relative flex h-1.5 w-1.5 shrink-0">
+                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-400" />
+                          </span>
+                          Offline
+                        </span>
+                      )
+                    }
+                    if (isActive && freshness === 'stale') {
+                      return (
+                        <span className="cs-badge cs-badge-warning shrink-0 !gap-1 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase">
+                          <span className="relative flex h-1.5 w-1.5 shrink-0">
+                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400" />
+                          </span>
+                          Stale
+                        </span>
+                      )
+                    }
+                    if (isActive) {
+                      return null
+                    }
+                    return (
+                      <span className="cs-badge cs-badge-warning shrink-0 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase">
+                        Paused
+                      </span>
+                    )
+                  })()}
+
+                  {m.isWafBlocked && (
+                    <PremiumTooltip content="Security interference (WAF) detected in multiple regions. Latency metrics reflect filtering speed, not site performance.">
+                      <span className="cs-badge shrink-0 !gap-1.5 !px-2 !py-0.5 !text-[8.5px] !font-bold tracking-wider uppercase"
+                        style={{
+                          backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                          color: '#fb923c',
+                          borderColor: 'rgba(249, 115, 22, 0.2)',
+                        }}
+                      >
+                        <ShieldAlert className="h-2.5 w-2.5 text-orange-400" />
+                        WAF Active
+                      </span>
+                    </PremiumTooltip>
+                  )}
+                </div>
+              </div>
             </PremiumTooltip>
           </div>
         )
@@ -833,7 +839,7 @@ function buildMonitorColumns(
         }
 
         return (
-          <div className="flex flex-col gap-1 pl-4">
+          <div className="flex flex-col gap-1 items-center justify-center">
             <div className="flex items-center gap-1.5">
               <Globe className={`h-3 w-3 ${hasIssues ? (errorOnes.length > 0 ? 'text-red-400/50' : 'text-amber-300/45') : 'text-emerald-500/40'}`} />
               <span className={`text-[11px] font-black uppercase tracking-tight ${m.isWafBlocked ? 'text-orange-400/80' : (hasIssues ? (errorOnes.length > 0 ? 'text-red-400' : 'text-amber-300/90') : 'text-zinc-400 group-hover/row:text-zinc-300')}`}>
@@ -1027,6 +1033,7 @@ export function MonitorsTable({
                 {hg.headers.map((header) => {
                   const canSort = header.column.getCanSort()
                   const isRightAligned = header.column.id === 'uptime24h'
+                  const isCentered = header.column.id === 'slowRegionCount'
                   return (
                     <th
                       key={header.id}
@@ -1043,14 +1050,14 @@ export function MonitorsTable({
                         'cs-table-compact-th !py-3 !text-[9px] !font-black !tracking-[0.12em] !text-zinc-500',
                         'select-none whitespace-nowrap transition-colors duration-150',
                         canSort ? 'cursor-pointer hover:text-zinc-300' : '',
-                        isRightAligned ? 'text-right pr-4' : 'pl-4',
+                        isCentered ? 'text-center' : isRightAligned ? 'text-right pr-4' : 'pl-4',
                         header.column.getIsSorted() ? '!text-zinc-300' : '',
                       ]
                         .filter(Boolean)
                         .join(' ')}
                     >
                       {header.isPlaceholder ? null : (
-                        <span className="group/th inline-flex items-center">
+                        <span className={`group/th flex items-center ${isCentered ? 'justify-center' : ''}`}>
                           {flexRender(header.column.columnDef.header, header.getContext())}
                           {canSort ? <SortIcon isSorted={header.column.getIsSorted()} /> : null}
                         </span>

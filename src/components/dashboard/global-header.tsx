@@ -25,16 +25,13 @@ const NAV_ITEMS = [
     disabled: false,
     match: (p: string) => p === '/insights' || p.startsWith('/insights/'),
   },
-  { label: 'Breakdown', href: '', disabled: true, match: () => false },
-  { label: 'Alerts', href: '', disabled: true, match: () => false },
-  { label: 'Settings', href: '', disabled: true, match: () => false },
 ]
 
 export function GlobalHeader({ userEmail, logoutAction }: GlobalHeaderProps) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const showCreateMonitor = pathname === '/monitors'
+  const showCreateMonitor = pathname !== '/monitors/new'
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/96 shadow-[0_1px_0_0_rgba(0,0,0,0.45)] backdrop-blur-md supports-[backdrop-filter]:bg-background/92">
