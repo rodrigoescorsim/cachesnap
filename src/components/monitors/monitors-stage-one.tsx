@@ -7,22 +7,19 @@ import {
   ArrowDown,
   ArrowUp,
   Gauge,
-  Activity,
   HelpCircle,
   Minus,
   Zap,
   Search,
 } from 'lucide-react'
 import { GlobalHeader } from '@/components/dashboard/global-header'
-import { monitorHealthScore, type MonitorQuickFilterId } from '@/types/monitor'
+import { type MonitorQuickFilterId } from '@/types/monitor'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import { GlobalMetricCard } from './global-metric-card'
 import { MonitorsTable } from './monitors-table'
 import { useMonitors } from '@/hooks/use-monitors'
 import { ViewSection, ViewSectionHeader, LiveDot } from '@/components/dashboard/dashboard-ui'
 import {
-  GLOBAL_HEALTH,
-  GLOBAL_TTFB,
   GLOBAL_CACHE,
   getTtfbColorClass,
   getCacheColor,
@@ -144,7 +141,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
   // ── Metrics calculation ──────────────────────────────────────────────────
 
   // ── Global metrics ────────────────────────────────────────────────────────
-  const { activeCount, liveTtfb, liveHit, avgTtfb24h, avgHit24h, degradedMonitors, criticalMonitors, ttfbDelta, hitDelta } = useMemo(() => {
+  const { activeCount, liveTtfb, liveHit, avgTtfb24h, avgHit24h, ttfbDelta, hitDelta } = useMemo(() => {
     if (!displayMonitors.length) {
       return {
         activeCount: 0,
@@ -152,8 +149,6 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
         liveHit: 0,
         avgTtfb24h: 0,
         avgHit24h: 0,
-        degradedMonitors: [] as { id: string; name: string }[],
-        criticalMonitors: [] as { id: string; name: string }[],
         ttfbDelta: 0,
         hitDelta: 0,
       }
@@ -193,27 +188,12 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
       ? Number((withCache24h.reduce((sum, m) => sum + m.cacheHitAvg24h!, 0) / withCache24h.length).toFixed(1))
       : 0
 
-    // Per active monitor: same 0–100 score as elsewhere; lists for System status card + tooltip
-    const degradedMonitors: { id: string; name: string }[] = []
-    const criticalMonitors: { id: string; name: string }[] = []
-    for (const m of active) {
-      const s = monitorHealthScore(m)
-      if (s < GLOBAL_HEALTH.DEGRADED) criticalMonitors.push({ id: m.id, name: m.name })
-      else if (s < GLOBAL_HEALTH.HEALTHY) degradedMonitors.push({ id: m.id, name: m.name })
-    }
-
-    // Network-wide Trends (Real-time vs 24h Baseline)
-    const ttfbDelta = calculateTrend(liveTtfb, avgTtfb24h)
-    const hitDelta = calculateTrend(liveHit, avgHit24h)
-
     return {
       activeCount: active.length,
       liveTtfb,
       liveHit,
       avgTtfb24h,
       avgHit24h,
-      degradedMonitors,
-      criticalMonitors,
       ttfbDelta,
       hitDelta,
     }
@@ -239,26 +219,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
         <ViewSection aria-label="Global summary">
           <ViewSectionHeader title="Global Summary" showDot={false} />
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:items-stretch [&>article]:min-w-0">
-            <GlobalMetricCard
-              variant="compact"
-              metricGroup="insight"
-              title="System status"
-              value=""
-              subtitle=""
-              icon={Activity}
-              systemStatus={
-                isLoading
-                  ? 'loading'
-                  : {
-                    degraded: degradedMonitors.length,
-                    critical: criticalMonitors.length,
-                    degradedMonitors,
-                    criticalMonitors,
-                  }
-              }
-              animationDelayMs={0}
-            />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-stretch [&>article]:min-w-0">
             <GlobalMetricCard
               variant="compact"
               metricGroup="monitor"
