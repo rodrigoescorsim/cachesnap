@@ -121,11 +121,12 @@ async fn check_cache_hit(state: &AppState, monitor: &MonitorAlertConfig, region:
         return Ok(());
     }
 
-    let hit_data = sqlx::query_as::<_, (Option<f64>, Option<i64>)>(
+    let hit_data = sqlx::query_as::<_, (Option<f64>, Option<i64>, Option<i64>)>(
         r#"
         SELECT
-            (SUM(hit_count)::float / NULLIF(SUM(total_count), 0)) * 100 AS hit_pct,
-            SUM(total_count) AS sample_count
+            (SUM(hit_count)::float / NULLIF(SUM(cdn_count), 0)) * 100 AS hit_pct,
+            SUM(total_count)::bigint AS sample_count,
+            SUM(cdn_count)::bigint AS cdn_sample_count
         FROM probe_results_hourly
         WHERE monitor_id = $1 AND region = $2 AND bucket > NOW() - INTERVAL '24 hours'
         "#,
@@ -135,7 +136,12 @@ async fn check_cache_hit(state: &AppState, monitor: &MonitorAlertConfig, region:
     .fetch_one(&state.db)
     .await?;
 
-    if let (Some(hit_pct), Some(sample_count)) = hit_data {
+    if let (Some(hit_pct), Some(sample_count), Some(cdn_sample_count)) = hit_data {
+        // Skip if no CDN was ever detected in this 24h window (avoids false positives for non-CDN sites)
+        if cdn_sample_count == 0 {
+            return Ok(());
+        }
+
         if sample_count >= 5 && hit_pct < monitor.alert_cache_hit_threshold_pct {
             let summary = format!("Cache hit rate dropped to {:.1}% (threshold: {:.0}%)", hit_pct, monitor.alert_cache_hit_threshold_pct);
             let action = "Check your CDN cache rules. Common causes: short TTL, missing Cache-Control headers, or high dynamic content ratio.".to_string();

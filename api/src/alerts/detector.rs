@@ -6,6 +6,10 @@ use crate::{
 use super::notifier::{self, AlertNotification};
 use tracing::{info, error};
 
+const DOWN_COOLDOWN_MINUTES: i32 = 30;
+const ANOMALY_COOLDOWN_MINUTES: i32 = 30;
+const TTFB_THRESHOLD_COOLDOWN_MINUTES: i32 = 30;
+
 pub fn is_anomalous(actual_ttfb: f64, avg: f64, stddev: f64, sigma_factor: f64) -> bool {
     // Anomalia estatística: TTFB > avg + (sigma_factor * stddev), com piso de +500ms
     // para evitar ruído em sites ultrarrápidos (ex: média 20ms subindo para 40ms).
@@ -24,8 +28,10 @@ fn sensitivity_to_sigma(sensitivity: i16) -> f64 {
 #[derive(sqlx::FromRow)]
 struct MonitorAlertConfig {
     alert_threshold_ms: i32,
+    alert_threshold_hit_ms: i32,
     alert_sensitivity: i16,
     alert_down_enabled: bool,
+    alert_ttfb_enabled: bool,
     alert_anomaly_enabled: bool,
 }
 
@@ -34,8 +40,10 @@ async fn fetch_monitor_alert_config(state: &AppState, monitor_id: uuid::Uuid) ->
         r#"
         SELECT
             alert_threshold_ms,
+            alert_threshold_hit_ms,
             alert_sensitivity,
             alert_down_enabled,
+            alert_ttfb_enabled,
             alert_anomaly_enabled
         FROM monitors WHERE id = $1 LIMIT 1
         "#,
@@ -44,6 +52,39 @@ async fn fetch_monitor_alert_config(state: &AppState, monitor_id: uuid::Uuid) ->
     .fetch_optional(&state.db)
     .await
     .unwrap_or(None)
+}
+
+async fn count_consecutive_breaches(
+    state: &AppState,
+    monitor_id: uuid::Uuid,
+    region: &str,
+    threshold_ms: f64,
+    limit: i32,
+) -> i32 {
+    if limit <= 1 { return 1; }
+
+    let count: Option<i64> = sqlx::query_scalar!(
+        r#"
+        WITH recent_probes AS (
+            SELECT ttfb_ms
+            FROM probe_results
+            WHERE monitor_id = $1 AND region = $2
+            ORDER BY time DESC
+            LIMIT $3
+        )
+        SELECT COUNT(*) FROM recent_probes WHERE ttfb_ms > $4
+        "#,
+        monitor_id,
+        region,
+        limit as i64,
+        threshold_ms
+    )
+    .fetch_one(&state.db)
+    .await
+    .ok()
+    .flatten();
+
+    count.unwrap_or(0) as i32
 }
 
 pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
@@ -55,15 +96,27 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
         }
     };
 
-    // 1. Checar se é um erro claro, downtime ou TTFB acima do threshold configurado
+    // 1. Checar se é um erro claro (downtime real)
+    let is_hit = payload.cache_status.as_deref().map(|s| s == "HIT" || s == "STALE" || s == "REVALIDATED").unwrap_or(false);
+    let effective_threshold = if is_hit { cfg.alert_threshold_hit_ms as f64 } else { cfg.alert_threshold_ms as f64 };
+
     let ttfb_over_threshold = payload.ttfb_ms
-        .map(|t| t > cfg.alert_threshold_ms as f64)
+        .map(|t| t > effective_threshold)
         .unwrap_or(false);
-    let is_down = payload.error.is_some()
-        || payload.status_code.map(|s| s >= 500).unwrap_or(false)
-        || ttfb_over_threshold;
+    let is_down = payload.status_code.map(|s| s >= 500).unwrap_or(false);
 
     if is_down && cfg.alert_down_enabled {
+        let down_exists = alert_exists_recent_minutes(
+            &state,
+            payload.monitor_id,
+            &payload.region,
+            "down",
+            DOWN_COOLDOWN_MINUTES,
+        ).await.unwrap_or(false);
+        if down_exists {
+            return;
+        }
+
         let diagnosis = engine::diagnose(&DiagnosisInput {
             ttfb_ms: payload.ttfb_ms,
             cache_status: payload.cache_status.clone(),
@@ -107,7 +160,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
                     diagnosis: Some(diagnosis.summary),
                     action: Some(diagnosis.action),
                     actual_ms: payload.ttfb_ms,
-                    baseline_ms: Some(cfg.alert_threshold_ms as f64),
+                    baseline_ms: Some(effective_threshold),
                     deviation_factor: None,
                     delta_pct: None,
                     comparator: None,
@@ -118,9 +171,112 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
         return; // Se está fora do ar, não checamos anomalias de TTFB
     }
 
+    // 2. Breach de limite fixo de TTFB (não é downtime)
+    if ttfb_over_threshold && cfg.alert_ttfb_enabled {
+        // Sensitivity logic: require consecutive breaches
+        let consecutive_limit = match cfg.alert_sensitivity {
+            1 => 3,
+            2 => 2,
+            _ => 1,
+        };
+
+        let breach_count = count_consecutive_breaches(
+            &state,
+            payload.monitor_id,
+            &payload.region,
+            effective_threshold,
+            consecutive_limit
+        ).await;
+
+        if breach_count < consecutive_limit {
+            return; // Not consistent enough yet
+        }
+
+        let threshold_exists = alert_exists_recent_minutes(
+            &state,
+            payload.monitor_id,
+            &payload.region,
+            "ttfb_threshold",
+            TTFB_THRESHOLD_COOLDOWN_MINUTES,
+        ).await.unwrap_or(false);
+        if threshold_exists {
+            return;
+        }
+
+        if let Some(actual_ttfb) = payload.ttfb_ms {
+            let hit_miss_label = if is_hit { "Cache HIT" } else { "Cache MISS" };
+            let summary = format!(
+                "{} TTFB {:.0}ms exceeded your limit ({:.0}ms) in {}.",
+                hit_miss_label, actual_ttfb, effective_threshold, payload.region
+            );
+            let action = if is_hit {
+                "Investigate CDN edge performance or large header sizes for this region.".to_string()
+            } else {
+                "Investigate origin response time, regional routing, and cache rules for this region.".to_string()
+            };
+
+            let insert_res = sqlx::query_scalar!(
+                r#"
+                INSERT INTO alerts (
+                    monitor_id, region, alert_type, metric, baseline_ms, actual_ms, diagnosis, action
+                ) VALUES (
+                    $1, $2, 'ttfb_threshold', 'ttfb_ms', $3, $4, $5, $6
+                ) RETURNING id
+                "#,
+                payload.monitor_id,
+                payload.region,
+                effective_threshold,
+                actual_ttfb,
+                summary,
+                action,
+            )
+            .fetch_one(&state.db)
+            .await;
+
+            match insert_res {
+                Ok(alert_id) => {
+                    info!(
+                        "TTFB threshold breach for monitor {} in region {}: {:.0}ms > {:.0}ms ({})",
+                        payload.monitor_id,
+                        payload.region,
+                        actual_ttfb,
+                        effective_threshold,
+                        hit_miss_label
+                    );
+                    tokio::spawn(notifier::notify(state.clone(), AlertNotification {
+                        alert_id,
+                        monitor_id: payload.monitor_id,
+                        alert_type: "ttfb_threshold".to_string(),
+                        region: payload.region.clone(),
+                        diagnosis: Some(summary),
+                        action: Some(action),
+                        actual_ms: Some(actual_ttfb),
+                        baseline_ms: Some(effective_threshold),
+                        deviation_factor: None,
+                        delta_pct: None,
+                        comparator: None,
+                    }));
+                }
+                Err(e) => error!("Failed to register TTFB threshold alert: {}", e),
+            }
+        }
+        return;
+    }
+
     // 2. Anomalia de TTFB (comparação com baseline de 7 dias)
     if let Some(actual_ttfb) = payload.ttfb_ms {
     if cfg.alert_anomaly_enabled {
+        let anomaly_exists = alert_exists_recent_minutes(
+            &state,
+            payload.monitor_id,
+            &payload.region,
+            "anomaly",
+            ANOMALY_COOLDOWN_MINUTES,
+        ).await.unwrap_or(false);
+        if anomaly_exists {
+            return;
+        }
+
         let baseline = sqlx::query!(
             r#"
             SELECT ttfb_avg_ms, ttfb_stddev_ms
@@ -213,6 +369,32 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
         }
     }
     } // end alert_anomaly_enabled
+}
+
+async fn alert_exists_recent_minutes(
+    state: &AppState,
+    monitor_id: uuid::Uuid,
+    region: &str,
+    alert_type: &str,
+    cooldown_minutes: i32,
+) -> Result<bool, sqlx::Error> {
+    let count: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*)
+        FROM alerts
+        WHERE monitor_id = $1
+          AND region = $2
+          AND alert_type = $3
+          AND created_at > NOW() - ($4 * INTERVAL '1 minute')
+        "#,
+    )
+    .bind(monitor_id)
+    .bind(region)
+    .bind(alert_type)
+    .bind(cooldown_minutes)
+    .fetch_one(&state.db)
+    .await?;
+    Ok(count > 0)
 }
 
 #[cfg(test)]

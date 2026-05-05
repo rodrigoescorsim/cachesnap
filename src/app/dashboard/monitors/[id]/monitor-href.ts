@@ -12,6 +12,7 @@ export type PerformanceView = 'real-time' | 'performance' | 'trends' | 'patterns
 
 export type AlertType =
   | 'down'
+  | 'ttfb_threshold'
   | 'anomaly'
   | 'anycast'
   | 'zombie_cache'

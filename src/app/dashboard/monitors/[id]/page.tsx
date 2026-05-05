@@ -47,6 +47,7 @@ import {
   Settings,
   BarChart3,
   ShieldAlert,
+  Info,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -219,7 +220,7 @@ const MONITOR_HEADER_ACTIVE_DOT =
   'bg-[var(--brand-primary)] [box-shadow:0_0_8px_rgba(34,255,136,0.5)]'
 
 const VALID_ALERT_TYPES = [
-  'down', 'anomaly', 'anycast', 'zombie_cache', 'cache_hit_low',
+  'down', 'ttfb_threshold', 'anomaly', 'anycast', 'zombie_cache', 'cache_hit_low',
   'cache_hit_trend_drop_region', 'cache_hit_trend_drop_global',
   'ttfb_trend_up_region', 'ttfb_trend_up_global',
   'ttfb_trend_down_region', 'ttfb_trend_down_global',
@@ -227,6 +228,7 @@ const VALID_ALERT_TYPES = [
 
 const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   down: 'Offline',
+  ttfb_threshold: 'TTFB above limit',
   anomaly: 'Anomaly',
   anycast: 'Anycast',
   cache_hit_trend_drop_region: 'Cache Hit ↓ (region)',
@@ -579,7 +581,7 @@ export default async function MonitorDetailPage({
     notify_email: string | null; notify_email_enabled: boolean;
     notify_slack_webhook: string | null; notify_slack_enabled: boolean;
     alert_threshold_ms: number; alert_sensitivity: number;
-    alert_down_enabled: boolean; alert_anomaly_enabled: boolean;
+    alert_down_enabled: boolean; alert_ttfb_enabled: boolean; alert_anomaly_enabled: boolean;
     alert_anycast_enabled: boolean; alert_zombie_cache_enabled: boolean;
     alert_cache_hit_enabled: boolean; alert_cache_hit_threshold_pct: number;
     alert_cache_hit_trend_enabled: boolean; alert_cache_hit_trend_threshold_pct: number; alert_cache_hit_trend_comparators: string[];
@@ -590,7 +592,7 @@ export default async function MonitorDetailPage({
     SELECT id, url, name, is_active, check_interval_seconds, audit_interval_seconds,
            notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
            alert_threshold_ms, alert_sensitivity,
-           alert_down_enabled, alert_anomaly_enabled,
+           alert_down_enabled, alert_ttfb_enabled, alert_anomaly_enabled,
            alert_anycast_enabled, alert_zombie_cache_enabled,
            alert_cache_hit_enabled, alert_cache_hit_threshold_pct,
            alert_cache_hit_trend_enabled, alert_cache_hit_trend_threshold_pct, alert_cache_hit_trend_comparators,
@@ -2014,37 +2016,39 @@ export default async function MonitorDetailPage({
           {activeTab === 'settings' && (
             <div className="space-y-4">
               <ViewSectionHeader title="Monitor configuration" showDot={false} />
-              <MonitorSettingsPanel
-                id={monitor.id}
-                url={monitor.url}
-                name={monitor.name}
-                checkIntervalSeconds={monitor.check_interval_seconds}
-                auditIntervalSeconds={monitor.audit_interval_seconds}
-                notifyEmail={monitor.notify_email}
-                notifyEmailEnabled={monitor.notify_email_enabled}
-                notifySlackWebhook={monitor.notify_slack_webhook}
-                notifySlackEnabled={monitor.notify_slack_enabled}
-                alertThresholdMs={monitor.alert_threshold_ms}
-                alertSensitivity={monitor.alert_sensitivity}
-                alertDownEnabled={monitor.alert_down_enabled}
-                alertAnomalyEnabled={monitor.alert_anomaly_enabled}
-                alertAnycastEnabled={monitor.alert_anycast_enabled}
-                alertZombieCacheEnabled={monitor.alert_zombie_cache_enabled}
-                alertCacheHitEnabled={monitor.alert_cache_hit_enabled}
-                alertCacheHitThresholdPct={monitor.alert_cache_hit_threshold_pct}
-                alertCacheHitTrendEnabled={monitor.alert_cache_hit_trend_enabled}
-                alertCacheHitTrendThresholdPct={monitor.alert_cache_hit_trend_threshold_pct}
-                alertCacheHitTrendComparators={(monitor.alert_cache_hit_trend_comparators ?? ['prev_hour']) as TrendComparator[]}
-                alertTtfbTrendEnabled={monitor.alert_ttfb_trend_enabled}
-                alertTtfbTrendThresholdPct={monitor.alert_ttfb_trend_threshold_pct}
-                alertTtfbTrendComparators={(monitor.alert_ttfb_trend_comparators ?? ['prev_hour']) as TrendComparator[]}
-                alertTtfbTrendDirection={(monitor.alert_ttfb_trend_direction ?? 'worsening') as 'worsening' | 'both'}
-                alertTrendMinSamples={monitor.alert_trend_min_samples}
-                alertTrendCooldownMinutes={monitor.alert_trend_cooldown_minutes}
-                alertTrendRequireConsecutive={monitor.alert_trend_require_consecutive}
-                alertTrendGlobalEnabled={monitor.alert_trend_global_enabled}
-                alertTrendGlobalThresholdFactor={monitor.alert_trend_global_threshold_factor}
-              />
+              {(() => {
+                const globalHitAvg = stats.length > 0 ? Math.round(stats.reduce((acc, s) => acc + (s.edge_hit_avg_ms || 0), 0) / stats.length) : 0;
+                const globalMissAvg = stats.length > 0 ? Math.round(stats.reduce((acc, s) => acc + (s.origin_miss_avg_ms || 0), 0) / stats.length) : 0;
+                return (
+                  <MonitorSettingsPanel
+                    {...monitor}
+                    alertThresholdMs={monitor.alert_threshold_ms}
+                    alertThresholdHitMs={monitor.alert_threshold_hit_ms}
+                    alertSensitivity={monitor.alert_sensitivity}
+                    alertDownEnabled={monitor.alert_down_enabled}
+                    alertTtfbEnabled={monitor.alert_ttfb_enabled}
+                    alertAnomalyEnabled={monitor.alert_anomaly_enabled}
+                    alertAnycastEnabled={monitor.alert_anycast_enabled}
+                    alertZombieCacheEnabled={monitor.alert_zombie_cache_enabled}
+                    alertCacheHitEnabled={monitor.alert_cache_hit_enabled}
+                    alertCacheHitThresholdPct={monitor.alert_cache_hit_threshold_pct}
+                    alertCacheHitTrendEnabled={monitor.alert_cache_hit_trend_enabled}
+                    alertCacheHitTrendThresholdPct={monitor.alert_cache_hit_trend_threshold_pct}
+                    alertCacheHitTrendComparators={(monitor.alert_cache_hit_trend_comparators ?? ['prev_hour']) as TrendComparator[]}
+                    alertTtfbTrendEnabled={monitor.alert_ttfb_trend_enabled}
+                    alertTtfbTrendThresholdPct={monitor.alert_ttfb_trend_threshold_pct}
+                    alertTtfbTrendComparators={(monitor.alert_ttfb_trend_comparators ?? ['prev_hour']) as TrendComparator[]}
+                    alertTtfbTrendDirection={(monitor.alert_ttfb_trend_direction ?? 'worsening') as 'worsening' | 'both'}
+                    alertTrendMinSamples={monitor.alert_trend_min_samples}
+                    alertTrendCooldownMinutes={monitor.alert_trend_cooldown_minutes}
+                    alertTrendRequireConsecutive={monitor.alert_trend_require_consecutive}
+                    alertTrendGlobalEnabled={monitor.alert_trend_global_enabled}
+                    alertTrendGlobalThresholdFactor={monitor.alert_trend_global_threshold_factor}
+                    globalHitAvg={globalHitAvg}
+                    globalMissAvg={globalMissAvg}
+                  />
+                );
+              })()}
             </div>
           )}
 
@@ -2383,27 +2387,51 @@ export default async function MonitorDetailPage({
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <TrendingUp className="w-4 h-4 text-zinc-400" />
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Main Vector</span>
+                <div className="rounded-xl border border-border bg-surface p-4 shadow-sm relative group">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-zinc-400" />
+                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Top Issue</span>
+                    </div>
+                    <PremiumTooltip content="The most frequent type of alert triggered in this time window." position="top-right">
+                      <Info className="h-3.5 w-3.5 text-zinc-400/50 hover:text-zinc-300 transition-colors" />
+                    </PremiumTooltip>
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span className="text-base font-bold text-zinc-900 dark:text-zinc-100 uppercase truncate">
-                      {alerts.length > 0 ? (ALERT_TYPE_LABELS[alerts[0].alert_type as AlertType] ?? 'N/A') : 'Clear'}
+                      {(() => {
+                        if (alerts.length === 0) return 'Clear';
+                        const typeCounts = alerts.reduce((acc, a) => {
+                          acc[a.alert_type] = (acc[a.alert_type] || 0) + 1;
+                          return acc;
+                        }, {} as Record<string, number>);
+                        const mainType = Object.keys(typeCounts).reduce((a, b) => typeCounts[a] > typeCounts[b] ? a : b);
+                        return ALERT_TYPE_LABELS[mainType as AlertType] ?? mainType.replace('_', ' ');
+                      })()}
                     </span>
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <AlertTriangle className="w-4 h-4 text-zinc-400" />
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Peak Deviation</span>
+                <div className="rounded-xl border border-border bg-surface p-4 shadow-sm relative group">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-zinc-400" />
+                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Peak Deviation</span>
+                    </div>
+                    <PremiumTooltip content="How severe the worst latency spike was compared to the normal baseline (e.g. 2.5x slower)." position="top-right">
+                      <Info className="h-3.5 w-3.5 text-zinc-400/50 hover:text-zinc-300 transition-colors" />
+                    </PremiumTooltip>
                   </div>
                   <div className="flex items-baseline gap-2">
-                    <span className={`text-2xl font-bold ${alerts.some(a => (a.deviation_factor ?? 0) > 3) ? 'text-red-500' : 'text-zinc-900 dark:text-zinc-100'}`}>
-                      {alerts.length > 0 ? `${Math.max(...alerts.map(a => a.deviation_factor ?? 0)).toFixed(1)}x` : '1.0x'}
-                    </span>
+                    {(() => {
+                      const validDeviations = alerts.map(a => Number(a.deviation_factor)).filter(n => !isNaN(n) && n > 0);
+                      const maxDev = validDeviations.length > 0 ? Math.max(...validDeviations) : 0;
+                      return (
+                        <span className={`text-2xl font-bold ${maxDev > 3 ? 'text-red-500' : 'text-zinc-900 dark:text-zinc-100'}`}>
+                          {maxDev > 0 ? `${maxDev.toFixed(1)}x` : '-'}
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -2414,27 +2442,34 @@ export default async function MonitorDetailPage({
                     <TrendingUp className="w-3 h-3" />
                     24h Recurrence Trends
                   </h3>
-                  <div className="h-24 w-full flex items-end gap-1 px-1">
+                  <div className="h-24 w-full flex items-end gap-[2px] px-1">
                     {(() => {
-                      const maxCount = Math.max(...incidentTrends.map(t => t.count), 1)
-                      // Fill hourly slots so missing buckets show as zero
+                      const maxCount = Math.max(...incidentTrends.map(t => Number(t.count)), 1)
                       const now = new Date()
                       const last24h = Array.from({ length: 24 }, (_, i) => {
                         const d = new Date(now)
                         d.setHours(d.getHours() - (23 - i), 0, 0, 0)
-                        const match = incidentTrends.find(t => new Date(t.bucket).getHours() === d.getHours())
-                        return { label: d.getHours(), count: match ? match.count : 0 }
+                        
+                        const match = incidentTrends.find(t => {
+                          const bucketDate = new Date(t.bucket);
+                          return bucketDate.getHours() === d.getHours() && bucketDate.getDate() === d.getDate();
+                        });
+                        
+                        return { 
+                          label: d.getHours(), 
+                          count: match ? Number(match.count) : 0 
+                        }
                       })
 
                       return last24h.map((t, i) => (
-                        <div key={i} className="flex-1 flex flex-col items-center group relative">
+                        <div key={i} className="flex-1 flex flex-col items-center group relative h-full justify-end">
                           <div
-                            className={`w-full rounded-t-sm transition-all ${t.count > 0 ? 'bg-red-500/60 group-hover:bg-red-500' : 'bg-zinc-200 dark:bg-zinc-800'}`}
+                            className={`w-full rounded-t-sm transition-all ${t.count > 0 ? 'bg-red-500/60 hover:bg-red-500' : 'bg-zinc-200 dark:bg-zinc-800'}`}
                             style={{ height: `${Math.max((t.count / maxCount) * 100, 4)}%` }}
                           >
                             {t.count > 0 && (
                               <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 text-white text-[10px] px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap z-10">
-                                {t.count} incidents @ {t.label}:00
+                                {t.count} incident{t.count > 1 ? 's' : ''} @ {t.label.toString().padStart(2, '0')}:00
                               </div>
                             )}
                           </div>

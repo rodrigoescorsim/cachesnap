@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { MonitorEditForm, type TrendComparator } from './monitor-edit-form'
 import { MonitorDeleteConfirm } from './monitor-delete-confirm'
+import { MonitorClearAlertsConfirm } from './monitor-clear-alerts-confirm'
 
 export function MonitorSettingsPanel(props: {
   id: string
@@ -15,8 +16,10 @@ export function MonitorSettingsPanel(props: {
   notifySlackWebhook: string | null
   notifySlackEnabled: boolean
   alertThresholdMs: number
+  alertThresholdHitMs: number
   alertSensitivity: number
   alertDownEnabled: boolean
+  alertTtfbEnabled: boolean
   alertAnomalyEnabled: boolean
   alertAnycastEnabled: boolean
   alertZombieCacheEnabled: boolean
@@ -34,8 +37,11 @@ export function MonitorSettingsPanel(props: {
   alertTrendRequireConsecutive: boolean
   alertTrendGlobalEnabled: boolean
   alertTrendGlobalThresholdFactor: number
+  globalHitAvg?: number
+  globalMissAvg?: number
 }) {
   const [removeOpen, setRemoveOpen] = useState(false)
+  const [clearAlertsOpen, setClearAlertsOpen] = useState(false)
 
   useEffect(() => {
     function syncModalWithHash() {
@@ -62,18 +68,38 @@ export function MonitorSettingsPanel(props: {
             Danger zone
           </h2>
           <p className="text-xs text-red-500/50 max-w-sm ml-3.5">
-            Removing a monitor deletes all associated data forever. This action is irreversible.
+            Removing a monitor or clearing its history are irreversible actions.
           </p>
         </div>
 
-        <div className="ml-3.5">
-          <button
-            type="button"
-            onClick={() => setRemoveOpen(true)}
-            className="cs-btn-danger"
-          >
-            Remove monitor...
-          </button>
+        <div className="ml-3.5 flex flex-col gap-3">
+          <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-amber-500/30 hover:bg-amber-500/5 transition-all group">
+            <div>
+              <h3 className="text-sm font-bold text-zinc-200 group-hover:text-amber-500 transition-colors">Clear alert history</h3>
+              <p className="text-xs text-zinc-500 mt-1">Permanently delete all alerts and anomalies.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setClearAlertsOpen(true)}
+              className="h-9 px-4 rounded-lg bg-white/5 border border-white/5 text-zinc-300 hover:bg-amber-500 hover:border-amber-500 hover:text-white transition-all text-xs font-bold uppercase tracking-wider"
+            >
+              Clear Alerts...
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-red-500/30 hover:bg-red-500/5 transition-all group">
+            <div>
+              <h3 className="text-sm font-bold text-zinc-200 group-hover:text-red-500 transition-colors">Remove monitor</h3>
+              <p className="text-xs text-zinc-500 mt-1">Delete all associated data forever.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setRemoveOpen(true)}
+              className="h-9 px-4 rounded-lg bg-white/5 border border-white/5 text-zinc-300 hover:bg-red-500 hover:border-red-500 hover:text-white transition-all text-xs font-bold uppercase tracking-wider"
+            >
+              Remove Monitor...
+            </button>
+          </div>
         </div>
       </section>
 
@@ -81,6 +107,13 @@ export function MonitorSettingsPanel(props: {
         <MonitorDeleteConfirm
           monitorId={props.id}
           onClose={() => setRemoveOpen(false)}
+        />
+      ) : null}
+
+      {clearAlertsOpen ? (
+        <MonitorClearAlertsConfirm
+          monitorId={props.id}
+          onClose={() => setClearAlertsOpen(false)}
         />
       ) : null}
     </div>

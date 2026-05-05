@@ -74,6 +74,7 @@ async fn compute_cycle(state: &AppState) -> Result<(), anyhow::Error> {
 
 struct HourlyData {
     hit_count: i64,
+    cdn_count: i64,
     total_count: i64,
     ttfb_sum_ms: Option<f64>,
     sample_count: i64,
@@ -85,9 +86,9 @@ async fn fetch_hourly(
     region: &str,
     bucket: chrono::DateTime<chrono::Utc>,
 ) -> Result<Option<HourlyData>, sqlx::Error> {
-    let row = sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<f64>, Option<i64>)>(
+    let row = sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<i64>, Option<f64>, Option<i64>)>(
         r#"
-        SELECT hit_count::BIGINT, total_count::BIGINT, ttfb_sum_ms, sample_count::BIGINT
+        SELECT hit_count::BIGINT, cdn_count::BIGINT, total_count::BIGINT, ttfb_sum_ms, sample_count::BIGINT
         FROM probe_results_hourly
         WHERE monitor_id = $1 AND region = $2 AND bucket = $3
         LIMIT 1
@@ -99,8 +100,9 @@ async fn fetch_hourly(
     .fetch_optional(&state.db)
     .await?;
 
-    Ok(row.map(|(h, t, s, sc)| HourlyData {
+    Ok(row.map(|(h, c, t, s, sc)| HourlyData {
         hit_count: h.unwrap_or(0),
+        cdn_count: c.unwrap_or(0),
         total_count: t.unwrap_or(0),
         ttfb_sum_ms: s,
         sample_count: sc.unwrap_or(0),
@@ -114,10 +116,11 @@ async fn fetch_day_avg(
     bucket: chrono::DateTime<chrono::Utc>,
 ) -> Result<Option<HourlyData>, sqlx::Error> {
     // Aggregate always returns one row; fetch_one is semantically correct here.
-    let (h, t, s, sc) = sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<f64>, Option<i64>)>(
+    let (h, c, t, s, sc) = sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<i64>, Option<f64>, Option<i64>)>(
         r#"
         SELECT
             SUM(hit_count)::BIGINT    AS hit_count,
+            SUM(cdn_count)::BIGINT    AS cdn_count,
             SUM(total_count)::BIGINT  AS total_count,
             SUM(ttfb_sum_ms)          AS ttfb_sum_ms,
             SUM(sample_count)::BIGINT AS sample_count
@@ -137,6 +140,7 @@ async fn fetch_day_avg(
     Ok(if t.unwrap_or(0) == 0 { None } else {
         Some(HourlyData {
             hit_count: h.unwrap_or(0),
+            cdn_count: c.unwrap_or(0),
             total_count: t.unwrap_or(0),
             ttfb_sum_ms: s,
             sample_count: sc.unwrap_or(0),
@@ -145,8 +149,8 @@ async fn fetch_day_avg(
 }
 
 fn cache_hit_pct(d: &HourlyData) -> Option<f64> {
-    if d.total_count == 0 { return None; }
-    Some(d.hit_count as f64 / d.total_count as f64 * 100.0)
+    if d.cdn_count == 0 { return None; }
+    Some(d.hit_count as f64 / d.cdn_count as f64 * 100.0)
 }
 
 fn ttfb_avg_ms(d: &HourlyData) -> Option<f64> {
@@ -255,23 +259,24 @@ async fn upsert_global_baselines(
     monitor_id: Uuid,
     bucket_hour: chrono::DateTime<chrono::Utc>,
 ) -> Result<(), anyhow::Error> {
-    let compute_global = |rows: Vec<(Option<i64>, Option<i64>, Option<f64>, Option<i64>)>| -> Option<HourlyData> {
-        let (mut hit, mut total, mut ttfb_sum, mut samples) = (0i64, 0i64, 0f64, 0i64);
-        for (h, t, s, sc) in rows {
+    let compute_global = |rows: Vec<(Option<i64>, Option<i64>, Option<i64>, Option<f64>, Option<i64>)>| -> Option<HourlyData> {
+        let (mut hit, mut cdn, mut total, mut ttfb_sum, mut samples) = (0i64, 0i64, 0i64, 0f64, 0i64);
+        for (h, c, t, s, sc) in rows {
             hit += h.unwrap_or(0);
+            cdn += c.unwrap_or(0);
             total += t.unwrap_or(0);
             ttfb_sum += s.unwrap_or(0.0);
             samples += sc.unwrap_or(0);
         }
         if total == 0 { None } else {
-            Some(HourlyData { hit_count: hit, total_count: total, ttfb_sum_ms: Some(ttfb_sum), sample_count: samples })
+            Some(HourlyData { hit_count: hit, cdn_count: cdn, total_count: total, ttfb_sum_ms: Some(ttfb_sum), sample_count: samples })
         }
     };
 
     let fetch_global_bucket = |bucket: chrono::DateTime<chrono::Utc>| {
-        sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<f64>, Option<i64>)>(
+        sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<i64>, Option<f64>, Option<i64>)>(
             r#"
-            SELECT hit_count::BIGINT, total_count::BIGINT, ttfb_sum_ms, sample_count::BIGINT
+            SELECT hit_count::BIGINT, cdn_count::BIGINT, total_count::BIGINT, ttfb_sum_ms, sample_count::BIGINT
             FROM probe_results_hourly
             WHERE monitor_id = $1 AND bucket = $2
             "#,
@@ -295,9 +300,9 @@ async fn upsert_global_baselines(
 
     // day_avg global: aggregate across all regions for the 24h window.
     // Aggregate queries always return exactly one row (possibly with NULLs), so fetch_one is correct.
-    let day_avg_row = sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<f64>, Option<i64>)>(
+    let day_avg_row = sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<i64>, Option<f64>, Option<i64>)>(
         r#"
-        SELECT SUM(hit_count)::BIGINT, SUM(total_count)::BIGINT, SUM(ttfb_sum_ms), SUM(sample_count)::BIGINT
+        SELECT SUM(hit_count)::BIGINT, SUM(cdn_count)::BIGINT, SUM(total_count)::BIGINT, SUM(ttfb_sum_ms), SUM(sample_count)::BIGINT
         FROM probe_results_hourly
         WHERE monitor_id = $1
           AND bucket >= $2 - INTERVAL '24 hours'
@@ -310,10 +315,11 @@ async fn upsert_global_baselines(
     .await?;
 
     let day_avg = {
-        let (h, t, s, sc) = day_avg_row;
+        let (h, c, t, s, sc) = day_avg_row;
         if t.unwrap_or(0) == 0 { None } else {
             Some(HourlyData {
                 hit_count: h.unwrap_or(0),
+                cdn_count: c.unwrap_or(0),
                 total_count: t.unwrap_or(0),
                 ttfb_sum_ms: s,
                 sample_count: sc.unwrap_or(0),

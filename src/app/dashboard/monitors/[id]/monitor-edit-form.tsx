@@ -18,8 +18,10 @@ export interface MonitorEditFormProps {
   notifySlackWebhook: string | null
   notifySlackEnabled: boolean
   alertThresholdMs: number
+  alertThresholdHitMs: number
   alertSensitivity: number
   alertDownEnabled: boolean
+  alertTtfbEnabled: boolean
   alertAnomalyEnabled: boolean
   alertAnycastEnabled: boolean
   alertZombieCacheEnabled: boolean
@@ -38,6 +40,8 @@ export interface MonitorEditFormProps {
   alertTrendRequireConsecutive: boolean
   alertTrendGlobalEnabled: boolean
   alertTrendGlobalThresholdFactor: number
+  globalHitAvg?: number
+  globalMissAvg?: number
   /** Prefix for input ids when multiple forms could exist */
   idPrefix?: string
 }
@@ -55,8 +59,10 @@ export function MonitorEditForm({
   notifySlackWebhook,
   notifySlackEnabled,
   alertThresholdMs,
+  alertThresholdHitMs,
   alertSensitivity,
   alertDownEnabled,
+  alertTtfbEnabled,
   alertAnomalyEnabled,
   alertAnycastEnabled,
   alertZombieCacheEnabled,
@@ -74,6 +80,8 @@ export function MonitorEditForm({
   alertTrendRequireConsecutive,
   alertTrendGlobalEnabled,
   alertTrendGlobalThresholdFactor,
+  globalHitAvg = 0,
+  globalMissAvg = 0,
   idPrefix = 'settings',
 }: MonitorEditFormProps) {
   const router = useRouter()
@@ -87,29 +95,31 @@ export function MonitorEditForm({
     check_interval_seconds: checkIntervalSeconds,
     audit_interval_seconds: auditIntervalSeconds,
     notify_email: notifyEmail ?? '',
-    notify_email_enabled: notifyEmailEnabled,
+    notify_email_enabled: notifyEmailEnabled ?? false,
     notify_slack_webhook: notifySlackWebhook ?? '',
-    notify_slack_enabled: notifySlackEnabled,
-    alert_threshold_ms: alertThresholdMs,
-    alert_sensitivity: alertSensitivity,
-    alert_down_enabled: alertDownEnabled,
-    alert_anomaly_enabled: alertAnomalyEnabled,
-    alert_anycast_enabled: alertAnycastEnabled,
-    alert_zombie_cache_enabled: alertZombieCacheEnabled,
-    alert_cache_hit_enabled: alertCacheHitEnabled,
-    alert_cache_hit_threshold_pct: alertCacheHitThresholdPct,
-    alert_cache_hit_trend_enabled: alertCacheHitTrendEnabled,
-    alert_cache_hit_trend_threshold_pct: alertCacheHitTrendThresholdPct,
-    alert_cache_hit_trend_comparators: alertCacheHitTrendComparators,
-    alert_ttfb_trend_enabled: alertTtfbTrendEnabled,
-    alert_ttfb_trend_threshold_pct: alertTtfbTrendThresholdPct,
-    alert_ttfb_trend_comparators: alertTtfbTrendComparators,
-    alert_ttfb_trend_direction: alertTtfbTrendDirection,
-    alert_trend_min_samples: alertTrendMinSamples,
-    alert_trend_cooldown_minutes: alertTrendCooldownMinutes,
-    alert_trend_require_consecutive: alertTrendRequireConsecutive,
-    alert_trend_global_enabled: alertTrendGlobalEnabled,
-    alert_trend_global_threshold_factor: alertTrendGlobalThresholdFactor,
+    notify_slack_enabled: notifySlackEnabled ?? false,
+    alert_threshold_ms: alertThresholdMs || 1500,
+    alert_threshold_hit_ms: alertThresholdHitMs || 500,
+    alert_sensitivity: alertSensitivity || 2,
+    alert_down_enabled: alertDownEnabled ?? true,
+    alert_ttfb_enabled: alertTtfbEnabled ?? true,
+    alert_anomaly_enabled: alertAnomalyEnabled ?? true,
+    alert_anycast_enabled: alertAnycastEnabled ?? true,
+    alert_zombie_cache_enabled: alertZombieCacheEnabled ?? true,
+    alert_cache_hit_enabled: alertCacheHitEnabled ?? true,
+    alert_cache_hit_threshold_pct: alertCacheHitThresholdPct ?? 50,
+    alert_cache_hit_trend_enabled: alertCacheHitTrendEnabled ?? true,
+    alert_cache_hit_trend_threshold_pct: alertCacheHitTrendThresholdPct || 30,
+    alert_cache_hit_trend_comparators: alertCacheHitTrendComparators ?? ['prev_hour', 'same_hour_prev_day', 'day_avg'],
+    alert_ttfb_trend_enabled: alertTtfbTrendEnabled ?? true,
+    alert_ttfb_trend_threshold_pct: alertTtfbTrendThresholdPct || 30,
+    alert_ttfb_trend_comparators: alertTtfbTrendComparators ?? ['prev_hour', 'same_hour_prev_day', 'day_avg'],
+    alert_ttfb_trend_direction: alertTtfbTrendDirection ?? 'worsening',
+    alert_trend_min_samples: alertTrendMinSamples ?? 5,
+    alert_trend_cooldown_minutes: alertTrendCooldownMinutes ?? 360,
+    alert_trend_require_consecutive: alertTrendRequireConsecutive ?? false,
+    alert_trend_global_enabled: alertTrendGlobalEnabled ?? true,
+    alert_trend_global_threshold_factor: alertTrendGlobalThresholdFactor ?? 1.5,
   })
   type FormValues = typeof values
 
@@ -130,9 +140,10 @@ export function MonitorEditForm({
       if (!value) return 'Webhook URL is required'
       if (!textValue.startsWith('http')) return 'Invalid webhook URL'
     }
-    if (field === 'alert_threshold_ms') {
+    if (field === 'alert_threshold_ms' || field === 'alert_threshold_hit_ms') {
       const n = Number(value)
-      if (isNaN(n) || n < 100 || n > 30000) return 'Must be between 100 and 30 000 ms'
+      const min = field === 'alert_threshold_ms' ? 100 : 50
+      if (isNaN(n) || n < min || n > 30000) return `Must be between ${min} and 30 000 ms`
     }
     if (field === 'alert_sensitivity') {
       if (![1, 2, 3].includes(Number(value))) return 'Invalid sensitivity'
@@ -165,6 +176,7 @@ export function MonitorEditForm({
     const emailErr = validate('notify_email', current.notify_email, current)
     const slackErr = validate('notify_slack_webhook', current.notify_slack_webhook, current)
     const thresholdErr = validate('alert_threshold_ms', current.alert_threshold_ms, current)
+    const thresholdHitErr = validate('alert_threshold_hit_ms', current.alert_threshold_hit_ms, current)
     const cacheHitErr = validate('alert_cache_hit_threshold_pct', current.alert_cache_hit_threshold_pct, current)
     const cacheHitTrendErr = validate('alert_cache_hit_trend_threshold_pct', current.alert_cache_hit_trend_threshold_pct, current)
     const ttfbTrendErr = validate('alert_ttfb_trend_threshold_pct', current.alert_ttfb_trend_threshold_pct, current)
@@ -177,6 +189,7 @@ export function MonitorEditForm({
         notify_email: emailErr,
         notify_slack_webhook: slackErr,
         alert_threshold_ms: thresholdErr,
+        alert_threshold_hit_ms: thresholdHitErr,
         alert_cache_hit_threshold_pct: cacheHitErr,
         alert_cache_hit_trend_threshold_pct: cacheHitTrendErr,
         alert_ttfb_trend_threshold_pct: ttfbTrendErr,
@@ -238,6 +251,7 @@ export function MonitorEditForm({
       values.notify_email !== lastSavedValues.current.notify_email ||
       values.notify_slack_webhook !== lastSavedValues.current.notify_slack_webhook ||
       values.alert_threshold_ms !== lastSavedValues.current.alert_threshold_ms ||
+      values.alert_threshold_hit_ms !== lastSavedValues.current.alert_threshold_hit_ms ||
       values.alert_cache_hit_threshold_pct !== lastSavedValues.current.alert_cache_hit_threshold_pct ||
       values.alert_cache_hit_trend_threshold_pct !== lastSavedValues.current.alert_cache_hit_trend_threshold_pct ||
       values.alert_ttfb_trend_threshold_pct !== lastSavedValues.current.alert_ttfb_trend_threshold_pct ||
@@ -348,17 +362,24 @@ export function MonitorEditForm({
                 <CsCheckbox
                   id={`${p}-alert_ttfb_enabled`}
                   align="start"
-                  checked={values.alert_down_enabled}
-                  onChange={(e) => handleInputChange('alert_down_enabled', e.target.checked)}
+                  checked={values.alert_ttfb_enabled}
+                  onChange={(e) => handleInputChange('alert_ttfb_enabled', e.target.checked)}
                 />
                 <label htmlFor={`${p}-alert_ttfb_enabled`} className="cursor-pointer select-none flex-1">
                   <span className="text-xs font-bold text-zinc-200 block">Response time limit (TTFB)</span>
                   <span className="text-xs text-zinc-400 leading-relaxed">
-                    Alert when Time to First Byte exceeds a specific limit in any region.
+                    Alert when Time to First Byte exceeds specific limits. Differentiated by cache status.
                   </span>
 
-                  <div className={`mt-3 space-y-4 transition-opacity ${values.alert_down_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
-                    <div>
+                  <div className={`mt-4 space-y-5 transition-opacity ${values.alert_ttfb_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
+                    {/* MISS / ORIGIN LIMIT */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Cache MISS / Origin</span>
+                        {globalMissAvg > 0 && (
+                          <span className="text-[10px] text-zinc-500">Global avg: <span className="text-zinc-300 font-medium">{globalMissAvg}ms</span></span>
+                        )}
+                      </div>
                       <div className="relative">
                         <input
                           id={`${p}-alert-threshold`}
@@ -368,19 +389,54 @@ export function MonitorEditForm({
                           step={100}
                           value={values.alert_threshold_ms}
                           onChange={(e) => handleInputChange('alert_threshold_ms', Number(e.target.value))}
-                          disabled={!values.alert_down_enabled}
-                          className="w-full h-11 cs-input pr-10"
+                          disabled={!values.alert_ttfb_enabled}
+                          className={`w-full h-10 cs-input pr-10 text-sm ${errors.alert_threshold_ms ? 'cs-input-error' : ''}`}
                         />
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">ms</span>
                       </div>
                       {errors.alert_threshold_ms && <span className="cs-error-msg">{errors.alert_threshold_ms}</span>}
+                      {globalMissAvg > 0 && values.alert_threshold_ms < globalMissAvg * 1.5 && (
+                        <p className="text-[10px] text-amber-400/80 leading-snug">
+                          Tip: We recommend at least <span className="font-bold">{Math.round(globalMissAvg * 1.5)}ms</span> (+50% avg) to avoid noise.
+                        </p>
+                      )}
+                    </div>
+
+                    {/* HIT / EDGE LIMIT */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Cache HIT / Edge</span>
+                        {globalHitAvg > 0 && (
+                          <span className="text-[10px] text-zinc-500">Global avg: <span className="text-zinc-300 font-medium">{globalHitAvg}ms</span></span>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <input
+                          id={`${p}-alert-threshold-hit`}
+                          type="number"
+                          min={50}
+                          max={30000}
+                          step={50}
+                          value={values.alert_threshold_hit_ms}
+                          onChange={(e) => handleInputChange('alert_threshold_hit_ms', Number(e.target.value))}
+                          disabled={!values.alert_ttfb_enabled}
+                          className={`w-full h-10 cs-input pr-10 text-sm ${errors.alert_threshold_hit_ms ? 'cs-input-error' : ''}`}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">ms</span>
+                      </div>
+                      {errors.alert_threshold_hit_ms && <span className="cs-error-msg">{errors.alert_threshold_hit_ms}</span>}
+                      {globalHitAvg > 0 && values.alert_threshold_hit_ms < globalHitAvg * 1.5 && (
+                        <p className="text-[10px] text-amber-400/80 leading-snug">
+                          Tip: We recommend at least <span className="font-bold">{Math.round(globalHitAvg * 1.5)}ms</span> (+50% avg).
+                        </p>
+                      )}
                     </div>
                   </div>
                 </label>
               </div>
 
               {/* Spike sensitivity — checkbox-gated */}
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-3 pb-4">
                 <CsCheckbox
                   id={`${p}-alert_anomaly_enabled`}
                   align="start"
@@ -392,32 +448,32 @@ export function MonitorEditForm({
                   <span className="text-xs text-zinc-400 leading-relaxed">
                     Alert when response time spikes well above your 7-day baseline.
                   </span>
-
-                  <div className={`mt-3 transition-opacity ${values.alert_anomaly_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
-                    <p className="text-xs font-bold text-zinc-300 mb-2">Sensitivity to sudden spikes</p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {([
-                        { value: 1, label: 'Low', sub: 'Fewer alerts' },
-                        { value: 2, label: 'Medium', sub: 'Recommended' },
-                        { value: 3, label: 'High', sub: 'Catches small changes' },
-                      ] as const).map(opt => (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => handleInputChange('alert_sensitivity', opt.value)}
-                          disabled={!values.alert_anomaly_enabled}
-                          className={`relative flex flex-col items-center gap-0.5 rounded-lg border px-2 py-2.5 text-center transition-all ${values.alert_sensitivity === opt.value
-                            ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 text-white shadow-[0_0_12px_rgba(34,255,136,0.08)]'
-                            : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
-                            }`}
-                        >
-                          <span className="text-xs font-bold mt-1">{opt.label}</span>
-                          <span className="text-[10px] opacity-60 leading-tight">{opt.sub}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </label>
+              </div>
+
+              {/* Global Sensitivity Selector — always enabled */}
+              <div className="pt-4 border-t border-white/5">
+                <p className="text-xs font-bold text-zinc-300 mb-2">Alert Sensitivity</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { value: 1, label: 'Low', sub: '3 probes' },
+                    { value: 2, label: 'Medium', sub: '2 probes' },
+                    { value: 3, label: 'High', sub: 'Instant' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleInputChange('alert_sensitivity', opt.value)}
+                      className={`relative flex flex-col items-center gap-0.5 rounded-lg border px-2 py-2.5 text-center transition-all ${values.alert_sensitivity === opt.value
+                        ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 text-white shadow-[0_0_12px_rgba(34,255,136,0.08)]'
+                        : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
+                        }`}
+                    >
+                      <span className="text-xs font-bold mt-1">{opt.label}</span>
+                      <span className="text-[10px] opacity-60 leading-tight">{opt.sub}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
