@@ -53,8 +53,8 @@ const QUICK_FILTERS: ReadonlyArray<{ id: MonitorQuickFilterId; label: string; to
   { id: 'degraded', label: 'Degraded', tooltip: 'Show monitors with latency issues, partial outages, or low cache hit rates.', tone: 'warning' },
   { id: 'high-ttfb', label: 'High TTFB', tooltip: 'Show monitors with average latency above the FAST threshold.', tone: 'warning' },
   { id: 'down', label: 'DOWN', tooltip: 'Show monitors that are currently unreachable from all probe regions.', tone: 'danger' },
-  { id: 'low-cache-hit', label: 'Low Cache Hit', tooltip: 'Show monitors with cache performance below the GOOD threshold.', tone: 'warning' },
-  { id: 'missing-cache-headers', label: 'Missing Cache Headers', tooltip: 'Show monitors where no CDN cache status header was detected.', tone: 'warning' }
+  { id: 'low-cache-hit', label: 'Low Cache', tooltip: 'Show monitors with cache performance below the GOOD threshold.', tone: 'warning' },
+  { id: 'missing-cache-headers', label: 'Missing Headers', tooltip: 'Show monitors where no CDN cache status header was detected.', tone: 'warning' },
 
 ]
 
@@ -318,8 +318,8 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
         </ViewSection>
 
         <article className="cs-card group/search-box cs-card-glass space-y-3.5 !p-6 animate-[cs-fade-in_0.5s_ease-out]">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="relative flex-1 max-w-2xl">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:flex-nowrap">
+            <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500 transition-colors group-focus-within/search-box:text-metric-ttfb-fast" />
               <input
                 id="monitor-search-input"
@@ -391,8 +391,8 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
                       type="button"
                       onClick={() => setActiveFilter(filter.id)}
                       aria-pressed={isActive}
-                      className={`inline-flex h-8 min-w-[4.5rem] items-center justify-center rounded-lg px-3.5 text-[9px] font-black uppercase tracking-widest transition-all duration-200 ${isActive
-                        ? `cs-badge ${toneClass} !min-h-0 !px-3.5 !py-0 shadow-lg shadow-black/20`
+                      className={`inline-flex h-8 items-center justify-center rounded-lg px-2.5 text-[9px] font-black uppercase tracking-widest transition-all duration-200 ${isActive
+                        ? `cs-badge ${toneClass} !min-h-0 !px-2.5 !py-0 shadow-lg shadow-black/20`
                         : 'border border-white/5 bg-white/[0.01] text-zinc-500 hover:border-white/10 hover:text-zinc-300'
                         }`}
                     >
