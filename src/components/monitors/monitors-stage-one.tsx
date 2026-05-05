@@ -47,12 +47,15 @@ import { derivePortfolioAdvisor } from '@/components/advisor/advisor-card.helper
 
 const LIVE_SYNC_INTERVAL_MS = 30_000
 
-const QUICK_FILTERS: ReadonlyArray<{ id: MonitorQuickFilterId; label: string }> = [
-  { id: 'all', label: 'All' },
-  { id: 'healthy', label: 'Healthy' },
-  { id: 'degraded', label: 'Degraded' },
-  { id: 'high-ttfb', label: 'High TTFB' },
-  { id: 'low-cache-hit', label: 'Low Cache Hit' },
+const QUICK_FILTERS: ReadonlyArray<{ id: MonitorQuickFilterId; label: string; tooltip: string; tone: 'success' | 'danger' | 'warning' | 'neutral' }> = [
+  { id: 'all', label: 'All', tooltip: 'Show all monitors without filtering.', tone: 'neutral' },
+  { id: 'healthy', label: 'Healthy', tooltip: 'Show monitors performing within optimal thresholds.', tone: 'success' },
+  { id: 'degraded', label: 'Degraded', tooltip: 'Show monitors with latency issues, partial outages, or low cache hit rates.', tone: 'warning' },
+  { id: 'high-ttfb', label: 'High TTFB', tooltip: 'Show monitors with average latency above the FAST threshold.', tone: 'warning' },
+  { id: 'down', label: 'DOWN', tooltip: 'Show monitors that are currently unreachable from all probe regions.', tone: 'danger' },
+  { id: 'low-cache-hit', label: 'Low Cache Hit', tooltip: 'Show monitors with cache performance below the GOOD threshold.', tone: 'warning' },
+  { id: 'missing-cache-headers', label: 'Missing Cache Headers', tooltip: 'Show monitors where no CDN cache status header was detected.', tone: 'warning' }
+
 ]
 
 const VALID_FILTER_IDS = new Set<string>(QUICK_FILTERS.map((f) => f.id))
@@ -102,6 +105,20 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
     const t = setTimeout(() => setSearchQuery(searchInput), 300)
     return () => clearTimeout(t)
   }, [searchInput])
+
+  // ── URL → State sync (Handles external navigation or AdvisorCard links) ───
+  useEffect(() => {
+    const urlFilter = coerceFilter(searchParams.get('filter'))
+    if (urlFilter !== activeFilter) {
+      setActiveFilter(urlFilter)
+    }
+
+    const urlSearch = searchParams.get('q') ?? ''
+    if (urlSearch !== searchQuery) {
+      setSearchQuery(urlSearch)
+      setSearchInput(urlSearch)
+    }
+  }, [searchParams]) // Only react to searchParams changes
 
   // ── State → URL sync ───────────────────────────────────────────────────────
   // Using replace to avoid polluting history with every filter change
@@ -362,19 +379,26 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
             >
               {QUICK_FILTERS.map((filter) => {
                 const isActive = activeFilter === filter.id
+                const toneClass =
+                  filter.tone === 'success' ? 'cs-badge-success' :
+                    filter.tone === 'danger' ? 'cs-badge-danger' :
+                      filter.tone === 'warning' ? 'cs-badge-warning' :
+                        'cs-badge-success' // Default for 'all' / neutral
+
                 return (
-                  <button
-                    key={filter.id}
-                    type="button"
-                    onClick={() => setActiveFilter(filter.id)}
-                    aria-pressed={isActive}
-                    className={`inline-flex h-8 min-w-[4.5rem] items-center justify-center rounded-lg px-3.5 text-[9px] font-black uppercase tracking-widest transition-all duration-200 ${isActive
-                        ? 'cs-badge cs-badge-success !min-h-0 !px-3.5 !py-0'
+                  <PremiumTooltip key={filter.id} content={filter.tooltip} position="top-center">
+                    <button
+                      type="button"
+                      onClick={() => setActiveFilter(filter.id)}
+                      aria-pressed={isActive}
+                      className={`inline-flex h-8 min-w-[4.5rem] items-center justify-center rounded-lg px-3.5 text-[9px] font-black uppercase tracking-widest transition-all duration-200 ${isActive
+                        ? `cs-badge ${toneClass} !min-h-0 !px-3.5 !py-0 shadow-lg shadow-black/20`
                         : 'border border-white/5 bg-white/[0.01] text-zinc-500 hover:border-white/10 hover:text-zinc-300'
-                      }`}
-                  >
-                    {filter.label}
-                  </button>
+                        }`}
+                    >
+                      {filter.label}
+                    </button>
+                  </PremiumTooltip>
                 )
               })}
             </div>
@@ -403,8 +427,8 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
                     : 'Live Sync off. Click to enable auto-refresh every 30s.'
                 }
                 className={`inline-flex h-7 items-center gap-1.5 rounded-lg px-3 text-[9px] font-black uppercase tracking-widest transition-all duration-200 ${liveSync
-                    ? 'cs-badge cs-badge-success !min-h-0 !px-3 !py-0'
-                    : 'border border-white/5 bg-white/[0.01] text-zinc-500 hover:border-white/10 hover:text-zinc-300'
+                  ? 'cs-badge cs-badge-success !min-h-0 !px-3 !py-0'
+                  : 'border border-white/5 bg-white/[0.01] text-zinc-500 hover:border-white/10 hover:text-zinc-300'
                   }`}
               >
                 {liveSync && <LiveDot />}

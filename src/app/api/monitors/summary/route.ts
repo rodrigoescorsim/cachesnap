@@ -79,6 +79,8 @@ export async function GET() {
         COUNT(*) FILTER (WHERE ttfb_ms > 300 AND error IS NULL)::int                    AS slow_region_count,
         COUNT(*)::int                                                                    AS total_region_count,
         COUNT(*) FILTER (WHERE error IS NOT NULL)::int                                   AS error_region_count,
+        COUNT(*) FILTER (WHERE status_code >= 500 AND error IS NULL)::int                AS error_5xx_count,
+        COUNT(*) FILTER (WHERE status_code >= 400 AND status_code < 500 AND status_code NOT IN (401, 403, 404) AND error IS NULL)::int AS error_4xx_count,
         COUNT(*) FILTER (WHERE status_code IN (401, 403))::int                           AS waf_region_count
       FROM latest
       GROUP BY monitor_id
@@ -153,6 +155,8 @@ export async function GET() {
       COALESCE(c.slow_region_count,  0)                                                     AS slow_region_count,
       COALESCE(c.total_region_count, 0)                                                     AS total_region_count,
       COALESCE(c.error_region_count, 0)                                                     AS error_region_count,
+      COALESCE(c.error_5xx_count,    0)                                                     AS error_5xx_count,
+      COALESCE(c.error_4xx_count,    0)                                                     AS error_4xx_count,
       (COALESCE(c.waf_region_count, 0) >= 2 OR (COALESCE(c.total_region_count, 0) = 1 AND COALESCE(c.waf_region_count, 0) = 1)) AS is_waf_blocked,
       c.last_checked_at,
       COALESCE(s.sparkline, ARRAY[]::int[])                                                 AS sparkline

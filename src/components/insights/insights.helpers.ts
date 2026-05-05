@@ -1,5 +1,6 @@
 import type { Monitor } from '@/types/monitor'
 import { MONITOR_TTFB, MONITOR_CACHE } from '@/lib/thresholds'
+import { buildViewHref, buildMonitorHref } from '@/app/dashboard/monitors/[id]/monitor-href'
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────
 
@@ -120,8 +121,8 @@ export function deriveInsights(monitors: Monitor[]): Insight[] {
       title:       'Critical response time',
       description: `${safeHostname(worstTtfb.url)} is at ${worstTtfb.ttfbCurrent}ms TTFB — well above acceptable thresholds. Origin may be overloaded or misconfigured.`,
       metric:      `${worstTtfb.ttfbCurrent}ms`,
-      actionLabel: 'Inspect',
-      actionHref:  `/dashboard/monitors/${worstTtfb.id}`,
+      actionLabel: 'Check Trends',
+      actionHref:  buildViewHref('trends', '24h', worstTtfb.id),
     })
   } else if (worstTtfb.ttfbCurrent > TTFB_HIGH) {
     out.push({
@@ -130,8 +131,8 @@ export function deriveInsights(monitors: Monitor[]): Insight[] {
       title:       'Elevated TTFB detected',
       description: `${safeHostname(worstTtfb.url)} is at ${worstTtfb.ttfbCurrent}ms. Enable edge caching or review origin capacity to bring this below 200ms.`,
       metric:      `${worstTtfb.ttfbCurrent}ms`,
-      actionLabel: 'Inspect',
-      actionHref:  `/dashboard/monitors/${worstTtfb.id}`,
+      actionLabel: 'Analyze Performance',
+      actionHref:  buildViewHref('performance', '24h', worstTtfb.id),
     })
   }
 
@@ -150,8 +151,8 @@ export function deriveInsights(monitors: Monitor[]): Insight[] {
         title:       'High cache miss rate',
         description: `${safeHostname(worstCache.url)} has only ${hit}% cache hits. Add Cache-Control: public, s-maxage=300 to origin responses to improve CDN efficiency.`,
         metric:      `${hit}% hit`,
-        actionLabel: 'Review headers',
-        actionHref:  `/dashboard/monitors/${worstCache.id}`,
+        actionLabel: 'Check Edge Audit',
+        actionHref:  buildViewHref('infrastructure', '24h', worstCache.id),
       })
     }
   }
@@ -173,8 +174,8 @@ export function deriveInsights(monitors: Monitor[]): Insight[] {
       title:       'Regional latency detected',
       description: `${slowLabels}${extra} reporting high latency for ${safeHostname(worst.url)}. Your origin may be geographically distant from affected users.`,
       metric:      `${worst.slowRegionCount} region${worst.slowRegionCount > 1 ? 's' : ''}`,
-      actionLabel: 'View regions',
-      actionHref:  `/dashboard/monitors/${worst.id}`,
+      actionLabel: 'View Breakdown',
+      actionHref:  buildViewHref('diagnostics', '24h', worst.id),
     })
   }
 
@@ -188,8 +189,8 @@ export function deriveInsights(monitors: Monitor[]): Insight[] {
       title:       'Performance trending worse',
       description: `${safeHostname(worst.url)} TTFB increased +${worst.ttfbCurrentDelta.toFixed(1)}% vs the 24h average. A recent deploy or config change may have caused a regression.`,
       metric:      `+${worst.ttfbCurrentDelta.toFixed(1)}%`,
-      actionLabel: 'Investigate',
-      actionHref:  `/dashboard/monitors/${worst.id}`,
+      actionLabel: 'View Trends',
+      actionHref:  buildViewHref('trends', '24h', worst.id),
     })
   }
 

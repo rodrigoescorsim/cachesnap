@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { AlertTriangle, AlertCircle, CheckCircle2, type LucideIcon } from 'lucide-react'
+import { PremiumTooltip } from '@/components/premium-tooltip'
 import type { AdvisorAction, AdvisorState, AdvisorSeverity } from './advisor-card.helpers'
 
 // ─── Severity config ──────────────────────────────────────────────────────────
@@ -131,6 +132,16 @@ export function AdvisorCard({ state, variant = 'default', className = '' }: Advi
                 {state.body}
               </p>
             )}
+
+            {/* Recommendation / Resolution Tip */}
+            {state.recommendation && (
+              <div className="mt-2.5 flex items-start gap-2 rounded-lg bg-white/5 p-2.5 ring-1 ring-inset ring-white/10">
+                <div className={`mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dotClass}`} />
+                <p className="text-[11px] font-medium leading-normal text-zinc-400">
+                  <span className="font-bold text-zinc-200">Recommendation:</span> {state.recommendation}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -153,7 +164,17 @@ function ActionChip({ action }: { action: AdvisorAction }) {
   const cls =
     'inline-flex h-8 items-center rounded-lg border border-white/10 bg-white/5 px-3.5 text-[11px] font-semibold text-zinc-200 transition-all duration-200 hover:border-[rgba(34,255,136,0.35)] hover:bg-[rgba(34,255,136,0.07)] hover:text-[var(--brand-primary)]'
 
-  return action.href
+  const content = action.href
     ? <Link href={action.href} className={cls}>{action.label}</Link>
     : <button type="button" className={cls}>{action.label}</button>
+
+  if (action.tooltip) {
+    return (
+      <PremiumTooltip content={action.tooltip} position="top-center">
+        {content}
+      </PremiumTooltip>
+    )
+  }
+
+  return content
 }

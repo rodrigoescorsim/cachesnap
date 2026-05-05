@@ -40,12 +40,14 @@ interface BypassAuditProps {
   data: BypassPoint[]
   regionLabels: Record<string, string>
   readiness: AuditReadiness
+  isDown?: boolean
+  isDegraded?: boolean
 }
 
 const COMPARABLE_PAIRS_GATE = 8
 const COMPARABLE_REGIONS_GATE = 4
 
-function ReadinessBanner({ readiness }: { readiness: AuditReadiness }) {
+function ReadinessBanner({ readiness, isOffline }: { readiness: AuditReadiness; isOffline: boolean }) {
   const state = readiness.state
   if (state === 'enabled' || state === 'warmup') return null
 
@@ -55,9 +57,14 @@ function ReadinessBanner({ readiness }: { readiness: AuditReadiness }) {
       <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
       <div className="relative z-10 space-y-1 flex-1">
         <h3 className="text-[10px] font-black uppercase tracking-widest text-amber-400">
-          Edge Audit Unavailable
+          {isOffline ? 'Audit Paused — Site Offline' : 'Edge Audit Unavailable'}
         </h3>
-        <p className="text-xs leading-relaxed font-medium text-amber-200/60">{edgeAuditDisabledBannerBody(readiness)}</p>
+        <p className="text-xs leading-relaxed font-medium text-amber-200/60">
+          {isOffline 
+            ? "Site is currently unreachable from probed regions. Edge Audit requires successful responses to compare cache performance. Check Diagnostics to troubleshoot connection issues."
+            : edgeAuditDisabledBannerBody(readiness)
+          }
+        </p>
       </div>
     </div>
   )
@@ -70,7 +77,7 @@ function AuditCTA({ readiness, monitorId }: { readiness: AuditReadiness; monitor
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps) {
+export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded }: BypassAuditProps) {
   const { id } = useParams()
   const monitorId = id as string
 
@@ -347,7 +354,7 @@ export function BypassAudit({ data, regionLabels, readiness }: BypassAuditProps)
 
         {/* Readiness Banner for Disabled/Error states */}
         {shouldShowBanner(readiness) && readiness.state !== 'warmup' && (
-          <ReadinessBanner readiness={readiness} />
+          <ReadinessBanner readiness={readiness} isOffline={!!isDown} />
         )}
 
         {/* Partial Signal Alert */}

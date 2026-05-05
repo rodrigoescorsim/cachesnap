@@ -32,6 +32,10 @@ export interface Monitor {
   totalRegionCount: number
   /** How many regions reported a connection error (timeout, empty reply, DNS fail) on their latest probe. */
   errorRegionCount: number
+  /** How many regions reported a 5xx status code on their latest probe. */
+  error5xxCount: number
+  /** How many regions reported a 4xx status code (excluding 401/403/404) on their latest probe. */
+  error4xxCount: number
   isWafBlocked: boolean
   uptime24h: number | null
   lastCheckedAt: Date
@@ -92,6 +96,8 @@ export type MonitorQuickFilterId =
   | 'degraded'
   | 'high-ttfb'
   | 'low-cache-hit'
+  | 'down'
+  | 'missing-cache-headers'
 
 export function monitorMatchesSearch(monitor: Monitor, query: string): boolean {
   const q = query.trim().toLowerCase()
@@ -171,5 +177,9 @@ export function monitorMatchesQuickFilter(
       const hasCurrentLowHit = hit !== null && hit < MONITOR_CACHE.GOOD
       const has24hLowHit = monitor.cacheHitAvg24h !== null && monitor.cacheHitAvg24h < MONITOR_CACHE.GOOD
       return hasCurrentLowHit || has24hLowHit
+    case 'down':
+      return monitor.totalRegionCount > 0 && monitor.errorRegionCount >= monitor.totalRegionCount
+    case 'missing-cache-headers':
+      return getCacheDisplayLabel(monitor.cacheStatusCurrent) === 'NO HEADER'
   }
 }

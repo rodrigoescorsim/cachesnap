@@ -26,6 +26,8 @@ function makeMonitor(overrides: Partial<Monitor> = {}): Monitor {
     slowRegionCount:   0,
     totalRegionCount:  4,
     errorRegionCount:  0,
+    error5xxCount:     0,
+    error4xxCount:     0,
     isWafBlocked:      false,
     uptime24h:         100,
     lastCheckedAt:     new Date(),
@@ -48,6 +50,8 @@ function makeLiveInput(overrides: Partial<Parameters<typeof deriveMonitorDetailL
     liveGlobalHitRate: 90,
     hasLiveCacheData: true,
     liveDominantStatus: 'HIT',
+    liveAvgEdgeMs: 50,
+    liveAvgOriginMs: 50,
     errorRegionCount: 0,
     slowRegionCount: 0,
     totalRegionCount: 4,
@@ -55,6 +59,42 @@ function makeLiveInput(overrides: Partial<Parameters<typeof deriveMonitorDetailL
     ...overrides,
   }
 }
+
+describe('deriveMonitorDetailLiveAdvisor - Resolution Logic', () => {
+  it('recommends origin optimization when origin latency is dominant', () => {
+    const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({
+      liveAvgTtfb: 900,
+      liveAvgOriginMs: 800,
+      liveAvgEdgeMs: 100
+    }))
+    expect(result?.recommendation).toContain('Origin latency is dominant')
+  })
+
+  it('recommends edge check when network/TLS is slow', () => {
+    const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({
+      liveAvgTtfb: 900,
+      liveAvgOriginMs: 100,
+      liveAvgEdgeMs: 800
+    }))
+    expect(result?.recommendation).toContain('Edge latency is elevated')
+  })
+
+  it('provides specific advice for DYNAMIC cache status', () => {
+    const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({
+      liveGlobalHitRate: 10,
+      liveDominantStatus: 'DYNAMIC'
+    }))
+    expect(result?.recommendation).toContain('marked as DYNAMIC')
+  })
+
+  it('provides specific advice for BYPASS cache status', () => {
+    const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({
+      liveGlobalHitRate: 10,
+      liveDominantStatus: 'BYPASS'
+    }))
+    expect(result?.recommendation).toContain('Cache is being bypassed')
+  })
+})
 
 // ─── derivePortfolioAdvisor ───────────────────────────────────────────────────
 
@@ -118,24 +158,35 @@ describe('derivePortfolioAdvisor', () => {
     expect(result?.body).toContain('24h uptime: 72%')
   })
 
-  it('critical headline includes degraded count when present', () => {
+  it('critical headline includes issue count when present', () => {
     const monitors = [
       ...makePortfolio(3),
       makeMonitor({ id: 'down_1', errorRegionCount: 4, totalRegionCount: 4 }),
       makeMonitor({ id: 'deg_1', ttfbCurrent: 600 }),
     ]
     const result = derivePortfolioAdvisor(monitors)
-    expect(result?.headline).toContain('degraded')
+    expect(result?.headline).toContain('2 issues')
+    expect(result?.actions.some(a => a.label.startsWith('Degraded Monitors'))).toBe(true)
   })
 
-  it('critical action label for degraded uses "View degraded (N)"', () => {
+  it('critical action label for down monitors uses "Monitors DOWN"', () => {
     const monitors = [
       ...makePortfolio(3),
       makeMonitor({ id: 'down_1', errorRegionCount: 4, totalRegionCount: 4 }),
-      makeMonitor({ id: 'deg_1', ttfbCurrent: 600 }),
     ]
     const result = derivePortfolioAdvisor(monitors)
-    expect(result?.actions.some(a => a.label.startsWith('View degraded'))).toBe(true)
+    expect(result?.actions.some(a => a.label.startsWith('Monitors DOWN'))).toBe(true)
+  })
+
+  it('returns critical when origin reports 5xx errors (AD14)', () => {
+    const monitors = [
+      ...makePortfolio(3),
+      makeMonitor({ id: 'err_1', error5xxCount: 1 }),
+    ]
+    const result = derivePortfolioAdvisor(monitors)
+    expect(result?.severity).toBe('critical')
+    expect(result?.headline).toContain('Origin Health')
+    expect(result?.body).toContain('5xx errors')
   })
 
   it('returns warning when degraded monitors exist', () => {
@@ -184,6 +235,35 @@ describe('derivePortfolioAdvisor', () => {
     expect(result?.actions.length).toBeLessThanOrEqual(3)
   })
 
+  it('returns warning when monitors have origin 4xx errors', () => {
+    const monitors = [
+      ...makePortfolio(3),
+      makeMonitor({ id: 'err_1', error4xxCount: 1 }),
+    ]
+    const result = derivePortfolioAdvisor(monitors)
+    expect(result?.severity).toBe('warning')
+    expect(result?.headline).toContain('origin errors')
+    expect(result?.body).toContain('4xx status codes')
+  })
+
+  it('warning actions includes "Degraded Monitors"', () => {
+    const monitors = [
+      ...makePortfolio(3),
+      makeMonitor({ id: 'deg_1', ttfbCurrent: 600 }),
+    ]
+    const result = derivePortfolioAdvisor(monitors)
+    expect(result?.actions.some(a => a.label.startsWith('Degraded Monitors'))).toBe(true)
+  })
+
+  it('warning actions includes "Missing Cache Headers" when relevant', () => {
+    const monitors = [
+      ...makePortfolio(3),
+      makeMonitor({ id: 'm1', cacheStatusCurrent: null }),
+    ]
+    const result = derivePortfolioAdvisor(monitors)
+    expect(result?.actions.some(a => a.label.startsWith('Missing Cache Headers'))).toBe(true)
+  })
+
   it('good state body includes avg TTFB', () => {
     const monitors = makePortfolio(4, { ttfbCurrent: 120 })
     const result = derivePortfolioAdvisor(monitors)
@@ -228,10 +308,10 @@ describe('deriveMonitorDetailLiveAdvisor', () => {
     expect(result?.body).toContain('+50%')
   })
 
-  it('critical actions use "View Performance" and "Check Edge Audit"', () => {
+  it('critical actions use "Audit example.com Edge" and "View example.com Breakdown"', () => {
     const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({ liveAvgTtfb: 900 }))
-    expect(result?.actions.map(a => a.label)).toContain('View Performance')
-    expect(result?.actions.map(a => a.label)).toContain('Check Edge Audit')
+    expect(result?.actions.map(a => a.label)).toContain('Audit example.com Edge')
+    expect(result?.actions.map(a => a.label)).toContain('View example.com Breakdown')
   })
 
   it('returns warning for elevated TTFB + worsening trend', () => {
@@ -363,9 +443,9 @@ describe('deriveMonitorPerformancePeriodAdvisor', () => {
     expect(result?.actions).toHaveLength(0)
   })
 
-  it('critical actions use "View Trends" and "Check Edge Audit"', () => {
+  it('critical actions use "Analyze example.com Trends" and "Audit example.com Edge"', () => {
     const result = deriveMonitorPerformancePeriodAdvisor(makePerf({ avgTtfb: 300, prevAvgTtfb: 200 }))
-    expect(result?.actions.map(a => a.label)).toContain('View Trends')
-    expect(result?.actions.map(a => a.label)).toContain('Check Edge Audit')
+    expect(result?.actions.map(a => a.label)).toContain('Analyze example.com Trends')
+    expect(result?.actions.map(a => a.label)).toContain('Audit example.com Edge')
   })
 })

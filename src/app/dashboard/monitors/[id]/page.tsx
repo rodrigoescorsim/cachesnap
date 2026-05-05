@@ -1183,6 +1183,8 @@ export default async function MonitorDetailPage({
     liveGlobalHitRate,
     hasLiveCacheData: validLiveCache.length > 0,
     liveDominantStatus,
+    liveAvgEdgeMs: Math.round(latestProbes.reduce((acc, p) => acc + (p.edge_ms || 0), 0) / latestProbes.length),
+    liveAvgOriginMs: Math.round(latestProbes.reduce((acc, p) => acc + (p.origin_ms || 0), 0) / latestProbes.length),
     errorRegionCount: errorLatestProbes.length,
     slowRegionCount: slowLiveRegionCount,
     totalRegionCount: latestProbes.length,
@@ -1459,6 +1461,15 @@ export default async function MonitorDetailPage({
             {errorLatestProbes[0]?.error && (
               <p className="mt-1.5 font-mono text-[11px] text-red-400/80">{errorLatestProbes[0].error}</p>
             )}
+            <div className="mt-3">
+              <Link
+                href={buildViewHref('diagnostics', '24h', monitor.id)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/30 text-[11px] font-bold uppercase tracking-tight text-red-300 hover:bg-red-500/30 transition-all"
+              >
+                <Activity className="w-3.5 h-3.5" />
+                Troubleshoot Outage
+              </Link>
+            </div>
           </div>
         </div>
       )}
@@ -1472,6 +1483,15 @@ export default async function MonitorDetailPage({
             <p className="text-sm text-red-300/60 mt-1 leading-relaxed">
               {errorLatestProbes.length} of {latestProbes.length} regions are reporting connection failures.
             </p>
+            <div className="mt-3">
+              <Link
+                href={buildViewHref('diagnostics', '24h', monitor.id)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-[11px] font-bold uppercase tracking-tight text-red-400 hover:bg-red-500/20 transition-all"
+              >
+                <Activity className="w-3.5 h-3.5" />
+                Troubleshoot Regions
+              </Link>
+            </div>
           </div>
         </div>
       )}
@@ -1936,6 +1956,8 @@ export default async function MonitorDetailPage({
                   <BypassAudit
                     data={hourlyBypass}
                     regionLabels={regionLabels}
+                    isDown={isDown}
+                    isDegraded={isDegraded}
                     readiness={auditReadiness ? {
                       state: auditReadiness.state as 'disabled' | 'warmup' | 'enabled',
                       reason: auditReadiness.reason,

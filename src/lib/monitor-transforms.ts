@@ -24,6 +24,8 @@ export interface MonitorSummaryRow {
   slow_region_count: number | string
   total_region_count: number | string
   error_region_count: number | string
+  error_5xx_count: number | string
+  error_4xx_count: number | string
   is_waf_blocked: boolean | number
   uptime_24h: number | string | null
   last_checked_at: string | null
@@ -68,6 +70,8 @@ export function toMonitor(row: MonitorSummaryRow): Monitor {
     slowRegionCount:   toNum(row.slow_region_count),
     totalRegionCount:  toNum(row.total_region_count),
     errorRegionCount:  toNum(row.error_region_count),
+    error5xxCount:     toNum(row.error_5xx_count),
+    error4xxCount:     toNum(row.error_4xx_count),
     isWafBlocked:      Boolean(row.is_waf_blocked),
     uptime24h:         toNumOrNull(row.uptime_24h),
     // new Date(0) = epoch signals "never probed" — displayed as "–" in the UI
