@@ -67,7 +67,7 @@ describe('deriveMonitorDetailLiveAdvisor - Resolution Logic', () => {
       liveAvgOriginMs: 800,
       liveAvgEdgeMs: 100
     }))
-    expect(result?.recommendation).toContain('Origin latency is dominant')
+    expect(result?.body).toContain('Origin latency is dominant')
   })
 
   it('recommends edge check when network/TLS is slow', () => {
@@ -76,7 +76,7 @@ describe('deriveMonitorDetailLiveAdvisor - Resolution Logic', () => {
       liveAvgOriginMs: 100,
       liveAvgEdgeMs: 800
     }))
-    expect(result?.recommendation).toContain('Edge latency is elevated')
+    expect(result?.body).toContain('Edge latency is elevated')
   })
 
   it('provides specific advice for DYNAMIC cache status', () => {
@@ -295,10 +295,14 @@ describe('deriveMonitorDetailLiveAdvisor', () => {
     expect(result?.headline).toContain('900ms')
   })
 
-  it('critical body includes threshold and current value', () => {
-    const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({ liveAvgTtfb: 900 }))
-    expect(result?.body).toContain('900ms')
-    expect(result?.body).toContain('800ms threshold')
+  it('critical body includes diagnostic context', () => {
+    const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({ 
+      liveAvgTtfb: 900,
+      liveAvgOriginMs: 800,
+      liveAvgEdgeMs: 100
+    }))
+    expect(result?.body).toContain('Origin latency is dominant')
+    expect(result?.body).toContain('backend processing')
   })
 
   it('critical body includes period avg when trending worse', () => {
@@ -322,6 +326,16 @@ describe('deriveMonitorDetailLiveAdvisor', () => {
     expect(result?.severity).toBe('warning')
     expect(result?.headline).toContain('TTFB up')
     expect(result?.body).toContain('~380ms')
+  })
+
+  it('does not recommend any actions when cache data is missing during high latency', () => {
+    const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({
+      liveAvgTtfb: 900,
+      hasLiveCacheData: false
+    }))
+    expect(result?.actions).toHaveLength(0)
+    expect(result?.body).toContain('No cache headers detected')
+    expect(result?.recommendation).toContain('Enable \'Cache-Control\'')
   })
 
   it('does not warn on elevated TTFB without significant trend', () => {
@@ -352,7 +366,7 @@ describe('deriveMonitorDetailLiveAdvisor', () => {
     const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({ slowRegionCount: 2 }))
     expect(result?.severity).toBe('warning')
     expect(result?.headline).toContain('2 slow regions')
-    expect(result?.body).toContain('300ms')
+    expect(result?.body).toContain('high latency')
   })
 
   it('full outage does not return outage message (caller handles it)', () => {

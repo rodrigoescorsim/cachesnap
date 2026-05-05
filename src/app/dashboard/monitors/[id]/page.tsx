@@ -1511,7 +1511,7 @@ export default async function MonitorDetailPage({
               {activeView === 'real-time' && (
                 <div id="real-time-view" className="space-y-6">
                   {liveAdvisorState && (
-                    <AdvisorCard state={liveAdvisorState} variant="compact" />
+                    <AdvisorCard state={liveAdvisorState} />
                   )}
                   <section id="live-metrics-section" className="space-y-4">
                     <LiveActivityHeader

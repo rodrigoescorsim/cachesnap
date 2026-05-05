@@ -104,15 +104,15 @@ export function AdvisorCard({ state, variant = 'default', className = '' }: Advi
     >
       <div className="cs-card-wash" />
 
-      <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         {/* Left: icon + text ─────────────────────────────────────────────── */}
-        <div className="flex items-start gap-3">
+        <div className="flex flex-1 items-start gap-3 min-w-0">
           <Icon
             className={`mt-0.5 h-4 w-4 shrink-0 ${cfg.iconClass}`}
             strokeWidth={2.25}
             aria-hidden
           />
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 min-w-0 flex-1">
             {/* Badge + headline */}
             <div className="flex flex-wrap items-center gap-2">
               <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${cfg.badgeClass}`}>
@@ -121,38 +121,39 @@ export function AdvisorCard({ state, variant = 'default', className = '' }: Advi
                 )}
                 {cfg.badgeLabel}
               </span>
-              <p className="text-[13px] font-semibold leading-snug text-zinc-100">
+              <p className="text-[13px] font-semibold leading-snug text-zinc-100 truncate">
                 {state.headline}
               </p>
             </div>
 
             {/* Body */}
             {state.body && (
-              <p className="text-[12px] font-[450] leading-relaxed text-zinc-300/90">
+              <p className="text-[12px] font-[450] leading-relaxed text-zinc-300/90 line-clamp-2 md:line-clamp-none">
                 {state.body}
               </p>
-            )}
-
-            {/* Recommendation / Resolution Tip */}
-            {state.recommendation && (
-              <div className="mt-2.5 flex items-start gap-2 rounded-lg bg-white/5 p-2.5 ring-1 ring-inset ring-white/10">
-                <div className={`mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dotClass}`} />
-                <p className="text-[11px] font-medium leading-normal text-zinc-400">
-                  <span className="font-bold text-zinc-200">Recommendation:</span> {state.recommendation}
-                </p>
-              </div>
             )}
           </div>
         </div>
 
-        {/* Right: actions ─────────────────────────────────────────────────── */}
-        {state.actions.length > 0 && (
-          <div className="ml-7 flex shrink-0 flex-wrap items-center gap-2 sm:ml-0">
-            {state.actions.map(a => (
-              <ActionChip key={a.label} action={a} />
-            ))}
-          </div>
-        )}
+        {/* Right: Recommendation OR Actions ────────────────────────────────── */}
+        <div className="flex flex-col gap-3 md:w-[40%] md:shrink-0 md:items-end">
+          {state.recommendation && (
+            <div className="flex w-full items-start gap-2 rounded-lg bg-white/5 p-2.5 ring-1 ring-inset ring-white/10">
+              <div className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dotClass}`} />
+              <p className="text-[11px] font-medium leading-normal text-zinc-400">
+                <span className="font-bold text-zinc-200">Recommendation:</span> {state.recommendation}
+              </p>
+            </div>
+          )}
+
+          {state.actions.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 md:justify-end">
+              {state.actions.map(a => (
+                <ActionChip key={a.label} action={a} />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

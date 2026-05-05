@@ -101,6 +101,9 @@ export function derivePortfolioAdvisor(monitors: Monitor[]): AdvisorState | null
       severity: 'critical',
       headline: headline + secondarySuffix,
       body: bodyParts.join(' '),
+      recommendation: down.length > 0
+        ? "Check origin server connectivity and firewall rules for unreachable hosts."
+        : "Investigate origin server capacity and 5xx error logs.",
       actions: actions.slice(0, 3),
     }
   }
@@ -150,6 +153,9 @@ export function derivePortfolioAdvisor(monitors: Monitor[]): AdvisorState | null
       severity: 'warning',
       headline: parts.join(' · '),
       body,
+      recommendation: noHeader.length > 0
+        ? "Enable 'Cache-Control' headers on all sites to activate edge acceleration."
+        : "Monitor degraded sites for further latency regressions.",
       actions: actions.slice(0, 3),
     }
   }
@@ -227,22 +233,30 @@ export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): A
       ? ` Up from ~${periodAvgTtfb}ms period avg (+${ttfbVsPeriodPct}%).`
       : ''
     
-    let recommendation = "Review origin server capacity and database query performance."
-    if (input.liveAvgOriginMs > input.liveAvgEdgeMs * 2) {
-      recommendation = "Origin latency is dominant. Optimize backend processing or database queries."
+    let body = `Currently at ${liveAvgTtfb}ms.${trendNote}`
+    let recommendation = ""
+
+    if (!hasLiveCacheData) {
+      body = "No cache headers detected. Serving all requests from origin causes high latency."
+      recommendation = "Enable 'Cache-Control' to activate edge acceleration and reduce origin load."
+    } else if (input.liveAvgOriginMs > input.liveAvgEdgeMs * 1.5) {
+      body = `Origin latency is dominant (${input.liveAvgOriginMs}ms). Optimize backend processing or database queries.`
     } else if (input.liveAvgEdgeMs > 200) {
-      recommendation = "Edge latency is elevated. Check for large response sizes or TLS handshake overhead."
+      body = `Edge latency is elevated (${input.liveAvgEdgeMs}ms). Check for large response sizes or TLS overhead.`
+    }
+
+    const actions: AdvisorAction[] = []
+    if (hasLiveCacheData) {
+      actions.push({ label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', '24h', monitorId) })
+      actions.push({ label: `View ${host} Breakdown`, href: buildViewHref('diagnostics', '24h', monitorId) })
     }
 
     return {
       severity: 'critical',
       headline: `High latency: ${liveAvgTtfb}ms`,
-      body: `Currently at ${liveAvgTtfb}ms — above the ${MONITOR_TTFB.SLOW}ms threshold.${trendNote}`,
-      recommendation,
-      actions: [
-        { label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', '24h', monitorId) },
-        { label: `View ${host} Breakdown`, href: buildViewHref('diagnostics', '24h', monitorId) },
-      ],
+      body,
+      recommendation: recommendation || undefined,
+      actions,
     }
   }
 
@@ -255,17 +269,6 @@ export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): A
       body: `${host} is at ${liveAvgTtfb}ms, up from ${baseline}. Check for a recent deploy or config change.`,
       recommendation: "Inspect recent code deployments or origin server load spikes.",
       actions: [{ label: `Analyze ${host} Trends`, href: buildViewHref('trends', '24h', monitorId) }],
-    }
-  }
-
-  // Elevated TTFB trending worse vs period avg
-  if (liveAvgTtfb > MONITOR_TTFB.FAST && ttfbVsPeriodPct > 20) {
-    const baseline = periodAvgTtfb > 0 ? `~${periodAvgTtfb}ms` : 'period avg'
-    return {
-      severity: 'warning',
-      headline: `TTFB up ${ttfbVsPeriodPct}% vs period avg`,
-      body: `${host} is at ${liveAvgTtfb}ms, up from ${baseline}. Check for a recent deploy or config change.`,
-      actions: [{ label: 'View Trends', href: buildViewHref('trends', '24h', monitorId) }],
     }
   }
 
@@ -283,40 +286,35 @@ export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): A
       recommendation = "No cache status reported. Add 'Cache-Control' or 'CDN-Cache-Control' to enable edge caching."
     }
 
+    const actions: AdvisorAction[] = []
+    if (hasLiveCacheData) {
+      actions.push({ label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', '24h', monitorId) })
+    }
+    actions.push({ label: `Analyze ${host} Performance`, href: buildViewHref('performance', '24h', monitorId) })
+
     return {
       severity: liveGlobalHitRate < 30 ? 'critical' : 'warning',
       headline: `Low cache hit: ${liveGlobalHitRate}%`,
       body: `Origin load is high: ${originPct}% of requests are bypassing edge cache.`,
       recommendation,
-      actions: [
-        { label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', '24h', monitorId) },
-        { label: `Analyze ${host} Performance`, href: buildViewHref('performance', '24h', monitorId) },
-      ],
+      actions,
     }
   }
 
   if (slowRegionCount > 0) {
+    const actions: AdvisorAction[] = [
+      { label: `View ${host} Breakdown`, href: buildViewHref('diagnostics', '24h', monitorId) }
+    ]
+    if (hasLiveCacheData) {
+      actions.push({ label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', '24h', monitorId) })
+    }
+
     return {
       severity: 'warning',
       headline: `${slowRegionCount} slow region${slowRegionCount > 1 ? 's' : ''}`,
-      body: `${slowRegionCount} region${slowRegionCount > 1 ? 's are' : ' is'} above 300ms TTFB. Origin may be geographically distant from these regions.`,
+      body: `${slowRegionCount} region${slowRegionCount > 1 ? 's are' : ' is'} experiencing high latency. Origin may be geographically distant from these regions.`,
       recommendation: "Consider using a CDN with better regional coverage or a global edge network.",
-      actions: [
-        { label: `View ${host} Breakdown`, href: buildViewHref('diagnostics', '24h', monitorId) },
-        { label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', '24h', monitorId) },
-      ],
-    }
-  }
-
-  if (slowRegionCount > 0) {
-    return {
-      severity: 'warning',
-      headline: `${slowRegionCount} slow region${slowRegionCount > 1 ? 's' : ''}`,
-      body: `${slowRegionCount} region${slowRegionCount > 1 ? 's are' : ' is'} above 300ms TTFB. Origin may be geographically distant from these regions.`,
-      actions: [
-        { label: 'View Breakdown', href: buildViewHref('diagnostics', '24h', monitorId) },
-        { label: 'Check Edge Audit', href: buildViewHref('infrastructure', '24h', monitorId) },
-      ],
+      actions,
     }
   }
 
@@ -360,6 +358,7 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
       severity: 'critical',
       headline: `TTFB +${ttfbChangePct}% vs previous ${range}`,
       body: `${host} averaged ${avgTtfb}ms, up from ${prevAvgTtfb}ms.${regionNote}`,
+      recommendation: "Investigate recent origin infrastructure changes or network route changes.",
       actions: [
         { label: `Analyze ${host} Trends`, href: buildViewHref('trends', range, monitorId) },
         { label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', range, monitorId) },
