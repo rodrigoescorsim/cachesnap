@@ -146,16 +146,17 @@ describe('derivePortfolioAdvisor', () => {
       makeMonitor({ id: 'down_1', url: 'https://down.com', errorRegionCount: 4, totalRegionCount: 4 }),
     ]
     const result = derivePortfolioAdvisor(monitors)
-    expect(result?.body).toContain('4 probe regions')
+    expect(result?.body).toContain('4 regions')
   })
 
-  it('critical body includes uptime when below 100%', () => {
+  it('critical headline includes issue count suffix', () => {
     const monitors = [
       ...makePortfolio(3),
-      makeMonitor({ id: 'down_1', errorRegionCount: 4, totalRegionCount: 4, uptime24h: 72 }),
+      makeMonitor({ id: 'm1', errorRegionCount: 4, totalRegionCount: 4 }),
+      makeMonitor({ id: 'm2', ttfbCurrent: 900 }),
     ]
     const result = derivePortfolioAdvisor(monitors)
-    expect(result?.body).toContain('24h uptime: 72%')
+    expect(result?.headline).toContain('1 monitor DOWN • 2 issues in total')
   })
 
   it('critical headline includes issue count when present', () => {
@@ -165,7 +166,7 @@ describe('derivePortfolioAdvisor', () => {
       makeMonitor({ id: 'deg_1', ttfbCurrent: 600 }),
     ]
     const result = derivePortfolioAdvisor(monitors)
-    expect(result?.headline).toContain('2 issues')
+    expect(result?.headline).toContain('2 issues in total')
     expect(result?.actions.some(a => a.label.startsWith('Degraded Monitors'))).toBe(true)
   })
 

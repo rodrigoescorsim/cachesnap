@@ -76,29 +76,31 @@ export function derivePortfolioAdvisor(monitors: Monitor[]): AdvisorState | null
     }
 
     const secondarySuffix = (degraded.length + noHeader.length > 0)
-      ? ` · ${degraded.length + noHeader.length} issues`
+      ? ` • ${degraded.length + noHeader.length} issues in total`
       : ''
 
-    let headline = `${down.length} monitor${down.length !== 1 ? 's' : ''} DOWN`
+    let headline = `${down.length} monitor${down.length > 1 ? 's' : ''} DOWN`
     if (down.length === 0 && originError.length > 0) {
-      headline = `Origin Health: ${originError.length} failing`
+      const failingCount = originError.filter(m => m.error5xxCount > 0).length
+      headline = `Origin Health: ${failingCount} monitor${failingCount > 1 ? 's' : ''} failing`
     }
 
-    let body = down.length > 0
-      ? `${hostname(worst.url)} is failing in all ${worst.errorRegionCount || worst.totalRegionCount} probe regions.`
-      : `${hostname(worst.url)} is returning 5xx errors from the origin server.`
-
-    if (worst.uptime24h !== null && worst.uptime24h < 100) {
-      body += ` 24h uptime: ${Math.round(worst.uptime24h)}%.`
+    const host = hostname(worst.url)
+    const bodyParts: string[] = []
+    if (down.includes(worst)) {
+      bodyParts.push(`${host} is unreachable across all ${worst.totalRegionCount} regions.`)
+    } else {
+      bodyParts.push(`${host} is returning 5xx errors from the origin server.`)
     }
+
     if (noHeader.length > 0) {
-      body += ` ${noHeader.length} site${noHeader.length > 1 ? 's' : ''} missing cache headers.`
+      bodyParts.push(`${noHeader.length} site${noHeader.length > 1 ? 's' : ''} without cache headers detected.`)
     }
 
     return {
       severity: 'critical',
       headline: headline + secondarySuffix,
-      body,
+      body: bodyParts.join(' '),
       actions: actions.slice(0, 3),
     }
   }
