@@ -5,9 +5,9 @@
 
 // ─── Individual Monitor Thresholds ──────────────────────────────────────────
 export const MONITOR_TTFB = {
-  ELITE: 200, // ms — ultra fast
-  FAST: 400, // ms
-  SLOW: 800, // ms
+  ELITE: 250, // ms — ultra fast
+  FAST: 500, // ms
+  SLOW: 1000, // ms
 }
 
 export const MONITOR_CACHE = {

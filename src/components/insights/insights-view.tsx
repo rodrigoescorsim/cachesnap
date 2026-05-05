@@ -583,12 +583,12 @@ function InsightCard({
 // ─── AlertRow ─────────────────────────────────────────────────────────────────
 
 function AlertRow({ monitor, rank }: { monitor: Monitor; rank: number }) {
-  const isHighTtfb = monitor.ttfbCurrent > 300
+  const isHighTtfb = monitor.ttfbCurrent > MONITOR_TTFB.FAST
   const isLowCache = monitor.cacheHitCurrent !== null && monitor.cacheHitCurrent < 70
   const hasSlowR = monitor.slowRegionCount > 0
 
   const sev: Severity =
-    monitor.ttfbCurrent > 500 || (monitor.cacheHitCurrent ?? 100) < 40
+    monitor.ttfbCurrent > MONITOR_TTFB.SLOW || (monitor.cacheHitCurrent ?? 100) < 40
       ? 'critical'
       : 'warning'
   const s = SEVERITY[sev]
@@ -660,13 +660,13 @@ function AlertRow({ monitor, rank }: { monitor: Monitor; rank: number }) {
 
 function MonitorQuickCard({ monitor, rank }: { monitor: Monitor; rank: number }) {
   const ttfbClass =
-    monitor.ttfbCurrent < 200 ? 'text-metric-ttfb-fast'
-      : monitor.ttfbCurrent > 350 ? 'text-metric-ttfb-slow'
+    monitor.ttfbCurrent < MONITOR_TTFB.ELITE ? 'text-metric-ttfb-fast'
+      : monitor.ttfbCurrent > MONITOR_TTFB.FAST ? 'text-metric-ttfb-slow'
         : 'text-metric-ttfb-med'
 
   const sparkColor =
-    monitor.ttfbCurrent < 200 ? '#22FF88'
-      : monitor.ttfbCurrent > 350 ? '#f43f5e'
+    monitor.ttfbCurrent < MONITOR_TTFB.ELITE ? '#22FF88'
+      : monitor.ttfbCurrent > MONITOR_TTFB.FAST ? '#f43f5e'
         : '#f59e0b'
 
   const deltaSign = monitor.ttfbCurrentDelta > 0 ? '+' : ''
@@ -817,14 +817,14 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
       monitors
         .filter(
           m =>
-            m.ttfbCurrent > 300 ||
+            m.ttfbCurrent > MONITOR_TTFB.FAST ||
             (m.cacheHitCurrent !== null && m.cacheHitCurrent < 70) ||
             m.slowRegionCount > 0,
         )
         .sort((a, b) => {
           // Critical first, then by TTFB
-          const aScore = (a.ttfbCurrent > 500 ? 1000 : 0) + a.ttfbCurrent
-          const bScore = (b.ttfbCurrent > 500 ? 1000 : 0) + b.ttfbCurrent
+          const aScore = (a.ttfbCurrent > MONITOR_TTFB.SLOW ? 1000 : 0) + a.ttfbCurrent
+          const bScore = (b.ttfbCurrent > MONITOR_TTFB.SLOW ? 1000 : 0) + b.ttfbCurrent
           return bScore - aScore
         })
         .slice(0, 6),
@@ -842,7 +842,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
   )
 
   const criticalCount = alertMonitors.filter(
-    m => m.ttfbCurrent > 500 || (m.cacheHitCurrent ?? 100) < 40,
+    m => m.ttfbCurrent > MONITOR_TTFB.SLOW || (m.cacheHitCurrent ?? 100) < 40,
   ).length
 
   return (

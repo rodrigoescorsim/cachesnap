@@ -516,7 +516,7 @@ function SkeletonRow({
 // ─── Column header help text ──────────────────────────────────────────────────
 
 const HEADER_HELP: Record<string, string> = {
-  monitor: 'The monitored application and URL. Click to view detailed diagnostics.',
+  monitor: 'The monitored application and URL. Click to view detailed performance metrics.',
   ttfbNow: 'Latency from the most recent check. Lower is better.',
   avgTtfb24h: 'Average latency over the last 24 hours (P50).',
   cacheHit: 'Percentage of requests served from the CDN in the latest check. Higher is better.',

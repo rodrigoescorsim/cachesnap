@@ -3,6 +3,7 @@ import {
   derivePortfolioAdvisor,
   deriveMonitorDetailLiveAdvisor,
   deriveMonitorPerformancePeriodAdvisor,
+  deriveMonitorTrendsAdvisor,
 } from './advisor-card.helpers'
 import type { Monitor } from '@/types/monitor'
 
@@ -63,7 +64,7 @@ function makeLiveInput(overrides: Partial<Parameters<typeof deriveMonitorDetailL
 describe('deriveMonitorDetailLiveAdvisor - Resolution Logic', () => {
   it('recommends origin optimization when origin latency is dominant', () => {
     const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({
-      liveAvgTtfb: 900,
+      liveAvgTtfb: 1200,
       liveAvgOriginMs: 800,
       liveAvgEdgeMs: 100
     }))
@@ -72,7 +73,7 @@ describe('deriveMonitorDetailLiveAdvisor - Resolution Logic', () => {
 
   it('recommends edge check when network/TLS is slow', () => {
     const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({
-      liveAvgTtfb: 900,
+      liveAvgTtfb: 1200,
       liveAvgOriginMs: 100,
       liveAvgEdgeMs: 800
     }))
@@ -290,14 +291,14 @@ describe('deriveMonitorDetailLiveAdvisor', () => {
   })
 
   it('returns critical for TTFB above SLOW threshold', () => {
-    const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({ liveAvgTtfb: 900 }))
+    const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({ liveAvgTtfb: 1200 }))
     expect(result?.severity).toBe('critical')
-    expect(result?.headline).toContain('900ms')
+    expect(result?.headline).toContain('1200ms')
   })
 
   it('critical body includes diagnostic context', () => {
     const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({ 
-      liveAvgTtfb: 900,
+      liveAvgTtfb: 1200,
       liveAvgOriginMs: 800,
       liveAvgEdgeMs: 100
     }))
@@ -307,21 +308,21 @@ describe('deriveMonitorDetailLiveAdvisor', () => {
 
   it('critical body includes period avg when trending worse', () => {
     const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({
-      liveAvgTtfb: 900, periodAvgTtfb: 600, ttfbVsPeriodPct: 50,
+      liveAvgTtfb: 1200, periodAvgTtfb: 600, ttfbVsPeriodPct: 50,
     }))
     expect(result?.body).toContain('~600ms')
     expect(result?.body).toContain('+50%')
   })
 
-  it('critical actions use "Audit example.com Edge" and "View example.com Breakdown"', () => {
-    const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({ liveAvgTtfb: 900 }))
+  it('critical actions use "Audit example.com Edge"', () => {
+    const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({ liveAvgTtfb: 1200 }))
     expect(result?.actions.map(a => a.label)).toContain('Audit example.com Edge')
-    expect(result?.actions.map(a => a.label)).toContain('View example.com Breakdown')
+    expect(result?.actions).toHaveLength(1)
   })
 
   it('returns warning for elevated TTFB + worsening trend', () => {
     const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({
-      liveAvgTtfb: 500, periodAvgTtfb: 380, ttfbVsPeriodPct: 32,
+      liveAvgTtfb: 600, periodAvgTtfb: 380, ttfbVsPeriodPct: 32,
     }))
     expect(result?.severity).toBe('warning')
     expect(result?.headline).toContain('TTFB up')
@@ -330,7 +331,7 @@ describe('deriveMonitorDetailLiveAdvisor', () => {
 
   it('does not recommend any actions when cache data is missing during high latency', () => {
     const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({
-      liveAvgTtfb: 900,
+      liveAvgTtfb: 1200,
       hasLiveCacheData: false
     }))
     expect(result?.actions).toHaveLength(0)
@@ -369,6 +370,15 @@ describe('deriveMonitorDetailLiveAdvisor', () => {
     expect(result?.body).toContain('high latency')
   })
 
+  it('includes affected region names in tooltip for slow regions', () => {
+    const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({
+      slowRegionCount: 2,
+      slowRegionLabels: ['Cape Town', 'Sydney'],
+    }))
+    expect(result?.contextTooltip).toContain('Cape Town')
+    expect(result?.contextTooltip).toContain('Sydney')
+  })
+
   it('full outage does not return outage message (caller handles it)', () => {
     const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({
       liveAvgTtfb: 900, errorRegionCount: 4, totalRegionCount: 4,
@@ -391,7 +401,7 @@ describe('deriveMonitorPerformancePeriodAdvisor', () => {
       prevGlobalHitRate: 90,
       hasHistory: true,
       worstRegion: null,
-      spikeCount: 0,
+      slowRegionCount: 0,
       ...overrides,
     }
   }
@@ -404,14 +414,26 @@ describe('deriveMonitorPerformancePeriodAdvisor', () => {
     expect(deriveMonitorPerformancePeriodAdvisor(makePerf({ prevAvgTtfb: 0 }))).toBeNull()
   })
 
-  it('returns null for minor change', () => {
-    expect(deriveMonitorPerformancePeriodAdvisor(makePerf({ avgTtfb: 210 }))).toBeNull()
+  it('returns stable state for minor change', () => {
+    const result = deriveMonitorPerformancePeriodAdvisor(makePerf({ avgTtfb: 210 }))
+    expect(result?.severity).toBe('good')
+    expect(result?.headline).toBe('Performance stable')
+  })
+
+  it('returns warning for slow regions even if global trend is stable', () => {
+    const result = deriveMonitorPerformancePeriodAdvisor(makePerf({
+      slowRegionCount: 3,
+      slowRegionLabels: ['Cape Town', 'Sydney', 'Mumbai'],
+    }))
+    expect(result?.severity).toBe('warning')
+    expect(result?.headline).toContain('3 slow regions')
+    expect(result?.contextTooltip).toContain('Cape Town')
   })
 
   it('returns critical for TTFB regression over 30%', () => {
     const result = deriveMonitorPerformancePeriodAdvisor(makePerf({ avgTtfb: 300, prevAvgTtfb: 200 }))
     expect(result?.severity).toBe('critical')
-    expect(result?.headline).toContain('+50%')
+    expect(result?.headline).toContain('up 50%')
   })
 
   it('critical body includes both absolute values', () => {
@@ -420,13 +442,7 @@ describe('deriveMonitorPerformancePeriodAdvisor', () => {
     expect(result?.body).toContain('200ms')
   })
 
-  it('critical body includes worst region when provided', () => {
-    const result = deriveMonitorPerformancePeriodAdvisor(makePerf({
-      avgTtfb: 300, prevAvgTtfb: 200,
-      worstRegion: { label: 'São Paulo', changePct: 65 },
-    }))
-    expect(result?.body).toContain('São Paulo')
-  })
+  // (Worst region logic moved to Trends Advisor)
 
   it('returns warning for 10-30% TTFB increase', () => {
     const result = deriveMonitorPerformancePeriodAdvisor(makePerf({ avgTtfb: 230, prevAvgTtfb: 200 }))
@@ -435,10 +451,7 @@ describe('deriveMonitorPerformancePeriodAdvisor', () => {
     expect(result?.body).toContain('200ms')
   })
 
-  it('warning body includes spike count', () => {
-    const result = deriveMonitorPerformancePeriodAdvisor(makePerf({ avgTtfb: 230, prevAvgTtfb: 200, spikeCount: 3 }))
-    expect(result?.body).toContain('3 spikes')
-  })
+  // (Spike count is now handled by the Trends Advisor)
 
   it('returns warning for cache drop over 10pp', () => {
     const result = deriveMonitorPerformancePeriodAdvisor(makePerf({ globalHitRate: 70, prevGlobalHitRate: 85 }))
@@ -464,3 +477,45 @@ describe('deriveMonitorPerformancePeriodAdvisor', () => {
     expect(result?.actions.map(a => a.label)).toContain('Audit example.com Edge')
   })
 })
+
+// ─── deriveMonitorTrendsAdvisor ───────────────────────────────────────────────
+
+describe('deriveMonitorTrendsAdvisor', () => {
+  it('returns null when no history', () => {
+    expect(deriveMonitorTrendsAdvisor({ url: 'x.com', range: '24h', spikeCount: 0, hasHistory: false, worstRegion: null })).toBeNull()
+  })
+
+  it('returns good when no spikes and no regression', () => {
+    const result = deriveMonitorTrendsAdvisor({ url: 'x.com', range: '24h', spikeCount: 0, hasHistory: true, worstRegion: null })
+    expect(result?.severity).toBe('good')
+    expect(result?.headline).toBe('Stable trends')
+  })
+
+  it('returns warning when spikes are between 1 and 5', () => {
+    const result = deriveMonitorTrendsAdvisor({ url: 'x.com', range: '24h', spikeCount: 3, hasHistory: true, worstRegion: null })
+    expect(result?.severity).toBe('warning')
+    expect(result?.headline).toBe('3 latency spikes')
+  })
+
+  it('returns warning for significant regional regression', () => {
+    const result = deriveMonitorTrendsAdvisor({ url: 'x.com', range: '24h', spikeCount: 0, hasHistory: true, worstRegion: { label: 'Tokyo', changePct: 25 } })
+    expect(result?.severity).toBe('warning')
+    expect(result?.headline).toBe('Regional regression')
+    expect(result?.body).toContain('Tokyo')
+    expect(result?.body).toContain('25%')
+  })
+
+  it('returns critical when regional regression exceeds 50%', () => {
+    const result = deriveMonitorTrendsAdvisor({ url: 'x.com', range: '24h', spikeCount: 0, hasHistory: true, worstRegion: { label: 'Tokyo', changePct: 60 } })
+    expect(result?.severity).toBe('critical')
+    expect(result?.headline).toBe('Regional regression')
+    expect(result?.body).toContain('60%')
+  })
+
+  it('returns critical when spikes exceed 5', () => {
+    const result = deriveMonitorTrendsAdvisor({ url: 'x.com', range: '24h', spikeCount: 8, hasHistory: true, worstRegion: null })
+    expect(result?.severity).toBe('critical')
+    expect(result?.headline).toBe('8 latency spikes')
+  })
+})
+

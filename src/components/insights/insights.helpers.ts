@@ -174,8 +174,8 @@ export function deriveInsights(monitors: Monitor[]): Insight[] {
       title:       'Regional latency detected',
       description: `${slowLabels}${extra} reporting high latency for ${safeHostname(worst.url)}. Your origin may be geographically distant from affected users.`,
       metric:      `${worst.slowRegionCount} region${worst.slowRegionCount > 1 ? 's' : ''}`,
-      actionLabel: 'View Breakdown',
-      actionHref:  buildViewHref('diagnostics', '24h', worst.id),
+      actionLabel: 'View Performance',
+      actionHref:  buildViewHref('performance', '24h', worst.id),
     })
   }
 

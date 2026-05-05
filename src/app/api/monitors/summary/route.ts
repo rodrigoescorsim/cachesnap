@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { unauthorized } from '@/lib/api-auth'
 import sql from '@/lib/db'
+import { MONITOR_TTFB } from '@/lib/thresholds'
 
 // Static flag map — region IDs are stable, no need to store in DB
 const FLAG_MAP: Record<string, string> = {
@@ -76,7 +77,7 @@ export async function GET() {
         )                                                                                AS cache_hit_current,
         MODE() WITHIN GROUP (ORDER BY COALESCE(cache_status, 'NO HEADER')) FILTER (WHERE error IS NULL) AS dominant_cache_status,
         MAX(probe_time)                                                                  AS last_checked_at,
-        COUNT(*) FILTER (WHERE ttfb_ms > 300 AND error IS NULL)::int                    AS slow_region_count,
+        COUNT(*) FILTER (WHERE ttfb_ms > ${MONITOR_TTFB.FAST} AND error IS NULL)::int   AS slow_region_count,
         COUNT(*)::int                                                                    AS total_region_count,
         COUNT(*) FILTER (WHERE error IS NOT NULL)::int                                   AS error_region_count,
         COUNT(*) FILTER (WHERE status_code >= 500 AND error IS NULL)::int                AS error_5xx_count,
@@ -94,7 +95,7 @@ export async function GET() {
           jsonb_build_object(
             'code',    l.region,
             'label',   COALESCE(r.label, l.region),
-            'isSlow',  (l.ttfb_ms > 300 AND l.error IS NULL),
+            'isSlow',  (l.ttfb_ms > ${MONITOR_TTFB.FAST} AND l.error IS NULL),
             'isError', (l.error IS NOT NULL)
           )
           ORDER BY l.region

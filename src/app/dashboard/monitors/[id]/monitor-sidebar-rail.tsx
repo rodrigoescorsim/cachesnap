@@ -30,7 +30,6 @@ const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   performance: 'Performance',
   trends: 'Trends',
   patterns: 'Patterns',
-  diagnostics: 'Breakdown',
   infrastructure: 'Edge Audit',
 }
 
@@ -39,7 +38,6 @@ const PERFORMANCE_VIEW_ICONS: Record<PerformanceView, typeof Activity> = {
   performance: BarChart2,
   trends: LineChart,
   patterns: CalendarDays,
-  diagnostics: Activity,
   infrastructure: Layers,
 }
 

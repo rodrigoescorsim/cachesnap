@@ -18,6 +18,8 @@ export type AdvisorState = {
   severity: AdvisorSeverity
   headline: string
   body: string
+  causes?: string[]
+  contextTooltip?: string
   recommendation?: string
   /** Max 3 actions. */
   actions: AdvisorAction[]
@@ -205,6 +207,9 @@ export type MonitorDetailLiveInput = {
   liveAvgOriginMs: number
   errorRegionCount: number
   slowRegionCount: number
+  slowRegionLabels?: string[]
+  slowestVsGlobalRegion?: { label: string; deltaPct: number } | null
+  fastestVsGlobalRegion?: { label: string; deltaPct: number } | null
   totalRegionCount: number
   /** (liveAvgTtfb − periodAvgTtfb) / periodAvgTtfb × 100. Positive = worse. 0 when no baseline. */
   ttfbVsPeriodPct: number
@@ -213,12 +218,13 @@ export type MonitorDetailLiveInput = {
 /**
  * Derives a compact advisory banner for the Live (real-time) view inside a monitor detail page.
  * Callers must suppress this when the existing isDown / isDegraded banners are already visible.
- * Returns null when the monitor is healthy — the live data is already self-explanatory.
+ * Returns a healthy summary when no issues are detected.
  */
 export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): AdvisorState | null {
   const { monitorId, url, liveAvgTtfb, periodAvgTtfb, liveGlobalHitRate, hasLiveCacheData,
     liveDominantStatus, liveAvgEdgeMs, liveAvgOriginMs,
-    errorRegionCount, slowRegionCount, totalRegionCount, ttfbVsPeriodPct } = input
+    errorRegionCount, slowRegionCount, totalRegionCount, ttfbVsPeriodPct,
+    slowestVsGlobalRegion, fastestVsGlobalRegion } = input
   const host = hostname(url)
 
   // Full outage — caller should already show the isDown banner; skip here.
@@ -248,7 +254,6 @@ export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): A
     const actions: AdvisorAction[] = []
     if (hasLiveCacheData) {
       actions.push({ label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', '24h', monitorId) })
-      actions.push({ label: `View ${host} Breakdown`, href: buildViewHref('diagnostics', '24h', monitorId) })
     }
 
     return {
@@ -277,7 +282,7 @@ export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): A
     const originPct = 100 - liveGlobalHitRate
     let recommendation = "Review your Cache-Control headers to improve performance."
     
-    const status = liveDominantStatus.toUpperCase()
+    const status = liveDominantStatus?.toUpperCase()
     if (status === 'DYNAMIC') {
       recommendation = "Responses are marked as DYNAMIC. Ensure your backend isn't sending 'no-cache' for static assets."
     } else if (status === 'BYPASS') {
@@ -292,8 +297,13 @@ export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): A
     }
     actions.push({ label: `Analyze ${host} Performance`, href: buildViewHref('performance', '24h', monitorId) })
 
+    let severity: AdvisorState['severity'] = liveGlobalHitRate < 30 ? 'critical' : 'warning'
+    if (status === 'BYPASS' || status === 'DYNAMIC') {
+      severity = 'warning'
+    }
+
     return {
-      severity: liveGlobalHitRate < 30 ? 'critical' : 'warning',
+      severity,
       headline: `Low cache hit: ${liveGlobalHitRate}%`,
       body: `Origin load is high: ${originPct}% of requests are bypassing edge cache.`,
       recommendation,
@@ -301,10 +311,26 @@ export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): A
     }
   }
 
+  const hasExtremeRegionalSpread = !!(
+    slowestVsGlobalRegion &&
+    fastestVsGlobalRegion &&
+    slowestVsGlobalRegion.deltaPct >= 70 &&
+    Math.abs(fastestVsGlobalRegion.deltaPct) >= 70
+  )
+
+  if (hasExtremeRegionalSpread) {
+    return {
+      severity: 'warning',
+      headline: `High regional variance: +${slowestVsGlobalRegion!.deltaPct}% / ${fastestVsGlobalRegion!.deltaPct}%`,
+      body: `${slowestVsGlobalRegion!.label} is much slower while ${fastestVsGlobalRegion!.label} is much faster than global average. This often indicates uneven regional routing or edge coverage.`,
+      contextTooltip: `Affected regions: ${slowestVsGlobalRegion!.label} (+${slowestVsGlobalRegion!.deltaPct}%) and ${fastestVsGlobalRegion!.label} (${fastestVsGlobalRegion!.deltaPct}%).`,
+      recommendation: "Review regional routing, edge PoP coverage, and origin proximity for impacted geographies.",
+      actions: [{ label: `Analyze ${host} Performance`, href: buildViewHref('performance', '24h', monitorId) }],
+    }
+  }
+
   if (slowRegionCount > 0) {
-    const actions: AdvisorAction[] = [
-      { label: `View ${host} Breakdown`, href: buildViewHref('diagnostics', '24h', monitorId) }
-    ]
+    const actions: AdvisorAction[] = []
     if (hasLiveCacheData) {
       actions.push({ label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', '24h', monitorId) })
     }
@@ -313,12 +339,18 @@ export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): A
       severity: 'warning',
       headline: `${slowRegionCount} slow region${slowRegionCount > 1 ? 's' : ''}`,
       body: `${slowRegionCount} region${slowRegionCount > 1 ? 's are' : ' is'} experiencing high latency. Origin may be geographically distant from these regions.`,
+      contextTooltip: buildAffectedRegionsTooltip(input.slowRegionLabels),
       recommendation: "Consider using a CDN with better regional coverage or a global edge network.",
       actions,
     }
   }
 
-  return null
+  return {
+    severity: 'good',
+    headline: 'Live performance stable',
+    body: `${host} is within healthy live thresholds right now (${liveAvgTtfb}ms TTFB).`,
+    actions: [],
+  }
 }
 
 // ─── Monitor detail — performance view ───────────────────────────────────────
@@ -332,9 +364,8 @@ export type MonitorPerformancePeriodInput = {
   globalHitRate: number
   prevGlobalHitRate: number
   hasHistory: boolean
-  /** Worst region by TTFB change percentage. */
-  worstRegion: { label: string; changePct: number } | null
-  spikeCount: number
+  slowRegionCount: number
+  slowRegionLabels?: string[]
 }
 
 /**
@@ -343,7 +374,7 @@ export type MonitorPerformancePeriodInput = {
  */
 export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformancePeriodInput): AdvisorState | null {
   const { monitorId, url, range, avgTtfb, prevAvgTtfb, globalHitRate, prevGlobalHitRate,
-    hasHistory, worstRegion, spikeCount } = input
+    hasHistory } = input
 
   if (!hasHistory || prevAvgTtfb === 0) return null
 
@@ -353,11 +384,10 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
 
   // ── Critical: significant TTFB regression ────────────────────────────────
   if (ttfbChangePct > 30) {
-    const regionNote = worstRegion ? ` ${worstRegion.label} is the worst region (+${worstRegion.changePct}%).` : ''
     return {
       severity: 'critical',
-      headline: `TTFB +${ttfbChangePct}% vs previous ${range}`,
-      body: `${host} averaged ${avgTtfb}ms, up from ${prevAvgTtfb}ms.${regionNote}`,
+      headline: `Latency up ${ttfbChangePct}% vs previous ${range}`,
+      body: `Global latency increased to ${avgTtfb}ms (from ${prevAvgTtfb}ms).`,
       recommendation: "Investigate recent origin infrastructure changes or network route changes.",
       actions: [
         { label: `Analyze ${host} Trends`, href: buildViewHref('trends', range, monitorId) },
@@ -367,21 +397,34 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
   }
 
   // ── Warning: moderate regression or cache drop ────────────────────────────
-  if (ttfbChangePct > 10 || cacheChangePp < -10) {
+  if (ttfbChangePct > 10 || cacheChangePp < -10 || input.slowRegionCount > 0) {
     const parts: string[] = []
     if (ttfbChangePct > 10) parts.push(`TTFB +${ttfbChangePct}% vs previous ${range}`)
-
     if (cacheChangePp < -10) parts.push(`cache hit ${cacheChangePp}pp`)
+    if (input.slowRegionCount > 0) parts.push(`${input.slowRegionCount} slow region${input.slowRegionCount > 1 ? 's' : ''}`)
 
-    const bodyParts: string[] = [`${host}: ${avgTtfb}ms TTFB (was ${prevAvgTtfb}ms).`]
-    if (worstRegion && ttfbChangePct > 10) bodyParts.push(`${worstRegion.label} regressed most (+${worstRegion.changePct}%).`)
-    if (spikeCount > 0) bodyParts.push(`${spikeCount} spike${spikeCount > 1 ? 's' : ''} detected.`)
+    const bodyParts: string[] = []
+    
+    if (ttfbChangePct > 10) {
+      bodyParts.push(`Global latency increased to ${avgTtfb}ms (from ${prevAvgTtfb}ms).`)
+    }
+
+    if (cacheChangePp < -10) {
+      bodyParts.push(`Cache hit rate dropped by ${Math.abs(cacheChangePp)}%.`)
+    }
+
+    if (input.slowRegionCount > 0) {
+      bodyParts.push(`${input.slowRegionCount} region${input.slowRegionCount > 1 ? 's averaged' : ' averaged'} high latency in this period.`)
+    }
 
     return {
       severity: 'warning',
       headline: parts.join(' · '),
       body: bodyParts.join(' '),
-      recommendation: "Monitor for continued degradation. Check recent config changes.",
+      contextTooltip: input.slowRegionCount > 0 ? buildAffectedRegionsTooltip(input.slowRegionLabels) : undefined,
+      recommendation: input.slowRegionCount > 0 
+        ? "Optimize regional edge delivery or investigate origin latency for affected areas."
+        : "Monitor for continued degradation. Check recent config changes.",
       actions: [{ label: `Analyze ${host} Trends`, href: buildViewHref('trends', range, monitorId) }],
     }
   }
@@ -395,16 +438,88 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
     return {
       severity: 'good',
       headline: parts.join(' · '),
-      body: `${host} improved this period. Avg TTFB ${avgTtfb}ms (was ${prevAvgTtfb}ms) · ${globalHitRate}% cache hit.`,
+      body: `Performance improved this period. Global latency is down to ${avgTtfb}ms (from ${prevAvgTtfb}ms).`,
       actions: [],
     }
   }
 
-  return null
+  // ── Stable ───────────────────────────────────────────────────────────────
+  return {
+    severity: 'good',
+    headline: 'Performance stable',
+    body: `${host} is performing within expected parameters for the last ${range}.`,
+    actions: [],
+  }
+}
+
+// ─── Monitor detail — trends view ───────────────────────────────────────────
+
+export type MonitorTrendsAdvisorInput = {
+  url: string
+  range: string
+  spikeCount: number
+  hasHistory: boolean
+  worstRegion: { label: string; changePct: number } | null
+}
+
+/**
+ * Derives a summary advisory specifically for the Trends view,
+ * focusing on latency spikes.
+ */
+export function deriveMonitorTrendsAdvisor(input: MonitorTrendsAdvisorInput): AdvisorState | null {
+  if (!input.hasHistory) return null
+  
+  const host = hostname(input.url)
+  const hasSpikes = input.spikeCount > 0
+  const significantRegression = input.worstRegion && input.worstRegion.changePct > 20
+
+  if (hasSpikes || significantRegression) {
+    const parts: string[] = []
+    if (hasSpikes) parts.push(`${input.spikeCount} latency spike${input.spikeCount > 1 ? 's' : ''}`)
+    if (significantRegression) parts.push(`Regional regression`)
+
+    const bodyParts: string[] = []
+    if (hasSpikes) bodyParts.push(`${input.spikeCount} significant latency spike${input.spikeCount > 1 ? 's were' : ' was'} detected for ${host} in the last ${input.range}.`)
+    if (significantRegression) bodyParts.push(`${input.worstRegion!.label} performance degraded by ${input.worstRegion!.changePct}% week-over-week.`)
+
+    const causes: string[] = []
+    if (hasSpikes) {
+      causes.push("Intermittent backend processing delays or database locks.")
+    }
+    if (significantRegression) {
+      causes.push(`Recent configuration changes or deployments affecting ${input.worstRegion!.label}.`)
+      causes.push("Increased regional traffic or edge routing degradation.")
+    }
+
+    return {
+      severity: (input.spikeCount > 5 || (input.worstRegion && input.worstRegion.changePct > 50)) ? 'critical' : 'warning',
+      headline: parts.join(' · '),
+      body: bodyParts.join(' '),
+      causes,
+      recommendation: significantRegression
+        ? `Investigate edge cache hits and routing in ${input.worstRegion!.label}. Verify recent deployments.`
+        : "Investigate backend logs or external dependencies during spike periods.",
+      actions: [],
+    }
+  }
+
+  return {
+    severity: 'good',
+    headline: 'Stable trends',
+    body: `${host} maintained stable response times without significant spikes or regional regressions in the last ${input.range}.`,
+    actions: [],
+  }
 }
 
 // ─── Internal ─────────────────────────────────────────────────────────────────
 
 function hostname(url: string): string {
   try { return new URL(url).hostname } catch { return url }
+}
+
+function buildAffectedRegionsTooltip(regionLabels?: string[]): string | undefined {
+  if (!regionLabels || regionLabels.length === 0) return undefined
+  if (regionLabels.length <= 4) return `Affected regions: ${regionLabels.join(', ')}.`
+  const visible = regionLabels.slice(0, 4).join(', ')
+  return `Affected regions: ${visible}, and ${regionLabels.length - 4} more.`
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { AlertTriangle, AlertCircle, CheckCircle2, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, AlertCircle, CheckCircle2, Info, type LucideIcon } from 'lucide-react'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import type { AdvisorAction, AdvisorState, AdvisorSeverity } from './advisor-card.helpers'
 
@@ -57,9 +57,10 @@ type AdvisorCardProps = {
    */
   variant?: 'default' | 'compact'
   className?: string
+  hideActions?: boolean
 }
 
-export function AdvisorCard({ state, variant = 'default', className = '' }: AdvisorCardProps) {
+export function AdvisorCard({ state, variant = 'default', className = '', hideActions = false }: AdvisorCardProps) {
   const cfg = SEV[state.severity]
   const { Icon } = cfg
 
@@ -77,8 +78,13 @@ export function AdvisorCard({ state, variant = 'default', className = '' }: Advi
           aria-hidden
         />
         <div className="relative z-10 flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden">
-          <span className="shrink-0 text-[12px] font-semibold text-zinc-100">
-            {state.headline}
+          <span className="shrink-0 inline-flex items-center gap-1.5 text-[12px] font-semibold text-zinc-100">
+            <span>{state.headline}</span>
+            {state.contextTooltip && (
+              <PremiumTooltip content={state.contextTooltip} position="top-center">
+                <Info className="h-3.5 w-3.5 text-zinc-400/90 hover:text-zinc-200" aria-label="Advisor details" />
+              </PremiumTooltip>
+            )}
           </span>
           {state.body && (
             <span className="hidden truncate text-[12px] text-zinc-400 sm:inline">
@@ -104,9 +110,9 @@ export function AdvisorCard({ state, variant = 'default', className = '' }: Advi
     >
       <div className="cs-card-wash" />
 
-      <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+      <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-stretch">
         {/* Left: icon + text ─────────────────────────────────────────────── */}
-        <div className="flex flex-1 items-start gap-3 min-w-0">
+        <div className="flex-1 flex items-start gap-3 min-w-0">
           <Icon
             className={`mt-0.5 h-4 w-4 shrink-0 ${cfg.iconClass}`}
             strokeWidth={2.25}
@@ -124,6 +130,27 @@ export function AdvisorCard({ state, variant = 'default', className = '' }: Advi
               <p className="text-[13px] font-semibold leading-snug text-zinc-100 truncate">
                 {state.headline}
               </p>
+              {(state.contextTooltip || (state.causes && state.causes.length > 0)) && (
+                <PremiumTooltip 
+                  content={
+                    state.causes && state.causes.length > 0 ? (
+                      <div className="space-y-1.5 p-1">
+                        <p className="text-[11px] font-bold text-zinc-200">Possible Causes:</p>
+                        <ul className="list-disc pl-3 text-[12px] font-[450] text-zinc-300 marker:text-zinc-500 space-y-1">
+                          {state.causes.map((cause, i) => (
+                            <li key={i} className="leading-snug">{cause}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      state.contextTooltip
+                    )
+                  } 
+                  position="top-left"
+                >
+                  <Info className="h-3.5 w-3.5 shrink-0 text-zinc-400/90 hover:text-zinc-200 transition-colors cursor-help" aria-label="Advisor details" />
+                </PremiumTooltip>
+              )}
             </div>
 
             {/* Body */}
@@ -136,7 +163,7 @@ export function AdvisorCard({ state, variant = 'default', className = '' }: Advi
         </div>
 
         {/* Right: Recommendation OR Actions ────────────────────────────────── */}
-        <div className="flex flex-col gap-3 md:w-[40%] md:shrink-0 md:items-end">
+        <div className="flex-1 flex flex-col gap-3 md:items-end">
           {state.recommendation && (
             <div className="flex w-full items-start gap-2 rounded-lg bg-white/5 p-2.5 ring-1 ring-inset ring-white/10">
               <div className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dotClass}`} />
@@ -146,7 +173,7 @@ export function AdvisorCard({ state, variant = 'default', className = '' }: Advi
             </div>
           )}
 
-          {state.actions.length > 0 && (
+          {!hideActions && state.actions.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 md:justify-end">
               {state.actions.map(a => (
                 <ActionChip key={a.label} action={a} />

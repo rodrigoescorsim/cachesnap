@@ -29,7 +29,7 @@ import {
 } from './monitor-href'
 import { TIMING } from './timing-metrics-palette'
 import { getRegions } from '@/lib/regions'
-import { getCacheColor, getTtfbColorClass, getTtfbTooltip, getCacheTooltip } from '@/lib/thresholds'
+import { MONITOR_TTFB, getCacheColor, getTtfbColorClass, getTtfbTooltip, getCacheTooltip } from '@/lib/thresholds'
 import { VisualGlow } from '../../visual-glow'
 import {
   Activity,
@@ -196,14 +196,13 @@ const TAB_ICONS: Record<MonitorTab, LucideIcon> = {
   incidents: AlertCircle,
 }
 
-const VALID_PERFORMANCE_VIEWS = ['real-time', 'performance', 'trends', 'patterns', 'diagnostics', 'infrastructure'] as const satisfies readonly PerformanceView[]
+const VALID_PERFORMANCE_VIEWS = ['real-time', 'performance', 'trends', 'patterns', 'infrastructure'] as const satisfies readonly PerformanceView[]
 
 const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   'real-time': 'Live',
   performance: 'Performance',
   trends: 'Trends',
   patterns: 'Patterns',
-  diagnostics: 'Breakdown',
   infrastructure: 'Edge Audit',
 }
 
@@ -539,7 +538,7 @@ function formatMs(value: number | null): string {
 
 import { BypassAudit } from './bypass-audit'
 import { AdvisorCard } from '@/components/advisor/advisor-card'
-import { deriveMonitorDetailLiveAdvisor, deriveMonitorPerformancePeriodAdvisor } from '@/components/advisor/advisor-card.helpers'
+import { deriveMonitorDetailLiveAdvisor, deriveMonitorPerformancePeriodAdvisor, deriveMonitorTrendsAdvisor } from '@/components/advisor/advisor-card.helpers'
 
 
 export default async function MonitorDetailPage({
@@ -795,7 +794,7 @@ export default async function MonitorDetailPage({
     ORDER BY bucket ASC, region ASC
   `
 
-  const hourlyBypass = (activeView === 'infrastructure' || activeView === 'diagnostics')
+  const hourlyBypass = (activeView === 'infrastructure')
     ? await sql<{ 
         hour: Date; 
         region: string; 
@@ -920,7 +919,7 @@ export default async function MonitorDetailPage({
     FROM with_lag
     WHERE prev_avg IS NOT NULL
       AND ttfb_avg > prev_avg * 1.5
-      AND (ttfb_avg - prev_avg) > 100
+      AND (ttfb_avg - prev_avg) > 150
     ORDER BY spike_ms DESC
     LIMIT 5
   `
@@ -1169,11 +1168,24 @@ export default async function MonitorDetailPage({
   const cacheDelta = hasHistory ? globalHitRate - prevGlobalHitRate : 0;
 
   // ADVISOR INPUTS
-  const slowLiveRegionCount = validLiveTtfb.filter(p => (p.ttfb_ms ?? 0) > 300).length
-  const liveVsPeriodPct = avgTtfb > 0 ? Math.round(((liveAvgTtfb - avgTtfb) / avgTtfb) * 100) : 0
-  const worstWeekTrendRegion = weekTrend.length > 0
-    ? weekTrend.reduce((w, t) => t.change_pct > w.change_pct ? t : w)
+  const slowLiveRegionCount = validLiveTtfb.filter(p => (p.ttfb_ms ?? 0) > MONITOR_TTFB.FAST).length
+  const slowLiveRegionLabels = validLiveTtfb
+    .filter(p => (p.ttfb_ms ?? 0) > MONITOR_TTFB.FAST)
+    .map(p => regionLabels[p.region] ?? p.region)
+  const liveVsGlobalRows = liveAvgTtfb > 0
+    ? validLiveTtfb.map((p) => {
+        const pct = Math.round((((p.ttfb_ms ?? 0) - liveAvgTtfb) / liveAvgTtfb) * 100)
+        return { label: regionLabels[p.region] ?? p.region, deltaPct: pct }
+      })
+    : []
+  const slowestVsGlobalRegion = liveVsGlobalRows.length > 0
+    ? [...liveVsGlobalRows].sort((a, b) => b.deltaPct - a.deltaPct)[0]
     : null
+  const fastestVsGlobalRegion = liveVsGlobalRows.length > 0
+    ? [...liveVsGlobalRows].sort((a, b) => a.deltaPct - b.deltaPct)[0]
+    : null
+  const liveVsPeriodPct = avgTtfb > 0 ? Math.round(((liveAvgTtfb - avgTtfb) / avgTtfb) * 100) : 0
+  const worstWeekTrendRegion = weekTrend.length > 0 ? weekTrend[0] : null
   // isDown / isDegraded already render dedicated banners above the tab rail — suppress advisor.
   const liveAdvisorState = (isDown || isDegraded) ? null : deriveMonitorDetailLiveAdvisor({
     monitorId: monitor.id,
@@ -1187,9 +1199,16 @@ export default async function MonitorDetailPage({
     liveAvgOriginMs: Math.round(latestProbes.reduce((acc, p) => acc + (p.origin_ms || 0), 0) / latestProbes.length),
     errorRegionCount: errorLatestProbes.length,
     slowRegionCount: slowLiveRegionCount,
+    slowRegionLabels: slowLiveRegionLabels,
+    slowestVsGlobalRegion,
+    fastestVsGlobalRegion,
     totalRegionCount: latestProbes.length,
     ttfbVsPeriodPct: liveVsPeriodPct,
   })
+  const slowHistoricalRegions = stats.filter(s => (s.ttfb_avg_ms || 0) > MONITOR_TTFB.FAST).length
+  const slowHistoricalRegionLabels = stats
+    .filter(s => (s.ttfb_avg_ms || 0) > MONITOR_TTFB.FAST)
+    .map(s => regionLabels[s.region] ?? s.region)
   const performanceAdvisorState = deriveMonitorPerformancePeriodAdvisor({
     monitorId: monitor.id,
     url: monitor.url,
@@ -1199,10 +1218,18 @@ export default async function MonitorDetailPage({
     globalHitRate,
     prevGlobalHitRate,
     hasHistory,
+    slowRegionCount: slowHistoricalRegions,
+    slowRegionLabels: slowHistoricalRegionLabels,
+  })
+
+  const trendsAdvisorState = deriveMonitorTrendsAdvisor({
+    url: monitor.url,
+    range,
+    spikeCount: spikes.length,
+    hasHistory,
     worstRegion: worstWeekTrendRegion
       ? { label: regionLabels[worstWeekTrendRegion.region] ?? worstWeekTrendRegion.region, changePct: Math.round(worstWeekTrendRegion.change_pct) }
       : null,
-    spikeCount: spikes.length,
   })
 
   const liveFreezeStorageKey = `live_updates_frozen_${monitor.id}`
@@ -1463,7 +1490,7 @@ export default async function MonitorDetailPage({
             )}
             <div className="mt-3">
               <Link
-                href={buildViewHref('diagnostics', '24h', monitor.id)}
+                href={buildViewHref('performance', '24h', monitor.id)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/30 text-[11px] font-bold uppercase tracking-tight text-red-300 hover:bg-red-500/30 transition-all"
               >
                 <Activity className="w-3.5 h-3.5" />
@@ -1485,7 +1512,7 @@ export default async function MonitorDetailPage({
             </p>
             <div className="mt-3">
               <Link
-                href={buildViewHref('diagnostics', '24h', monitor.id)}
+                href={buildViewHref('performance', '24h', monitor.id)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-[11px] font-bold uppercase tracking-tight text-red-400 hover:bg-red-500/20 transition-all"
               >
                 <Activity className="w-3.5 h-3.5" />
@@ -1511,7 +1538,7 @@ export default async function MonitorDetailPage({
               {activeView === 'real-time' && (
                 <div id="real-time-view" className="space-y-6">
                   {liveAdvisorState && (
-                    <AdvisorCard state={liveAdvisorState} />
+                    <AdvisorCard state={liveAdvisorState} hideActions={true} />
                   )}
                   <section id="live-metrics-section" className="space-y-4">
                     <LiveActivityHeader
@@ -1619,7 +1646,7 @@ export default async function MonitorDetailPage({
               {activeView === 'performance' && (
                 <div className="space-y-6">
                   {performanceAdvisorState && (
-                    <AdvisorCard state={performanceAdvisorState} />
+                    <AdvisorCard state={performanceAdvisorState} hideActions={true} />
                   )}
                   <section className="space-y-4">
                     <ViewSectionHeader
@@ -1742,6 +1769,9 @@ export default async function MonitorDetailPage({
 
               {activeView === 'trends' && (
                 <div className="space-y-6">
+                  {trendsAdvisorState && (
+                    <AdvisorCard state={trendsAdvisorState} hideActions={true} />
+                  )}
                   {stats.length === 0 ? (
                     <section className="space-y-4">
                       <ViewSectionHeader title="Trends" />
@@ -1940,6 +1970,9 @@ export default async function MonitorDetailPage({
                 </div>
               )}
 
+              {/* 
+                DEPRECATED: Breakdown (diagnostics) view is no longer used. 
+                Kept commented for reference but should not be enabled.
               {activeView === 'diagnostics' && (
                 <div id="breakdown-view" className="space-y-4">
                   <ViewSectionHeader title="Performance Breakdown" showDot={true} />
@@ -1950,11 +1983,16 @@ export default async function MonitorDetailPage({
                   )}
                 </div>
               )}
+              */}
 
               {activeView === 'infrastructure' && (
                 <div className="space-y-8">
                   <BypassAudit
-                    data={hourlyBypass}
+                    data={hourlyBypass.map(d => ({ 
+                      ...d, 
+                      edge_cache_status: d.edge_cache_status || 'UNKNOWN', 
+                      origin_cache_status: d.origin_cache_status || 'UNKNOWN' 
+                    }))}
                     regionLabels={regionLabels}
                     isDown={isDown}
                     isDegraded={isDegraded}
@@ -1965,7 +2003,7 @@ export default async function MonitorDetailPage({
                       comparable_regions: auditReadiness.comparable_regions,
                       edge_hit_ratio: auditReadiness.edge_hit_ratio,
                       updated_at: auditReadiness.updated_at,
-                    } : null}
+                    } : null as any}
                   />
                 </div>
               )}
