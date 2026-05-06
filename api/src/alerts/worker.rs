@@ -48,12 +48,12 @@ pub async fn run(state: AppState) {
     }
 }
 
-struct MonitorAlertConfig {
-    id: Uuid,
-    alert_cache_hit_enabled: bool,
-    alert_cache_hit_threshold_pct: f64,
-    alert_anycast_enabled: bool,
-    alert_zombie_cache_enabled: bool,
+pub struct MonitorAlertConfig {
+    pub id: Uuid,
+    pub alert_cache_hit_enabled: bool,
+    pub alert_cache_hit_threshold_pct: f64,
+    pub alert_anycast_enabled: bool,
+    pub alert_zombie_cache_enabled: bool,
 }
 
 async fn fetch_active_monitors(state: &AppState) -> Result<Vec<MonitorAlertConfig>, sqlx::Error> {
@@ -81,7 +81,7 @@ struct Detection {
     action: String,
 }
 
-async fn audit_monitor_alerts(state: &AppState, monitor: &MonitorAlertConfig) -> Result<(), anyhow::Error> {
+pub async fn audit_monitor_alerts(state: &AppState, monitor: &MonitorAlertConfig) -> Result<(), anyhow::Error> {
     let latest_probes = sqlx::query!(
         "SELECT DISTINCT ON (region) region, ttfb_ms, cache_status, age_s, security_headers, served_by
          FROM probe_results WHERE monitor_id = $1 AND time > NOW() - INTERVAL '24 hours'

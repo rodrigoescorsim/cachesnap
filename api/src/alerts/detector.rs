@@ -1,10 +1,10 @@
 use crate::{
-    diagnosis::engine::{self, DiagnosisInput},
     models::probe_result::ProbeResultPayload,
     AppState,
 };
+use std::time::Duration;
 use super::notifier::{self, AlertNotification};
-use tracing::{info, error};
+use tracing::error;
 
 const DOWN_COOLDOWN_MINUTES: i32 = 30;
 const DEFAULT_COOLDOWN_MINUTES: i32 = 60;
@@ -32,7 +32,6 @@ struct MonitorAlertConfig {
     alert_down_enabled: bool,
     alert_ttfb_enabled: bool,
     alert_anomaly_enabled: bool,
-    alert_trend_cooldown_minutes: i32,
 }
 
 async fn fetch_monitor_alert_config(state: &AppState, monitor_id: uuid::Uuid) -> Option<MonitorAlertConfig> {
@@ -104,7 +103,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
 
     // 1. Downtime detection
     if is_down && cfg.alert_down_enabled {
-        handle_aggregated_alert(&state, payload.clone(), "down", "uptime", None, "Site unreachable or failing in multiple regions.").await;
+        handle_aggregated_alert(&state, payload.clone(), "down", "uptime".to_string(), None, "Site unreachable or failing in multiple regions.".to_string()).await;
         return;
     }
 
@@ -118,7 +117,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
         if breach_count >= consecutive_limit {
             let hit_miss_label = if is_hit { "Cache HIT" } else { "Cache MISS" };
             let summary = format!("{} TTFB exceeded your limit ({:.0}ms).", hit_miss_label, effective_threshold);
-            handle_aggregated_alert(&state, payload.clone(), "ttfb_threshold", "ttfb_ms", Some(effective_threshold), &summary).await;
+            handle_aggregated_alert(&state, payload.clone(), "ttfb_threshold", "ttfb_ms".to_string(), Some(effective_threshold), summary).await;
         }
         return;
     }
@@ -135,7 +134,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
 
             if is_anomalous(actual_ttfb, avg, stddev, sigma_factor) {
                 let summary = format!("Significant TTFB deviation detected compared to 7-day baseline ({:.0}ms).", avg);
-                handle_aggregated_alert(&state, payload.clone(), "anomaly", "ttfb_ms", Some(avg), &summary).await;
+                handle_aggregated_alert(&state, payload.clone(), "anomaly", "ttfb_ms".to_string(), Some(avg), summary).await;
             }
         }
     }
@@ -146,13 +145,28 @@ async fn handle_aggregated_alert(
     state: &AppState,
     payload: ProbeResultPayload,
     alert_type: &'static str,
-    metric: &'static str,
+    metric: String,
     baseline: Option<f64>,
-    summary_base: &str,
+    summary_base: String,
 ) {
-    // Verificamos se já existe um alerta deste tipo para QUALQUER região nos últimos 2 minutos.
+    // 1. Check if an alert was ALREADY persisted in the last 2 minutes (cooldown)
     let exists = alert_exists_any_region_recent(state, payload.monitor_id, alert_type, 2).await.unwrap_or(false);
     if exists { return; }
+
+    // 2. Try to acquire a Redis lock for the 15s aggregation window
+    let lock_key = format!("alert_agg_lock:{}:{}", payload.monitor_id, alert_type);
+    let mut conn = match state.redis.get().await {
+        Ok(c) => c,
+        Err(_) => return, // Fail safe: if redis is down, we might get duplicates but system stays up
+    };
+
+    use deadpool_redis::redis::AsyncCommands;
+    let acquired: bool = conn.set_nx(&lock_key, "true").await.unwrap_or(false);
+    if !acquired {
+        // Someone else is already aggregating for this monitor/type
+        return;
+    }
+    let _: () = conn.expire(&lock_key, 20).await.unwrap_or(()); // 20s lock for a 15s window
 
     let state_clone = state.clone();
     let payload_clone = payload.clone();
@@ -163,21 +177,20 @@ async fn handle_aggregated_alert(
 
         // Busca todas as regiões que dispararam este tipo de alerta recentemente
         // Para 'down', checamos erros. Para outros, checamos a tabela de probe_results recente.
-        let failed_regions = match alert_type {
+        let regions = match alert_type {
             "down" => {
                 sqlx::query!("SELECT DISTINCT region FROM probe_results WHERE monitor_id = $1 AND (error IS NOT NULL OR status_code >= 500) AND time > NOW() - INTERVAL '1 minute'", payload_clone.monitor_id)
                     .fetch_all(&state_clone.db).await.ok()
+                    .map(|rows| rows.into_iter().map(|r| r.region).collect::<Vec<String>>())
             },
             _ => {
-                // Para thresholds e anomalias, simplificamos pegando quem teve ttfb alto no último minuto
-                // (O ideal seria algo mais preciso, mas para agregação de 'burst' isso resolve 95% dos casos)
                 sqlx::query!("SELECT DISTINCT region FROM probe_results WHERE monitor_id = $1 AND ttfb_ms > $2 AND time > NOW() - INTERVAL '1 minute'", 
                     payload_clone.monitor_id, baseline.unwrap_or(0.0))
                     .fetch_all(&state_clone.db).await.ok()
+                    .map(|rows| rows.into_iter().map(|r| r.region).collect::<Vec<String>>())
             }
-        };
+        }.unwrap_or_else(|| vec![payload_clone.region.clone()]);
 
-        let regions = failed_regions.map(|rows| rows.into_iter().map(|r| r.region).collect::<Vec<String>>()).unwrap_or_else(|| vec![payload_clone.region.clone()]);
         let count = regions.len();
         let final_region = if count > 1 { "Multiple".to_string() } else { payload_clone.region.clone() };
         
@@ -240,31 +253,6 @@ async fn alert_exists_any_region_recent(
     Ok(count > 0)
 }
 
-async fn alert_exists_recent_minutes(
-    state: &AppState,
-    monitor_id: uuid::Uuid,
-    region: &str,
-    alert_type: &str,
-    cooldown_minutes: i32,
-) -> Result<bool, sqlx::Error> {
-    let count: i64 = sqlx::query_scalar(
-        r#"
-        SELECT COUNT(*)
-        FROM alerts
-        WHERE monitor_id = $1
-          AND region = $2
-          AND alert_type = $3
-          AND created_at > NOW() - ($4 * INTERVAL '1 minute')
-        "#,
-    )
-    .bind(monitor_id)
-    .bind(region)
-    .bind(alert_type)
-    .bind(cooldown_minutes)
-    .fetch_one(&state.db)
-    .await?;
-    Ok(count > 0)
-}
 
 #[cfg(test)]
 mod tests {
