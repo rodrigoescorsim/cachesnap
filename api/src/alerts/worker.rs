@@ -135,7 +135,7 @@ pub async fn audit_monitor_alerts(state: &AppState, monitor: &MonitorAlertConfig
 }
 
 async fn check_cache_hit(state: &AppState, monitor: &MonitorAlertConfig, region: &str) -> Result<Option<Detection>, anyhow::Error> {
-    if alert_exists_recent(state, monitor.id, region, "cache_hit_low", "24 hours").await? {
+    if alert_exists_recent(state, monitor.id, region, "cache_hit_low", "4 hours").await? {
         return Ok(None);
     }
 
@@ -161,7 +161,7 @@ async fn check_cache_hit(state: &AppState, monitor: &MonitorAlertConfig, region:
 }
 
 async fn check_ssl_expiry(state: &AppState, monitor_id: Uuid, region: &str, sec: &serde_json::Value) -> Result<Option<Detection>, anyhow::Error> {
-    if alert_exists_recent(state, monitor_id, region, "ssl_expiry", "7 days").await? {
+    if alert_exists_recent(state, monitor_id, region, "ssl_expiry", "4 hours").await? {
         return Ok(None);
     }
     if let Some(days) = sec.get("ssl").and_then(|ssl| ssl.get("days_remaining")).and_then(|v| v.as_i64()) {
@@ -181,7 +181,7 @@ async fn check_ssl_expiry(state: &AppState, monitor_id: Uuid, region: &str, sec:
 }
 
 async fn check_anycast(state: &AppState, monitor_id: Uuid, region: &str, ttfb_ms: f64, cache_status: &Option<String>, served_by: Option<String>, age_s: Option<i32>) -> Result<Option<Detection>, anyhow::Error> {
-    if alert_exists_recent(state, monitor_id, region, "anycast", "24 hours").await? {
+    if alert_exists_recent(state, monitor_id, region, "anycast", "4 hours").await? {
         return Ok(None);
     }
     let diag = engine::diagnose(&DiagnosisInput { ttfb_ms: Some(ttfb_ms), cache_status: cache_status.clone(), baseline_ttfb_ms: None, redirect_count: None, http_version: None, region: region.to_string(), error: None, served_by, age_s });
@@ -200,7 +200,7 @@ async fn check_anycast(state: &AppState, monitor_id: Uuid, region: &str, ttfb_ms
 }
 
 async fn check_zombie_cache(state: &AppState, monitor_id: Uuid, region: &str, ttfb_ms: f64, cache_status: &Option<String>, age_s: Option<i32>) -> Result<Option<Detection>, anyhow::Error> {
-    if alert_exists_recent(state, monitor_id, region, "zombie_cache", "24 hours").await? {
+    if alert_exists_recent(state, monitor_id, region, "zombie_cache", "4 hours").await? {
         return Ok(None);
     }
     if let Some(age) = age_s {

@@ -6,8 +6,7 @@ use std::time::Duration;
 use super::notifier::{self, AlertNotification};
 use tracing::error;
 
-const DOWN_COOLDOWN_MINUTES: i32 = 30;
-const DEFAULT_COOLDOWN_MINUTES: i32 = 60;
+
 
 pub fn is_anomalous(actual_ttfb: f64, avg: f64, stddev: f64, sigma_factor: f64) -> bool {
     // Anomalia estatística: TTFB > avg + (sigma_factor * stddev), com piso de +500ms
@@ -149,8 +148,8 @@ async fn handle_aggregated_alert(
     baseline: Option<f64>,
     summary_base: String,
 ) {
-    // 1. Check if an alert was ALREADY persisted in the last 2 minutes (cooldown)
-    let exists = alert_exists_any_region_recent(state, payload.monitor_id, alert_type, 2).await.unwrap_or(false);
+    // 1. Check if an alert was ALREADY persisted in the last 240 minutes (cooldown)
+    let exists = alert_exists_any_region_recent(state, payload.monitor_id, alert_type, 240).await.unwrap_or(false);
     if exists { return; }
 
     // 2. Try to acquire a Redis lock for the 15s aggregation window
@@ -197,7 +196,7 @@ async fn handle_aggregated_alert(
         let diagnosis = if count > 1 {
             format!("{} Affected regions: {}.", summary_base, regions.join(", "))
         } else {
-            format!("{} Affected region: {}.", summary_base, payload_clone.region)
+            summary_base.clone()
         };
 
         let action = match alert_type {
