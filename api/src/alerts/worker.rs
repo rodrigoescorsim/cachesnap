@@ -70,150 +70,154 @@ async fn fetch_active_monitors(state: &AppState) -> Result<Vec<MonitorAlertConfi
     .await
 }
 
+#[derive(Debug, Clone)]
+struct Detection {
+    region: String,
+    alert_type: String,
+    metric: String,
+    actual: f64,
+    baseline: Option<f64>,
+    summary: String,
+    action: String,
+}
+
 async fn audit_monitor_alerts(state: &AppState, monitor: &MonitorAlertConfig) -> Result<(), anyhow::Error> {
-    // Fetch latest probe results per region for this monitor
     let latest_probes = sqlx::query!(
-        r#"
-        SELECT DISTINCT ON (region)
-            region, ttfb_ms, cache_status, age_s, security_headers, served_by
-        FROM probe_results
-        WHERE monitor_id = $1 AND time > NOW() - INTERVAL '24 hours'
-        ORDER BY region, time DESC
-        "#,
+        "SELECT DISTINCT ON (region) region, ttfb_ms, cache_status, age_s, security_headers, served_by
+         FROM probe_results WHERE monitor_id = $1 AND time > NOW() - INTERVAL '24 hours'
+         ORDER BY region, time DESC",
         monitor.id
-    )
-    .fetch_all(&state.db)
-    .await?;
+    ).fetch_all(&state.db).await?;
+
+    let mut detections: Vec<Detection> = Vec::new();
 
     for probe in latest_probes {
         let region = probe.region;
         
-        // 1. Cache Hit Rate Check
         if monitor.alert_cache_hit_enabled {
-            check_cache_hit(state, monitor, &region).await?;
+            if let Some(d) = check_cache_hit(state, monitor, &region).await? {
+                detections.push(d);
+            }
         }
-
-        // 2. SSL Expiry Check (Always checked if security data exists)
         if let Some(sec) = probe.security_headers {
-            check_ssl_expiry(state, monitor.id, &region, &sec).await?;
+            if let Some(d) = check_ssl_expiry(state, monitor.id, &region, &sec).await? {
+                detections.push(d);
+            }
         }
-
-        // 3. Anycast Mismatch Check
         if monitor.alert_anycast_enabled {
             if let Some(ttfb) = probe.ttfb_ms {
-                check_anycast(state, monitor.id, &region, ttfb, &probe.cache_status, probe.served_by, probe.age_s).await?;
+                if let Some(d) = check_anycast(state, monitor.id, &region, ttfb, &probe.cache_status, probe.served_by, probe.age_s).await? {
+                    detections.push(d);
+                }
             }
         }
-
-        // 4. Zombie Cache Check
         if monitor.alert_zombie_cache_enabled {
             if let Some(ttfb) = probe.ttfb_ms {
-                check_zombie_cache(state, monitor.id, &region, ttfb, &probe.cache_status, probe.age_s).await?;
+                if let Some(d) = check_zombie_cache(state, monitor.id, &region, ttfb, &probe.cache_status, probe.age_s).await? {
+                    detections.push(d);
+                }
             }
         }
+    }
+
+    // Agrupamento de detecções por tipo de alerta
+    use std::collections::HashMap;
+    let mut grouped: HashMap<String, Vec<Detection>> = HashMap::new();
+    for d in detections {
+        grouped.entry(d.alert_type.clone()).or_default().push(d);
+    }
+
+    for (alert_type, group) in grouped {
+        save_and_notify_aggregated(state, monitor.id, &alert_type, group).await?;
     }
 
     Ok(())
 }
 
-async fn check_cache_hit(state: &AppState, monitor: &MonitorAlertConfig, region: &str) -> Result<(), anyhow::Error> {
+async fn check_cache_hit(state: &AppState, monitor: &MonitorAlertConfig, region: &str) -> Result<Option<Detection>, anyhow::Error> {
     if alert_exists_recent(state, monitor.id, region, "cache_hit_low", "24 hours").await? {
-        return Ok(());
+        return Ok(None);
     }
 
     let hit_data = sqlx::query_as::<_, (Option<f64>, Option<i64>, Option<i64>)>(
-        r#"
-        SELECT
-            (SUM(hit_count)::float / NULLIF(SUM(cdn_count), 0)) * 100 AS hit_pct,
-            SUM(total_count)::bigint AS sample_count,
-            SUM(cdn_count)::bigint AS cdn_sample_count
-        FROM probe_results_hourly
-        WHERE monitor_id = $1 AND region = $2 AND bucket > NOW() - INTERVAL '24 hours'
-        "#,
-    )
-    .bind(monitor.id)
-    .bind(region)
-    .fetch_one(&state.db)
-    .await?;
+        "SELECT (SUM(hit_count)::float / NULLIF(SUM(cdn_count), 0)) * 100 AS hit_pct, SUM(total_count)::bigint, SUM(cdn_count)::bigint
+         FROM probe_results_hourly WHERE monitor_id = $1 AND region = $2 AND bucket > NOW() - INTERVAL '24 hours'",
+    ).bind(monitor.id).bind(region).fetch_one(&state.db).await?;
 
     if let (Some(hit_pct), Some(sample_count), Some(cdn_sample_count)) = hit_data {
-        // Skip if no CDN was ever detected in this 24h window (avoids false positives for non-CDN sites)
-        if cdn_sample_count == 0 {
-            return Ok(());
-        }
-
-        if sample_count >= 5 && hit_pct < monitor.alert_cache_hit_threshold_pct {
-            let summary = format!("Cache hit rate dropped to {:.1}% (threshold: {:.0}%)", hit_pct, monitor.alert_cache_hit_threshold_pct);
-            let action = "Check your CDN cache rules. Common causes: short TTL, missing Cache-Control headers, or high dynamic content ratio.".to_string();
-            
-            save_and_notify(state, monitor.id, region, "cache_hit_low", "cache_hit_pct", hit_pct, Some(monitor.alert_cache_hit_threshold_pct), summary, action).await?;
+        if cdn_sample_count > 0 && sample_count >= 5 && hit_pct < monitor.alert_cache_hit_threshold_pct {
+            return Ok(Some(Detection {
+                region: region.to_string(),
+                alert_type: "cache_hit_low".to_string(),
+                metric: "cache_hit_pct".to_string(),
+                actual: hit_pct,
+                baseline: Some(monitor.alert_cache_hit_threshold_pct),
+                summary: format!("Cache hit rate dropped to {:.1}%", hit_pct),
+                action: "Check your CDN cache rules and Cache-Control headers.".to_string(),
+            }));
         }
     }
-    Ok(())
+    Ok(None)
 }
 
-async fn check_ssl_expiry(state: &AppState, monitor_id: Uuid, region: &str, sec: &serde_json::Value) -> Result<(), anyhow::Error> {
+async fn check_ssl_expiry(state: &AppState, monitor_id: Uuid, region: &str, sec: &serde_json::Value) -> Result<Option<Detection>, anyhow::Error> {
     if alert_exists_recent(state, monitor_id, region, "ssl_expiry", "7 days").await? {
-        return Ok(());
+        return Ok(None);
     }
-
-    if let Some(ssl) = sec.get("ssl") {
-        if let Some(days) = ssl.get("days_remaining").and_then(|v| v.as_i64()) {
-            if days < 15 {
-                let summary = format!("SSL Certificate expiring in {} days", days);
-                let action = "Renew your SSL certificate immediately to prevent site downtime and security warnings.".into();
-                save_and_notify(state, monitor_id, region, "ssl_expiry", "days_remaining", days as f64, None, summary, action).await?;
-            }
+    if let Some(days) = sec.get("ssl").and_then(|ssl| ssl.get("days_remaining")).and_then(|v| v.as_i64()) {
+        if days < 15 {
+            return Ok(Some(Detection {
+                region: region.to_string(),
+                alert_type: "ssl_expiry".to_string(),
+                metric: "days_remaining".to_string(),
+                actual: days as f64,
+                baseline: None,
+                summary: format!("SSL Certificate expiring in {} days", days),
+                action: "Renew your SSL certificate immediately.".into(),
+            }));
         }
     }
-    Ok(())
+    Ok(None)
 }
 
-async fn check_anycast(state: &AppState, monitor_id: Uuid, region: &str, ttfb_ms: f64, cache_status: &Option<String>, served_by: Option<String>, age_s: Option<i32>) -> Result<(), anyhow::Error> {
+async fn check_anycast(state: &AppState, monitor_id: Uuid, region: &str, ttfb_ms: f64, cache_status: &Option<String>, served_by: Option<String>, age_s: Option<i32>) -> Result<Option<Detection>, anyhow::Error> {
     if alert_exists_recent(state, monitor_id, region, "anycast", "24 hours").await? {
-        return Ok(());
+        return Ok(None);
     }
-
-    let diag = engine::diagnose(&DiagnosisInput {
-        ttfb_ms: Some(ttfb_ms),
-        cache_status: cache_status.clone(),
-        baseline_ttfb_ms: None,
-        redirect_count: None,
-        http_version: None,
-        region: region.to_string(),
-        error: None,
-        served_by,
-        age_s,
-    });
-
+    let diag = engine::diagnose(&DiagnosisInput { ttfb_ms: Some(ttfb_ms), cache_status: cache_status.clone(), baseline_ttfb_ms: None, redirect_count: None, http_version: None, region: region.to_string(), error: None, served_by, age_s });
     if diag.summary.contains("Anycast") || diag.summary.contains("routing") {
-        save_and_notify(state, monitor_id, region, "anycast", "routing", 0.0, None, diag.summary, diag.action).await?;
+        return Ok(Some(Detection {
+            region: region.to_string(),
+            alert_type: "anycast".to_string(),
+            metric: "routing".to_string(),
+            actual: 0.0,
+            baseline: None,
+            summary: diag.summary,
+            action: diag.action,
+        }));
     }
-    Ok(())
+    Ok(None)
 }
 
-async fn check_zombie_cache(state: &AppState, monitor_id: Uuid, region: &str, ttfb_ms: f64, cache_status: &Option<String>, age_s: Option<i32>) -> Result<(), anyhow::Error> {
+async fn check_zombie_cache(state: &AppState, monitor_id: Uuid, region: &str, ttfb_ms: f64, cache_status: &Option<String>, age_s: Option<i32>) -> Result<Option<Detection>, anyhow::Error> {
     if alert_exists_recent(state, monitor_id, region, "zombie_cache", "24 hours").await? {
-        return Ok(());
+        return Ok(None);
     }
-
     if let Some(age) = age_s {
         if age > 86_400 {
-            let diag = engine::diagnose(&DiagnosisInput {
-                ttfb_ms: Some(ttfb_ms),
-                cache_status: cache_status.clone(),
-                baseline_ttfb_ms: None,
-                redirect_count: None,
-                http_version: None,
+            let diag = engine::diagnose(&DiagnosisInput { ttfb_ms: Some(ttfb_ms), cache_status: cache_status.clone(), baseline_ttfb_ms: None, redirect_count: None, http_version: None, region: region.to_string(), error: None, served_by: None, age_s: Some(age) });
+            return Ok(Some(Detection {
                 region: region.to_string(),
-                error: None,
-                served_by: None,
-                age_s: Some(age),
-            });
-            save_and_notify(state, monitor_id, region, "zombie_cache", "age_s", age as f64, None, diag.summary, diag.action).await?;
+                alert_type: "zombie_cache".to_string(),
+                metric: "age_s".to_string(),
+                actual: age as f64,
+                baseline: None,
+                summary: diag.summary,
+                action: diag.action,
+            }));
         }
     }
-    Ok(())
+    Ok(None)
 }
 
 async fn alert_exists_recent(state: &AppState, monitor_id: Uuid, region: &str, alert_type: &str, interval: &str) -> Result<bool, sqlx::Error> {
@@ -227,26 +231,29 @@ async fn alert_exists_recent(state: &AppState, monitor_id: Uuid, region: &str, a
     Ok(count > 0)
 }
 
-async fn save_and_notify(
+async fn save_and_notify_aggregated(
     state: &AppState,
     monitor_id: Uuid,
-    region: &str,
     alert_type: &str,
-    metric: &str,
-    actual: f64,
-    baseline: Option<f64>,
-    summary: String,
-    action: String,
+    detections: Vec<Detection>,
 ) -> Result<(), anyhow::Error> {
+    if detections.is_empty() { return Ok(()); }
+
+    let count = detections.len();
+    let regions = detections.iter().map(|d| d.region.as_str()).collect::<Vec<&str>>().join(", ");
+    let first = &detections[0];
+    
+    let final_region = if count > 1 { "Multiple".to_string() } else { first.region.clone() };
+    let diagnosis = if count > 1 {
+        format!("{} Affected regions: {}.", first.summary, regions)
+    } else {
+        first.summary.clone()
+    };
+
     let alert_id = sqlx::query_scalar!(
-        r#"
-        INSERT INTO alerts (
-            monitor_id, region, alert_type, metric, actual_ms, baseline_ms, diagnosis, action
-        ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8
-        ) RETURNING id
-        "#,
-        monitor_id, region, alert_type, metric, actual, baseline, summary, action
+        "INSERT INTO alerts (monitor_id, region, alert_type, metric, actual_ms, baseline_ms, diagnosis, action) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+        monitor_id, final_region, alert_type, first.metric, first.actual, first.baseline, diagnosis, first.action
     )
     .fetch_one(&state.db)
     .await?;
@@ -255,11 +262,11 @@ async fn save_and_notify(
         alert_id,
         monitor_id,
         alert_type: alert_type.to_string(),
-        region: region.to_string(),
-        diagnosis: Some(summary),
-        action: Some(action),
-        actual_ms: Some(actual),
-        baseline_ms: baseline,
+        region: final_region,
+        diagnosis: Some(diagnosis),
+        action: Some(first.action.clone()),
+        actual_ms: Some(first.actual),
+        baseline_ms: first.baseline,
         deviation_factor: None,
         delta_pct: None,
         comparator: None,

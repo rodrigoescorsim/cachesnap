@@ -97,296 +97,124 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
         }
     };
 
-    // 1. Checar se é um erro claro (downtime real)
     let is_hit = payload.cache_status.as_deref().map(|s| s == "HIT" || s == "STALE" || s == "REVALIDATED").unwrap_or(false);
     let effective_threshold = if is_hit { cfg.alert_threshold_hit_ms as f64 } else { cfg.alert_threshold_ms as f64 };
-
-    let ttfb_over_threshold = payload.ttfb_ms
-        .map(|t| t > effective_threshold)
-        .unwrap_or(false);
+    let ttfb_over_threshold = payload.ttfb_ms.map(|t| t > effective_threshold).unwrap_or(false);
     let is_down = payload.error.is_some() || payload.status_code.map(|s| s >= 500).unwrap_or(false);
 
+    // 1. Downtime detection
     if is_down && cfg.alert_down_enabled {
-        // 1.1 Verificamos se já existe um alerta de 'down' para QUALQUER região nos últimos 2 minutos.
-        // Se já existe, significa que já notificamos ou estamos no processo de notificar esta queda.
-        let any_down_exists = alert_exists_any_region_recent(
-            &state,
-            payload.monitor_id,
-            "down",
-            2, // Janela curta de 2 minutos para detectar o início da "explosão"
-        ).await.unwrap_or(false);
-
-        if any_down_exists {
-            // Já alertamos sobre esta queda, não fazemos nada para evitar spam.
-            return;
-        }
-
-        // 1.2 Este é o "Alerta Líder". Ele vai esperar um pouco para agrupar as outras regiões.
-        let state_clone = state.clone();
-        let payload_clone = payload.clone();
-        tokio::spawn(async move {
-            // Aguarda 15 segundos para dar tempo das outras sondagens regionais chegarem
-            tokio::time::sleep(Duration::from_secs(15)).await;
-
-            // Busca todas as regiões que falharam no último minuto para este monitor
-            let failed_regions = match sqlx::query!(
-                "SELECT DISTINCT region FROM probe_results 
-                 WHERE monitor_id = $1 AND (error IS NOT NULL OR status_code >= 500)
-                 AND time > NOW() - INTERVAL '1 minute'",
-                payload_clone.monitor_id
-            ).fetch_all(&state_clone.db).await {
-                Ok(rows) => rows.into_iter().map(|r| r.region).collect::<Vec<String>>(),
-                Err(_) => vec![payload_clone.region.clone()], // Fallback para a região original
-            };
-
-            let count = failed_regions.len();
-            let region_list = failed_regions.join(", ");
-            
-            // Se tiver mais de uma, o alerta é "Global/Múltiplo"
-            let final_region = if count > 1 { "Multiple".to_string() } else { payload_clone.region.clone() };
-            let diagnosis_summary = if count > 1 {
-                format!("Site unreachable or failing in {} regions: {}", count, region_list)
-            } else {
-                "Site unreachable or returning 5xx errors.".to_string()
-            };
-            let action = "Check your server status, hosting provider, and regional network connectivity.".to_string();
-
-            let insert_res = sqlx::query_scalar!(
-                r#"
-                INSERT INTO alerts (
-                    monitor_id, region, alert_type, metric, actual_ms, diagnosis, action
-                ) VALUES (
-                    $1, $2, 'down', 'uptime', $3, $4, $5
-                ) RETURNING id
-                "#,
-                payload_clone.monitor_id,
-                final_region,
-                payload_clone.ttfb_ms,
-                diagnosis_summary,
-                action,
-            )
-            .fetch_one(&state_clone.db)
-            .await;
-
-            if let Ok(alert_id) = insert_res {
-                info!("Consolidated DOWN alert created for monitor {} ({} regions)", payload_clone.monitor_id, count);
-                let _ = notifier::notify(state_clone, AlertNotification {
-                    alert_id,
-                    monitor_id: payload_clone.monitor_id,
-                    alert_type: "down".to_string(),
-                    region: final_region,
-                    diagnosis: Some(diagnosis_summary),
-                    action: Some(action),
-                    actual_ms: payload_clone.ttfb_ms,
-                    baseline_ms: None,
-                    deviation_factor: None,
-                    delta_pct: None,
-                    comparator: None,
-                }).await;
-            }
-        });
-
-        return; // Retornamos aqui para não seguir para checagem de anomalias
+        handle_aggregated_alert(&state, payload.clone(), "down", "uptime", None, "Site unreachable or failing in multiple regions.").await;
+        return;
     }
 
-    // 2. Breach de limite fixo de TTFB (não é downtime)
+    // 2. Fixed TTFB Threshold breach
     if ttfb_over_threshold && cfg.alert_ttfb_enabled {
-        // Sensitivity logic: require consecutive breaches
         let consecutive_limit = match cfg.alert_sensitivity {
-            1 => 3,
-            2 => 2,
-            _ => 1,
+            1 => 3, 2 => 2, _ => 1,
         };
-
-        let breach_count = count_consecutive_breaches(
-            &state,
-            payload.monitor_id,
-            &payload.region,
-            effective_threshold,
-            consecutive_limit
-        ).await;
-
-        if breach_count < consecutive_limit {
-            return; // Not consistent enough yet
-        }
-
-        let threshold_exists = alert_exists_recent_minutes(
-            &state,
-            payload.monitor_id,
-            &payload.region,
-            "ttfb_threshold",
-            cfg.alert_trend_cooldown_minutes.max(DEFAULT_COOLDOWN_MINUTES),
-        ).await.unwrap_or(false);
-        if threshold_exists {
-            return;
-        }
-
-        if let Some(actual_ttfb) = payload.ttfb_ms {
+        let breach_count = count_consecutive_breaches(&state, payload.monitor_id, &payload.region, effective_threshold, consecutive_limit).await;
+        
+        if breach_count >= consecutive_limit {
             let hit_miss_label = if is_hit { "Cache HIT" } else { "Cache MISS" };
-            let summary = format!(
-                "{} TTFB {:.0}ms exceeded your limit ({:.0}ms) in {}.",
-                hit_miss_label, actual_ttfb, effective_threshold, payload.region
-            );
-            let action = if is_hit {
-                "Investigate CDN edge performance or large header sizes for this region.".to_string()
-            } else {
-                "Investigate origin response time, regional routing, and cache rules for this region.".to_string()
-            };
-
-            let insert_res = sqlx::query_scalar!(
-                r#"
-                INSERT INTO alerts (
-                    monitor_id, region, alert_type, metric, baseline_ms, actual_ms, diagnosis, action
-                ) VALUES (
-                    $1, $2, 'ttfb_threshold', 'ttfb_ms', $3, $4, $5, $6
-                ) RETURNING id
-                "#,
-                payload.monitor_id,
-                payload.region,
-                effective_threshold,
-                actual_ttfb,
-                summary,
-                action,
-            )
-            .fetch_one(&state.db)
-            .await;
-
-            match insert_res {
-                Ok(alert_id) => {
-                    info!(
-                        "TTFB threshold breach for monitor {} in region {}: {:.0}ms > {:.0}ms ({})",
-                        payload.monitor_id,
-                        payload.region,
-                        actual_ttfb,
-                        effective_threshold,
-                        hit_miss_label
-                    );
-                    tokio::spawn(notifier::notify(state.clone(), AlertNotification {
-                        alert_id,
-                        monitor_id: payload.monitor_id,
-                        alert_type: "ttfb_threshold".to_string(),
-                        region: payload.region.clone(),
-                        diagnosis: Some(summary),
-                        action: Some(action),
-                        actual_ms: Some(actual_ttfb),
-                        baseline_ms: Some(effective_threshold),
-                        deviation_factor: None,
-                        delta_pct: None,
-                        comparator: None,
-                    }));
-                }
-                Err(e) => error!("Failed to register TTFB threshold alert: {}", e),
-            }
+            let summary = format!("{} TTFB exceeded your limit ({:.0}ms).", hit_miss_label, effective_threshold);
+            handle_aggregated_alert(&state, payload.clone(), "ttfb_threshold", "ttfb_ms", Some(effective_threshold), &summary).await;
         }
         return;
     }
 
-    // 2. Anomalia de TTFB (comparação com baseline de 7 dias)
-    if let Some(actual_ttfb) = payload.ttfb_ms {
-    if cfg.alert_anomaly_enabled {
-        let anomaly_exists = alert_exists_recent_minutes(
-            &state,
-            payload.monitor_id,
-            &payload.region,
-            "anomaly",
-            cfg.alert_trend_cooldown_minutes.max(DEFAULT_COOLDOWN_MINUTES),
-        ).await.unwrap_or(false);
-        if anomaly_exists {
-            return;
-        }
+    // 3. Statistical Anomaly Detection
+    if let (Some(actual_ttfb), true) = (payload.ttfb_ms, cfg.alert_anomaly_enabled) {
+        if let Ok(Some(row)) = sqlx::query!(
+            "SELECT ttfb_avg_ms, ttfb_stddev_ms FROM monitor_baselines WHERE monitor_id = $1 AND region = $2 LIMIT 1",
+            payload.monitor_id, payload.region
+        ).fetch_optional(&state.db).await {
+            let avg = row.ttfb_avg_ms.unwrap_or(0.0);
+            let stddev = row.ttfb_stddev_ms.unwrap_or(0.0);
+            let sigma_factor = sensitivity_to_sigma(cfg.alert_sensitivity);
 
-        let baseline = sqlx::query!(
-            r#"
-            SELECT ttfb_avg_ms, ttfb_stddev_ms
-            FROM monitor_baselines
-            WHERE monitor_id = $1 AND region = $2
-            LIMIT 1
-            "#,
-            payload.monitor_id,
-            payload.region
-        )
-        .fetch_optional(&state.db)
-        .await;
-
-        match baseline {
-            Ok(Some(row)) => {
-                let avg = row.ttfb_avg_ms.unwrap_or(0.0);
-                let stddev = row.ttfb_stddev_ms.unwrap_or(0.0);
-                let sigma_factor = sensitivity_to_sigma(cfg.alert_sensitivity);
-
-                if is_anomalous(actual_ttfb, avg, stddev, sigma_factor) {
-                    let deviation_factor = if stddev > 0.0 {
-                        (actual_ttfb - avg) / stddev
-                    } else {
-                        0.0
-                    };
-
-                    let diag = engine::diagnose(&DiagnosisInput {
-                        ttfb_ms: Some(actual_ttfb),
-                        cache_status: payload.cache_status.clone(),
-                        baseline_ttfb_ms: Some(avg),
-                        redirect_count: payload.redirect_count,
-                        http_version: payload.http_version.clone(),
-                        region: payload.region.clone(),
-                        error: None,
-                        served_by: payload.served_by.clone(),
-                        age_s: payload.age_s,
-                    });
-
-                    let insert_res = sqlx::query_scalar!(
-                        r#"
-                        INSERT INTO alerts (
-                            monitor_id, region, alert_type, metric, baseline_ms, actual_ms,
-                            deviation_factor, diagnosis, action, estimated_gain_ms
-                        ) VALUES (
-                            $1, $2, 'anomaly', 'ttfb_ms', $3, $4, $5, $6, $7, $8
-                        ) RETURNING id
-                        "#,
-                        payload.monitor_id,
-                        payload.region,
-                        avg,
-                        actual_ttfb,
-                        deviation_factor,
-                        diag.summary,
-                        diag.action,
-                        diag.estimated_gain_ms
-                    )
-                    .fetch_one(&state.db)
-                    .await;
-
-                    match insert_res {
-                        Ok(alert_id) => {
-                            info!(
-                                "Anomaly detected for monitor {} in region {}: baseline {}ms, actual {}ms",
-                                payload.monitor_id, payload.region, avg, actual_ttfb
-                            );
-                            tokio::spawn(notifier::notify(state.clone(), AlertNotification {
-                                alert_id,
-                                monitor_id: payload.monitor_id,
-                                alert_type: "anomaly".to_string(),
-                                region: payload.region.clone(),
-                                diagnosis: Some(diag.summary),
-                                action: Some(diag.action),
-                                actual_ms: Some(actual_ttfb),
-                                baseline_ms: Some(avg),
-                                deviation_factor: Some(deviation_factor),
-                                delta_pct: None,
-                                comparator: None,
-                            }));
-                        }
-                        Err(e) => error!("Failed to register ANOMALY alert: {}", e),
-                    }
-                }
-            }
-            Ok(None) => {
-                // Sem baseline ainda, apenas ingere silenciosamente
-            }
-            Err(e) => {
-                error!("Failed to fetch baseline for anomaly detection: {}", e);
+            if is_anomalous(actual_ttfb, avg, stddev, sigma_factor) {
+                let summary = format!("Significant TTFB deviation detected compared to 7-day baseline ({:.0}ms).", avg);
+                handle_aggregated_alert(&state, payload.clone(), "anomaly", "ttfb_ms", Some(avg), &summary).await;
             }
         }
     }
-    } // end alert_anomaly_enabled
+}
+
+/// Helper genérico para agrupar alertas regionais em um único evento consolidado.
+async fn handle_aggregated_alert(
+    state: &AppState,
+    payload: ProbeResultPayload,
+    alert_type: &'static str,
+    metric: &'static str,
+    baseline: Option<f64>,
+    summary_base: &str,
+) {
+    // Verificamos se já existe um alerta deste tipo para QUALQUER região nos últimos 2 minutos.
+    let exists = alert_exists_any_region_recent(state, payload.monitor_id, alert_type, 2).await.unwrap_or(false);
+    if exists { return; }
+
+    let state_clone = state.clone();
+    let payload_clone = payload.clone();
+    
+    tokio::spawn(async move {
+        // Janela de agrupamento: aguarda outras regiões reportarem
+        tokio::time::sleep(Duration::from_secs(15)).await;
+
+        // Busca todas as regiões que dispararam este tipo de alerta recentemente
+        // Para 'down', checamos erros. Para outros, checamos a tabela de probe_results recente.
+        let failed_regions = match alert_type {
+            "down" => {
+                sqlx::query!("SELECT DISTINCT region FROM probe_results WHERE monitor_id = $1 AND (error IS NOT NULL OR status_code >= 500) AND time > NOW() - INTERVAL '1 minute'", payload_clone.monitor_id)
+                    .fetch_all(&state_clone.db).await.ok()
+            },
+            _ => {
+                // Para thresholds e anomalias, simplificamos pegando quem teve ttfb alto no último minuto
+                // (O ideal seria algo mais preciso, mas para agregação de 'burst' isso resolve 95% dos casos)
+                sqlx::query!("SELECT DISTINCT region FROM probe_results WHERE monitor_id = $1 AND ttfb_ms > $2 AND time > NOW() - INTERVAL '1 minute'", 
+                    payload_clone.monitor_id, baseline.unwrap_or(0.0))
+                    .fetch_all(&state_clone.db).await.ok()
+            }
+        };
+
+        let regions = failed_regions.map(|rows| rows.into_iter().map(|r| r.region).collect::<Vec<String>>()).unwrap_or_else(|| vec![payload_clone.region.clone()]);
+        let count = regions.len();
+        let final_region = if count > 1 { "Multiple".to_string() } else { payload_clone.region.clone() };
+        
+        let diagnosis = if count > 1 {
+            format!("{} Affected regions: {}.", summary_base, regions.join(", "))
+        } else {
+            format!("{} Affected region: {}.", summary_base, payload_clone.region)
+        };
+
+        let action = match alert_type {
+            "down" => "Check server status and regional network connectivity.",
+            "anomaly" => "Investigate sudden latency spikes or regional routing changes.",
+            _ => "Check origin response times and CDN cache efficiency.",
+        }.to_string();
+
+        let insert_res = sqlx::query_scalar!(
+            "INSERT INTO alerts (monitor_id, region, alert_type, metric, actual_ms, baseline_ms, diagnosis, action) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+            payload_clone.monitor_id, final_region, alert_type, metric, payload_clone.ttfb_ms, baseline, diagnosis, action
+        ).fetch_one(&state_clone.db).await;
+
+        if let Ok(alert_id) = insert_res {
+            let _ = notifier::notify(state_clone, AlertNotification {
+                alert_id,
+                monitor_id: payload_clone.monitor_id,
+                alert_type: alert_type.to_string(),
+                region: final_region,
+                diagnosis: Some(diagnosis),
+                action: Some(action),
+                actual_ms: payload_clone.ttfb_ms,
+                baseline_ms: baseline,
+                deviation_factor: None,
+                delta_pct: None,
+                comparator: None,
+            }).await;
+        }
+    });
 }
 
 async fn alert_exists_any_region_recent(
