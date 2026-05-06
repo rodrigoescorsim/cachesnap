@@ -1968,6 +1968,10 @@ export default async function MonitorDetailPage({
                 return (
                   <MonitorSettingsPanel
                     {...monitor}
+                    notifyEmail={monitor.notify_email}
+                    notifyEmailEnabled={monitor.notify_email_enabled}
+                    notifySlackWebhook={monitor.notify_slack_webhook}
+                    notifySlackEnabled={monitor.notify_slack_enabled}
                     alertThresholdMs={monitor.alert_threshold_ms}
                     alertThresholdHitMs={monitor.alert_threshold_hit_ms}
                     alertSensitivity={monitor.alert_sensitivity}

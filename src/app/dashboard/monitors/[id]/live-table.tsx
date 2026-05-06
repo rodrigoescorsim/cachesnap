@@ -258,24 +258,20 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                       })()}
                     </td>
                     <td className={`${isError ? 'cs-table-compact-td' : ttfbMetricCellClass(p.ttfb_ms)} !px-3 !py-2 text-[13px] text-center ${isWafBlock ? '!text-zinc-500' : ''}`}>
-                      {isError ? (
-                        <PremiumTooltip content={p.error ?? 'Connection error'} position="top-right" direction="top">
-                          <span className="block max-w-[140px] truncate text-[10px] font-bold leading-tight text-red-400">
-                            {p.error}
-                          </span>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <PremiumTooltip 
+                          content={isError ? (p.error || 'Connection failed') : isWafBlock ? "WAF detected: this latency reflects security filtering, not page load speed." : (p.ttfb_ms ? getTtfbTooltip(p.ttfb_ms, 'monitor') : 'No data')} 
+                          position="top-right" 
+                          direction="top"
+                        >
+                          <div className="flex items-center justify-center gap-1.5">
+                            {isWafBlock && <ShieldAlert className="w-3.5 h-3.5 text-orange-400" />}
+                            <VisualGlow value={isWafBlock || isError ? null : p.ttfb_ms}>
+                              {p.ttfb_ms != null && !isError ? `${Math.round(p.ttfb_ms)}ms` : '—'}
+                            </VisualGlow>
+                          </div>
                         </PremiumTooltip>
-                      ) : (
-                        <div className="flex items-center justify-center gap-1.5">
-                          <PremiumTooltip content={isWafBlock ? "WAF detected: this latency reflects security filtering, not page load speed." : (p.ttfb_ms ? getTtfbTooltip(p.ttfb_ms, 'monitor') : 'No data')} position="top-right" direction="top">
-                            <div className="flex items-center justify-center gap-1.5">
-                              {isWafBlock && <ShieldAlert className="w-3.5 h-3.5 text-orange-400" />}
-                              <VisualGlow value={isWafBlock ? null : p.ttfb_ms}>
-                                {p.ttfb_ms != null ? `${Math.round(p.ttfb_ms)}ms` : '—'}
-                              </VisualGlow>
-                            </div>
-                          </PremiumTooltip>
-                        </div>
-                      )}
+                      </div>
                     </td>
                     <td className="cs-table-compact-td-mono text-center">
                       {!isError && p.ttfb_ms && globalAvgTtfb > 0 ? (() => {

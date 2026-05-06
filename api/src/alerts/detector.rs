@@ -104,7 +104,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
     let ttfb_over_threshold = payload.ttfb_ms
         .map(|t| t > effective_threshold)
         .unwrap_or(false);
-    let is_down = payload.status_code.map(|s| s >= 500).unwrap_or(false);
+    let is_down = payload.error.is_some() || payload.status_code.map(|s| s >= 500).unwrap_or(false);
 
     if is_down && cfg.alert_down_enabled {
         let down_exists = alert_exists_recent_minutes(
