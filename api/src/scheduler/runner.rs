@@ -110,6 +110,11 @@ pub async fn start(state: AppState) {
             let regions = Arc::clone(&regions_tick);
             async move {
                 if should_run_now(&state, &monitor).await {
+                    // Captura o timestamp de agendamento no momento exato em que
+                    // o Scheduler decide disparar o probe. Esse valor é passado
+                    // para a Lambda e repassado ao ingest, permitindo calcular
+                    // o atraso real de execução vs. agendamento (SLO P50).
+                    let scheduled_at = chrono::Utc::now();
                     let bypass_mode = get_bypass_mode(&state, &monitor).await;
                     if matches!(bypass_mode, BypassMode::Full | BypassMode::Warmup) {
                         info!(
@@ -123,7 +128,7 @@ pub async fn start(state: AppState) {
                             }
                         );
                     }
-                    dispatch_probes(&state, &monitor, regions, bypass_mode, false).await;
+                    dispatch_probes(&state, &monitor, regions, bypass_mode, false, scheduled_at).await;
                 }
             }
         }))
@@ -227,6 +232,7 @@ pub async fn dispatch_probes(
     regions: Arc<Vec<(String, String)>>,
     bypass_mode: BypassMode,
     is_manual: bool,
+    scheduled_at: chrono::DateTime<chrono::Utc>,
 ) {
     let bypass_label = match &bypass_mode {
         BypassMode::Off => "off",
@@ -286,7 +292,8 @@ pub async fn dispatch_probes(
                         "url": target_url,
                         "ingest_url": ingest_url,
                         "run_bypass": run_bypass,
-                        "is_manual": is_manual
+                        "is_manual": is_manual,
+                        "scheduled_at": scheduled_at.to_rfc3339(),
                     });
                     limits
                         .post_probe_with_limits(PostProbeContext {

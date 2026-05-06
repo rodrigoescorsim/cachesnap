@@ -21,6 +21,18 @@ pub async fn handler(
     let version = payload.probe_version.as_deref().unwrap_or("old");
     if version != "1.28" {
         tracing::warn!("Ingest: rejected stale probe version '{}' from region {}", version, payload.region);
+        // Contar rejeição por versão como falha de ingest (visível no SLO de Ingest Success Rate)
+        let region = payload.region.clone();
+        let db = state.db.clone();
+        tokio::spawn(async move {
+            let _ = sqlx::query(
+                "INSERT INTO ops_ingest_minute_stats (time, region, success_count, fail_count, fail_reason) \
+                 VALUES (NOW(), $1, 0, 1, 'version_drift')"
+            )
+            .bind(&region)
+            .execute(&db)
+            .await;
+        });
         return (StatusCode::BAD_REQUEST, Json(json!({ "error": "deprecated probe version", "required": "1.28" }))).into_response();
     }
 
@@ -97,13 +109,13 @@ pub async fn handler(
                 ttfb_ms, download_ms, total_ms, dns_ms, tcp_ms, tls_ms, edge_ms, origin_ms,
                 status_code, cache_status, served_by, cdn_provider, server_timing,
                 http_version, redirect_count, content_length, error,
-                age_s, security_headers, server_timing_breakdown, probe_version
+                age_s, security_headers, server_timing_breakdown, scheduled_at, probe_version
             ) VALUES (
                 NOW(), $1, $2,
                 $3, $4, $5, $6, $7, $8, $9, $10,
                 $11, $12, $13, $14, $15,
                 $16, $17, $18, $19,
-                $20, $21, $22, $23
+                $20, $21, $22, $23, $24
             )
             "#,
         )
@@ -129,14 +141,43 @@ pub async fn handler(
         .bind(payload.age_s)
         .bind(payload.security_headers.clone())
         .bind(payload.server_timing_breakdown.clone())
+        .bind(payload.scheduled_at)
         .bind(payload.probe_version.clone())
         .execute(&state.db)
         .await;
 
         match probe_res {
-            Ok(_) => natural_inserted = true,
+            Ok(_) => {
+                natural_inserted = true;
+                // Contabilizar ingest bem-sucedido em ops_ingest_minute_stats
+                let region = payload.region.clone();
+                let db = state.db.clone();
+                tokio::spawn(async move {
+                    let _ = sqlx::query(
+                        "INSERT INTO ops_ingest_minute_stats (time, region, success_count, fail_count) \
+                         VALUES (date_trunc('minute', NOW()), $1, 1, 0) \
+                         ON CONFLICT DO NOTHING"
+                    )
+                    .bind(&region)
+                    .execute(&db)
+                    .await;
+                });
+            }
             Err(e) => {
                 tracing::error!("Failed to insert natural probe result: {e}");
+                // Contabilizar falha de inserção
+                let region = payload.region.clone();
+                let db = state.db.clone();
+                tokio::spawn(async move {
+                    let _ = sqlx::query(
+                        "INSERT INTO ops_ingest_minute_stats (time, region, success_count, fail_count, fail_reason) \
+                         VALUES (date_trunc('minute', NOW()), $1, 0, 1, 'insert_failure') \
+                         ON CONFLICT DO NOTHING"
+                    )
+                    .bind(&region)
+                    .execute(&db)
+                    .await;
+                });
                 if final_result.is_ok() {
                     final_result = Err(e);
                 }
@@ -281,6 +322,7 @@ async fn maybe_bootstrap_evaluate(state: AppState, monitor_id: uuid::Uuid) {
                     regions,
                     bypass_mode,
                     false,
+                    chrono::Utc::now(),
                 )
                 .await;
             }

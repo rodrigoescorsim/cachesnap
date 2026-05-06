@@ -69,7 +69,7 @@ pub async fn handler(
         runner::BypassMode::Off
     };
     tokio::spawn(async move {
-        runner::dispatch_probes(&state, &monitor, regions, bypass_mode, is_manual).await;
+        runner::dispatch_probes(&state, &monitor, regions, bypass_mode, is_manual, chrono::Utc::now()).await;
     });
 
     (StatusCode::ACCEPTED, Json(json!({ "ok": true, "monitor_id": monitor_id, "bypass": run_bypass }))).into_response()

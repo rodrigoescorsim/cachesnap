@@ -59,12 +59,39 @@ pub async fn notify(state: AppState, notif: AlertNotification) {
         if let Some(to_email) = &monitor.notify_email {
             if let Some(api_key) = &state.config.resend_api_key {
                 let html = build_email_html(&notif, &monitor_label, &monitor.url);
+                let t0 = std::time::Instant::now();
                 match send_email(api_key, to_email, &subject, &html).await {
                     Ok(()) => {
                         notified_email = true;
+                        let latency_ms = t0.elapsed().as_millis() as f64;
                         info!("notifier: email sent to {} for alert {}", to_email, notif.alert_id);
+                        let db = state.db.clone();
+                        tokio::spawn(async move {
+                            let _ = sqlx::query(
+                                "INSERT INTO ops_alert_delivery_stats \
+                                 (time, channel, provider, success_count, fail_count, avg_latency_ms) \
+                                 VALUES (NOW(), 'email', 'resend', 1, 0, $1)"
+                            )
+                            .bind(latency_ms)
+                            .execute(&db)
+                            .await;
+                        });
                     }
-                    Err(e) => error!("notifier: email failed for alert {}: {}", notif.alert_id, e),
+                    Err(e) => {
+                        let latency_ms = t0.elapsed().as_millis() as f64;
+                        error!("notifier: email failed for alert {}: {}", notif.alert_id, e);
+                        let db = state.db.clone();
+                        tokio::spawn(async move {
+                            let _ = sqlx::query(
+                                "INSERT INTO ops_alert_delivery_stats \
+                                 (time, channel, provider, success_count, fail_count, avg_latency_ms) \
+                                 VALUES (NOW(), 'email', 'resend', 0, 1, $1)"
+                            )
+                            .bind(latency_ms)
+                            .execute(&db)
+                            .await;
+                        });
+                    }
                 }
             } else {
                 warn!("notifier: RESEND_API_KEY not set — skipping email for alert {}", notif.alert_id);
@@ -75,12 +102,39 @@ pub async fn notify(state: AppState, notif: AlertNotification) {
     // --- Slack / Discord webhook ---
     if monitor.notify_slack_enabled {
         if let Some(webhook_url) = &monitor.notify_slack_webhook {
+            let t0 = std::time::Instant::now();
             match send_slack(webhook_url, &body_text).await {
                 Ok(()) => {
                     notified_slack = true;
+                    let latency_ms = t0.elapsed().as_millis() as f64;
                     info!("notifier: slack sent for alert {}", notif.alert_id);
+                    let db = state.db.clone();
+                    tokio::spawn(async move {
+                        let _ = sqlx::query(
+                            "INSERT INTO ops_alert_delivery_stats \
+                             (time, channel, provider, success_count, fail_count, avg_latency_ms) \
+                             VALUES (NOW(), 'slack', 'webhook', 1, 0, $1)"
+                        )
+                        .bind(latency_ms)
+                        .execute(&db)
+                        .await;
+                    });
                 }
-                Err(e) => error!("notifier: slack failed for alert {}: {}", notif.alert_id, e),
+                Err(e) => {
+                    let latency_ms = t0.elapsed().as_millis() as f64;
+                    error!("notifier: slack failed for alert {}: {}", notif.alert_id, e);
+                    let db = state.db.clone();
+                    tokio::spawn(async move {
+                        let _ = sqlx::query(
+                            "INSERT INTO ops_alert_delivery_stats \
+                             (time, channel, provider, success_count, fail_count, avg_latency_ms) \
+                             VALUES (NOW(), 'slack', 'webhook', 0, 1, $1)"
+                        )
+                        .bind(latency_ms)
+                        .execute(&db)
+                        .await;
+                    });
+                }
             }
         }
     }

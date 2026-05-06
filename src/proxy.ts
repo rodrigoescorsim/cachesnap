@@ -2,10 +2,12 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getSessionTokenFromCookie } from '@/lib/auth'
 
+const PROTECTED_PREFIXES = ['/dashboard', '/admin']
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  if (!pathname.startsWith('/dashboard')) return NextResponse.next()
+  if (!PROTECTED_PREFIXES.some(p => pathname.startsWith(p))) return NextResponse.next()
 
   const token = getSessionTokenFromCookie(request.headers.get('cookie'))
   if (!token) {
@@ -18,5 +20,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: '/dashboard/:path*',
+  matcher: ['/dashboard/:path*', '/admin/:path*'],
 }

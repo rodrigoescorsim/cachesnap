@@ -40,6 +40,11 @@ pub struct ProbeResultPayload {
     pub probe_version: Option<String>,
     #[serde(default)]
     pub is_manual: bool,
+    /// Timestamp programado para este probe. Enviado pelo Scheduler no payload
+    /// para a Lambda, que o repassa no ingest. Usado para calcular o SLO de
+    /// `probe_schedule_delay_p50_seconds` (atraso real vs. agendamento).
+    #[serde(default)]
+    pub scheduled_at: Option<DateTime<Utc>>,
 
     // ---- Métricas de Auditoria (Bypass / Origem) ----
     #[serde(default)]
