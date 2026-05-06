@@ -2274,7 +2274,7 @@ export default async function MonitorDetailPage({
                           <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
                           Security Drift Detected
                         </h3>
-                        <div className="grid gap-4 md:grid-cols-2">
+                        <div className="grid gap-4 md:grid-cols-2 items-start">
                           {secondaryProfiles.map((prof, idx) => (
                             <div key={idx} className="rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50/30 dark:bg-red-950/20 p-4 shadow-sm space-y-3">
                               <div className="flex items-center justify-between">
@@ -2295,12 +2295,57 @@ export default async function MonitorDetailPage({
                                   const normalizedDriftVal = normalizeSecurityHeaderValue(h.key, driftVal)
                                   if (JSON.stringify(normalizedMainVal) === JSON.stringify(normalizedDriftVal)) return null
                                   return (
-                                    <div key={h.key} className="text-[10px] p-2 bg-white/50 dark:bg-zinc-950/50 rounded border border-red-50 dark:border-red-900/30">
+                                    <div key={h.key} className="text-[10px] p-2 bg-white/40 dark:bg-zinc-950/40 rounded border border-red-50 dark:border-red-900/30">
                                       <p className="font-bold text-zinc-600 dark:text-zinc-400 uppercase mb-1">{h.label}</p>
-                                      <div className="grid grid-cols-2 gap-2 italic">
-                                        <div><span className="text-zinc-400">Main:</span><br /><span className="text-emerald-600 line-through opacity-50">{String((mainVal || 'Missing'))}</span></div>
-                                        <div><span className="text-red-600 font-bold">Drift:</span><br /><span className="text-red-700 dark:text-red-400">{String((driftVal || 'Missing'))}</span></div>
-                                      </div>
+                                      
+                                      {(() => {
+                                        const mainStr = String(mainVal || 'Missing')
+                                        const driftStr = String(driftVal || 'Missing')
+                                        const isLong = mainStr.length > 80 || driftStr.length > 80
+
+                                        if (!isLong) {
+                                          return (
+                                            <div className="grid grid-cols-2 gap-2 italic">
+                                              <div><span className="text-zinc-400">Main:</span><br /><span className="text-emerald-600/70 line-through decoration-emerald-800/30">{mainStr}</span></div>
+                                              <div><span className="text-red-600 font-bold">Drift:</span><br /><span className="text-red-700 dark:text-red-400">{driftStr}</span></div>
+                                            </div>
+                                          )
+                                        }
+
+                                        return (
+                                          <details className="group/drift">
+                                            <summary className="flex items-center justify-between cursor-pointer list-none outline-none py-1 group-open/drift:mb-2">
+                                              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                                                <span className="text-[9px] text-zinc-500 italic truncate opacity-80 group-open/drift:hidden">
+                                                  Value drift detected (Long string)
+                                                </span>
+                                              </div>
+                                              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                                                <span className="text-[8px] font-black text-red-500 uppercase tracking-tighter group-open/drift:hidden">Review Details</span>
+                                                <span className="text-[8px] font-black text-zinc-400 uppercase tracking-tighter hidden group-open/drift:inline">Hide Details</span>
+                                              </div>
+                                            </summary>
+                                            <div className="space-y-2 border-t border-red-500/10 pt-2 animate-[cs-fade-in_0.2s_ease-out]">
+                                              <div className="space-y-1">
+                                                <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-tight">Main (Expected)</span>
+                                                <div className="rounded border border-emerald-500/10 bg-emerald-500/[0.02] p-2">
+                                                  <code className="block text-[9px] text-emerald-600/60 line-through break-all font-mono leading-relaxed">
+                                                    {mainStr}
+                                                  </code>
+                                                </div>
+                                              </div>
+                                              <div className="space-y-1">
+                                                <span className="text-[8px] font-bold text-red-500 uppercase tracking-tight">Drift (Observed)</span>
+                                                <div className="rounded border border-red-500/20 bg-red-500/[0.03] p-2 shadow-inner">
+                                                  <code className="block text-[9px] text-red-700 dark:text-red-400 break-all font-mono leading-relaxed">
+                                                    {driftStr}
+                                                  </code>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </details>
+                                        )
+                                      })()}
                                     </div>
                                   )
                                 })}
