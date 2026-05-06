@@ -21,12 +21,15 @@ import { MonitorSidebarRail } from './monitor-sidebar-rail'
 import { LiveTable, type LiveProbe } from './live-table'
 import { PerformanceTable, type RegionStat } from './performance-table'
 import {
-  buildMonitorHref,
   buildViewHref,
+  buildMonitorHref,
   type AlertType,
   type MonitorTab,
   type PerformanceView,
+  VALID_ALERT_TYPES,
+  ALERT_TYPE_LABELS,
 } from './monitor-href'
+import { AlertHistoryTable } from './alert-history-table'
 import { TIMING } from './timing-metrics-palette'
 import { getRegions } from '@/lib/regions'
 import { MONITOR_TTFB, getCacheColor, getTtfbColorClass, getTtfbTooltip, getCacheTooltip } from '@/lib/thresholds'
@@ -219,27 +222,6 @@ const MONITOR_HEADER_STATUS_BADGE =
 const MONITOR_HEADER_ACTIVE_DOT =
   'bg-[var(--brand-primary)] [box-shadow:0_0_8px_rgba(34,255,136,0.5)]'
 
-const VALID_ALERT_TYPES = [
-  'down', 'ttfb_threshold', 'anomaly', 'anycast', 'zombie_cache', 'cache_hit_low',
-  'cache_hit_trend_drop_region', 'cache_hit_trend_drop_global',
-  'ttfb_trend_up_region', 'ttfb_trend_up_global',
-  'ttfb_trend_down_region', 'ttfb_trend_down_global',
-] as const satisfies readonly AlertType[]
-
-const ALERT_TYPE_LABELS: Record<AlertType, string> = {
-  down: 'Offline',
-  ttfb_threshold: 'TTFB above limit',
-  anomaly: 'Anomaly',
-  anycast: 'Anycast',
-  cache_hit_trend_drop_region: 'Cache Hit ↓ (region)',
-  cache_hit_trend_drop_global: 'Cache Hit ↓ (global)',
-  ttfb_trend_up_region: 'TTFB ↑ (region)',
-  ttfb_trend_up_global: 'TTFB ↑ (global)',
-  ttfb_trend_down_region: 'TTFB ↓ (region)',
-  ttfb_trend_down_global: 'TTFB ↓ (global)',
-  zombie_cache: 'Zombie cache',
-  cache_hit_low: 'Cache hit low',
-}
 
 const SECURITY_HEADERS_LABELS: { key: keyof SecurityHeaders; label: string; description: string }[] = [
   { key: 'hsts', label: 'HSTS', description: 'Forces browsers to use HTTPS only, preventing SSL stripping attacks.' },
@@ -659,8 +641,8 @@ export default async function MonitorDetailPage({
   const prevStats = await sql<{ ttfb_avg_ms: number; cache_hit_pct: number; uptime_pct: number }[]>`
     SELECT
       ROUND(AVG(ttfb_ms)::numeric, 0)::int            AS ttfb_avg_ms,
-      ROUND(100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT')) / NULLIF(COUNT(*) FILTER (WHERE cache_status IS NOT NULL AND cache_status != 'HIDDEN'), 0), 1) AS cache_hit_pct,
-      ROUND(100.0 * COUNT(*) FILTER (WHERE error IS NULL AND status_code < 500) / NULLIF(COUNT(*), 0), 1) AS uptime_pct,
+      ROUND(100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT')) / NULLIF(COUNT(*) FILTER (WHERE cache_status IS NOT NULL AND cache_status != 'HIDDEN'), 0), 1)::float AS cache_hit_pct,
+      ROUND(100.0 * COUNT(*) FILTER (WHERE error IS NULL AND status_code < 500) / NULLIF(COUNT(*), 0), 1)::float AS uptime_pct,
       MODE() WITHIN GROUP (ORDER BY status_code) AS common_status_code
     FROM probe_results
     WHERE monitor_id = ${id}
@@ -702,6 +684,8 @@ export default async function MonitorDetailPage({
     GROUP BY bucket ORDER BY bucket ASC
   `
 
+  const alertsLimit = Math.min(Math.max(Number(searchParams.alerts_limit || 100), 100), 1000)
+
   const alerts = filteredAlertType
     ? await sql<Alert[]>`
         SELECT id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, diagnosis, action,
@@ -709,7 +693,7 @@ export default async function MonitorDetailPage({
         FROM alerts
         WHERE monitor_id = ${id} AND alert_type = ${filteredAlertType}
         ORDER BY created_at DESC
-        LIMIT 100
+        LIMIT ${alertsLimit}
       `
     : await sql<Alert[]>`
         SELECT id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, diagnosis, action,
@@ -717,8 +701,10 @@ export default async function MonitorDetailPage({
         FROM alerts
         WHERE monitor_id = ${id}
         ORDER BY created_at DESC
-        LIMIT 100
+        LIMIT ${alertsLimit}
       `
+
+  const hasNextAlertsPage = alerts.length >= alertsLimit
 
   const weekTrend = await sql<WeekTrend[]>`
     WITH current_week AS (
@@ -1096,11 +1082,11 @@ export default async function MonitorDetailPage({
 
   // AGGREGATE CALCULATIONS FOR SUMMARY CARDS
   const avgTtfb = stats.length > 0
-    ? Math.round(stats.reduce((acc, s) => acc + (s.ttfb_avg_ms || 0), 0) / stats.length)
+    ? Math.round(stats.reduce((acc, s) => acc + Number(s.ttfb_avg_ms || 0), 0) / stats.length)
     : 0;
 
-  const totalHitProbes = stats.reduce((acc, s) => acc + Math.round((s.cache_hit_pct || 0) * s.probe_count / 100), 0);
-  const totalProbesCount = stats.reduce((acc, s) => acc + s.probe_count, 0);
+  const totalHitProbes = stats.reduce((acc, s) => acc + Math.round(Number(s.cache_hit_pct || 0) * Number(s.probe_count || 0) / 100), 0);
+  const totalProbesCount = stats.reduce((acc, s) => acc + Number(s.probe_count || 0), 0);
   const globalHitRate = totalProbesCount > 0 ? Math.round((totalHitProbes / totalProbesCount) * 100) : 0;
 
   const isHistoricalView = activeTab === 'performance' && activeView !== 'real-time';
@@ -1148,7 +1134,7 @@ export default async function MonitorDetailPage({
 
   const validUptimeStats = stats.filter(s => typeof s.uptime_pct === 'number');
   const globalUptime = validUptimeStats.length > 0
-    ? validUptimeStats.reduce((acc, s) => acc + (s.uptime_pct || 0), 0) / validUptimeStats.length
+    ? validUptimeStats.reduce((acc, s) => acc + Number(s.uptime_pct || 0), 0) / validUptimeStats.length
     : 100;
 
   // Simple heuristic: Uptime + TTFB performance vs 300ms baseline
@@ -1188,8 +1174,7 @@ export default async function MonitorDetailPage({
     : null
   const liveVsPeriodPct = avgTtfb > 0 ? Math.round(((liveAvgTtfb - avgTtfb) / avgTtfb) * 100) : 0
   const worstWeekTrendRegion = weekTrend.length > 0 ? weekTrend[0] : null
-  // isDown / isDegraded already render dedicated banners above the tab rail — suppress advisor.
-  const liveAdvisorState = (isDown || isDegraded) ? null : deriveMonitorDetailLiveAdvisor({
+  const liveAdvisorState = deriveMonitorDetailLiveAdvisor({
     monitorId: monitor.id,
     url: monitor.url,
     liveAvgTtfb,
@@ -1197,8 +1182,8 @@ export default async function MonitorDetailPage({
     liveGlobalHitRate,
     hasLiveCacheData: validLiveCache.length > 0,
     liveDominantStatus,
-    liveAvgEdgeMs: Math.round(latestProbes.reduce((acc, p) => acc + (p.edge_ms || 0), 0) / latestProbes.length),
-    liveAvgOriginMs: Math.round(latestProbes.reduce((acc, p) => acc + (p.origin_ms || 0), 0) / latestProbes.length),
+    liveAvgEdgeMs: Math.round(latestProbes.reduce((acc, p) => acc + Number(p.edge_ms || 0), 0) / latestProbes.length),
+    liveAvgOriginMs: Math.round(latestProbes.reduce((acc, p) => acc + Number(p.origin_ms || 0), 0) / latestProbes.length),
     errorRegionCount: errorLatestProbes.length,
     slowRegionCount: slowLiveRegionCount,
     slowRegionLabels: slowLiveRegionLabels,
@@ -1206,6 +1191,10 @@ export default async function MonitorDetailPage({
     fastestVsGlobalRegion,
     totalRegionCount: latestProbes.length,
     ttfbVsPeriodPct: liveVsPeriodPct,
+    isDown,
+    isDegraded,
+    isOffline,
+    lastErrorMessage: errorLatestProbes[0]?.error,
   })
   const slowHistoricalRegions = stats.filter(s => (s.ttfb_avg_ms || 0) > MONITOR_TTFB.FAST).length
   const slowHistoricalRegionLabels = stats
@@ -1222,6 +1211,12 @@ export default async function MonitorDetailPage({
     hasHistory,
     slowRegionCount: slowHistoricalRegions,
     slowRegionLabels: slowHistoricalRegionLabels,
+    isDown,
+    isDegraded,
+    isOffline,
+    errorCount: errorLatestProbes.length,
+    totalRegionCount: latestProbes.length,
+    lastErrorMessage: errorLatestProbes[0]?.error,
   })
 
   const trendsAdvisorState = deriveMonitorTrendsAdvisor({
@@ -1242,14 +1237,14 @@ export default async function MonitorDetailPage({
   // GLOBAL WATERFALL AGGREGATES
   const liveGlobalWaterfallProbe: WaterfallProbe | null = latestProbes.length > 0 ? {
     region: 'Global',
-    dns_ms: Math.round(latestProbes.reduce((acc, p) => acc + (p.dns_ms || 0), 0) / latestProbes.length),
-    tls_ms: Math.round(latestProbes.reduce((acc, p) => acc + (p.tls_ms || 0), 0) / latestProbes.length),
+    dns_ms: Math.round(latestProbes.reduce((acc, p) => acc + Number(p.dns_ms || 0), 0) / latestProbes.length),
+    tls_ms: Math.round(latestProbes.reduce((acc, p) => acc + Number(p.tls_ms || 0), 0) / latestProbes.length),
     ttfb_ms: liveAvgTtfb,
-    download_ms: Math.round(latestProbes.reduce((acc, p) => acc + (p.download_ms || 0), 0) / latestProbes.length),
-    total_ms: Math.round(latestProbes.reduce((acc, p) => acc + (p.total_ms || 0), 0) / latestProbes.length),
-    edge_ms: Math.round(latestProbes.reduce((acc, p) => acc + (p.edge_ms || 0), 0) / latestProbes.length),
-    origin_ms: Math.round(latestProbes.reduce((acc, p) => acc + (p.origin_ms || 0), 0) / latestProbes.length),
-    redirect_count: Math.round(latestProbes.reduce((acc, p) => acc + (p.redirect_count || 0), 0) / latestProbes.length),
+    download_ms: Math.round(latestProbes.reduce((acc, p) => acc + Number(p.download_ms || 0), 0) / latestProbes.length),
+    total_ms: Math.round(latestProbes.reduce((acc, p) => acc + Number(p.total_ms || 0), 0) / latestProbes.length),
+    edge_ms: Math.round(latestProbes.reduce((acc, p) => acc + Number(p.edge_ms || 0), 0) / latestProbes.length),
+    origin_ms: Math.round(latestProbes.reduce((acc, p) => acc + Number(p.origin_ms || 0), 0) / latestProbes.length),
+    redirect_count: Math.round(latestProbes.reduce((acc, p) => acc + Number(p.redirect_count || 0), 0) / latestProbes.length),
     cache_status: `${liveGlobalHitRate}% HIT`,
     served_by: 'Multi-CDN',
     cdn_provider: 'Various',
@@ -1462,68 +1457,6 @@ export default async function MonitorDetailPage({
         </div>
       )}
 
-      {isOffline && (
-        <div className="cs-tint-warning p-4 flex items-start gap-4" style={{ borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-          <div className="cs-card-wash" />
-          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-red-400" />
-          <div>
-            <p className="text-xs font-black uppercase tracking-widest text-red-400/90">Offline</p>
-            <p className="text-sm text-red-300/60 mt-1 leading-relaxed">
-              No probes received in the current period. The monitor may be paused or the backend is unreachable.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {isDown && (
-        <div className="cs-tint-warning p-4 flex items-start gap-4" style={{ borderColor: 'rgba(239, 68, 68, 0.5)', background: 'rgba(239,68,68,0.07)' }}>
-          <div className="cs-card-wash" />
-          <span className="relative mt-1 flex h-2.5 w-2.5 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-70" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-400" />
-          </span>
-          <div>
-            <p className="text-xs font-black uppercase tracking-widest text-red-300">Site Down — Unreachable</p>
-            <p className="text-sm text-red-300/70 mt-1 leading-relaxed">
-              All {latestProbes.length} probed regions are reporting connection failures. Your site is not responding.
-            </p>
-            {errorLatestProbes[0]?.error && (
-              <p className="mt-1.5 font-mono text-[11px] text-red-400/80">{errorLatestProbes[0].error}</p>
-            )}
-            <div className="mt-3">
-              <Link
-                href={buildViewHref('performance', '24h', monitor.id)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/30 text-[11px] font-bold uppercase tracking-tight text-red-300 hover:bg-red-500/30 transition-all"
-              >
-                <Activity className="w-3.5 h-3.5" />
-                Troubleshoot Outage
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isDegraded && (
-        <div className="cs-tint-warning p-4 flex items-start gap-4" style={{ borderColor: 'rgba(239, 68, 68, 0.35)', background: 'rgba(239,68,68,0.05)' }}>
-          <div className="cs-card-wash" />
-          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-red-400" />
-          <div>
-            <p className="text-xs font-black uppercase tracking-widest text-red-400/90">Degraded — Partial Outage</p>
-            <p className="text-sm text-red-300/60 mt-1 leading-relaxed">
-              {errorLatestProbes.length} of {latestProbes.length} regions are reporting connection failures.
-            </p>
-            <div className="mt-3">
-              <Link
-                href={buildViewHref('performance', '24h', monitor.id)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-[11px] font-bold uppercase tracking-tight text-red-400 hover:bg-red-500/20 transition-all"
-              >
-                <Activity className="w-3.5 h-3.5" />
-                Troubleshoot Regions
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="grid gap-8 border-t border-white/10 pt-5 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start lg:pt-6">
         <MonitorSidebarRail
@@ -1813,18 +1746,27 @@ export default async function MonitorDetailPage({
 
                             <div className="flex items-center gap-5 tabular-nums">
                               <div className="text-[10px] font-medium flex items-center gap-1.5">
-                                <span className="text-zinc-400 line-through decoration-zinc-700/30">{spike.prev_avg}ms</span>
+                                <PremiumTooltip content={`Baseline: region average during the previous ${bucketSize} window`}>
+                                  <span className="text-zinc-400 line-through decoration-zinc-700/30 cursor-help">{spike.prev_avg}ms</span>
+                                </PremiumTooltip>
                                 <span className="text-zinc-500/30">→</span>
-                                <span className="font-bold text-red-400">{spike.ttfb_avg}ms</span>
+                                <PremiumTooltip content={`Spike: average during this ${bucketSize} window`}>
+                                  <span className="font-bold text-red-400 cursor-help">{spike.ttfb_avg}ms</span>
+                                </PremiumTooltip>
                               </div>
-                              <div className="px-2 py-0.5 rounded text-[9px] font-black min-w-[65px] text-center bg-red-500/10 text-red-400 ring-1 ring-red-500/20 shadow-[0_0_12px_rgba(239,68,68,0.1)]">
-                                +{spike.spike_ms}ms
-                              </div>
+                              <PremiumTooltip content={`Absolute increase in response time vs previous window`}>
+                                <div className="px-2 py-0.5 rounded text-[9px] font-black min-w-[65px] text-center bg-red-500/10 text-red-400 ring-1 ring-red-500/20 shadow-[0_0_12px_rgba(239,68,68,0.1)] cursor-help">
+                                  +{spike.spike_ms}ms
+                                </div>
+                              </PremiumTooltip>
                             </div>
                           </div>
                         ))}
                       </div>
-                      <p className="mt-1.5 text-xs text-zinc-400 italic">Detected when TTFB increased by more than 50% between consecutive 30-minute windows.</p>
+                      <p className="mt-1.5 text-[11px] text-zinc-500 italic leading-relaxed">
+                        Spikes are identified by comparing consecutive {bucketSize} windows. 
+                        A 50% increase (minimum 150ms delta) triggers a detection in this period.
+                      </p>
                     </section>
                   )}
 
@@ -2017,8 +1959,12 @@ export default async function MonitorDetailPage({
             <div className="space-y-4">
               <ViewSectionHeader title="Monitor configuration" showDot={false} />
               {(() => {
-                const globalHitAvg = stats.length > 0 ? Math.round(stats.reduce((acc, s) => acc + (s.edge_hit_avg_ms || 0), 0) / stats.length) : 0;
-                const globalMissAvg = stats.length > 0 ? Math.round(stats.reduce((acc, s) => acc + (s.origin_miss_avg_ms || 0), 0) / stats.length) : 0;
+                const globalHitAvg = stats.length > 0
+                  ? Math.round(stats.reduce((acc, s) => acc + Number(s.edge_avg_ms || 0), 0) / stats.length)
+                  : 0;
+                const globalMissAvg = stats.length > 0 
+                  ? Math.round(stats.reduce((acc, s) => acc + Number(s.origin_avg_ms || 0), 0) / stats.length) 
+                  : 0;
                 return (
                   <MonitorSettingsPanel
                     {...monitor}
@@ -2524,104 +2470,21 @@ export default async function MonitorDetailPage({
                     <p className="text-xs text-zinc-500 mt-1 max-w-[240px] mx-auto">This monitor is currently healthy and performing within expected baselines.</p>
                   </div>
                 ) : (
-                  <div className={MONITOR_TABLE.outerWrapperMuted}>
-                    <div className={BRAND_TABLE_SURFACE_GRADIENT} />
-                    <div className={MONITOR_TABLE.innerScroll}>
-                      <table className={`${MONITOR_TABLE.tableBase} ${MONITOR_TABLE.transition}`}>
-                        <thead>
-                          <tr className={MONITOR_TABLE.theadRow}>
-                            <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Timestamp</th>
-                            <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Region</th>
-                            <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Event Type</th>
-                            <th className="px-4 py-2.5 text-left text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Metric</th>
-                            <th className="px-4 py-2.5 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Threshold / Baseline</th>
-                            <th className="px-4 py-2.5 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Observed</th>
-                            <th className="px-4 py-2.5 text-right text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Severity</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {alerts.map((alert) => {
-                            const df = alert.deviation_factor ?? 0
-                            const severity = df > 4 ? 'CRITICAL' : df > 2 ? 'WARNING' : 'INFO'
-                            const severityColor = severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400 border border-red-500/30' : severity === 'WARNING' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-white/5 text-zinc-500 border border-white/10'
-                            const alertTypeIcon = alert.alert_type === 'down'
-                              ? <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" />
-                              : alert.alert_type === 'anomaly'
-                                ? <Zap className="w-3 h-3 text-amber-500 shrink-0" />
-                                : <AlertCircle className="w-3 h-3 text-zinc-400 shrink-0" />
+                  <div className="space-y-4">
+                    <AlertHistoryTable alerts={alerts} regionLabels={regionLabels} />
 
-                            return (
-                              <Fragment key={alert.id}>
-                                <tr className={`${MONITOR_TABLE.tbodyRow} ${alert.diagnosis ? 'border-b-0' : ''}`}>
-                                  <td className="px-4 py-3">
-                                    <span className="text-[11px] text-zinc-500 font-medium tabular-nums">
-                                      {new Date(alert.created_at).toLocaleString('en-US', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                                      {regionLabels[alert.region] ?? alert.region}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <div className="flex items-center gap-2">
-                                      {alertTypeIcon}
-                                      <span className="text-[11px] font-bold uppercase tracking-tight text-zinc-600 dark:text-zinc-400">
-                                        {ALERT_TYPE_LABELS[alert.alert_type as AlertType] ?? alert.alert_type.replace('_', ' ')}
-                                      </span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <code className="text-[10px] font-mono bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-500">
-                                      {alert.metric}
-                                    </code>
-                                  </td>
-                                  <td className="px-4 py-3 text-right text-xs tabular-nums text-zinc-400">
-                                    {alert.delta_pct != null
-                                      ? <span className={alert.delta_pct < 0 ? 'text-red-400' : 'text-amber-400'}>{alert.delta_pct > 0 ? '+' : ''}{alert.delta_pct.toFixed(1)}%</span>
-                                      : alert.alert_type === 'cache_hit_low'
-                                        ? (alert.baseline_ms != null ? `${alert.baseline_ms.toFixed(0)}%` : '—')
-                                        : formatMs(alert.baseline_ms)}
-                                  </td>
-                                  <td className="px-4 py-3 text-right text-xs tabular-nums font-semibold text-zinc-700 dark:text-zinc-300">
-                                    {alert.comparator != null
-                                      ? <span className="text-[10px] font-normal text-zinc-500 uppercase tracking-tight">{alert.comparator.replace(/_/g, ' ')}</span>
-                                      : alert.alert_type === 'cache_hit_low'
-                                        ? (alert.actual_ms != null ? `${alert.actual_ms.toFixed(1)}%` : '—')
-                                        : formatMs(alert.actual_ms)}
-                                  </td>
-                                  <td className="px-4 py-3 text-right">
-                                    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-black tracking-tighter ${severityColor}`}>
-                                      {alert.deviation_factor != null ? `${alert.deviation_factor.toFixed(1)}×` : severity}
-                                    </span>
-                                  </td>
-                                </tr>
-                                {(alert.diagnosis || alert.action) && (
-                                  <tr className="border-b border-white/5">
-                                    <td colSpan={7} className="px-4 pb-3 pt-0">
-                                      <div className="rounded-lg bg-white/[0.02] border border-white/5 px-3 py-2 space-y-1">
-                                        {alert.diagnosis && (
-                                          <p className="text-[11px] text-zinc-400 leading-relaxed">
-                                            <span className="text-zinc-600 font-bold uppercase tracking-tight text-[9px] mr-2">Cause</span>
-                                            {alert.diagnosis}
-                                          </p>
-                                        )}
-                                        {alert.action && (
-                                          <p className="text-[11px] text-[var(--brand-primary)]/70 leading-relaxed">
-                                            <span className="text-zinc-600 font-bold uppercase tracking-tight text-[9px] mr-2">Fix</span>
-                                            {alert.action}
-                                          </p>
-                                        )}
-                                      </div>
-                                    </td>
-                                  </tr>
-                                )}
-                              </Fragment>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                    {hasNextAlertsPage && (
+                      <div className="flex justify-center pb-4">
+                        <Link
+                          href={buildMonitorHref('incidents', range, filteredAlertType, alertsLimit + 100)}
+                          className="cs-btn cs-btn-secondary !text-[10px] !px-6 !py-2.5 font-black uppercase tracking-widest flex items-center gap-2 group/load"
+                          scroll={false}
+                        >
+                          <History className="w-3.5 h-3.5 group-hover/load:rotate-[-45deg] transition-transform" />
+                          Load more history
+                        </Link>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

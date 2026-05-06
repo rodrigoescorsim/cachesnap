@@ -42,7 +42,7 @@ export async function GET() {
       duration_s: number
     }[]>`
       SELECT
-        blocked.pid                                             AS pid,
+        blocked_locks.pid                                       AS pid,
         blocking.pid                                           AS blocking_pid,
         blocked_rel.relname                                    AS relation,
         blocked_locks.locktype                                 AS lock_type,

@@ -7,8 +7,7 @@ use super::notifier::{self, AlertNotification};
 use tracing::{info, error};
 
 const DOWN_COOLDOWN_MINUTES: i32 = 30;
-const ANOMALY_COOLDOWN_MINUTES: i32 = 30;
-const TTFB_THRESHOLD_COOLDOWN_MINUTES: i32 = 30;
+const DEFAULT_COOLDOWN_MINUTES: i32 = 60;
 
 pub fn is_anomalous(actual_ttfb: f64, avg: f64, stddev: f64, sigma_factor: f64) -> bool {
     // Anomalia estatística: TTFB > avg + (sigma_factor * stddev), com piso de +500ms
@@ -33,6 +32,7 @@ struct MonitorAlertConfig {
     alert_down_enabled: bool,
     alert_ttfb_enabled: bool,
     alert_anomaly_enabled: bool,
+    alert_trend_cooldown_minutes: i32,
 }
 
 async fn fetch_monitor_alert_config(state: &AppState, monitor_id: uuid::Uuid) -> Option<MonitorAlertConfig> {
@@ -44,7 +44,8 @@ async fn fetch_monitor_alert_config(state: &AppState, monitor_id: uuid::Uuid) ->
             alert_sensitivity,
             alert_down_enabled,
             alert_ttfb_enabled,
-            alert_anomaly_enabled
+            alert_anomaly_enabled,
+            alert_trend_cooldown_minutes
         FROM monitors WHERE id = $1 LIMIT 1
         "#,
     )
@@ -197,7 +198,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
             payload.monitor_id,
             &payload.region,
             "ttfb_threshold",
-            TTFB_THRESHOLD_COOLDOWN_MINUTES,
+            cfg.alert_trend_cooldown_minutes.max(DEFAULT_COOLDOWN_MINUTES),
         ).await.unwrap_or(false);
         if threshold_exists {
             return;
@@ -271,7 +272,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
             payload.monitor_id,
             &payload.region,
             "anomaly",
-            ANOMALY_COOLDOWN_MINUTES,
+            cfg.alert_trend_cooldown_minutes.max(DEFAULT_COOLDOWN_MINUTES),
         ).await.unwrap_or(false);
         if anomaly_exists {
             return;

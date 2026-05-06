@@ -213,6 +213,10 @@ export type MonitorDetailLiveInput = {
   totalRegionCount: number
   /** (liveAvgTtfb − periodAvgTtfb) / periodAvgTtfb × 100. Positive = worse. 0 when no baseline. */
   ttfbVsPeriodPct: number
+  isDown?: boolean
+  isDegraded?: boolean
+  isOffline?: boolean
+  lastErrorMessage?: string | null
 }
 
 /**
@@ -221,11 +225,47 @@ export type MonitorDetailLiveInput = {
  * Returns a healthy summary when no issues are detected.
  */
 export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): AdvisorState | null {
-  const { monitorId, url, liveAvgTtfb, periodAvgTtfb, liveGlobalHitRate, hasLiveCacheData,
-    liveDominantStatus, liveAvgEdgeMs, liveAvgOriginMs,
-    errorRegionCount, slowRegionCount, totalRegionCount, ttfbVsPeriodPct,
-    slowestVsGlobalRegion, fastestVsGlobalRegion } = input
+  const { monitorId, url, liveAvgTtfb, periodAvgTtfb, liveGlobalHitRate, hasLiveCacheData, liveDominantStatus,
+    errorRegionCount, slowRegionCount, slowRegionLabels, slowestVsGlobalRegion, fastestVsGlobalRegion, totalRegionCount,
+    ttfbVsPeriodPct, isDown, isDegraded, isOffline, lastErrorMessage } = input
+
   const host = hostname(url)
+
+  // ── Critical: Monitor Offline (No probes) ──────────────────────────────
+  if (isOffline) {
+    return {
+      severity: 'warning',
+      headline: 'Monitor Offline',
+      body: `No probes received in the current period. ${host} may be paused or the backend is unreachable from our fleet.`,
+      actions: [],
+    }
+  }
+
+  // ── Critical: Site Down ────────────────────────────────────────────────
+  if (isDown) {
+    return {
+      severity: 'critical',
+      headline: 'Site Down — Unreachable',
+      body: `All ${totalRegionCount} probed regions are reporting connection failures. ${host} is not responding.`,
+      recommendation: translateErrorMessage(lastErrorMessage) || "Check your origin firewall and SSL certificate validity.",
+      actions: [
+        { label: 'Troubleshoot Outage', href: buildViewHref('performance', '24h', monitorId) }
+      ],
+    }
+  }
+
+  // ── Critical: Degraded / Partial Outage ────────────────────────────────
+  if (isDegraded) {
+    return {
+      severity: 'critical',
+      headline: 'Partial Outage detected',
+      body: `${errorRegionCount} of ${totalRegionCount} regions are failing to reach ${host}.`,
+      recommendation: "Investigate regional networking issues or origin rate-limiting.",
+      actions: [
+        { label: 'Troubleshoot Regions', href: buildViewHref('performance', '24h', monitorId) }
+      ],
+    }
+  }
 
   // Full outage — caller should already show the isDown banner; skip here.
   if (totalRegionCount > 0 && errorRegionCount >= totalRegionCount) return null
@@ -365,25 +405,78 @@ export type MonitorPerformancePeriodInput = {
   prevGlobalHitRate: number
   hasHistory: boolean
   slowRegionCount: number
-  slowRegionLabels?: string[]
+  isDown?: boolean
+  isDegraded?: boolean
+  isOffline?: boolean
+  errorCount?: number
+  totalRegionCount?: number
+  lastErrorMessage?: string | null
 }
 
-/**
- * Derives a summary advisory for the Performance (period) view inside a monitor detail page.
- * Returns null when there is no historical baseline to compare against or change is minor.
- */
 export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformancePeriodInput): AdvisorState | null {
   const { monitorId, url, range, avgTtfb, prevAvgTtfb, globalHitRate, prevGlobalHitRate,
-    hasHistory } = input
+    hasHistory, isDown, isDegraded, isOffline, errorCount, totalRegionCount, lastErrorMessage } = input
 
-  if (!hasHistory || prevAvgTtfb === 0) return null
-
-  const ttfbChangePct = Math.round(((avgTtfb - prevAvgTtfb) / prevAvgTtfb) * 100)
-  const cacheChangePp  = globalHitRate - prevGlobalHitRate
   const host = hostname(url)
 
-  // ── Critical: significant TTFB regression ────────────────────────────────
-  if (ttfbChangePct > 30) {
+  // ── Critical: Monitor Offline (No probes) ──────────────────────────────
+  if (isOffline) {
+    return {
+      severity: 'warning',
+      headline: 'No data for this period',
+      body: `${host} has no recorded activity in the last ${range}. The monitor may have been paused.`,
+      actions: [],
+    }
+  }
+
+  // ── Critical: Site Down ────────────────────────────────────────────────
+  if (isDown) {
+    return {
+      severity: 'critical',
+      headline: 'Site Down — Unreachable',
+      body: `During this ${range} window, all regions reported connection failures.`,
+      recommendation: translateErrorMessage(lastErrorMessage) || "Verify origin availability and check for long-term DNS or SSL issues.",
+      actions: [
+        { label: 'Troubleshoot Outage', href: buildViewHref('performance', range, monitorId) }
+      ],
+    }
+  }
+
+  // ── Critical: Partial Outage ───────────────────────────────────────────
+  if (isDegraded) {
+    return {
+      severity: 'critical',
+      headline: 'Significant downtime detected',
+      body: `Partial outages were detected across ${errorCount} regions during this ${range} window.`,
+      recommendation: "Review the 'Uptime' column in the regional table below to identify affected periods.",
+      actions: [
+        { label: 'Troubleshoot Regions', href: buildViewHref('performance', range, monitorId) }
+      ],
+    }
+  }
+  const ttfbChangePct = (hasHistory && prevAvgTtfb > 0) ? Math.round(((avgTtfb - prevAvgTtfb) / prevAvgTtfb) * 100) : 0
+  const cacheChangePp  = hasHistory ? globalHitRate - prevGlobalHitRate : 0
+
+  // ── Critical: Absolute high latency (Instant feedback) ──────────────────
+  if (avgTtfb > MONITOR_TTFB.SLOW) {
+    const trendNote = (hasHistory && ttfbChangePct > 0)
+      ? ` Up ${ttfbChangePct}% vs previous ${range}.`
+      : ''
+
+    return {
+      severity: 'critical',
+      headline: `High latency: ${avgTtfb}ms`,
+      body: `Global latency is currently elevated.${trendNote} Check origin performance and edge distribution.`,
+      recommendation: "Investigate origin server response times or geographic distribution issues.",
+      actions: [
+        { label: `Analyze ${host} Trends`, href: buildViewHref('trends', range, monitorId) },
+        { label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', range, monitorId) },
+      ],
+    }
+  }
+
+  // ── Critical: significant TTFB regression (Requires History) ──────────────
+  if (hasHistory && ttfbChangePct > 30) {
     return {
       severity: 'critical',
       headline: `Latency up ${ttfbChangePct}% vs previous ${range}`,
@@ -467,12 +560,18 @@ export type MonitorTrendsAdvisorInput = {
  * focusing on latency spikes.
  */
 export function deriveMonitorTrendsAdvisor(input: MonitorTrendsAdvisorInput): AdvisorState | null {
-  if (!input.hasHistory) return null
-  
   const host = hostname(input.url)
   const hasSpikes = input.spikeCount > 0
   const significantRegression = input.worstRegion && input.worstRegion.changePct > 20
 
+  if (!input.hasHistory && !hasSpikes) {
+    return {
+      severity: 'good',
+      headline: 'Performance patterns stable',
+      body: `Latency patterns for ${host} are being established. No significant spikes or anomalies detected in the current collection period.`,
+      actions: [],
+    }
+  }
   if (hasSpikes || significantRegression) {
     const parts: string[] = []
     if (hasSpikes) parts.push(`${input.spikeCount} latency spike${input.spikeCount > 1 ? 's' : ''}`)
@@ -522,4 +621,25 @@ function buildAffectedRegionsTooltip(regionLabels?: string[]): string | undefine
   if (regionLabels.length <= 4) return `Affected regions: ${regionLabels.join(', ')}.`
   const visible = regionLabels.slice(0, 4).join(', ')
   return `Affected regions: ${visible}, and ${regionLabels.length - 4} more.`
+}
+
+function translateErrorMessage(error: string | null | undefined): string | null {
+  if (!error) return null
+
+  const e = error.toLowerCase()
+  
+  if (e.includes('ssl routines') || e.includes('eproto') || e.includes('certificate')) {
+    return "SSL/TLS Protocol Error. The server returned an invalid handshake. Verify if the site is properly configured for HTTPS on this port and has a valid certificate."
+  }
+  if (e.includes('econnrefused')) {
+    return "Connection Refused. The server is active but rejected the request. Ensure your web server (Nginx/Apache/IIS) is running and listening on the correct port."
+  }
+  if (e.includes('etimedout') || e.includes('timeout')) {
+    return "Connection Timeout. The server took too long to respond. This usually indicates a firewall block (security group) or extreme resource exhaustion."
+  }
+  if (e.includes('enotfound') || e.includes('dns')) {
+    return "DNS Resolution Error. The domain name could not be mapped to an IP address. Check your nameserver records."
+  }
+  
+  return `Connection failure: ${error}`
 }

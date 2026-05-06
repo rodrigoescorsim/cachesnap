@@ -1162,7 +1162,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                 ))}
               </div>
             ) : alertMonitors.length > 0 ? (
-              <div className="space-y-2 p-4">
+              <div className="space-y-3 p-4">
                 {alertMonitors.map((m, i) => (
                   <AlertRow key={m.id} monitor={m} rank={i + 1} />
                 ))}

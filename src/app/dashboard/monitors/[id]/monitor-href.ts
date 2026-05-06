@@ -24,10 +24,33 @@ export type AlertType =
   | 'ttfb_trend_down_region'
   | 'ttfb_trend_down_global'
 
+export const VALID_ALERT_TYPES = [
+  'down', 'ttfb_threshold', 'anomaly', 'anycast', 'zombie_cache', 'cache_hit_low',
+  'cache_hit_trend_drop_region', 'cache_hit_trend_drop_global',
+  'ttfb_trend_up_region', 'ttfb_trend_up_global',
+  'ttfb_trend_down_region', 'ttfb_trend_down_global',
+] as const satisfies readonly AlertType[]
+
+export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
+  down: 'Offline',
+  ttfb_threshold: 'TTFB above limit',
+  anomaly: 'Anomaly',
+  anycast: 'Anycast',
+  cache_hit_trend_drop_region: 'Cache Hit ↓ (region)',
+  cache_hit_trend_drop_global: 'Cache Hit ↓ (global)',
+  ttfb_trend_up_region: 'TTFB ↑ (region)',
+  ttfb_trend_up_global: 'TTFB ↑ (global)',
+  ttfb_trend_down_region: 'TTFB ↓ (region)',
+  ttfb_trend_down_global: 'TTFB ↓ (global)',
+  zombie_cache: 'Zombie cache',
+  cache_hit_low: 'Cache hit low',
+}
+
 export function buildMonitorHref(
   tab: MonitorTab,
   range: string,
   alertType: AlertType | null = null,
+  alertsLimit: number | null = null,
   hash: string = '',
   monitorId: string | null = null,
 ): string {
@@ -35,11 +58,14 @@ export function buildMonitorHref(
   params.set('tab', tab)
   if (range && range !== '24h') params.set('range', range)
   if (tab === 'incidents' && alertType) params.set('alert_type', alertType)
+  if (tab === 'incidents' && alertsLimit && alertsLimit > 100) params.set('alerts_limit', String(alertsLimit))
   const query = params.toString()
   const base = query ? `?${query}` : ''
   const path = monitorId ? `/dashboard/monitors/${monitorId}` : ''
   const full = `${path}${base}`
-  return hash ? `${full}${hash.startsWith('#') ? hash : `#${hash}`}` : full
+  
+  const finalHash = typeof hash === 'string' && hash ? (hash.startsWith('#') ? hash : `#${hash}`) : ''
+  return `${full}${finalHash}`
 }
 
 export function buildViewHref(view: PerformanceView, range: string, monitorId: string | null = null): string {

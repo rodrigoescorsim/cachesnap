@@ -158,7 +158,7 @@ export function MonitorSidebarRail({
 
                   <li key="security">
                     <Link
-                      href={buildMonitorHref('security', range, null, '', monitorId)}
+                      href={buildMonitorHref('security', range, null, null, '', monitorId)}
                       className={`group ${itemBaseClass} ${linkLayoutClass} ${itemStateClass(activeTab === 'security')}`}
                     >
                       <Lock
@@ -184,7 +184,7 @@ export function MonitorSidebarRail({
                     return (
                       <li key={tab}>
                         <Link
-                          href={buildMonitorHref(tab, range, tab === 'incidents' ? filteredAlertType : null, '', monitorId)}
+                          href={buildMonitorHref(tab, range, tab === 'incidents' ? filteredAlertType : null, null, '', monitorId)}
                           className={`group ${itemBaseClass} ${linkLayoutClass} ${itemStateClass(isActive)}`}
                         >
                           <Icon
