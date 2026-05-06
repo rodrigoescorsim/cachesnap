@@ -107,69 +107,86 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
     let is_down = payload.error.is_some() || payload.status_code.map(|s| s >= 500).unwrap_or(false);
 
     if is_down && cfg.alert_down_enabled {
-        let down_exists = alert_exists_recent_minutes(
+        // 1.1 Verificamos se já existe um alerta de 'down' para QUALQUER região nos últimos 2 minutos.
+        // Se já existe, significa que já notificamos ou estamos no processo de notificar esta queda.
+        let any_down_exists = alert_exists_any_region_recent(
             &state,
             payload.monitor_id,
-            &payload.region,
             "down",
-            DOWN_COOLDOWN_MINUTES,
+            2, // Janela curta de 2 minutos para detectar o início da "explosão"
         ).await.unwrap_or(false);
-        if down_exists {
+
+        if any_down_exists {
+            // Já alertamos sobre esta queda, não fazemos nada para evitar spam.
             return;
         }
 
-        let diagnosis = engine::diagnose(&DiagnosisInput {
-            ttfb_ms: payload.ttfb_ms,
-            cache_status: payload.cache_status.clone(),
-            baseline_ttfb_ms: None,
-            redirect_count: payload.redirect_count,
-            http_version: payload.http_version.clone(),
-            region: payload.region.clone(),
-            error: payload.error.clone(),
-            served_by: payload.served_by.clone(),
-            age_s: payload.age_s,
-        });
+        // 1.2 Este é o "Alerta Líder". Ele vai esperar um pouco para agrupar as outras regiões.
+        let state_clone = state.clone();
+        let payload_clone = payload.clone();
+        tokio::spawn(async move {
+            // Aguarda 15 segundos para dar tempo das outras sondagens regionais chegarem
+            tokio::time::sleep(Duration::from_secs(15)).await;
 
-        let insert_res = sqlx::query_scalar!(
-            r#"
-            INSERT INTO alerts (
-                monitor_id, region, alert_type, metric, actual_ms, diagnosis, action
-            ) VALUES (
-                $1, $2, 'down', 'uptime', $3, $4, $5
-            ) RETURNING id
-            "#,
-            payload.monitor_id,
-            payload.region,
-            payload.ttfb_ms,
-            diagnosis.summary,
-            diagnosis.action,
-        )
-        .fetch_one(&state.db)
-        .await;
+            // Busca todas as regiões que falharam no último minuto para este monitor
+            let failed_regions = match sqlx::query!(
+                "SELECT DISTINCT region FROM probe_results 
+                 WHERE monitor_id = $1 AND (error IS NOT NULL OR status_code >= 500)
+                 AND time > NOW() - INTERVAL '1 minute'",
+                payload_clone.monitor_id
+            ).fetch_all(&state_clone.db).await {
+                Ok(rows) => rows.into_iter().map(|r| r.region).collect::<Vec<String>>(),
+                Err(_) => vec![payload_clone.region.clone()], // Fallback para a região original
+            };
 
-        match insert_res {
-            Ok(alert_id) => {
-                info!(
-                    "Monitor {} is DOWN in region {}: {}",
-                    payload.monitor_id, payload.region, diagnosis.summary
-                );
-                tokio::spawn(notifier::notify(state.clone(), AlertNotification {
+            let count = failed_regions.len();
+            let region_list = failed_regions.join(", ");
+            
+            // Se tiver mais de uma, o alerta é "Global/Múltiplo"
+            let final_region = if count > 1 { "Multiple".to_string() } else { payload_clone.region.clone() };
+            let diagnosis_summary = if count > 1 {
+                format!("Site unreachable or failing in {} regions: {}", count, region_list)
+            } else {
+                "Site unreachable or returning 5xx errors.".to_string()
+            };
+            let action = "Check your server status, hosting provider, and regional network connectivity.".to_string();
+
+            let insert_res = sqlx::query_scalar!(
+                r#"
+                INSERT INTO alerts (
+                    monitor_id, region, alert_type, metric, actual_ms, diagnosis, action
+                ) VALUES (
+                    $1, $2, 'down', 'uptime', $3, $4, $5
+                ) RETURNING id
+                "#,
+                payload_clone.monitor_id,
+                final_region,
+                payload_clone.ttfb_ms,
+                diagnosis_summary,
+                action,
+            )
+            .fetch_one(&state_clone.db)
+            .await;
+
+            if let Ok(alert_id) = insert_res {
+                info!("Consolidated DOWN alert created for monitor {} ({} regions)", payload_clone.monitor_id, count);
+                let _ = notifier::notify(state_clone, AlertNotification {
                     alert_id,
-                    monitor_id: payload.monitor_id,
+                    monitor_id: payload_clone.monitor_id,
                     alert_type: "down".to_string(),
-                    region: payload.region.clone(),
-                    diagnosis: Some(diagnosis.summary),
-                    action: Some(diagnosis.action),
-                    actual_ms: payload.ttfb_ms,
-                    baseline_ms: Some(effective_threshold),
+                    region: final_region,
+                    diagnosis: Some(diagnosis_summary),
+                    action: Some(action),
+                    actual_ms: payload_clone.ttfb_ms,
+                    baseline_ms: None,
                     deviation_factor: None,
                     delta_pct: None,
                     comparator: None,
-                }));
+                }).await;
             }
-            Err(e) => error!("Failed to register DOWN alert: {}", e),
-        }
-        return; // Se está fora do ar, não checamos anomalias de TTFB
+        });
+
+        return; // Retornamos aqui para não seguir para checagem de anomalias
     }
 
     // 2. Breach de limite fixo de TTFB (não é downtime)
@@ -370,6 +387,29 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
         }
     }
     } // end alert_anomaly_enabled
+}
+
+async fn alert_exists_any_region_recent(
+    state: &AppState,
+    monitor_id: uuid::Uuid,
+    alert_type: &str,
+    cooldown_minutes: i32,
+) -> Result<bool, sqlx::Error> {
+    let count: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*)
+        FROM alerts
+        WHERE monitor_id = $1
+          AND alert_type = $2
+          AND created_at > NOW() - ($3 * INTERVAL '1 minute')
+        "#,
+    )
+    .bind(monitor_id)
+    .bind(alert_type)
+    .bind(cooldown_minutes)
+    .fetch_one(&state.db)
+    .await?;
+    Ok(count > 0)
 }
 
 async fn alert_exists_recent_minutes(
