@@ -78,14 +78,16 @@ export async function POST(request: NextRequest) {
       alert_ttfb_enabled, alert_down_enabled, alert_anomaly_enabled, 
       alert_anycast_enabled, alert_zombie_cache_enabled, alert_cache_hit_enabled,
       alert_cache_hit_trend_enabled, alert_ttfb_trend_enabled,
-      alert_cache_hit_trend_comparators, alert_ttfb_trend_comparators
+      alert_cache_hit_trend_comparators, alert_ttfb_trend_comparators,
+      notify_email, notify_email_enabled
     )
     VALUES (
       ${user.id}, ${normalizedUrl}, ${finalName}, ${check_interval_seconds}, ${audit_interval_seconds}, 
       'disabled', 1500, 500, 30, 30,
       true, true, true, true, true, true, true, true,
       ARRAY['prev_hour', 'same_hour_prev_day', 'day_avg'],
-      ARRAY['prev_hour', 'same_hour_prev_day', 'day_avg']
+      ARRAY['prev_hour', 'same_hour_prev_day', 'day_avg'],
+      ${user.email}, true
     )
     RETURNING id, url, name, check_interval_seconds, audit_interval_seconds, is_active, created_at
   `
