@@ -684,7 +684,7 @@ export default async function MonitorDetailPage({
     GROUP BY bucket ORDER BY bucket ASC
   `
 
-  const alertsLimit = Math.min(Math.max(Number(searchParams.alerts_limit || 100), 100), 1000)
+  const alertsLimit = Math.min(Math.max(Number(readFirst(rawSearchParams.alerts_limit) || 100), 100), 1000)
 
   const alerts = filteredAlertType
     ? await sql<Alert[]>`
