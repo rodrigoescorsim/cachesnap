@@ -162,7 +162,7 @@ async fn send_email(api_key: &str, to: &str, subject: &str, html: &str) -> Resul
         .post("https://api.resend.com/emails")
         .bearer_auth(api_key)
         .json(&json!({
-            "from": "CacheSnap <alerts@CacheSnap.app>",
+            "from": "CacheSnap <onboarding@resend.dev>",
             "to": [to],
             "subject": subject,
             "html": html,
