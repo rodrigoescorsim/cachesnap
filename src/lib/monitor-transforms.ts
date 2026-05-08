@@ -14,9 +14,11 @@ export interface MonitorSummaryRow {
   status: 'active' | 'paused'
   // postgres.js returns ROUND(...,1) / numeric columns as string — accept both
   ttfb_current: number | string
+  ttfb_avg_1h: number | string
   ttfb_avg_24h: number | string
   ttfb_delta: number | string
   cache_hit_current: number | string | null
+  cache_hit_avg_1h: number | string | null
   cache_hit_avg_24h: number | string | null
   cache_hit_delta: number | string | null
   cache_status_current: string | null
@@ -59,10 +61,12 @@ export function toMonitor(row: MonitorSummaryRow): Monitor {
     status:           row.status,
     ttfbCurrent:      toNum(row.ttfb_current),
     ttfbCurrentDelta: toNum(row.ttfb_delta),
+    ttfbAvg1h:        toNum(row.ttfb_avg_1h),
     ttfbAvg24h:       toNum(row.ttfb_avg_24h),
     ttfbSparkline:    (row.sparkline ?? []).map(Number),
     // null = site doesn't send a recognisable cache-status header
     cacheHitCurrent:  toNumOrNull(row.cache_hit_current),
+    cacheHitAvg1h:   toNumOrNull(row.cache_hit_avg_1h),
     cacheHitAvg24h:   toNumOrNull(row.cache_hit_avg_24h),
     cacheHitDelta:    toNumOrNull(row.cache_hit_delta),
     cacheStatusCurrent: row.cache_status_current,

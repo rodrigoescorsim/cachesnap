@@ -11,6 +11,7 @@ import {
   Minus,
   Zap,
   Search,
+  Database,
 } from 'lucide-react'
 import { GlobalHeader } from '@/components/dashboard/global-header'
 import { type MonitorQuickFilterId, monitorCacheHitIsComparable } from '@/types/monitor'
@@ -172,12 +173,12 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
   // ── Metrics calculation ──────────────────────────────────────────────────
 
   // ── Global metrics ────────────────────────────────────────────────────────
-  const { activeCount, liveTtfb, liveHit, avgTtfb24h, avgHit24h, ttfbDelta, hitDelta } = useMemo(() => {
+  const { activeCount, avgTtfb1h, avgHit1h, avgTtfb24h, avgHit24h, ttfbDelta, hitDelta } = useMemo(() => {
     if (!displayMonitors.length) {
       return {
         activeCount: 0,
-        liveTtfb: 0,
-        liveHit: 0,
+        avgTtfb1h: 0,
+        avgHit1h: 0,
         avgTtfb24h: 0,
         avgHit24h: 0,
         ttfbDelta: 0,
@@ -187,20 +188,20 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
 
     const active = displayMonitors.filter((m) => m.status === 'active')
 
-    // Live Average (Current sample from all active monitors)
-    const liveTtfb = active.length > 0
-      ? Math.round(active.reduce((sum, m) => sum + m.ttfbCurrent, 0) / active.length)
+    // 1H Average (Rolling average for more stable portfolio summary)
+    const avgTtfb1h = active.length > 0
+      ? Math.round(active.reduce((s, m) => s + m.ttfbAvg1h, 0) / active.length)
       : 0
 
-    const withCacheData = active.filter((m) => {
-      if (m.cacheHitCurrent === null) return false
+    const withCache1h = active.filter((m) => {
+      if (m.cacheHitAvg1h === null) return false
       const label = getCacheDisplayLabel(m.cacheStatusCurrent)
       if (label === 'NO HEADER') return false
       if (isCacheBypass(m.cacheStatusCurrent)) return false
       return true
     })
-    const liveHit = withCacheData.length > 0
-      ? Number((withCacheData.reduce((sum, m) => sum + m.cacheHitCurrent!, 0) / withCacheData.length).toFixed(1))
+    const avgHit1h = withCache1h.length > 0
+      ? Number((withCache1h.reduce((sum, m) => sum + m.cacheHitAvg1h!, 0) / withCache1h.length).toFixed(1))
       : null
 
     // 24H Average (Historical average from all active monitors)
@@ -219,14 +220,14 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
       ? Number((withCache24h.reduce((sum, m) => sum + m.cacheHitAvg24h!, 0) / withCache24h.length).toFixed(1))
       : null
 
-    // Network-wide Trends (Real-time vs 24h Baseline)
-    const ttfbDelta = calculateTrend(liveTtfb, avgTtfb24h)
-    const hitDelta = (liveHit === null || avgHit24h === null) ? 0 : calculateTrend(liveHit, avgHit24h)
+    // Network-wide Trends (1h Rolling vs 24h Baseline)
+    const ttfbDelta = calculateTrend(avgTtfb1h, avgTtfb24h)
+    const hitDelta = (avgHit1h === null || avgHit24h === null) ? 0 : calculateTrend(avgHit1h, avgHit24h)
 
     return {
       activeCount: active.length,
-      liveTtfb,
-      liveHit,
+      avgTtfb1h,
+      avgHit1h,
       avgTtfb24h,
       avgHit24h,
       ttfbDelta,
@@ -234,8 +235,8 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
     }
   }, [displayMonitors])
 
-  const ttfbPill = globalTtfbFooterPill(liveTtfb)
-  const cachePill = globalCacheFooterPill(liveHit ?? 0)
+  const ttfbPill = globalTtfbFooterPill(avgTtfb1h)
+  const cachePill = globalCacheFooterPill(avgHit1h ?? 0)
   const ttfbTrendTone = ttfbDelta < 0 ? 'success' : ttfbDelta > 0 ? 'danger' : 'neutral'
   const ttfbTrendIcon = ttfbDelta < 0 ? ArrowDown : ttfbDelta > 0 ? ArrowUp : Minus
   const hitTrendTone = hitDelta > 0 ? 'success' : hitDelta < 0 ? 'danger' : 'neutral'
@@ -249,10 +250,10 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
   // True when there are no active monitors with real probe data yet.
   // Covers both: (1) no monitors at all, (2) monitors exist but are still warming up.
   const hasNoData = !isLoading && !monitors.some(
-    (m) => m.status === 'active' && m.ttfbCurrent > 0
+    (m) => m.status === 'active' && m.ttfbAvg1h > 0
   )
   const hasNoCacheData = !isLoading && !monitors.some(
-    (m) => m.status === 'active' && monitorCacheHitIsComparable(m) && m.cacheHitCurrent !== null
+    (m) => m.status === 'active' && monitorCacheHitIsComparable(m) && m.cacheHitAvg1h !== null
   )
   const hasNoMonitors = !isLoading && monitors.length === 0
 
@@ -270,16 +271,16 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
           <ViewSectionHeader title="Global Summary" showDot={false} />
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-stretch [&>article]:min-w-0">
-            <GlobalMetricCard
-              variant="compact"
-              metricGroup="monitor"
-              title="Avg. TTFB"
-              value={isLoading ? '...' : hasNoData ? '—' : `${liveTtfb}ms`}
-              valueTooltip={hasNoData ? undefined : GLOBAL_TTFB_VALUE_TOOLTIP}
-              subtitle=""
-              icon={Gauge}
+              <GlobalMetricCard
+                variant="compact"
+                metricGroup="monitor"
+                title="Avg. TTFB"
+                value={isLoading ? '...' : hasNoData ? '—' : `${avgTtfb1h}ms`}
+                valueTooltip={hasNoData ? undefined : GLOBAL_TTFB_VALUE_TOOLTIP}
+                subtitle="1h avg"
+                icon={Gauge}
               iconClassName="stroke-[2.5]"
-              valueClassName={hasNoData ? 'text-zinc-600' : getTtfbColorClass(liveTtfb, 'global')}
+              valueClassName={hasNoData ? 'text-zinc-600' : getTtfbColorClass(avgTtfb1h, 'global')}
               isElite={false}
               trend={hasNoData ? undefined : {
                 value: `${Math.abs(ttfbDelta)}%`,
@@ -293,7 +294,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
                   : {
                     label: ttfbPill.label,
                     tone: ttfbPill.tone,
-                    context: globalTtfbFooterContextCompact(liveTtfb, ttfbDelta),
+                    context: globalTtfbFooterContextCompact(avgTtfb1h, ttfbDelta),
                   }
               }
               animationDelayMs={0}
@@ -301,14 +302,14 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
             <GlobalMetricCard
               variant="compact"
               metricGroup="monitor"
-              title="Cache hit"
-              value={isLoading ? '...' : hasNoCacheData ? '—' : `${liveHit}%`}
+              title="Avg. Cache Hit"
+              value={isLoading ? '...' : hasNoCacheData ? '—' : `${avgHit1h}%`}
               valueTooltip={hasNoCacheData ? undefined : GLOBAL_CACHE_VALUE_TOOLTIP}
-              subtitle=""
-              icon={Zap}
-              iconClassName={hasNoCacheData ? 'text-zinc-600' : `fill-current ${getCacheColor(liveHit ?? 0, 'global')} ${(liveHit ?? 0) >= 98 ? 'animate-[pulse_2s_infinite]' : ''}`}
-              valueClassName={hasNoCacheData ? 'text-zinc-600' : getCacheColor(liveHit ?? 0, 'global')}
-              isElite={!isLoading && !hasNoCacheData && (liveHit ?? 0) >= GLOBAL_CACHE.PERFECT}
+              subtitle="1h avg"
+              icon={Database}
+              iconClassName={hasNoCacheData ? 'text-zinc-600' : `fill-current ${getCacheColor(avgHit1h ?? 0, 'global')} ${(avgHit1h ?? 0) >= 98 ? 'animate-[pulse_2s_infinite]' : ''}`}
+              valueClassName={hasNoCacheData ? 'text-zinc-600' : getCacheColor(avgHit1h ?? 0, 'global')}
+              isElite={!isLoading && !hasNoCacheData && (avgHit1h ?? 0) >= GLOBAL_CACHE.PERFECT}
               trend={hasNoCacheData || hitDelta === 0 ? undefined : {
                 value: `${Math.abs(hitDelta)}%`,
                 tone: hitTrendTone,
@@ -321,7 +322,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
                   : {
                     label: cachePill.label,
                     tone: cachePill.tone,
-                    context: globalCacheFooterContextCompact(liveHit ?? 0),
+                    context: globalCacheFooterContextCompact(avgHit1h ?? 0),
                   }
               }
               animationDelayMs={0}

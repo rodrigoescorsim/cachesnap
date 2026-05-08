@@ -750,19 +750,19 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
   const { monitors, isLoading } = useMonitors({ refetchInterval: 60_000 })
 
   // ── Global metrics ────────────────────────────────────────────────────────
-  const { activeCount, liveTtfb, liveHit, avgTtfb24h, avgHit24h, healthScore, ttfbDelta, hitDelta } = useMemo(() => {
-    if (!monitors.length) return { activeCount: 0, liveTtfb: 0, liveHit: 0, avgTtfb24h: 0, avgHit24h: 0, healthScore: 0, ttfbDelta: 0, hitDelta: 0 }
+  const { activeCount, avgTtfb1h, avgHit1h, avgTtfb24h, avgHit24h, healthScore, ttfbDelta, hitDelta } = useMemo(() => {
+    if (!monitors.length) return { activeCount: 0, avgTtfb1h: 0, avgHit1h: 0, avgTtfb24h: 0, avgHit24h: 0, healthScore: 0, ttfbDelta: 0, hitDelta: 0 }
 
     const active = monitors.filter(m => m.status === 'active')
 
-    // Live Average (Current sample from all active monitors)
-    const liveTtfb = active.length > 0
-      ? Math.round(active.reduce((s, m) => s + m.ttfbCurrent, 0) / active.length)
+    // 1H Average (Rolling average for more stable Insights)
+    const avgTtfb1h = active.length > 0
+      ? Math.round(active.reduce((s, m) => s + m.ttfbAvg1h, 0) / active.length)
       : 0
 
-    const cm = active.filter(m => monitorCacheHitIsComparable(m) && m.cacheHitCurrent !== null)
-    const liveHit = cm.length
-      ? Number((cm.reduce((s, m) => s + m.cacheHitCurrent!, 0) / cm.length).toFixed(1))
+    const cm1h = active.filter(m => monitorCacheHitIsComparable(m) && m.cacheHitAvg1h !== null)
+    const avgHit1h = cm1h.length
+      ? Number((cm1h.reduce((s, m) => s + m.cacheHitAvg1h!, 0) / cm1h.length).toFixed(1))
       : null
 
     // 24H Average (Historical average from all active monitors)
@@ -780,14 +780,14 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
       ? Math.round(monitors.reduce((sum, m) => sum + monitorHealthScore(m), 0) / monitors.length)
       : 0
 
-    // Network-wide Trends (Real-time vs 24h Baseline)
-    const ttfbDelta = calculateTrend(liveTtfb, avgTtfb24h)
-    const hitDelta = (liveHit === null || avgHit24h === null) ? 0 : calculateTrend(liveHit, avgHit24h)
+    // Network-wide Trends (1h Rolling vs 24h Baseline)
+    const ttfbDelta = calculateTrend(avgTtfb1h, avgTtfb24h)
+    const hitDelta = (avgHit1h === null || avgHit24h === null) ? 0 : calculateTrend(avgHit1h, avgHit24h)
 
     return {
       activeCount: active.length,
-      liveTtfb,
-      liveHit,
+      avgTtfb1h,
+      avgHit1h,
       avgTtfb24h,
       avgHit24h,
       healthScore,
@@ -796,8 +796,8 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
     }
   }, [monitors])
 
-  const ttfbPill = globalTtfbFooterPill(liveTtfb)
-  const cachePill = globalCacheFooterPill(liveHit ?? 0)
+  const ttfbPill = globalTtfbFooterPill(avgTtfb1h)
+  const cachePill = globalCacheFooterPill(avgHit1h ?? 0)
   const ttfbTrendTone = ttfbDelta < 0 ? 'success' : ttfbDelta > 0 ? 'danger' : 'neutral'
   const ttfbTrendIcon = ttfbDelta < 0 ? ArrowDown : ttfbDelta > 0 ? ArrowUp : Minus
   const hitTrendTone = hitDelta > 0 ? 'success' : hitDelta < 0 ? 'danger' : 'neutral'
@@ -815,10 +815,10 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
   // True when there are no active monitors with real probe data yet.
   // Same logic as Monitors page — covers (1) no monitors, (2) warming-up state.
   const hasNoData = !isLoading && !monitors.some(
-    (m) => m.status === 'active' && m.ttfbCurrent > 0
+    (m) => m.status === 'active' && m.ttfbAvg1h > 0
   )
   const hasNoCacheData = !isLoading && !monitors.some(
-    (m) => m.status === 'active' && monitorCacheHitIsComparable(m) && m.cacheHitCurrent !== null
+    (m) => m.status === 'active' && monitorCacheHitIsComparable(m) && m.cacheHitAvg1h !== null
   )
   const hasNoMonitors = !isLoading && monitors.length === 0
 
@@ -827,14 +827,14 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
       monitors
         .filter(
           m =>
-            m.ttfbCurrent > MONITOR_TTFB.FAST ||
-            (m.cacheHitCurrent !== null && m.cacheHitCurrent < 70) ||
+            m.ttfbAvg1h > MONITOR_TTFB.FAST ||
+            (m.cacheHitAvg1h !== null && m.cacheHitAvg1h < 70) ||
             m.slowRegionCount > 0,
         )
         .sort((a, b) => {
-          // Critical first, then by TTFB
-          const aScore = (a.ttfbCurrent > MONITOR_TTFB.SLOW ? 1000 : 0) + a.ttfbCurrent
-          const bScore = (b.ttfbCurrent > MONITOR_TTFB.SLOW ? 1000 : 0) + b.ttfbCurrent
+          // Critical first, then by TTFB (1h avg)
+          const aScore = (a.ttfbAvg1h > MONITOR_TTFB.SLOW ? 1000 : 0) + a.ttfbAvg1h
+          const bScore = (b.ttfbAvg1h > MONITOR_TTFB.SLOW ? 1000 : 0) + b.ttfbAvg1h
           return bScore - aScore
         })
         .slice(0, 6),
@@ -842,17 +842,17 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
   )
 
   const slowest = useMemo(
-    () => [...monitors].sort((a, b) => b.ttfbCurrent - a.ttfbCurrent).slice(0, 5),
+    () => [...monitors].sort((a, b) => b.ttfbAvg1h - a.ttfbAvg1h).slice(0, 5),
     [monitors],
   )
 
   const cacheMonitors = useMemo(
-    () => monitors.filter(m => m.cacheHitCurrent !== null).slice(0, 6),
+    () => monitors.filter(m => m.cacheHitAvg1h !== null).slice(0, 6),
     [monitors],
   )
 
   const criticalCount = alertMonitors.filter(
-    m => m.ttfbCurrent > MONITOR_TTFB.SLOW || (m.cacheHitCurrent ?? 100) < 40,
+    m => m.ttfbAvg1h > MONITOR_TTFB.SLOW || (m.cacheHitAvg1h ?? 100) < 40,
   ).length
 
   return (
@@ -921,13 +921,13 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
             />
             <GlobalMetricCard
               title="Global Avg. TTFB"
-              value={isLoading ? '…' : hasNoData ? '—' : `${liveTtfb}ms`}
+              value={isLoading ? '…' : hasNoData ? '—' : `${avgTtfb1h}ms`}
               valueTooltip={hasNoData ? undefined : GLOBAL_TTFB_VALUE_TOOLTIP}
-              subtitle=""
+              subtitle="1h avg"
               icon={Gauge}
               iconClassName="stroke-[2.5]"
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
-              valueClassName={hasNoData ? 'text-zinc-600' : getTtfbColorClass(liveTtfb, 'global')}
+              valueClassName={hasNoData ? 'text-zinc-600' : getTtfbColorClass(avgTtfb1h, 'global')}
               trend={hasNoData ? undefined : {
                 value: `${Math.abs(ttfbDelta)}%`,
                 tone: ttfbTrendTone,
@@ -940,20 +940,20 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                   : {
                     label: ttfbPill.label,
                     tone: ttfbPill.tone,
-                    context: globalTtfbFooterContext(liveTtfb, ttfbDelta),
+                    context: globalTtfbFooterContext(avgTtfb1h, ttfbDelta),
                   }
               }
               animationDelayMs={70}
             />
             <GlobalMetricCard
               title="Global Cache Hit"
-              value={isLoading ? '…' : hasNoCacheData ? '—' : `${liveHit}%`}
+              value={isLoading ? '…' : hasNoCacheData ? '—' : `${avgHit1h}%`}
               valueTooltip={hasNoCacheData ? undefined : GLOBAL_CACHE_VALUE_TOOLTIP}
-              subtitle=""
-              valueClassName={hasNoCacheData ? 'text-zinc-600' : getCacheColor(liveHit ?? 0, 'global')}
+              subtitle="1h avg"
+              valueClassName={hasNoCacheData ? 'text-zinc-600' : getCacheColor(avgHit1h ?? 0, 'global')}
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
-              icon={Zap}
-              iconClassName={hasNoCacheData ? 'text-zinc-600' : `fill-current ${getCacheColor(liveHit ?? 0, 'global')} ${(liveHit ?? 0) >= 98 ? 'animate-[pulse_2s_infinite]' : ''}`}
+              icon={Database}
+              iconClassName={hasNoCacheData ? 'text-zinc-600' : `fill-current ${getCacheColor(avgHit1h ?? 0, 'global')} ${(avgHit1h ?? 0) >= 98 ? 'animate-[pulse_2s_infinite]' : ''}`}
               trend={hasNoCacheData || hitDelta === 0 ? undefined : {
                 value: `${Math.abs(hitDelta)}%`,
                 tone: hitTrendTone,
@@ -966,7 +966,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                   : {
                     label: cachePill.label,
                     tone: cachePill.tone,
-                    context: globalCacheFooterContext(liveHit ?? 0),
+                    context: globalCacheFooterContext(avgHit1h ?? 0),
                   }
               }
               animationDelayMs={140}
@@ -1034,11 +1034,13 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
             <article className="cs-card cs-card-glass relative z-0 !overflow-visible animate-[cs-fade-in_0.5s_ease-out] p-5">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="cs-metric-card-label mb-0 border-0 !text-[10px] text-zinc-400">TTFB Trend (24h)</p>
+                  <p className="cs-metric-card-label mb-0 border-0 !text-[10px] text-zinc-400">Global Avg. TTFB</p>
                   <p
-                    className={`mt-1.5 text-[24px] font-black tabular-nums leading-none ${hasNoData ? 'text-zinc-600' : getTtfbColorClass(liveTtfb, 'global')}`}
+                    className={`mt-1.5 text-[24px] font-black tabular-nums leading-none ${hasNoData ? 'text-zinc-600' : getTtfbColorClass(avgTtfb1h, 'global')}`}
                   >
-                    {isLoading ? '…' : hasNoData ? '—' : `${liveTtfb}ms`}
+                    {isLoading ? '…' : hasNoData ? '—' : (
+                      <>{avgTtfb1h}ms<span className="ml-1.5 text-[13px] font-semibold text-zinc-400">1h avg</span></>
+                    )}
                   </p>
                 </div>
                 <div className="rounded-lg border border-white/5 bg-white/5 p-2 text-zinc-400">
@@ -1073,10 +1075,10 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
             >
               <div className="mb-5 flex items-start justify-between gap-2">
                 <div>
-                  <p className="cs-metric-card-label mb-0 border-0 !text-[10px] text-zinc-400">Cache Hit Rate</p>
-                  <p className={`mt-1.5 text-[24px] font-black tabular-nums leading-none ${hasNoData ? 'text-zinc-600' : getCacheColor(liveHit, 'global')}`}>
-                    {isLoading ? '…' : hasNoData ? '—' : (
-                      <>{liveHit}%<span className="ml-1.5 text-[13px] font-semibold text-zinc-400">global avg</span></>
+                  <p className="cs-metric-card-label mb-0 border-0 !text-[10px] text-zinc-400">Global Cache Hit</p>
+                  <p className={`mt-1.5 text-[24px] font-black tabular-nums leading-none ${hasNoCacheData ? 'text-zinc-600' : getCacheColor(avgHit1h, 'global')}`}>
+                    {isLoading ? '…' : hasNoCacheData ? '—' : (
+                      <>{avgHit1h}%<span className="ml-1.5 text-[13px] font-semibold text-zinc-400">1h avg</span></>
                     )}
                   </p>
                 </div>
@@ -1102,7 +1104,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                   </div>
 
                   {cacheMonitors.map(m => {
-                    const hit = m.cacheHitCurrent!
+                    const hit = m.cacheHitAvg1h!
                     const grad =
                       hit >= 80
                         ? 'linear-gradient(90deg, #064e3b 0%, #059669 55%, #34d399 100%)'

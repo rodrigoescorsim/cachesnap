@@ -44,8 +44,8 @@ export function derivePortfolioAdvisor(monitors: Monitor[]): AdvisorState | null
   const noHeader = active.filter(m => getCacheDisplayLabel(m.cacheStatusCurrent) === 'NO HEADER')
   const degraded = active.filter(m => !originError.includes(m) && (
     m.errorRegionCount > 0 ||
-    m.ttfbCurrent >= MONITOR_TTFB.FAST ||
-    (monitorCacheHitIsComparable(m) && m.cacheHitCurrent !== null && m.cacheHitCurrent < MONITOR_CACHE.GOOD)
+    m.ttfbAvg1h >= MONITOR_TTFB.FAST ||
+    (monitorCacheHitIsComparable(m) && m.cacheHitAvg1h !== null && m.cacheHitAvg1h < MONITOR_CACHE.GOOD)
   ))
 
   // ── Critical: at least one monitor fully down or origin failing ───────────
@@ -113,8 +113,8 @@ export function derivePortfolioAdvisor(monitors: Monitor[]): AdvisorState | null
   // ── Warning: degraded, origin 4xx, or missing cache headers ───────────────
   if (degraded.length > 0 || originError.length > 0 || noHeader.length > 0) {
     const worstDegraded = [...degraded, ...originError].sort((a, b) => {
-      const aVal = a.error5xxCount * 1000 + a.ttfbCurrent
-      const bVal = b.error5xxCount * 1000 + b.ttfbCurrent
+      const aVal = a.error5xxCount * 1000 + a.ttfbAvg1h
+      const bVal = b.error5xxCount * 1000 + b.ttfbAvg1h
       return bVal - aVal
     })[0]
     const actions: AdvisorAction[] = []
@@ -163,16 +163,16 @@ export function derivePortfolioAdvisor(monitors: Monitor[]): AdvisorState | null
   }
 
   // ── Good: everything healthy ──────────────────────────────────────────────
-  const avgTtfb = Math.round(active.reduce((s, m) => s + m.ttfbCurrent, 0) / active.length)
-  const withCache = active.filter(m => monitorCacheHitIsComparable(m) && m.cacheHitCurrent !== null)
+  const avgTtfb = Math.round(active.reduce((s, m) => s + m.ttfbAvg1h, 0) / active.length)
+  const withCache = active.filter(m => monitorCacheHitIsComparable(m) && m.cacheHitAvg1h !== null)
   const avgCache = withCache.length > 0
-    ? Math.round(withCache.reduce((s, m) => s + m.cacheHitCurrent!, 0) / withCache.length)
+    ? Math.round(withCache.reduce((s, m) => s + m.cacheHitAvg1h!, 0) / withCache.length)
     : null
 
   return {
     severity: 'good',
     headline: `${active.length} monitors healthy`,
-    body: `Avg TTFB ${avgTtfb}ms${avgCache !== null ? ` · ${avgCache}% cache hit` : ''}. No issues detected.`,
+    body: `Global 1h avg: ${avgTtfb}ms${avgCache !== null ? ` · ${avgCache}% cache hit` : ''}. No issues detected.`,
     actions: [],
   }
 }
@@ -182,13 +182,13 @@ function buildDegradedBody(m: Monitor): string {
   if (m.error5xxCount > 0) return `${host} is reporting 5xx errors from the origin server.`
   if (m.error4xxCount > 0) return `${host} is reporting unusual 4xx status codes from origin.`
 
-  const cacheNote = monitorCacheHitIsComparable(m) && m.cacheHitCurrent !== null && m.cacheHitCurrent < MONITOR_CACHE.GOOD
-    ? ` · ${m.cacheHitCurrent}% cache hit`
+  const cacheNote = monitorCacheHitIsComparable(m) && m.cacheHitAvg1h !== null && m.cacheHitAvg1h < MONITOR_CACHE.GOOD
+    ? ` · ${m.cacheHitAvg1h}% cache hit`
     : ''
   const regionNote = m.errorRegionCount > 0
     ? ` ${m.errorRegionCount} of ${m.totalRegionCount} regions failing.`
     : ''
-  return `${host}: ${m.ttfbCurrent}ms TTFB${cacheNote}.${regionNote}`
+  return `${host}: ${m.ttfbAvg1h}ms TTFB${cacheNote}.${regionNote}`
 }
 
 // ─── Monitor detail — live view ──────────────────────────────────────────────

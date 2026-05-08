@@ -20,10 +20,12 @@ export interface Monitor {
   status: MonitorStatus
   ttfbCurrent: number
   ttfbCurrentDelta: number
+  ttfbAvg1h: number
   ttfbAvg24h: number
   ttfbSparkline: number[]
   // null = CDN/origin doesn't report a recognisable cache-status header
   cacheHitCurrent: number | null
+  cacheHitAvg1h: number | null
   cacheHitAvg24h: number | null
   cacheHitDelta: number | null
   cacheStatusCurrent: string | null

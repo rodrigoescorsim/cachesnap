@@ -110,46 +110,46 @@ export function deriveInsights(monitors: Monitor[]): Insight[] {
   if (!monitors.length) return []
   const out: Insight[] = []
 
-  // 1. TTFB — worst monitor
-  const byTtfb   = [...monitors].sort((a, b) => b.ttfbCurrent - a.ttfbCurrent)
+  // 1. TTFB — worst monitor (using 1h average for stability)
+  const byTtfb   = [...monitors].sort((a, b) => b.ttfbAvg1h - a.ttfbAvg1h)
   const worstTtfb = byTtfb[0]
 
-  if (worstTtfb.ttfbCurrent > TTFB_CRITICAL) {
+  if (worstTtfb.ttfbAvg1h > TTFB_CRITICAL) {
     out.push({
       id:          'critical-ttfb',
       severity:    'critical',
       title:       'Critical response time',
-      description: `${safeHostname(worstTtfb.url)} is at ${worstTtfb.ttfbCurrent}ms TTFB — well above acceptable thresholds. Origin may be overloaded or misconfigured.`,
-      metric:      `${worstTtfb.ttfbCurrent}ms`,
+      description: `${safeHostname(worstTtfb.url)} is averaging ${worstTtfb.ttfbAvg1h}ms TTFB over the last hour — well above acceptable thresholds. Origin may be overloaded or misconfigured.`,
+      metric:      `${worstTtfb.ttfbAvg1h}ms`,
       actionLabel: 'Check Trends',
       actionHref:  buildViewHref('trends', '24h', worstTtfb.id),
     })
-  } else if (worstTtfb.ttfbCurrent > TTFB_HIGH) {
+  } else if (worstTtfb.ttfbAvg1h > TTFB_HIGH) {
     out.push({
       id:          'high-ttfb',
       severity:    'warning',
       title:       'Elevated TTFB detected',
-      description: `${safeHostname(worstTtfb.url)} is at ${worstTtfb.ttfbCurrent}ms. Enable edge caching or review origin capacity to bring this below 200ms.`,
-      metric:      `${worstTtfb.ttfbCurrent}ms`,
+      description: `${safeHostname(worstTtfb.url)} is averaging ${worstTtfb.ttfbAvg1h}ms (1h rolling). Enable edge caching or review origin capacity to bring this below 200ms.`,
+      metric:      `${worstTtfb.ttfbAvg1h}ms`,
       actionLabel: 'Analyze Performance',
       actionHref:  buildViewHref('performance', '24h', worstTtfb.id),
     })
   }
 
-  // 2. Cache hit — worst monitor
-  const withCache  = monitors.filter(m => m.cacheHitCurrent !== null)
+  // 2. Cache hit — worst monitor (using 1h average for stability)
+  const withCache  = monitors.filter(m => m.cacheHitAvg1h !== null)
   if (withCache.length > 0) {
     const worstCache = [...withCache].sort(
-      (a, b) => (a.cacheHitCurrent ?? 100) - (b.cacheHitCurrent ?? 100),
+      (a, b) => (a.cacheHitAvg1h ?? 100) - (b.cacheHitAvg1h ?? 100),
     )[0]
-    const hit = worstCache.cacheHitCurrent!
+    const hit = worstCache.cacheHitAvg1h!
 
     if (hit < CACHE_WARN) {
       out.push({
         id:          'low-cache',
         severity:    hit < CACHE_CRITICAL ? 'critical' : 'warning',
         title:       'High cache miss rate',
-        description: `${safeHostname(worstCache.url)} has only ${hit}% cache hits. Add Cache-Control: public, s-maxage=300 to origin responses to improve CDN efficiency.`,
+        description: `${safeHostname(worstCache.url)} has only ${hit}% cache hits (1h rolling average). Add Cache-Control: public, s-maxage=300 to origin responses to improve CDN efficiency.`,
         metric:      `${hit}% hit`,
         actionLabel: 'Check Edge Audit',
         actionHref:  buildViewHref('infrastructure', '24h', worstCache.id),
@@ -197,11 +197,11 @@ export function deriveInsights(monitors: Monitor[]): Insight[] {
   // 5. All-healthy fallback
   if (out.length === 0) {
     const avgTtfb = Math.round(
-      monitors.reduce((s, m) => s + m.ttfbCurrent, 0) / monitors.length,
+      monitors.reduce((s, m) => s + m.ttfbAvg1h, 0) / monitors.length,
     )
-    const cm       = monitors.filter(m => m.cacheHitCurrent !== null)
+    const cm       = monitors.filter(m => m.cacheHitAvg1h !== null)
     const avgCache = cm.length
-      ? Math.round(cm.reduce((s, m) => s + m.cacheHitCurrent!, 0) / cm.length)
+      ? Math.round(cm.reduce((s, m) => s + m.cacheHitAvg1h!, 0) / cm.length)
       : null
 
     out.push({

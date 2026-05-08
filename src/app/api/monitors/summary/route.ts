@@ -64,6 +64,22 @@ export async function GET() {
       GROUP BY monitor_id
     ),
 
+    -- 1-hour aggregate per monitor (TTFB + cache hit rate) for more stable Insights
+    h1 AS (
+      SELECT
+        monitor_id,
+        ROUND(AVG(ttfb_ms) FILTER (WHERE ttfb_ms IS NOT NULL AND error IS NULL))::int  AS ttfb_avg_1h,
+        ROUND(
+          100.0
+          * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT') AND error IS NULL)
+          / NULLIF(COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'MISS', 'STALE', 'REVALIDATED', 'UPDATING', 'EXPIRED', 'REVALIDATE', 'REFRESH_HIT', 'REFRESH_MISS') AND error IS NULL), 0),
+          1
+        )                                                                               AS cache_hit_avg_1h
+      FROM probe_results
+      WHERE time > NOW() - INTERVAL '1 hour'
+      GROUP BY monitor_id
+    ),
+
     -- Current snapshot: latest probes aggregated across all regions
     curr AS (
       SELECT
@@ -144,6 +160,8 @@ export async function GET() {
       c.cache_hit_current                                                                    AS cache_hit_current,
       c.dominant_cache_status                                                                AS cache_status_current,
       h.cache_hit_avg_24h                                                                    AS cache_hit_avg_24h,
+      COALESCE(h1.ttfb_avg_1h, c.ttfb_current, 0)                                            AS ttfb_avg_1h,
+      COALESCE(h1.cache_hit_avg_1h, c.cache_hit_current)                                     AS cache_hit_avg_1h,
       h.uptime_24h                                                                            AS uptime_24h,
       -- Positive = current better than 24h avg (percentage-point diff); null if no data
       CASE
@@ -165,6 +183,7 @@ export async function GET() {
     FROM monitors m
     LEFT JOIN curr  c ON c.monitor_id = m.id
     LEFT JOIN h24   h ON h.monitor_id = m.id
+    LEFT JOIN h1    h1 ON h1.monitor_id = m.id
     LEFT JOIN reg   r ON r.monitor_id = m.id
     LEFT JOIN spark s ON s.monitor_id = m.id
     WHERE m.user_id = ${user.id}
