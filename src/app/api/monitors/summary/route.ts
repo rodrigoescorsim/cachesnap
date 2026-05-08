@@ -49,7 +49,7 @@ export async function GET() {
         ROUND(
           100.0
           * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT') AND error IS NULL)
-          / NULLIF(COUNT(*) FILTER (WHERE cache_status IS NOT NULL AND error IS NULL), 0),
+          / NULLIF(COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'MISS', 'STALE', 'REVALIDATED', 'UPDATING', 'EXPIRED', 'REVALIDATE', 'REFRESH_HIT', 'REFRESH_MISS') AND error IS NULL), 0),
           1
         )                                                                               AS cache_hit_avg_24h
         ,
@@ -72,7 +72,7 @@ export async function GET() {
         ROUND(
           100.0
           * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT') AND error IS NULL)
-          / NULLIF(COUNT(*) FILTER (WHERE cache_status IS NOT NULL AND error IS NULL), 0),
+          / NULLIF(COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'MISS', 'STALE', 'REVALIDATED', 'UPDATING', 'EXPIRED', 'REVALIDATE', 'REFRESH_HIT', 'REFRESH_MISS') AND error IS NULL), 0),
           1
         )                                                                                AS cache_hit_current,
         MODE() WITHIN GROUP (ORDER BY COALESCE(cache_status, 'NO HEADER')) FILTER (WHERE error IS NULL) AS dominant_cache_status,

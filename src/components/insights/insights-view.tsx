@@ -26,7 +26,7 @@ import { GlobalHeader } from '@/components/dashboard/global-header'
 import { ViewSection, ViewSectionHeader, LiveDot } from '@/components/dashboard/dashboard-ui'
 import { GlobalMetricCard } from '@/components/monitors/global-metric-card'
 import { useMonitors } from '@/hooks/use-monitors'
-import { monitorHealthScore, type Monitor } from '@/types/monitor'
+import { monitorHealthScore, monitorCacheHitIsComparable, type Monitor } from '@/types/monitor'
 import {
   type Severity,
   type Insight,
@@ -760,20 +760,20 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
       ? Math.round(active.reduce((s, m) => s + m.ttfbCurrent, 0) / active.length)
       : 0
 
-    const cm = active.filter(m => m.cacheHitCurrent !== null)
+    const cm = active.filter(m => monitorCacheHitIsComparable(m) && m.cacheHitCurrent !== null)
     const liveHit = cm.length
       ? Number((cm.reduce((s, m) => s + m.cacheHitCurrent!, 0) / cm.length).toFixed(1))
-      : 0
+      : null
 
     // 24H Average (Historical average from all active monitors)
     const avgTtfb24h = active.length > 0
       ? Math.round(active.reduce((s, m) => s + m.ttfbAvg24h, 0) / active.length)
       : 0
 
-    const cm24h = active.filter(m => m.cacheHitAvg24h !== null)
+    const cm24h = active.filter(m => monitorCacheHitIsComparable(m) && m.cacheHitAvg24h !== null)
     const avgHit24h = cm24h.length
       ? Number((cm24h.reduce((s, m) => s + m.cacheHitAvg24h!, 0) / cm24h.length).toFixed(1))
-      : 0
+      : null
 
     // Global health Score: weighted average of individual monitor health scores
     const healthScore = monitors.length > 0
@@ -782,7 +782,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
 
     // Network-wide Trends (Real-time vs 24h Baseline)
     const ttfbDelta = calculateTrend(liveTtfb, avgTtfb24h)
-    const hitDelta = calculateTrend(liveHit, avgHit24h)
+    const hitDelta = (liveHit === null || avgHit24h === null) ? 0 : calculateTrend(liveHit, avgHit24h)
 
     return {
       activeCount: active.length,
@@ -797,7 +797,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
   }, [monitors])
 
   const ttfbPill = globalTtfbFooterPill(liveTtfb)
-  const cachePill = globalCacheFooterPill(liveHit)
+  const cachePill = globalCacheFooterPill(liveHit ?? 0)
   const ttfbTrendTone = ttfbDelta < 0 ? 'success' : ttfbDelta > 0 ? 'danger' : 'neutral'
   const ttfbTrendIcon = ttfbDelta < 0 ? ArrowDown : ttfbDelta > 0 ? ArrowUp : Minus
   const hitTrendTone = hitDelta > 0 ? 'success' : hitDelta < 0 ? 'danger' : 'neutral'
@@ -816,6 +816,9 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
   // Same logic as Monitors page — covers (1) no monitors, (2) warming-up state.
   const hasNoData = !isLoading && !monitors.some(
     (m) => m.status === 'active' && m.ttfbCurrent > 0
+  )
+  const hasNoCacheData = !isLoading && !monitors.some(
+    (m) => m.status === 'active' && monitorCacheHitIsComparable(m) && m.cacheHitCurrent !== null
   )
   const hasNoMonitors = !isLoading && monitors.length === 0
 
@@ -944,26 +947,26 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
             />
             <GlobalMetricCard
               title="Global Cache Hit"
-              value={isLoading ? '…' : hasNoData ? '—' : `${liveHit}%`}
-              valueTooltip={hasNoData ? undefined : GLOBAL_CACHE_VALUE_TOOLTIP}
+              value={isLoading ? '…' : hasNoCacheData ? '—' : `${liveHit}%`}
+              valueTooltip={hasNoCacheData ? undefined : GLOBAL_CACHE_VALUE_TOOLTIP}
               subtitle=""
-              valueClassName={hasNoData ? 'text-zinc-600' : getCacheColor(liveHit, 'global')}
+              valueClassName={hasNoCacheData ? 'text-zinc-600' : getCacheColor(liveHit ?? 0, 'global')}
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
               icon={Zap}
-              iconClassName={hasNoData ? 'text-zinc-600' : `fill-current ${getCacheColor(liveHit, 'global')} ${liveHit >= 98 ? 'animate-[pulse_2s_infinite]' : ''}`}
-              trend={hasNoData ? undefined : {
+              iconClassName={hasNoCacheData ? 'text-zinc-600' : `fill-current ${getCacheColor(liveHit ?? 0, 'global')} ${(liveHit ?? 0) >= 98 ? 'animate-[pulse_2s_infinite]' : ''}`}
+              trend={hasNoCacheData || hitDelta === 0 ? undefined : {
                 value: `${Math.abs(hitDelta)}%`,
                 tone: hitTrendTone,
                 icon: hitTrendIcon,
                 tooltip: GLOBAL_CACHE_TREND_TOOLTIP,
               }}
               statusFooter={
-                isLoading || hasNoData
+                isLoading || hasNoCacheData
                   ? undefined
                   : {
                     label: cachePill.label,
                     tone: cachePill.tone,
-                    context: globalCacheFooterContext(liveHit),
+                    context: globalCacheFooterContext(liveHit ?? 0),
                   }
               }
               animationDelayMs={140}

@@ -41,6 +41,22 @@ export interface Monitor {
   lastCheckedAt: Date
 }
 
+export interface Alert {
+  id: string
+  region: string
+  alert_type: string
+  metric: string
+  baseline_ms: number | null
+  actual_ms: number | null
+  deviation_factor: number | null
+  diagnosis: string | null
+  action: string | null
+  delta_pct: number | null
+  comparator: string | null
+  scope: string | null
+  created_at: Date
+}
+
 export function getTtfbTier(ms: number): TtfbTier {
   if (ms < MONITOR_TTFB.FAST) return 'fast'
   if (ms <= MONITOR_TTFB.SLOW) return 'med'

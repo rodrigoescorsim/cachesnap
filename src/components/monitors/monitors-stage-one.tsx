@@ -13,7 +13,7 @@ import {
   Search,
 } from 'lucide-react'
 import { GlobalHeader } from '@/components/dashboard/global-header'
-import { type MonitorQuickFilterId } from '@/types/monitor'
+import { type MonitorQuickFilterId, monitorCacheHitIsComparable } from '@/types/monitor'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import { GlobalMetricCard } from './global-metric-card'
 import { MonitorsTable } from './monitors-table'
@@ -201,7 +201,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
     })
     const liveHit = withCacheData.length > 0
       ? Number((withCacheData.reduce((sum, m) => sum + m.cacheHitCurrent!, 0) / withCacheData.length).toFixed(1))
-      : 0
+      : null
 
     // 24H Average (Historical average from all active monitors)
     const avgTtfb24h = active.length > 0
@@ -217,11 +217,11 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
     })
     const avgHit24h = withCache24h.length > 0
       ? Number((withCache24h.reduce((sum, m) => sum + m.cacheHitAvg24h!, 0) / withCache24h.length).toFixed(1))
-      : 0
+      : null
 
     // Network-wide Trends (Real-time vs 24h Baseline)
     const ttfbDelta = calculateTrend(liveTtfb, avgTtfb24h)
-    const hitDelta = calculateTrend(liveHit, avgHit24h)
+    const hitDelta = (liveHit === null || avgHit24h === null) ? 0 : calculateTrend(liveHit, avgHit24h)
 
     return {
       activeCount: active.length,
@@ -235,7 +235,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
   }, [displayMonitors])
 
   const ttfbPill = globalTtfbFooterPill(liveTtfb)
-  const cachePill = globalCacheFooterPill(liveHit)
+  const cachePill = globalCacheFooterPill(liveHit ?? 0)
   const ttfbTrendTone = ttfbDelta < 0 ? 'success' : ttfbDelta > 0 ? 'danger' : 'neutral'
   const ttfbTrendIcon = ttfbDelta < 0 ? ArrowDown : ttfbDelta > 0 ? ArrowUp : Minus
   const hitTrendTone = hitDelta > 0 ? 'success' : hitDelta < 0 ? 'danger' : 'neutral'
@@ -250,6 +250,9 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
   // Covers both: (1) no monitors at all, (2) monitors exist but are still warming up.
   const hasNoData = !isLoading && !monitors.some(
     (m) => m.status === 'active' && m.ttfbCurrent > 0
+  )
+  const hasNoCacheData = !isLoading && !monitors.some(
+    (m) => m.status === 'active' && monitorCacheHitIsComparable(m) && m.cacheHitCurrent !== null
   )
   const hasNoMonitors = !isLoading && monitors.length === 0
 
@@ -299,26 +302,26 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
               variant="compact"
               metricGroup="monitor"
               title="Cache hit"
-              value={isLoading ? '...' : hasNoData ? '—' : `${liveHit}%`}
-              valueTooltip={hasNoData ? undefined : GLOBAL_CACHE_VALUE_TOOLTIP}
+              value={isLoading ? '...' : hasNoCacheData ? '—' : `${liveHit}%`}
+              valueTooltip={hasNoCacheData ? undefined : GLOBAL_CACHE_VALUE_TOOLTIP}
               subtitle=""
               icon={Zap}
-              iconClassName={hasNoData ? 'text-zinc-600' : `fill-current ${getCacheColor(liveHit, 'global')} ${liveHit >= 98 ? 'animate-[pulse_2s_infinite]' : ''}`}
-              valueClassName={hasNoData ? 'text-zinc-600' : getCacheColor(liveHit, 'global')}
-              isElite={!isLoading && !hasNoData && liveHit >= GLOBAL_CACHE.PERFECT}
-              trend={hasNoData ? undefined : {
+              iconClassName={hasNoCacheData ? 'text-zinc-600' : `fill-current ${getCacheColor(liveHit ?? 0, 'global')} ${(liveHit ?? 0) >= 98 ? 'animate-[pulse_2s_infinite]' : ''}`}
+              valueClassName={hasNoCacheData ? 'text-zinc-600' : getCacheColor(liveHit ?? 0, 'global')}
+              isElite={!isLoading && !hasNoCacheData && (liveHit ?? 0) >= GLOBAL_CACHE.PERFECT}
+              trend={hasNoCacheData || hitDelta === 0 ? undefined : {
                 value: `${Math.abs(hitDelta)}%`,
                 tone: hitTrendTone,
                 icon: hitTrendIcon,
                 tooltip: GLOBAL_CACHE_TREND_TOOLTIP,
               }}
               statusFooter={
-                isLoading || hasNoData
+                isLoading || hasNoCacheData
                   ? undefined
                   : {
                     label: cachePill.label,
                     tone: cachePill.tone,
-                    context: globalCacheFooterContextCompact(liveHit),
+                    context: globalCacheFooterContextCompact(liveHit ?? 0),
                   }
               }
               animationDelayMs={0}

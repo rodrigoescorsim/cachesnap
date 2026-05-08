@@ -411,11 +411,12 @@ export type MonitorPerformancePeriodInput = {
   errorCount?: number
   totalRegionCount?: number
   lastErrorMessage?: string | null
+  slowRegionLabels?: string[]
 }
 
 export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformancePeriodInput): AdvisorState | null {
   const { monitorId, url, range, avgTtfb, prevAvgTtfb, globalHitRate, prevGlobalHitRate,
-    hasHistory, isDown, isDegraded, isOffline, errorCount, totalRegionCount, lastErrorMessage } = input
+    hasHistory, isDown, isDegraded, isOffline, errorCount, totalRegionCount, lastErrorMessage, slowRegionLabels } = input
 
   const host = hostname(url)
 
@@ -492,22 +493,24 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
   // ── Warning: moderate regression or cache drop ────────────────────────────
   if (ttfbChangePct > 10 || cacheChangePp < -10 || input.slowRegionCount > 0) {
     const parts: string[] = []
+    const bodyParts: string[] = []
     if (ttfbChangePct > 10) parts.push(`TTFB +${ttfbChangePct}% vs previous ${range}`)
     if (cacheChangePp < -10) parts.push(`cache hit ${cacheChangePp}pp`)
-    if (input.slowRegionCount > 0) parts.push(`${input.slowRegionCount} slow region${input.slowRegionCount > 1 ? 's' : ''}`)
+    if (input.slowRegionCount > 0) {
+      parts.push(`${input.slowRegionCount} slow region${input.slowRegionCount > 1 ? 's' : ''}`)
+      if (slowRegionLabels && slowRegionLabels.length > 0) {
+        bodyParts.push(`Slow regions detected: ${slowRegionLabels.join(', ')}.`)
+      } else {
+        bodyParts.push(`${input.slowRegionCount} region${input.slowRegionCount > 1 ? 's are' : ' is'} slower than the FAST threshold.`)
+      }
+    }
 
-    const bodyParts: string[] = []
-    
     if (ttfbChangePct > 10) {
       bodyParts.push(`Global latency increased to ${avgTtfb}ms (from ${prevAvgTtfb}ms).`)
     }
 
     if (cacheChangePp < -10) {
       bodyParts.push(`Cache hit rate dropped by ${Math.abs(cacheChangePp)}%.`)
-    }
-
-    if (input.slowRegionCount > 0) {
-      bodyParts.push(`${input.slowRegionCount} region${input.slowRegionCount > 1 ? 's averaged' : ' averaged'} high latency in this period.`)
     }
 
     return {

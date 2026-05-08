@@ -51,7 +51,8 @@ export function getTtfbColorClass(ms: number, type: 'monitor' | 'global' = 'moni
   return 'text-metric-ttfb-med'
 }
 
-export function getCacheColor(pct: number, type: 'monitor' | 'global' = 'monitor') {
+export function getCacheColor(pct: number | null, type: 'monitor' | 'global' = 'monitor') {
+  if (pct === null) return 'text-zinc-500'
   const t = type === 'global' ? GLOBAL_CACHE : { GOOD: MONITOR_CACHE.GOOD, FAIR: MONITOR_CACHE.LOW, PERFECT: GLOBAL_CACHE.PERFECT }
   if (pct >= t.PERFECT) return 'text-metric-elite'
   if (pct >= t.GOOD) return 'text-metric-ttfb-fast'

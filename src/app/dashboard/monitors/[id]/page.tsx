@@ -3,7 +3,7 @@ import { PremiumTooltip } from '@/components/premium-tooltip'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { isCacheHit, getCacheDisplayLabel } from '@/lib/cache-utils'
+import { isCacheHit, getCacheDisplayLabel, CACHE_HIT_STATUSES, CACHE_MISS_STATUSES } from '@/lib/cache-utils'
 import sql from '@/lib/db'
 import { AutoRefresh } from './auto-refresh'
 import { TtfbChart, type ChartPoint } from './ttfb-chart'
@@ -29,6 +29,7 @@ import {
   VALID_ALERT_TYPES,
   ALERT_TYPE_LABELS,
 } from './monitor-href'
+import { type Alert } from '@/types/monitor'
 import { AlertHistoryTable } from './alert-history-table'
 import { TIMING } from './timing-metrics-palette'
 import { getRegions } from '@/lib/regions'
@@ -124,21 +125,6 @@ interface SecurityHeaders {
   }
 }
 
-interface Alert {
-  id: string
-  region: string
-  alert_type: string
-  metric: string
-  baseline_ms: number | null
-  actual_ms: number | null
-  deviation_factor: number | null
-  diagnosis: string | null
-  action: string | null
-  delta_pct: number | null
-  comparator: string | null
-  scope: string | null
-  created_at: Date
-}
 
 interface SecurityByRegion {
   region: string
@@ -530,7 +516,7 @@ export default async function MonitorDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ range?: string | string[]; tab?: string | string[]; view?: string | string[]; alert_type?: string | string[] }>
+  searchParams: Promise<{ range?: string | string[]; tab?: string | string[]; view?: string | string[]; alert_type?: string | string[]; alerts_limit?: string | string[] }>
 }) {
   const user = await getSession()
   if (!user) return null
@@ -562,7 +548,7 @@ export default async function MonitorDetailPage({
     id: string; url: string; name: string | null; is_active: boolean; check_interval_seconds: number; audit_interval_seconds: number;
     notify_email: string | null; notify_email_enabled: boolean;
     notify_slack_webhook: string | null; notify_slack_enabled: boolean;
-    alert_threshold_ms: number; alert_sensitivity: number;
+    alert_threshold_ms: number; alert_threshold_hit_ms: number; alert_sensitivity: number;
     alert_down_enabled: boolean; alert_ttfb_enabled: boolean; alert_anomaly_enabled: boolean;
     alert_anycast_enabled: boolean; alert_zombie_cache_enabled: boolean;
     alert_cache_hit_enabled: boolean; alert_cache_hit_threshold_pct: number;
@@ -573,7 +559,7 @@ export default async function MonitorDetailPage({
   }[]>`
     SELECT id, url, name, is_active, check_interval_seconds, audit_interval_seconds,
            notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
-           alert_threshold_ms, alert_sensitivity,
+           alert_threshold_ms, alert_threshold_hit_ms, alert_sensitivity,
            alert_down_enabled, alert_ttfb_enabled, alert_anomaly_enabled,
            alert_anycast_enabled, alert_zombie_cache_enabled,
            alert_cache_hit_enabled, alert_cache_hit_threshold_pct,
@@ -624,7 +610,7 @@ export default async function MonitorDetailPage({
       COUNT(*) FILTER (WHERE error IS NOT NULL)::int AS error_count,
       ROUND(
         100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT')) 
-               / NULLIF(COUNT(*) FILTER (WHERE cache_status IS NOT NULL AND cache_status != 'HIDDEN'), 0), 1
+               / NULLIF(COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'MISS', 'STALE', 'REVALIDATED', 'UPDATING', 'EXPIRED', 'REVALIDATE', 'REFRESH_HIT', 'REFRESH_MISS')), 0), 1
       )                                          AS cache_hit_pct,
       ROUND(
         100.0 * COUNT(*) FILTER (WHERE error IS NULL AND status_code < 500)
@@ -1061,13 +1047,21 @@ export default async function MonitorDetailPage({
     ? Math.round(validLiveTtfb.reduce((acc, p) => acc + (p.ttfb_ms || 0), 0) / validLiveTtfb.length)
     : 0;
 
-  const validLiveCache = latestProbes.filter(p => p.common_cache_status !== null && p.common_cache_status !== 'HIDDEN');
-  const liveHitCount = validLiveCache.filter(p => isCacheHit(p.common_cache_status?.toUpperCase() ?? null)).length;
-  const liveGlobalHitRate = validLiveCache.length > 0
-    ? Math.round((liveHitCount / validLiveCache.length) * 100)
+  // Only count cacheable traffic (HIT or MISS categories) in the denominator.
+  // BYPASS/DYNAMIC/NO HEADER are intentional and must not dilute the cache efficiency rate.
+  const liveHitProbes = latestProbes.filter(p => isCacheHit(p.common_cache_status?.toUpperCase() ?? null));
+  const liveCacheableProbes = latestProbes.filter(p => {
+    const label = getCacheDisplayLabel(p.common_cache_status);
+    return CACHE_HIT_STATUSES.includes(label) || CACHE_MISS_STATUSES.includes(label);
+  });
+  const liveHitCount = liveHitProbes.length;
+  const liveGlobalHitRate = liveCacheableProbes.length > 0
+    ? Math.round((liveHitCount / liveCacheableProbes.length) * 100)
     : 0;
+  // True when all live probes are BYPASS/DYNAMIC — no cacheable traffic at all
+  const liveIsFullBypass = latestProbes.length > 0 && liveCacheableProbes.length === 0;
 
-  const isLiveGlobalDynamic = liveGlobalHitRate === 0 && latestProbes.length > 0
+  const isLiveGlobalDynamic = (liveGlobalHitRate === 0 || liveIsFullBypass) && latestProbes.length > 0
   
   const liveDominantStatusLabel = (() => {
     if (liveGlobalHitRate > 0 || latestProbes.length === 0) return null
@@ -1180,7 +1174,7 @@ export default async function MonitorDetailPage({
     liveAvgTtfb,
     periodAvgTtfb: avgTtfb,
     liveGlobalHitRate,
-    hasLiveCacheData: validLiveCache.length > 0,
+    hasLiveCacheData: liveCacheableProbes.length > 0,
     liveDominantStatus,
     liveAvgEdgeMs: Math.round(latestProbes.reduce((acc, p) => acc + Number(p.edge_ms || 0), 0) / latestProbes.length),
     liveAvgOriginMs: Math.round(latestProbes.reduce((acc, p) => acc + Number(p.origin_ms || 0), 0) / latestProbes.length),
@@ -1420,7 +1414,7 @@ export default async function MonitorDetailPage({
                 position="top-left"
               >
                 <Link
-                  href={buildMonitorHref('incidents', range, null, '', monitor.id)}
+                  href={buildMonitorHref('incidents', range, null, null, '', monitor.id)}
                   scroll={false}
                   className={`inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0 text-[10px] font-bold uppercase tracking-tight transition-all hover:opacity-80 ${alerts.length > 0
                     ? 'border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500/20'
@@ -1968,6 +1962,8 @@ export default async function MonitorDetailPage({
                 return (
                   <MonitorSettingsPanel
                     {...monitor}
+                    checkIntervalSeconds={monitor.check_interval_seconds}
+                    auditIntervalSeconds={monitor.audit_interval_seconds}
                     notifyEmail={monitor.notify_email}
                     notifyEmailEnabled={monitor.notify_email_enabled}
                     notifySlackWebhook={monitor.notify_slack_webhook}

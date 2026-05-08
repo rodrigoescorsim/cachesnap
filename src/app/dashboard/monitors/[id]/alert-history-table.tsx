@@ -4,22 +4,8 @@ import { useState, Fragment } from 'react'
 import { AlertCircle, AlertTriangle, Zap, ChevronDown, ChevronUp } from 'lucide-react'
 import { MONITOR_TABLE } from './monitor-table-styles'
 import { ALERT_TYPE_LABELS, type AlertType } from './monitor-href'
+import { type Alert } from '@/types/monitor'
 
-interface Alert {
-  id: string
-  region: string
-  alert_type: string
-  metric: string
-  baseline_ms: number | null
-  actual_ms: number | null
-  deviation_factor: number | null
-  diagnosis: string | null
-  action: string | null
-  delta_pct: number | null
-  comparator: string | null
-  scope: string | null
-  created_at: string
-}
 
 interface AlertHistoryTableProps {
   alerts: Alert[]
