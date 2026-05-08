@@ -33,7 +33,7 @@ import { type Alert } from '@/types/monitor'
 import { AlertHistoryTable } from './alert-history-table'
 import { TIMING } from './timing-metrics-palette'
 import { getRegions } from '@/lib/regions'
-import { MONITOR_TTFB, getCacheColor, getTtfbColorClass, getTtfbTooltip, getCacheTooltip } from '@/lib/thresholds'
+import { MONITOR_TTFB, MONITOR_CACHE, getCacheColor, getTtfbColorClass, getTtfbTooltip, getCacheTooltip } from '@/lib/thresholds'
 import { VisualGlow } from '../../visual-glow'
 import {
   Activity,
