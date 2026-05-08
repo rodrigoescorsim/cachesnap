@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     )
     VALUES (
       ${user.id}, ${normalizedUrl}, ${finalName}, ${check_interval_seconds}, ${audit_interval_seconds}, 
-      'disabled', 1500, 500, 30, 30,
+      'disabled', 1500, 500, 40, 40,
       true, true, true, true, true, true, true, true,
       ARRAY['prev_hour', 'same_hour_prev_day', 'day_avg'],
       ARRAY['prev_hour', 'same_hour_prev_day', 'day_avg'],

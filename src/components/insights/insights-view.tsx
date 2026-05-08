@@ -812,6 +812,13 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
   const ttfbTrend = useMemo(() => aggregateTtfbTrend(monitors), [monitors])
   const advisorState = useMemo(() => derivePortfolioAdvisor(monitors), [monitors])
 
+  // True when there are no active monitors with real probe data yet.
+  // Same logic as Monitors page — covers (1) no monitors, (2) warming-up state.
+  const hasNoData = !isLoading && !monitors.some(
+    (m) => m.status === 'active' && m.ttfbCurrent > 0
+  )
+  const hasNoMonitors = !isLoading && monitors.length === 0
+
   const alertMonitors = useMemo(
     () =>
       monitors
@@ -866,7 +873,8 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
             )}
           </div>
 
-          {!isLoading && (
+          {/* Only show the health badge when we have real data */}
+          {!isLoading && !hasNoData && (
             <div className="flex flex-col items-end gap-2">
               <span className={`cs-badge ${healthBadgeCls} !px-3 !py-1.5 text-[10px] font-black`}>
                 <span className="relative flex h-1.5 w-1.5 shrink-0">
@@ -894,37 +902,37 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <GlobalMetricCard
               title="Global Resilience Score"
-              value={isLoading ? '…' : `${healthScore}/100`}
-              subtitle={isLoading ? 'Calculating health...' : `${healthDesc} system-wide resilience`}
+              value={isLoading ? '…' : hasNoData ? '—' : `${healthScore}/100`}
+              subtitle={isLoading ? 'Calculating health...' : hasNoData ? '' : `${healthDesc} system-wide resilience`}
               icon={HeartPulse}
-              valueClassName={getHealthColor(healthScore)}
+              valueClassName={hasNoData ? 'text-zinc-600' : getHealthColor(healthScore)}
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
-              badge={{
+              badge={hasNoData ? undefined : {
                 text: healthLabel,
                 className: `${healthBadgeCls}`,
                 withPulseDot: !isLoading,
                 dotClassName: healthDotCls,
               }}
-              progress={isLoading ? 0 : healthScore}
+              progress={isLoading || hasNoData ? 0 : healthScore}
               animationDelayMs={0}
             />
             <GlobalMetricCard
               title="Global Avg. TTFB"
-              value={isLoading ? '…' : `${liveTtfb}ms`}
-              valueTooltip={GLOBAL_TTFB_VALUE_TOOLTIP}
+              value={isLoading ? '…' : hasNoData ? '—' : `${liveTtfb}ms`}
+              valueTooltip={hasNoData ? undefined : GLOBAL_TTFB_VALUE_TOOLTIP}
               subtitle=""
               icon={Gauge}
               iconClassName="stroke-[2.5]"
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
-              valueClassName={getTtfbColorClass(liveTtfb, 'global')}
-              trend={{
+              valueClassName={hasNoData ? 'text-zinc-600' : getTtfbColorClass(liveTtfb, 'global')}
+              trend={hasNoData ? undefined : {
                 value: `${Math.abs(ttfbDelta)}%`,
                 tone: ttfbTrendTone,
                 icon: ttfbTrendIcon,
                 tooltip: GLOBAL_TTFB_TREND_TOOLTIP,
               }}
               statusFooter={
-                isLoading
+                isLoading || hasNoData
                   ? undefined
                   : {
                     label: ttfbPill.label,
@@ -936,21 +944,21 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
             />
             <GlobalMetricCard
               title="Global Cache Hit"
-              value={isLoading ? '…' : `${liveHit}%`}
-              valueTooltip={GLOBAL_CACHE_VALUE_TOOLTIP}
+              value={isLoading ? '…' : hasNoData ? '—' : `${liveHit}%`}
+              valueTooltip={hasNoData ? undefined : GLOBAL_CACHE_VALUE_TOOLTIP}
               subtitle=""
-              valueClassName={getCacheColor(liveHit, 'global')}
+              valueClassName={hasNoData ? 'text-zinc-600' : getCacheColor(liveHit, 'global')}
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
               icon={Zap}
-              iconClassName={`fill-current ${getCacheColor(liveHit, 'global')} ${liveHit >= 98 ? 'animate-[pulse_2s_infinite]' : ''}`}
-              trend={{
+              iconClassName={hasNoData ? 'text-zinc-600' : `fill-current ${getCacheColor(liveHit, 'global')} ${liveHit >= 98 ? 'animate-[pulse_2s_infinite]' : ''}`}
+              trend={hasNoData ? undefined : {
                 value: `${Math.abs(hitDelta)}%`,
                 tone: hitTrendTone,
                 icon: hitTrendIcon,
                 tooltip: GLOBAL_CACHE_TREND_TOOLTIP,
               }}
               statusFooter={
-                isLoading
+                isLoading || hasNoData
                   ? undefined
                   : {
                     label: cachePill.label,
@@ -961,6 +969,21 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               animationDelayMs={140}
             />
           </div>
+
+          {/* Empty state nudge below the cards */}
+          {hasNoData && (
+            <div className="flex items-center justify-center gap-2.5 rounded-lg border border-dashed border-white/8 bg-white/[0.015] px-4 py-3 animate-[cs-fade-in_0.4s_ease-out]">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+                {hasNoMonitors ? 'No monitors yet' : 'Awaiting data'}
+              </span>
+              <span className="text-zinc-700">·</span>
+              <span className="text-[11px] text-zinc-500">
+                {hasNoMonitors
+                  ? 'Add your first monitor to start seeing real metrics here.'
+                  : 'Metrics will appear once your monitors receive their first probe results.'}
+              </span>
+            </div>
+          )}
         </ViewSection>
 
         {/* ── B. Insights & Recommendations ─────────────────────────────────── */}
@@ -1010,9 +1033,9 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                 <div>
                   <p className="cs-metric-card-label mb-0 border-0 !text-[10px] text-zinc-400">TTFB Trend (24h)</p>
                   <p
-                    className={`mt-1.5 text-[24px] font-black tabular-nums leading-none ${getTtfbColorClass(liveTtfb, 'global')}`}
+                    className={`mt-1.5 text-[24px] font-black tabular-nums leading-none ${hasNoData ? 'text-zinc-600' : getTtfbColorClass(liveTtfb, 'global')}`}
                   >
-                    {isLoading ? '…' : `${liveTtfb}ms`}
+                    {isLoading ? '…' : hasNoData ? '—' : `${liveTtfb}ms`}
                   </p>
                 </div>
                 <div className="rounded-lg border border-white/5 bg-white/5 p-2 text-zinc-400">
@@ -1048,9 +1071,10 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               <div className="mb-5 flex items-start justify-between gap-2">
                 <div>
                   <p className="cs-metric-card-label mb-0 border-0 !text-[10px] text-zinc-400">Cache Hit Rate</p>
-                  <p className={`mt-1.5 text-[24px] font-black tabular-nums leading-none ${getCacheColor(liveHit, 'global')}`}>
-                    {isLoading ? '…' : `${liveHit}%`}
-                    <span className="ml-1.5 text-[13px] font-semibold text-zinc-400">global avg</span>
+                  <p className={`mt-1.5 text-[24px] font-black tabular-nums leading-none ${hasNoData ? 'text-zinc-600' : getCacheColor(liveHit, 'global')}`}>
+                    {isLoading ? '…' : hasNoData ? '—' : (
+                      <>{liveHit}%<span className="ml-1.5 text-[13px] font-semibold text-zinc-400">global avg</span></>
+                    )}
                   </p>
                 </div>
                 <div className="rounded-lg border border-white/5 bg-white/5 p-2 text-zinc-400">

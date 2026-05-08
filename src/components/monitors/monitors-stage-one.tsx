@@ -46,6 +46,8 @@ import { derivePortfolioAdvisor } from '@/components/advisor/advisor-card.helper
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const LIVE_SYNC_INTERVAL_MS = 30_000
+/** Fast-poll while a newly-created monitor is waiting for its first probe results. */
+const WARMUP_POLL_INTERVAL_MS = 5_000
 
 const QUICK_FILTERS: ReadonlyArray<{ id: MonitorQuickFilterId; label: string; tooltip: string; tone: 'success' | 'danger' | 'warning' | 'neutral' }> = [
   { id: 'all', label: 'All', tooltip: 'Show all monitors without filtering.', tone: 'neutral' },
@@ -97,7 +99,17 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
   // Pass refetchInterval into the hook so TanStack Query manages the timer —
   // this respects tab visibility and avoids manual setInterval cleanup.
   const { monitors, isLoading, isFetching, isError, dataUpdatedAt, refetch } = useMonitors({
-    refetchInterval: liveSync ? LIVE_SYNC_INTERVAL_MS : false,
+    refetchInterval: liveSync
+      ? (data) => {
+          // Warmup mode: at least one monitor exists but none has probe data yet.
+          // Poll fast (5s) so the dashboard feels as responsive as the monitor detail page.
+          const hasActiveData = data?.some(
+            (m) => m.status === 'active' && m.ttfbCurrent > 0
+          )
+          const hasMonitors = (data?.length ?? 0) > 0
+          return hasMonitors && !hasActiveData ? WARMUP_POLL_INTERVAL_MS : LIVE_SYNC_INTERVAL_MS
+        }
+      : false,
   })
 
   // ── Debounce search ────────────────────────────────────────────────────────
@@ -234,6 +246,13 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
     [displayMonitors],
   )
 
+  // True when there are no active monitors with real probe data yet.
+  // Covers both: (1) no monitors at all, (2) monitors exist but are still warming up.
+  const hasNoData = !isLoading && !monitors.some(
+    (m) => m.status === 'active' && m.ttfbCurrent > 0
+  )
+  const hasNoMonitors = !isLoading && monitors.length === 0
+
   const handleOptimisticToggle = useCallback((id: string, status: 'active' | 'paused') => {
     setOptimisticStatus((prev) => ({ ...prev, [id]: status }))
   }, [])
@@ -252,21 +271,21 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
               variant="compact"
               metricGroup="monitor"
               title="Avg. TTFB"
-              value={isLoading ? '...' : `${liveTtfb}ms`}
-              valueTooltip={GLOBAL_TTFB_VALUE_TOOLTIP}
+              value={isLoading ? '...' : hasNoData ? '—' : `${liveTtfb}ms`}
+              valueTooltip={hasNoData ? undefined : GLOBAL_TTFB_VALUE_TOOLTIP}
               subtitle=""
               icon={Gauge}
               iconClassName="stroke-[2.5]"
-              valueClassName={getTtfbColorClass(liveTtfb, 'global')}
+              valueClassName={hasNoData ? 'text-zinc-600' : getTtfbColorClass(liveTtfb, 'global')}
               isElite={false}
-              trend={{
+              trend={hasNoData ? undefined : {
                 value: `${Math.abs(ttfbDelta)}%`,
                 tone: ttfbTrendTone,
                 icon: ttfbTrendIcon,
                 tooltip: GLOBAL_TTFB_TREND_TOOLTIP,
               }}
               statusFooter={
-                isLoading
+                isLoading || hasNoData
                   ? undefined
                   : {
                     label: ttfbPill.label,
@@ -280,21 +299,21 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
               variant="compact"
               metricGroup="monitor"
               title="Cache hit"
-              value={isLoading ? '...' : `${liveHit}%`}
-              valueTooltip={GLOBAL_CACHE_VALUE_TOOLTIP}
+              value={isLoading ? '...' : hasNoData ? '—' : `${liveHit}%`}
+              valueTooltip={hasNoData ? undefined : GLOBAL_CACHE_VALUE_TOOLTIP}
               subtitle=""
               icon={Zap}
-              iconClassName={`fill-current ${getCacheColor(liveHit, 'global')} ${liveHit >= 98 ? 'animate-[pulse_2s_infinite]' : ''}`}
-              valueClassName={getCacheColor(liveHit, 'global')}
-              isElite={!isLoading && liveHit >= GLOBAL_CACHE.PERFECT}
-              trend={{
+              iconClassName={hasNoData ? 'text-zinc-600' : `fill-current ${getCacheColor(liveHit, 'global')} ${liveHit >= 98 ? 'animate-[pulse_2s_infinite]' : ''}`}
+              valueClassName={hasNoData ? 'text-zinc-600' : getCacheColor(liveHit, 'global')}
+              isElite={!isLoading && !hasNoData && liveHit >= GLOBAL_CACHE.PERFECT}
+              trend={hasNoData ? undefined : {
                 value: `${Math.abs(hitDelta)}%`,
                 tone: hitTrendTone,
                 icon: hitTrendIcon,
                 tooltip: GLOBAL_CACHE_TREND_TOOLTIP,
               }}
               statusFooter={
-                isLoading
+                isLoading || hasNoData
                   ? undefined
                   : {
                     label: cachePill.label,
@@ -305,6 +324,21 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
               animationDelayMs={0}
             />
           </div>
+
+          {/* Empty state nudge when no data is available */}
+          {hasNoData && (
+            <div className="flex items-center justify-center gap-2.5 rounded-lg border border-dashed border-white/8 bg-white/[0.015] px-4 py-3 animate-[cs-fade-in_0.4s_ease-out]">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+                {hasNoMonitors ? 'No monitors yet' : 'Awaiting data'}
+              </span>
+              <span className="text-zinc-700">·</span>
+              <span className="text-[11px] text-zinc-500">
+                {hasNoMonitors
+                  ? 'Add your first monitor to start seeing real metrics here.'
+                  : 'Metrics will appear once your monitors receive their first probe results.'}
+              </span>
+            </div>
+          )}
         </ViewSection>
 
         {/* ── Advisor ─────────────────────────────────────────────────────── */}
@@ -423,8 +457,8 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
                 aria-pressed={liveSync}
                 title={
                   liveSync
-                    ? 'Live Sync on — refreshes every 30s. Click to disable.'
-                    : 'Live Sync off. Click to enable auto-refresh every 30s.'
+                    ? 'Live Sync on — refreshes every 5s during warmup, every 30s otherwise. Click to disable.'
+                    : 'Live Sync off. Click to enable auto-refresh.'
                 }
                 className={`inline-flex h-7 items-center gap-1.5 rounded-lg px-3 text-[9px] font-black uppercase tracking-widest transition-all duration-200 ${liveSync
                   ? 'cs-badge cs-badge-success !min-h-0 !px-3 !py-0'

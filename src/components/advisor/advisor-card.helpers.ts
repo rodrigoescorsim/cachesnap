@@ -476,7 +476,7 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
   }
 
   // ── Critical: significant TTFB regression (Requires History) ──────────────
-  if (hasHistory && ttfbChangePct > 30) {
+  if (hasHistory && ttfbChangePct > 40) {
     return {
       severity: 'critical',
       headline: `Latency up ${ttfbChangePct}% vs previous ${range}`,

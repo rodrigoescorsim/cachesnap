@@ -73,7 +73,7 @@ Os diagnósticos seguem dois fluxos principais:
 
 ### AD22: Queda Abrupta de Cache (1H vs 24H)
 - **Tipo**: Alerta (Warning)
-- **Gatilho**: Hit Rate da última 1 hora caiu > 30% em relação à média das últimas 24 horas.
+- **Gatilho**: Hit Rate da última 1 hora caiu > 40% em relação à média das últimas 24 horas.
 - **Contexto**: Aba Trends e Insights.
 - **Insight**: "A taxa de cache global caiu {percent}% na última hora. Verifique mudanças em query strings ou purges inesperados."
 

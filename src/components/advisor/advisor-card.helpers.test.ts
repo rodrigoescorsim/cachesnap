@@ -430,7 +430,7 @@ describe('deriveMonitorPerformancePeriodAdvisor', () => {
     expect(result?.contextTooltip).toContain('Cape Town')
   })
 
-  it('returns critical for TTFB regression over 30%', () => {
+  it('returns critical for TTFB regression over 40%', () => {
     const result = deriveMonitorPerformancePeriodAdvisor(makePerf({ avgTtfb: 300, prevAvgTtfb: 200 }))
     expect(result?.severity).toBe('critical')
     expect(result?.headline).toContain('up 50%')
@@ -444,7 +444,7 @@ describe('deriveMonitorPerformancePeriodAdvisor', () => {
 
   // (Worst region logic moved to Trends Advisor)
 
-  it('returns warning for 10-30% TTFB increase', () => {
+  it('returns warning for 10-40% TTFB increase', () => {
     const result = deriveMonitorPerformancePeriodAdvisor(makePerf({ avgTtfb: 230, prevAvgTtfb: 200 }))
     expect(result?.severity).toBe('warning')
     expect(result?.body).toContain('230ms')

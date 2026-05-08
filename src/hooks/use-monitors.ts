@@ -25,7 +25,7 @@ async function fetchMonitorSummary(): Promise<Monitor[]> {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export interface UseMonitorsOptions {
-  refetchInterval?: number | false
+  refetchInterval?: number | false | ((data: Monitor[] | undefined) => number | false)
 }
 
 export interface UseMonitorsResult {
@@ -47,7 +47,11 @@ export function useMonitors({ refetchInterval = false }: UseMonitorsOptions = {}
     queryKey: MONITORS_QUERY_KEY,
     queryFn: fetchMonitorSummary,
     staleTime: 5_000,
-    refetchInterval,
+    // TanStack Query accepts number | false | ((query) => number | false).
+    // We wrap a plain number/false to keep the type compatible.
+    refetchInterval: typeof refetchInterval === 'function'
+      ? (query) => (refetchInterval as (data: Monitor[] | undefined) => number | false)(query.state.data)
+      : refetchInterval,
   })
 
   return {
