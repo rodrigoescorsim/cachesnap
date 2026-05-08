@@ -12,9 +12,10 @@ export type GlobalMetricCardGroup = 'none' | 'insight' | 'monitor'
 
 type GlobalMetricCardProps = {
   title: string
+  titleTooltip?: string
   value: string
   valueTooltip?: string
-  subtitle: string
+  subtitle?: string
   icon: LucideIcon
   valueClassName?: string
   subtitleClassName?: string
@@ -167,6 +168,7 @@ const toneClassMap: Record<MetricTone, string> = {
 
 export function GlobalMetricCard({
   title,
+  titleTooltip,
   value,
   valueTooltip,
   subtitle,
@@ -212,9 +214,17 @@ export function GlobalMetricCard({
       {/* Header: Title + Icon */}
       <div className="relative z-10 flex items-start justify-between gap-2">
         <div>
-          <p className={titleClass}>
-            {title}
-          </p>
+          {titleTooltip ? (
+            <PremiumTooltip content={titleTooltip} position="top-left">
+              <p className={`${titleClass} cursor-help border-b border-dotted border-zinc-500/50`}>
+                {title}
+              </p>
+            </PremiumTooltip>
+          ) : (
+            <p className={titleClass}>
+              {title}
+            </p>
+          )}
         </div>
         <div className={iconWrapClass}>
           <Icon className={`${iconSizeClass} ${iconClassName ?? ''}`} />

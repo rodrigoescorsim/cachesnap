@@ -60,6 +60,21 @@ export const GLOBAL_TTFB_VALUE_TOOLTIP =
 export const GLOBAL_CACHE_VALUE_TOOLTIP =
   'Average cache hit rate across all active monitors.'
 
+export const GLOBAL_TTFB_TITLE_TOOLTIP =
+  'Average response time (TTFB) across all monitors in the last hour.'
+
+export const GLOBAL_CACHE_TITLE_TOOLTIP =
+  'Average cache efficiency across all monitors in the last hour.'
+
+export const GLOBAL_TTFB_TREND_TITLE_TOOLTIP =
+  '24-hour latency trend, showing the global average for each hour.'
+
+export const GLOBAL_CACHE_TREND_TITLE_TOOLTIP =
+  '24-hour cache efficiency trend, showing the global average for each hour.'
+
+export const GLOBAL_HEALTH_SCORE_TOOLTIP =
+  'Overall health score based on the performance and stability of all active monitors.'
+
 export const GLOBAL_TTFB_TREND_TOOLTIP =
   'Latency change compared to the 24h global average. Lower is better.'
 

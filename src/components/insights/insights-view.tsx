@@ -48,12 +48,18 @@ import {
   GLOBAL_CACHE_VALUE_TOOLTIP,
   GLOBAL_TTFB_TREND_TOOLTIP,
   GLOBAL_TTFB_VALUE_TOOLTIP,
+  GLOBAL_TTFB_TITLE_TOOLTIP,
+  GLOBAL_CACHE_TITLE_TOOLTIP,
+  GLOBAL_TTFB_TREND_TITLE_TOOLTIP,
+  GLOBAL_CACHE_TREND_TITLE_TOOLTIP,
+  GLOBAL_HEALTH_SCORE_TOOLTIP,
   globalCacheFooterContext,
   globalCacheFooterPill,
   globalTtfbFooterContext,
   globalTtfbFooterPill,
 } from '@/lib/global-metric-copy'
 import { AdvisorCard } from '@/components/advisor/advisor-card'
+import { PremiumTooltip } from '@/components/premium-tooltip'
 import { derivePortfolioAdvisor } from '@/components/advisor/advisor-card.helpers'
 
 // ─── Severity styles ──────────────────────────────────────────────────────────
@@ -905,6 +911,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <GlobalMetricCard
               title="Global Resilience Score"
+              titleTooltip={GLOBAL_HEALTH_SCORE_TOOLTIP}
               value={isLoading ? '…' : hasNoData ? '—' : `${healthScore}/100`}
               subtitle={isLoading ? 'Calculating health...' : hasNoData ? '' : `${healthDesc} system-wide resilience`}
               icon={HeartPulse}
@@ -920,10 +927,10 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               animationDelayMs={0}
             />
             <GlobalMetricCard
-              title="Global Avg. TTFB"
+              title="Global Avg. TTFB - 1H avg"
+              titleTooltip={GLOBAL_TTFB_TITLE_TOOLTIP}
               value={isLoading ? '…' : hasNoData ? '—' : `${avgTtfb1h}ms`}
               valueTooltip={hasNoData ? undefined : GLOBAL_TTFB_VALUE_TOOLTIP}
-              subtitle="1h avg"
               icon={Gauge}
               iconClassName="stroke-[2.5]"
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
@@ -946,10 +953,10 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
               animationDelayMs={70}
             />
             <GlobalMetricCard
-              title="Global Cache Hit"
+              title="Global Cache Hit - 1H avg"
+              titleTooltip={GLOBAL_CACHE_TITLE_TOOLTIP}
               value={isLoading ? '…' : hasNoCacheData ? '—' : `${avgHit1h}%`}
               valueTooltip={hasNoCacheData ? undefined : GLOBAL_CACHE_VALUE_TOOLTIP}
-              subtitle="1h avg"
               valueClassName={hasNoCacheData ? 'text-zinc-600' : getCacheColor(avgHit1h ?? 0, 'global')}
               subtitleClassName="!text-[15px] leading-snug text-zinc-200/95"
               icon={Database}
@@ -1034,12 +1041,16 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
             <article className="cs-card cs-card-glass relative z-0 !overflow-visible animate-[cs-fade-in_0.5s_ease-out] p-5">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="cs-metric-card-label mb-0 border-0 !text-[10px] text-zinc-400">Global Avg. TTFB</p>
+                  <PremiumTooltip content={GLOBAL_TTFB_TREND_TITLE_TOOLTIP} position="top-left">
+                    <p className="cs-metric-card-label mb-0 border-0 !text-[10px] text-zinc-400 cursor-help border-b border-dotted border-zinc-500/50">
+                      Global Avg. TTFB - 1H avg
+                    </p>
+                  </PremiumTooltip>
                   <p
                     className={`mt-1.5 text-[24px] font-black tabular-nums leading-none ${hasNoData ? 'text-zinc-600' : getTtfbColorClass(avgTtfb1h, 'global')}`}
                   >
                     {isLoading ? '…' : hasNoData ? '—' : (
-                      <>{avgTtfb1h}ms<span className="ml-1.5 text-[13px] font-semibold text-zinc-400">1h avg</span></>
+                      <>{avgTtfb1h}ms</>
                     )}
                   </p>
                 </div>
@@ -1075,10 +1086,14 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
             >
               <div className="mb-5 flex items-start justify-between gap-2">
                 <div>
-                  <p className="cs-metric-card-label mb-0 border-0 !text-[10px] text-zinc-400">Global Cache Hit</p>
+                  <PremiumTooltip content={GLOBAL_CACHE_TREND_TITLE_TOOLTIP} position="top-left">
+                    <p className="cs-metric-card-label mb-0 border-0 !text-[10px] text-zinc-400 cursor-help border-b border-dotted border-zinc-500/50">
+                      Global Cache Hit - 1H avg
+                    </p>
+                  </PremiumTooltip>
                   <p className={`mt-1.5 text-[24px] font-black tabular-nums leading-none ${hasNoCacheData ? 'text-zinc-600' : getCacheColor(avgHit1h, 'global')}`}>
                     {isLoading ? '…' : hasNoCacheData ? '—' : (
-                      <>{avgHit1h}%<span className="ml-1.5 text-[13px] font-semibold text-zinc-400">1h avg</span></>
+                      <>{avgHit1h}%</>
                     )}
                   </p>
                 </div>
