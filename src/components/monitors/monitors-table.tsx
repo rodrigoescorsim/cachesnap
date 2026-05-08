@@ -517,9 +517,9 @@ function SkeletonRow({
 
 const HEADER_HELP: Record<string, string> = {
   monitor: 'The monitored application and URL. Click to view detailed performance metrics.',
-  ttfbNow: 'Latency from the most recent check. Lower is better.',
+  ttfb1hAvg: 'Average latency over the last 1 hour. Lower is better.',
   avgTtfb24h: 'Average latency over the last 24 hours (P50).',
-  cacheHit: 'Percentage of requests served from the CDN in the latest check. Higher is better.',
+  hit1hAvg: 'Average cache efficiency over the last 1 hour.',
   hit24hAvg: 'Average cache efficiency over the last 24 hours.',
   regions: 'Latency breakdown across geographic regions. "Clear" means no slow or failing regions.',
   uptime24h: 'Successful checks in the last 24 hours.',
@@ -712,8 +712,8 @@ function buildMonitorColumns(
       },
     }),
 
-    col.accessor('ttfbCurrent', {
-      header: () => <MonitorsThTooltip label="TTFB Now" description={HEADER_HELP.ttfbNow} />,
+    col.accessor('ttfbAvg1h', {
+      header: () => <MonitorsThTooltip label="TTFB 1h Avg" description={HEADER_HELP.ttfb1hAvg} />,
       size: 10,
       enableSorting: true,
       sortingFn: (rowA, rowB, columnId) => {
@@ -724,7 +724,7 @@ function buildMonitorColumns(
           const isAnalyzing = m.status === 'active' && m.lastCheckedAt.getTime() === 0
           if (isDown) return 1000000
           if (isAnalyzing) return 999999
-          return m.ttfbCurrent
+          return m.ttfbAvg1h
         }
         const a = getWeight(m1)
         const b = getWeight(m2)
@@ -797,8 +797,8 @@ function buildMonitorColumns(
       },
     }),
 
-    col.accessor('cacheHitCurrent', {
-      header: () => <MonitorsThTooltip label="Cache Hit" description={HEADER_HELP.cacheHit} />,
+    col.accessor('cacheHitAvg1h', {
+      header: () => <MonitorsThTooltip label="Hit 1h Avg" description={HEADER_HELP.hit1hAvg} />,
       size: 10,
       enableSorting: true,
       cell: ({ getValue, row }) => <CacheHitBadge pct={getValue()} status={row.original.cacheStatusCurrent} />,

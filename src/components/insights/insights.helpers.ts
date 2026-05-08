@@ -180,17 +180,26 @@ export function deriveInsights(monitors: Monitor[]): Insight[] {
   }
 
   // 4. TTFB degradation (gated: only add if room before the cap)
-  const degrading = monitors.filter(m => m.ttfbCurrentDelta > DELTA_WARN)
+  // Alinhado com a nova convenção de 1h avg: compara o ttfbAvg1h com o baseline de 24h
+  const degrading = monitors
+    .map(m => {
+      const avg1h = m.ttfbAvg1h
+      const avg24h = m.ttfbAvg24h
+      const delta = avg24h > 0 ? ((avg1h - avg24h) / avg24h) * 100 : 0
+      return { monitor: m, delta }
+    })
+    .filter(d => d.delta > DELTA_WARN)
+
   if (degrading.length > 0 && out.length < 4) {
-    const worst = [...degrading].sort((a, b) => b.ttfbCurrentDelta - a.ttfbCurrentDelta)[0]
+    const worst = [...degrading].sort((a, b) => b.delta - a.delta)[0]
     out.push({
       id:          'ttfb-degradation',
       severity:    'warning',
       title:       'Performance trending worse',
-      description: `${safeHostname(worst.url)} TTFB increased +${worst.ttfbCurrentDelta.toFixed(1)}% vs the 24h average. A recent deploy or config change may have caused a regression.`,
-      metric:      `+${worst.ttfbCurrentDelta.toFixed(1)}%`,
+      description: `${safeHostname(worst.monitor.url)} TTFB increased +${worst.delta.toFixed(1)}% (1h avg) vs the 24h baseline. A recent deploy or config change may have caused a regression.`,
+      metric:      `+${worst.delta.toFixed(1)}%`,
       actionLabel: 'View Trends',
-      actionHref:  buildViewHref('trends', '24h', worst.id),
+      actionHref:  buildViewHref('trends', '24h', worst.monitor.id),
     })
   }
 

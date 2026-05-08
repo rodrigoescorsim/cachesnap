@@ -89,8 +89,8 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
     const col = searchParams.get('sort')
     const dir = searchParams.get('dir')
     if (col && (dir === 'asc' || dir === 'desc')) return [{ id: col, desc: dir === 'desc' }]
-    // Worst performers first: highest TTFB Now
-    return [{ id: 'ttfbCurrent', desc: true }]
+    // Worst performers first: highest TTFB 1h Avg
+    return [{ id: 'ttfbAvg1h', desc: true }]
   })
 
   // ── Live Sync ──────────────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
           // Warmup mode: at least one monitor exists but none has probe data yet.
           // Poll fast (5s) so the dashboard feels as responsive as the monitor detail page.
           const hasActiveData = data?.some(
-            (m) => m.status === 'active' && m.ttfbCurrent > 0
+            (m) => m.status === 'active' && m.ttfbAvg1h > 0
           )
           const hasMonitors = (data?.length ?? 0) > 0
           return hasMonitors && !hasActiveData ? WARMUP_POLL_INTERVAL_MS : LIVE_SYNC_INTERVAL_MS
@@ -167,7 +167,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
     setSearchInput('')
     setSearchQuery('')
     setActiveFilter('all')
-    setSorting([{ id: 'ttfbCurrent', desc: true }])
+    setSorting([{ id: 'ttfbAvg1h', desc: true }])
   }, [])
 
   // ── Metrics calculation ──────────────────────────────────────────────────

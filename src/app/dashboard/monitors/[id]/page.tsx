@@ -1131,9 +1131,16 @@ export default async function MonitorDetailPage({
     ? validUptimeStats.reduce((acc, s) => acc + Number(s.uptime_pct || 0), 0) / validUptimeStats.length
     : 100;
 
-  // Simple heuristic: Uptime + TTFB performance vs 300ms baseline
-  const ttfbPenalty = Math.max(0, (avgTtfb - 300) / 10);
-  const healthScore = Math.max(0, Math.min(100, Math.round(globalUptime - ttfbPenalty)));
+  // Global resilience score: Uptime baseline minus performance penalties (latência e cache)
+  // Alinhado com as fórmulas de monitorHealthScore em monitor.ts
+  let computedHealth = globalUptime
+  if (avgTtfb >= MONITOR_TTFB.FAST) {
+    computedHealth -= Math.min(55, Math.round((avgTtfb - MONITOR_TTFB.FAST) * 0.4))
+  }
+  if (globalHitRate <= MONITOR_CACHE.GOOD) {
+    computedHealth -= Math.round((MONITOR_CACHE.GOOD - globalHitRate) * 1.2)
+  }
+  const healthScore = Math.max(0, Math.min(100, Math.round(computedHealth)));
 
   // PREVIOUS PERIOD TOTALS FOR TRENDS
   const hasHistory = prevStats.length > 0 && prevStats[0].ttfb_avg_ms !== null;
@@ -1142,8 +1149,14 @@ export default async function MonitorDetailPage({
   const prevAvgTtfb = prevData ? Number(prevData.ttfb_avg_ms || 0) : 0;
   const prevGlobalHitRate = prevData ? Math.round(Number(prevData.cache_hit_pct || 0)) : 0;
   const prevGlobalUptime = prevData ? Number(prevData.uptime_pct || 100) : 100;
-  const prevTtfbPenalty = Math.max(0, (prevAvgTtfb - 300) / 10);
-  const prevHealthScore = Math.max(0, Math.min(100, Math.round(prevGlobalUptime - prevTtfbPenalty)));
+  let prevComputedHealth = prevGlobalUptime
+  if (prevAvgTtfb >= MONITOR_TTFB.FAST) {
+    prevComputedHealth -= Math.min(55, Math.round((prevAvgTtfb - MONITOR_TTFB.FAST) * 0.4))
+  }
+  if (prevGlobalHitRate <= MONITOR_CACHE.GOOD) {
+    prevComputedHealth -= Math.round((MONITOR_CACHE.GOOD - prevGlobalHitRate) * 1.2)
+  }
+  const prevHealthScore = Math.max(0, Math.min(100, Math.round(prevComputedHealth)));
 
   const healthDelta = hasHistory ? healthScore - prevHealthScore : 0;
   const ttfbDelta = hasHistory ? avgTtfb - prevAvgTtfb : 0;

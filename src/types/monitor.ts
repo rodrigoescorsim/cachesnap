@@ -94,15 +94,15 @@ export function monitorHealthScore(m: Monitor): number {
   if (m.errorRegionCount > 0 && m.totalRegionCount > 0) {
     score -= Math.round((m.errorRegionCount / m.totalRegionCount) * 60)
   }
-  if (m.ttfbCurrent >= MONITOR_TTFB.FAST) {
-    score -= Math.min(55, Math.round((m.ttfbCurrent - MONITOR_TTFB.FAST) * 0.4))
+  if (m.ttfbAvg1h >= MONITOR_TTFB.FAST) {
+    score -= Math.min(55, Math.round((m.ttfbAvg1h - MONITOR_TTFB.FAST) * 0.4))
   }
   if (
     monitorCacheHitIsComparable(m) &&
-    m.cacheHitCurrent !== null &&
-    m.cacheHitCurrent <= MONITOR_CACHE.GOOD
+    m.cacheHitAvg1h !== null &&
+    m.cacheHitAvg1h <= MONITOR_CACHE.GOOD
   ) {
-    score -= Math.round((MONITOR_CACHE.GOOD - m.cacheHitCurrent) * 1.2)
+    score -= Math.round((MONITOR_CACHE.GOOD - m.cacheHitAvg1h) * 1.2)
   }
   return Math.max(0, Math.min(100, score))
 }
@@ -167,24 +167,31 @@ export function monitorMatchesSearch(monitor: Monitor, query: string): boolean {
   })
 }
 
-/** Critérios alinhados ao produto: TTFB / cache atuais (`ttfbCurrent`, `cacheHitCurrent`). */
+/** Critérios alinhados ao produto: TTFB / cache médios de 1h (`ttfbAvg1h`, `cacheHitAvg1h`) para estabilidade. */
 export function monitorMatchesQuickFilter(
   monitor: Monitor,
   filter: MonitorQuickFilterId,
 ): boolean {
   if (filter === 'all') return true
-  const ttfb = monitor.ttfbCurrent
-  const hit = monitor.cacheHitCurrent
+  const ttfb = monitor.ttfbAvg1h
+  const hit = monitor.cacheHitAvg1h
+  const hasOriginErrors = monitor.error5xxCount > 0 || monitor.error4xxCount > 0
+  const isDown = monitor.totalRegionCount > 0 && monitor.errorRegionCount >= monitor.totalRegionCount
+
   switch (filter) {
     case 'healthy':
       return (
+        !isDown &&
         monitor.errorRegionCount === 0 &&
+        !hasOriginErrors &&
         ttfb < MONITOR_TTFB.FAST &&
         (!monitorCacheHitIsComparable(monitor) || hit === null || hit >= MONITOR_CACHE.GOOD)
       )
     case 'degraded':
+      // Alinhado com derivePortfolioAdvisor: erro de região, erro de origin (5xx/4xx), latência alta ou cache baixo
       return (
-        monitor.errorRegionCount > 0 ||
+        (monitor.errorRegionCount > 0 && !isDown) ||
+        hasOriginErrors ||
         ttfb >= MONITOR_TTFB.FAST ||
         (monitorCacheHitIsComparable(monitor) && hit !== null && hit < MONITOR_CACHE.GOOD)
       )
@@ -192,11 +199,11 @@ export function monitorMatchesQuickFilter(
       return ttfb >= MONITOR_TTFB.FAST
     case 'low-cache-hit':
       if (!monitorCacheHitIsComparable(monitor)) return false
-      const hasCurrentLowHit = hit !== null && hit < MONITOR_CACHE.GOOD
+      const has1hLowHit = hit !== null && hit < MONITOR_CACHE.GOOD
       const has24hLowHit = monitor.cacheHitAvg24h !== null && monitor.cacheHitAvg24h < MONITOR_CACHE.GOOD
-      return hasCurrentLowHit || has24hLowHit
+      return has1hLowHit || has24hLowHit
     case 'down':
-      return monitor.totalRegionCount > 0 && monitor.errorRegionCount >= monitor.totalRegionCount
+      return isDown
     case 'missing-cache-headers':
       return getCacheDisplayLabel(monitor.cacheStatusCurrent) === 'NO HEADER'
   }
