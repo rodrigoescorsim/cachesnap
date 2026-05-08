@@ -38,126 +38,91 @@ export function derivePortfolioAdvisor(monitors: Monitor[]): AdvisorState | null
   const active = monitors.filter(m => m.status === 'active')
   if (active.length < PORTFOLIO_MIN_MONITORS) return null
 
+  // 1. Identify issues by severity
   const down = active.filter(m => m.totalRegionCount > 0 && m.errorRegionCount >= m.totalRegionCount)
-  // AD14: Origin Health (5xx errors or 4xx spikes)
-  const originError = active.filter(m => !down.includes(m) && (m.error5xxCount > 0 || m.error4xxCount > 0))
-  const noHeader = active.filter(m => getCacheDisplayLabel(m.cacheStatusCurrent) === 'NO HEADER')
-  const degraded = active.filter(m => !originError.includes(m) && (
+  const failingOrigin = active.filter(m => !down.includes(m) && m.error5xxCount > 0)
+  
+  const criticallyInefficient = active.filter(m => 
+    !down.includes(m) && !failingOrigin.includes(m) &&
+    monitorCacheHitIsComparable(m) && m.cacheHitAvg1h !== null && m.cacheHitAvg1h < MONITOR_CACHE.LOW
+  )
+  
+  const criticallySlow = active.filter(m => 
+    !down.includes(m) && !failingOrigin.includes(m) && !criticallyInefficient.includes(m) &&
+    m.ttfbAvg1h >= MONITOR_TTFB.SLOW
+  )
+
+  const criticalIssues = [...down, ...failingOrigin, ...criticallyInefficient, ...criticallySlow]
+
+  const originWarning = active.filter(m => !criticalIssues.includes(m) && m.error4xxCount > 0)
+  const noHeader = active.filter(m => !criticalIssues.includes(m) && getCacheDisplayLabel(m.cacheStatusCurrent) === 'NO HEADER')
+  const degraded = active.filter(m => !criticalIssues.includes(m) && !noHeader.includes(m) && !originWarning.includes(m) && (
     m.errorRegionCount > 0 ||
     m.ttfbAvg1h >= MONITOR_TTFB.FAST ||
     (monitorCacheHitIsComparable(m) && m.cacheHitAvg1h !== null && m.cacheHitAvg1h < MONITOR_CACHE.GOOD)
   ))
 
-  // ── Critical: at least one monitor fully down or origin failing ───────────
-  if (down.length > 0 || originError.some(m => m.error5xxCount > 0)) {
-    const worst = down.length > 0
-      ? [...down].sort((a, b) => b.errorRegionCount - a.errorRegionCount)[0]
-      : [...originError].sort((a, b) => b.error5xxCount - a.error5xxCount)[0]
+  // ── Critical: Outages, Errors or Extreme Performance Degradation ──────────
+  if (criticalIssues.length > 0) {
+    // Determine the "worst" one for the body text
+    const worst = down.length > 0 ? down[0] 
+                : failingOrigin.length > 0 ? failingOrigin[0]
+                : criticallyInefficient.length > 0 ? criticallyInefficient[0]
+                : criticallySlow[0]
 
     const actions: AdvisorAction[] = []
-    if (down.length > 0) {
-      actions.push({ 
-        label: `Monitors DOWN (${down.length})`, 
-        href: '/monitors?filter=down',
-        tooltip: 'Shows monitors that are currently unreachable from all probe regions.'
-      })
-    }
-    if (noHeader.length > 0) {
-      actions.push({ 
-        label: `Missing Cache Headers (${noHeader.length})`, 
-        href: '/monitors?filter=missing-cache-headers',
-        tooltip: 'Shows monitors where no CDN cache status header (HIT/MISS/etc.) was detected.'
-      })
-    }
-    if (degraded.length > 0) {
-      actions.push({ 
-        label: `Degraded Monitors (${degraded.length})`, 
-        href: '/monitors?filter=degraded',
-        tooltip: 'Shows monitors with latency issues, partial outages, or low cache hit rates.'
-      })
+    if (down.length > 0) actions.push({ label: `Down (${down.length})`, href: '/monitors?filter=down' })
+    if (failingOrigin.length > 0) actions.push({ label: `Origin Failures (${failingOrigin.length})`, href: '/monitors?filter=degraded' })
+    if (criticallyInefficient.length > 0 || criticallySlow.length > 0) {
+      actions.push({ label: `Critical Performance (${criticallyInefficient.length + criticallySlow.length})`, href: '/monitors?filter=degraded' })
     }
 
-    const secondarySuffix = (degraded.length + noHeader.length > 0)
-      ? ` • ${degraded.length + noHeader.length} issues in total`
-      : ''
+    let headline = ''
+    if (down.length > 0) headline = `${down.length} monitor${down.length > 1 ? 's' : ''} DOWN`
+    else if (failingOrigin.length > 0) headline = `Origin Health: ${failingOrigin.length} failing`
+    else if (criticallyInefficient.length > 0) headline = `Critical Cache Efficiency issue`
+    else headline = `Critical Latency detected`
 
-    let headline = `${down.length} monitor${down.length > 1 ? 's' : ''} DOWN`
-    if (down.length === 0 && originError.length > 0) {
-      const failingCount = originError.filter(m => m.error5xxCount > 0).length
-      headline = `Origin Health: ${failingCount} monitor${failingCount > 1 ? 's' : ''} failing`
-    }
+    const secondaryCount = active.length - monitors.filter(m => monitorHealthScore(m) >= 90).length
+    const secondarySuffix = secondaryCount > criticalIssues.length ? ` • ${secondaryCount} issues total` : ''
 
     const host = hostname(worst.url)
     const bodyParts: string[] = []
-    if (down.includes(worst)) {
-      bodyParts.push(`${host} is unreachable across all ${worst.totalRegionCount} regions.`)
-    } else {
-      bodyParts.push(`${host} is returning 5xx errors from the origin server.`)
-    }
-
-    if (noHeader.length > 0) {
-      bodyParts.push(`${noHeader.length} site${noHeader.length > 1 ? 's' : ''} without cache headers detected.`)
-    }
+    if (down.includes(worst)) bodyParts.push(`${host} is unreachable from all regions.`)
+    else if (failingOrigin.includes(worst)) bodyParts.push(`${host} is returning 5xx origin errors.`)
+    else if (criticallyInefficient.includes(worst)) bodyParts.push(`${host} has critical cache inefficiency (${worst.cacheHitAvg1h}% hit rate).`)
+    else bodyParts.push(`${host} is experiencing extreme latency (${worst.ttfbAvg1h}ms).`)
 
     return {
       severity: 'critical',
       headline: headline + secondarySuffix,
       body: bodyParts.join(' '),
-      recommendation: down.length > 0
-        ? "Check origin server connectivity and firewall rules for unreachable hosts."
-        : "Investigate origin server capacity and 5xx error logs.",
+      recommendation: down.length > 0 ? "Check server connectivity and firewall rules." 
+                    : failingOrigin.length > 0 ? "Investigate origin server logs for 5xx errors."
+                    : "Optimize edge cache rules and origin response times.",
       actions: actions.slice(0, 3),
     }
   }
 
-  // ── Warning: degraded, origin 4xx, or missing cache headers ───────────────
-  if (degraded.length > 0 || originError.length > 0 || noHeader.length > 0) {
-    const worstDegraded = [...degraded, ...originError].sort((a, b) => {
-      const aVal = a.error5xxCount * 1000 + a.ttfbAvg1h
-      const bVal = b.error5xxCount * 1000 + b.ttfbAvg1h
-      return bVal - aVal
-    })[0]
-    const actions: AdvisorAction[] = []
-
-    if (noHeader.length > 0) {
-      actions.push({ 
-        label: `Missing Cache Headers (${noHeader.length})`, 
-        href: '/monitors?filter=missing-cache-headers',
-        tooltip: 'Shows monitors where no CDN cache status header was detected.'
-      })
-    }
-    if (degraded.length > 0) {
-      actions.push({ 
-        label: `Degraded Monitors (${degraded.length})`, 
-        href: '/monitors?filter=degraded',
-        tooltip: 'Shows monitors with latency issues or low cache hit rates.'
-      })
-    }
-    if (worstDegraded && actions.length < 3) {
-      const host = hostname(worstDegraded.url)
-      actions.push({
-        label: `Inspect ${host}`,
-        href: buildViewHref('performance', '24h', worstDegraded.id),
-        tooltip: `View detailed performance breakdown for ${host}.`
-      })
-    }
-
+  // ── Warning: Degraded, moderate errors, or missing headers ───────────────
+  if (degraded.length > 0 || originWarning.length > 0 || noHeader.length > 0) {
+    const worstWarning = [...degraded, ...originWarning].sort((a, b) => b.ttfbAvg1h - a.ttfbAvg1h)[0] || noHeader[0]
+    
     const parts: string[] = []
-    if (originError.length > 0) parts.push(`${originError.length} with origin errors`)
+    if (originWarning.length > 0) parts.push(`${originWarning.length} with 4xx errors`)
     if (degraded.length > 0) parts.push(`${degraded.length} degraded`)
-    if (noHeader.length > 0) parts.push(`${noHeader.length} without cache headers`)
+    if (noHeader.length > 0) parts.push(`${noHeader.length} no cache headers`)
 
-    const body = worstDegraded
-      ? buildDegradedBody(worstDegraded)
-      : `${noHeader.length} site${noHeader.length > 1 ? 's are' : ' is'} missing Cache-Control headers.`
+    const actions: AdvisorAction[] = []
+    if (degraded.length > 0) actions.push({ label: 'Degraded', href: '/monitors?filter=degraded' })
+    if (noHeader.length > 0) actions.push({ label: 'Headers', href: '/monitors?filter=missing-cache-headers' })
+    if (worstWarning && actions.length < 3) actions.push({ label: `Inspect ${hostname(worstWarning.url)}`, href: buildViewHref('performance', '24h', worstWarning.id) })
 
     return {
       severity: 'warning',
       headline: parts.join(' · '),
-      body,
-      recommendation: noHeader.length > 0
-        ? "Enable 'Cache-Control' headers on all sites to activate edge acceleration."
-        : "Monitor degraded sites for further latency regressions.",
+      body: worstWarning ? `${hostname(worstWarning.url)} and others are showing performance warnings.` : 'Multiple sites are missing Cache-Control headers.',
+      recommendation: "Review regional performance and ensure Cache-Control is active on all assets.",
       actions: actions.slice(0, 3),
     }
   }
@@ -273,7 +238,37 @@ export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): A
   // Partial outage — caller should already show the isDegraded banner; skip here.
   if (errorRegionCount > 0) return null
 
-  // Critical TTFB
+  // ── Critical: Absolute Low Cache Hit Rate (< 50%) ───────────────────────
+  if (hasLiveCacheData && liveGlobalHitRate < MONITOR_CACHE.LOW) {
+    const originPct = 100 - liveGlobalHitRate
+    let recommendation = "Review your Cache-Control headers to improve performance."
+    
+    const status = liveDominantStatus?.toUpperCase()
+    if (status === 'DYNAMIC') {
+      recommendation = "Responses are marked as DYNAMIC. Ensure your backend isn't sending 'no-cache' for static assets."
+    } else if (status === 'BYPASS') {
+      recommendation = "Cache is being bypassed. Check for 'Authorization' headers or specific cookies forcing origin fetch."
+    } else if (status === 'NO HEADER' || status === 'HIDDEN') {
+      recommendation = "No cache status reported. Add 'Cache-Control' or 'CDN-Cache-Control' to enable edge caching."
+    }
+
+    const actions: AdvisorAction[] = []
+    actions.push({ label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', '24h', monitorId) })
+    actions.push({ label: `Analyze ${host} Performance`, href: buildViewHref('performance', '24h', monitorId) })
+
+    // If cache hit is critically low (<50%), it's a critical issue unless explicitly bypassed/dynamic (which might be intended)
+    const severity: AdvisorState['severity'] = (status === 'BYPASS' || status === 'DYNAMIC') ? 'warning' : 'critical'
+
+    return {
+      severity,
+      headline: `Critical cache efficiency: ${liveGlobalHitRate}%`,
+      body: `Origin load is high: ${originPct}% of requests are bypassing edge cache.`,
+      recommendation,
+      actions,
+    }
+  }
+
+  // ── Critical: Absolute high latency (Instant feedback) ──────────────────
   if (liveAvgTtfb > MONITOR_TTFB.SLOW) {
     const trendNote = ttfbVsPeriodPct > 0 && periodAvgTtfb > 0
       ? ` Up from ~${periodAvgTtfb}ms period avg (+${ttfbVsPeriodPct}%).`
@@ -305,49 +300,38 @@ export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): A
     }
   }
 
-  // Elevated TTFB trending worse vs period avg
-  if (liveAvgTtfb > MONITOR_TTFB.FAST && ttfbVsPeriodPct > 20) {
-    const baseline = periodAvgTtfb > 0 ? `~${periodAvgTtfb}ms` : 'period avg'
+  // ── Warning: Moderate Issues (TTFB or Cache) ────────────────────────────
+  const isHighTtfbWarning = liveAvgTtfb > MONITOR_TTFB.FAST
+  const isLowCacheWarning = hasLiveCacheData && liveGlobalHitRate < MONITOR_CACHE.GOOD
+  const isSignificantTrend = ttfbVsPeriodPct > 20
+
+  if (isHighTtfbWarning || isLowCacheWarning || isSignificantTrend || slowRegionCount > 0) {
+    const parts: string[] = []
+    const bodyParts: string[] = []
+
+    if (isLowCacheWarning) parts.push(`Cache Hit Rate ${liveGlobalHitRate}%`)
+    if (isHighTtfbWarning) parts.push(`TTFB ${liveAvgTtfb}ms`)
+    if (slowRegionCount > 0) parts.push(`${slowRegionCount} slow region${slowRegionCount > 1 ? 's' : ''}`)
+
+    if (isLowCacheWarning) {
+      bodyParts.push(`Cache hit rate is below optimal levels (${liveGlobalHitRate}%).`)
+    }
+    if (isSignificantTrend) {
+      bodyParts.push(`TTFB is up ${ttfbVsPeriodPct}% vs period avg.`)
+    }
+    if (slowRegionCount > 0) {
+      bodyParts.push(`Slow regions detected: ${slowRegionLabels?.join(', ')}.`)
+    }
+
     return {
       severity: 'warning',
-      headline: `TTFB up ${ttfbVsPeriodPct}% vs period avg`,
-      body: `${host} is at ${liveAvgTtfb}ms, up from ${baseline}. Check for a recent deploy or config change.`,
-      recommendation: "Inspect recent code deployments or origin server load spikes.",
+      headline: parts.join(' · '),
+      body: bodyParts.join(' '),
+      contextTooltip: slowRegionCount > 0 ? buildAffectedRegionsTooltip(slowRegionLabels) : undefined,
+      recommendation: isLowCacheWarning 
+        ? "Optimize Cache-Control headers to increase edge efficiency."
+        : "Check recent code deployments or origin server load spikes.",
       actions: [{ label: `Analyze ${host} Trends`, href: buildViewHref('trends', '24h', monitorId) }],
-    }
-  }
-
-  // Low cache hit
-  if (hasLiveCacheData && liveGlobalHitRate < MONITOR_CACHE.LOW) {
-    const originPct = 100 - liveGlobalHitRate
-    let recommendation = "Review your Cache-Control headers to improve performance."
-    
-    const status = liveDominantStatus?.toUpperCase()
-    if (status === 'DYNAMIC') {
-      recommendation = "Responses are marked as DYNAMIC. Ensure your backend isn't sending 'no-cache' for static assets."
-    } else if (status === 'BYPASS') {
-      recommendation = "Cache is being bypassed. Check for 'Authorization' headers or specific cookies forcing origin fetch."
-    } else if (status === 'NO HEADER' || status === 'HIDDEN') {
-      recommendation = "No cache status reported. Add 'Cache-Control' or 'CDN-Cache-Control' to enable edge caching."
-    }
-
-    const actions: AdvisorAction[] = []
-    if (hasLiveCacheData) {
-      actions.push({ label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', '24h', monitorId) })
-    }
-    actions.push({ label: `Analyze ${host} Performance`, href: buildViewHref('performance', '24h', monitorId) })
-
-    let severity: AdvisorState['severity'] = liveGlobalHitRate < 30 ? 'critical' : 'warning'
-    if (status === 'BYPASS' || status === 'DYNAMIC') {
-      severity = 'warning'
-    }
-
-    return {
-      severity,
-      headline: `Low cache hit: ${liveGlobalHitRate}%`,
-      body: `Origin load is high: ${originPct}% of requests are bypassing edge cache.`,
-      recommendation,
-      actions,
     }
   }
 
@@ -458,6 +442,20 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
   const ttfbChangePct = (hasHistory && prevAvgTtfb > 0) ? Math.round(((avgTtfb - prevAvgTtfb) / prevAvgTtfb) * 100) : 0
   const cacheChangePp  = hasHistory ? globalHitRate - prevGlobalHitRate : 0
 
+  // ── Critical: Absolute Low Cache Hit Rate (< 50%) ───────────────────────
+  if (globalHitRate < MONITOR_CACHE.LOW) {
+    return {
+      severity: 'critical',
+      headline: `Critical cache efficiency: ${globalHitRate}%`,
+      body: `Most requests are hitting the origin server directly, causing significant load and latency issues.`,
+      recommendation: "Review Cache-Control headers and edge rules to improve CDN hit rate.",
+      actions: [
+        { label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', range, monitorId) },
+        { label: `Analyze ${host} Performance`, href: buildViewHref('performance', range, monitorId) },
+      ],
+    }
+  }
+
   // ── Critical: Absolute high latency (Instant feedback) ──────────────────
   if (avgTtfb > MONITOR_TTFB.SLOW) {
     const trendNote = (hasHistory && ttfbChangePct > 0)
@@ -490,27 +488,32 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
     }
   }
 
-  // ── Warning: moderate regression or cache drop ────────────────────────────
-  if (ttfbChangePct > 10 || cacheChangePp < -10 || input.slowRegionCount > 0) {
+  // ── Warning: moderate issues ──────────────────────────────────────────────
+  const isLowCacheWarning = globalHitRate < MONITOR_CACHE.GOOD
+  const isHighTtfbWarning = avgTtfb > MONITOR_TTFB.FAST
+  const isRegressionWarning = ttfbChangePct > 10 || cacheChangePp < -10
+
+  if (isLowCacheWarning || isHighTtfbWarning || isRegressionWarning || input.slowRegionCount > 0) {
     const parts: string[] = []
     const bodyParts: string[] = []
-    if (ttfbChangePct > 10) parts.push(`TTFB +${ttfbChangePct}% vs previous ${range}`)
-    if (cacheChangePp < -10) parts.push(`cache hit ${cacheChangePp}pp`)
+
+    if (isLowCacheWarning) parts.push(`Cache Hit Rate ${globalHitRate}%`)
+    if (isHighTtfbWarning) parts.push(`TTFB ${avgTtfb}ms`)
+    if (input.slowRegionCount > 0) parts.push(`${input.slowRegionCount} slow region${input.slowRegionCount > 1 ? 's' : ''}`)
+    if (ttfbChangePct > 10) parts.push(`TTFB +${ttfbChangePct}%`)
+
+    if (isLowCacheWarning) {
+      bodyParts.push(`Cache hit rate is below optimal levels (${globalHitRate}%).`)
+    }
     if (input.slowRegionCount > 0) {
-      parts.push(`${input.slowRegionCount} slow region${input.slowRegionCount > 1 ? 's' : ''}`)
       if (slowRegionLabels && slowRegionLabels.length > 0) {
-        bodyParts.push(`Slow regions detected: ${slowRegionLabels.join(', ')}.`)
+        bodyParts.push(`Slow regions: ${slowRegionLabels.join(', ')}.`)
       } else {
-        bodyParts.push(`${input.slowRegionCount} region${input.slowRegionCount > 1 ? 's are' : ' is'} slower than the FAST threshold.`)
+        bodyParts.push(`${input.slowRegionCount} region${input.slowRegionCount > 1 ? 's are' : ' is'} slower than FAST threshold.`)
       }
     }
-
     if (ttfbChangePct > 10) {
-      bodyParts.push(`Global latency increased to ${avgTtfb}ms (from ${prevAvgTtfb}ms).`)
-    }
-
-    if (cacheChangePp < -10) {
-      bodyParts.push(`Cache hit rate dropped by ${Math.abs(cacheChangePp)}%.`)
+      bodyParts.push(`Latency increased vs previous period.`)
     }
 
     return {
@@ -518,10 +521,10 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
       headline: parts.join(' · '),
       body: bodyParts.join(' '),
       contextTooltip: input.slowRegionCount > 0 ? buildAffectedRegionsTooltip(input.slowRegionLabels) : undefined,
-      recommendation: input.slowRegionCount > 0 
-        ? "Optimize regional edge delivery or investigate origin latency for affected areas."
-        : "Monitor for continued degradation. Check recent config changes.",
-      actions: [{ label: `Analyze ${host} Trends`, href: buildViewHref('trends', range, monitorId) }],
+      recommendation: isLowCacheWarning 
+        ? "Optimize Cache-Control headers to increase edge efficiency."
+        : "Inspect regional routing or origin processing times.",
+      actions: [{ label: `Analyze ${host} Performance`, href: buildViewHref('performance', range, monitorId) }],
     }
   }
 
