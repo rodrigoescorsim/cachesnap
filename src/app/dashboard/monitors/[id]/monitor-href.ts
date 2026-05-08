@@ -72,7 +72,7 @@ export function buildMonitorHref(
   const base = query ? `?${query}` : ''
   const path = monitorId ? `/dashboard/monitors/${monitorId}` : ''
   const full = `${path}${base}`
-  
+
   const finalHash = typeof hash === 'string' && hash ? (hash.startsWith('#') ? hash : `#${hash}`) : ''
   return `${full}${finalHash}`
 }

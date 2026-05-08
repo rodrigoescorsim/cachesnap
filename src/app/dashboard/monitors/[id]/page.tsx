@@ -531,22 +531,22 @@ export default async function MonitorDetailPage({
 
   const range = rangeValue === '1h' ? '1h'
     : rangeValue === '4h' ? '4h'
-    : rangeValue === '7d' ? '7d'
-    : rangeValue === '30d' ? '30d'
-    : rangeValue === '90d' ? '90d'
-    : '24h'
+      : rangeValue === '7d' ? '7d'
+        : rangeValue === '30d' ? '30d'
+          : rangeValue === '90d' ? '90d'
+            : '24h'
   const dbInterval = range === '1h' ? '1 hour'
     : range === '4h' ? '4 hours'
-    : range === '7d' ? '7 days'
-    : range === '30d' ? '30 days'
-    : range === '90d' ? '90 days'
-    : '24 hours'
+      : range === '7d' ? '7 days'
+        : range === '30d' ? '30 days'
+          : range === '90d' ? '90 days'
+            : '24 hours'
   const bucketSize = range === '1h' ? '5 minutes'
     : range === '4h' ? '15 minutes'
-    : range === '7d' ? '6 hours'
-    : range === '30d' ? '1 day'
-    : range === '90d' ? '3 days'
-    : '30 minutes'
+      : range === '7d' ? '6 hours'
+        : range === '30d' ? '1 day'
+          : range === '90d' ? '3 days'
+            : '30 minutes'
   const activeTab = normalizeTab(tabValue)
   const filteredAlertType = normalizeAlertType(alertTypeValue)
   const activeView: PerformanceView = activeTab === 'performance' ? normalizeView(viewValue) : 'real-time'
@@ -776,18 +776,18 @@ export default async function MonitorDetailPage({
   `
 
   const hourlyBypass = (activeView === 'infrastructure')
-    ? await sql<{ 
-        hour: Date; 
-        region: string; 
-        edge_ttfb: number; 
-        origin_ttfb: number; 
-        edge_hit_count: number;
-        origin_miss_count: number;
-        sample_count: number; 
-        savings: number; 
-        edge_cache_status: string | null; 
-        origin_cache_status: string | null 
-      }[]>`
+    ? await sql<{
+      hour: Date;
+      region: string;
+      edge_ttfb: number;
+      origin_ttfb: number;
+      edge_hit_count: number;
+      origin_miss_count: number;
+      sample_count: number;
+      savings: number;
+      edge_cache_status: string | null;
+      origin_cache_status: string | null
+    }[]>`
         WITH combined AS (
           -- 1. Dedicated Audit/Bypass probes (Both metrics in one row)
           SELECT 
@@ -1069,7 +1069,7 @@ export default async function MonitorDetailPage({
   const liveIsFullBypass = latestProbes.length > 0 && liveCacheableProbes.length === 0;
 
   const isLiveGlobalDynamic = (liveGlobalHitRate === 0 || liveIsFullBypass) && latestProbes.length > 0
-  
+
   const liveDominantStatusLabel = (() => {
     if (liveGlobalHitRate > 0 || latestProbes.length === 0) return null
     const counts: Record<string, number> = {}
@@ -1098,13 +1098,13 @@ export default async function MonitorDetailPage({
   // Threshold: at least 2 regions blocked (or 1 if only 1 region is monitored) to avoid single-region flukes
   const wafHistoricalCount = stats.filter(s => Number(s.common_status_code) == 401 || Number(s.common_status_code) == 403).length;
   const wafLiveCount = latestProbes.filter(p => Number(p.status_code) == 401 || Number(p.status_code) == 403).length;
-  
+
   const hasHistoricalWaf = wafHistoricalCount >= Math.min(2, stats.filter(s => Number(s.probe_count) > 0).length);
   const hasLiveWaf = wafLiveCount >= Math.min(2, latestProbes.length);
   const isCurrentlyWafBlocked = hasHistoricalWaf || hasLiveWaf;
 
   const isGlobalDynamic = globalHitRate === 0 && (stats.length > 0 || latestProbes.length > 0)
-  
+
   // Find current dominant status from Live data to help label historical 0%
   const liveDominantStatus = (() => {
     if (latestProbes.length === 0) return null
@@ -1176,9 +1176,9 @@ export default async function MonitorDetailPage({
     .map(p => regionLabels[p.region] ?? p.region)
   const liveVsGlobalRows = liveAvgTtfb > 0
     ? validLiveTtfb.map((p) => {
-        const pct = Math.round((((p.ttfb_ms ?? 0) - liveAvgTtfb) / liveAvgTtfb) * 100)
-        return { label: regionLabels[p.region] ?? p.region, deltaPct: pct }
-      })
+      const pct = Math.round((((p.ttfb_ms ?? 0) - liveAvgTtfb) / liveAvgTtfb) * 100)
+      return { label: regionLabels[p.region] ?? p.region, deltaPct: pct }
+    })
     : []
   const slowestVsGlobalRegion = liveVsGlobalRows.length > 0
     ? [...liveVsGlobalRows].sort((a, b) => b.deltaPct - a.deltaPct)[0]
@@ -1535,21 +1535,21 @@ export default async function MonitorDetailPage({
                                 <PremiumTooltip content="Average cache hit rate from recent probes across all regions">
                                   <p className="cs-metric-card-label !text-[11px]">Global Cache Hit Rate</p>
                                 </PremiumTooltip>
-                                  <PremiumTooltip content={isHistoricalView ? `${globalHitRate}% average cache hit rate over the selected period` : getCacheTooltip(liveGlobalHitRate, 'global')}>
-                                    <div className="flex items-center gap-2">
-                                      <div className="flex items-baseline gap-0.5">
-                                        {currentGlobalHitRate === 0 ? (
-                                          <span className="text-[20px] font-black tracking-tight leading-none text-zinc-500 uppercase">{isHistoricalView ? dominantStatusLabel : liveDominantStatusLabel}</span>
-                                        ) : (
-                                          <>
-                                            <span className={`text-[26px] font-black tracking-tight leading-none ${getCacheColor(currentGlobalHitRate, 'global')}`}>{currentGlobalHitRate}</span>
-                                            <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getCacheColor(currentGlobalHitRate, 'global')}`}>%</span>
-                                          </>
-                                        )}
-                                      </div>
-                                      {currentGlobalHitRate > 0 && <Zap className={`h-5 w-5 fill-current ${getCacheColor(currentGlobalHitRate, 'global')}`} />}
+                                <PremiumTooltip content={isHistoricalView ? `${globalHitRate}% average cache hit rate over the selected period` : getCacheTooltip(liveGlobalHitRate, 'global')}>
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex items-baseline gap-0.5">
+                                      {currentGlobalHitRate === 0 ? (
+                                        <span className="text-[20px] font-black tracking-tight leading-none text-zinc-500 uppercase">{isHistoricalView ? dominantStatusLabel : liveDominantStatusLabel}</span>
+                                      ) : (
+                                        <>
+                                          <span className={`text-[26px] font-black tracking-tight leading-none ${getCacheColor(currentGlobalHitRate, 'global')}`}>{currentGlobalHitRate}</span>
+                                          <span className={`text-[13px] font-black uppercase tracking-wider opacity-90 ${getCacheColor(currentGlobalHitRate, 'global')}`}>%</span>
+                                        </>
+                                      )}
                                     </div>
-                                  </PremiumTooltip>
+                                    {currentGlobalHitRate > 0 && <Zap className={`h-5 w-5 fill-current ${getCacheColor(currentGlobalHitRate, 'global')}`} />}
+                                  </div>
+                                </PremiumTooltip>
                               </div>
                             </Link>
                           </div>
@@ -1777,7 +1777,7 @@ export default async function MonitorDetailPage({
                         ))}
                       </div>
                       <p className="mt-1.5 text-[11px] text-zinc-500 italic leading-relaxed">
-                        Spikes are identified by comparing consecutive {bucketSize} windows. 
+                        Spikes are identified by comparing consecutive {bucketSize} windows.
                         A 50% increase (minimum 150ms delta) triggers a detection in this period.
                       </p>
                     </section>
@@ -1945,10 +1945,10 @@ export default async function MonitorDetailPage({
               {activeView === 'infrastructure' && (
                 <div className="space-y-8">
                   <BypassAudit
-                    data={hourlyBypass.map(d => ({ 
-                      ...d, 
-                      edge_cache_status: d.edge_cache_status || 'UNKNOWN', 
-                      origin_cache_status: d.origin_cache_status || 'UNKNOWN' 
+                    data={hourlyBypass.map(d => ({
+                      ...d,
+                      edge_cache_status: d.edge_cache_status || 'UNKNOWN',
+                      origin_cache_status: d.origin_cache_status || 'UNKNOWN'
                     }))}
                     regionLabels={regionLabels}
                     isDown={isDown}
@@ -1975,8 +1975,8 @@ export default async function MonitorDetailPage({
                 const globalHitAvg = stats.length > 0
                   ? Math.round(stats.reduce((acc, s) => acc + Number(s.edge_avg_ms || 0), 0) / stats.length)
                   : 0;
-                const globalMissAvg = stats.length > 0 
-                  ? Math.round(stats.reduce((acc, s) => acc + Number(s.origin_avg_ms || 0), 0) / stats.length) 
+                const globalMissAvg = stats.length > 0
+                  ? Math.round(stats.reduce((acc, s) => acc + Number(s.origin_avg_ms || 0), 0) / stats.length)
                   : 0;
                 return (
                   <MonitorSettingsPanel
@@ -2121,13 +2121,13 @@ export default async function MonitorDetailPage({
 
                                 <div className="relative flex flex-col border-b border-border/60 py-3 sm:flex-row sm:items-start sm:py-2.5">
                                   <div className="min-w-0 flex-1 border-b border-border/50 pb-3 sm:border-b-0 sm:border-r sm:border-border/60 sm:pb-0 sm:pr-5">
-                                  <p className="text-[9px] font-bold uppercase tracking-tight text-zinc-500">Certificate identity</p>
-                                  <p className="mt-0.5 truncate text-sm font-semibold leading-snug text-zinc-50">
-                                    {ssl.subject_cn || monitorHostname || '—'}
-                                  </p>
-                                  {ssl.subject_o ? (
-                                    <p className="mt-0.5 truncate text-[11px] leading-snug text-zinc-500">{ssl.subject_o}</p>
-                                  ) : null}
+                                    <p className="text-[9px] font-bold uppercase tracking-tight text-zinc-500">Certificate identity</p>
+                                    <p className="mt-0.5 truncate text-sm font-semibold leading-snug text-zinc-50">
+                                      {ssl.subject_cn || monitorHostname || '—'}
+                                    </p>
+                                    {ssl.subject_o ? (
+                                      <p className="mt-0.5 truncate text-[11px] leading-snug text-zinc-500">{ssl.subject_o}</p>
+                                    ) : null}
                                   </div>
                                   <div className="min-w-0 flex-1 pt-3 sm:pt-0 sm:pl-5">
                                     <p className="text-[9px] font-bold uppercase tracking-tight text-zinc-500">Issuing authority</p>
@@ -2141,56 +2141,56 @@ export default async function MonitorDetailPage({
                                 </div>
 
                                 <div className="relative space-y-3 py-4">
-                                <div className="flex flex-wrap items-center justify-between gap-3">
-                                  <p className="text-[10px] font-bold uppercase tracking-tight text-zinc-500">Validity window</p>
-                                  {totalDays != null && renewalPct != null ? (
-                                    <span className="text-[10px] tabular-nums text-zinc-500">
-                                      {totalDays} day cert · {Math.round(renewalPct)}% of lifetime left
-                                    </span>
-                                  ) : null}
-                                </div>
-                                {renewalPct != null ? (
-                                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200/20 dark:bg-zinc-800">
-                                    <div
-                                      className={`h-full rounded-full ${urgent ? 'bg-red-500/90' : 'bg-emerald-500/90'}`}
-                                      style={{ width: `${renewalPct}%` }}
-                                    />
+                                  <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <p className="text-[10px] font-bold uppercase tracking-tight text-zinc-500">Validity window</p>
+                                    {totalDays != null && renewalPct != null ? (
+                                      <span className="text-[10px] tabular-nums text-zinc-500">
+                                        {totalDays} day cert · {Math.round(renewalPct)}% of lifetime left
+                                      </span>
+                                    ) : null}
                                   </div>
-                                ) : null}
-                                <div className="flex flex-wrap items-baseline justify-between gap-2 text-[11px] text-zinc-500">
-                                  <span>
-                                    <span className="text-zinc-400">From</span>{' '}
-                                    <span className="font-mono text-zinc-300">{formatCertDate(ssl.valid_from)}</span>
-                                  </span>
-                                  <span className="hidden text-zinc-600 sm:inline">→</span>
-                                  <span>
-                                    <span className="text-zinc-400">Until</span>{' '}
-                                    <span className="font-mono text-zinc-300">{formatCertDate(ssl.valid_to)}</span>
-                                  </span>
-                                </div>
+                                  {renewalPct != null ? (
+                                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200/20 dark:bg-zinc-800">
+                                      <div
+                                        className={`h-full rounded-full ${urgent ? 'bg-red-500/90' : 'bg-emerald-500/90'}`}
+                                        style={{ width: `${renewalPct}%` }}
+                                      />
+                                    </div>
+                                  ) : null}
+                                  <div className="flex flex-wrap items-baseline justify-between gap-2 text-[11px] text-zinc-500">
+                                    <span>
+                                      <span className="text-zinc-400">From</span>{' '}
+                                      <span className="font-mono text-zinc-300">{formatCertDate(ssl.valid_from)}</span>
+                                    </span>
+                                    <span className="hidden text-zinc-600 sm:inline">→</span>
+                                    <span>
+                                      <span className="text-zinc-400">Until</span>{' '}
+                                      <span className="font-mono text-zinc-300">{formatCertDate(ssl.valid_to)}</span>
+                                    </span>
+                                  </div>
                                 </div>
 
-                              {fpDisp || ssl.bits != null ? (
-                                <div className="relative grid gap-4 border-t border-border/80 py-5 md:grid-cols-2">
-                                  {fpDisp ? (
-                                    <div className="space-y-1.5">
-                                      <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight text-zinc-500">
-                                        <Fingerprint className="h-3.5 w-3.5 text-zinc-500" aria-hidden />
-                                        SHA-256 fingerprint
-                                      </p>
-                                      <p className="break-all font-mono text-[10px] leading-relaxed text-zinc-400" title={fpDisp.full}>
-                                        {fpDisp.short}
-                                      </p>
-                                    </div>
-                                  ) : null}
-                                  {ssl.bits != null ? (
-                                    <div className="space-y-1.5">
-                                      <p className="text-[10px] font-bold uppercase tracking-tight text-zinc-500">Public key</p>
-                                      <p className="font-mono text-xs text-zinc-300">{ssl.bits}-bit public key</p>
-                                    </div>
-                                  ) : null}
-                                </div>
-                              ) : null}
+                                {fpDisp || ssl.bits != null ? (
+                                  <div className="relative grid gap-4 border-t border-border/80 py-5 md:grid-cols-2">
+                                    {fpDisp ? (
+                                      <div className="space-y-1.5">
+                                        <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight text-zinc-500">
+                                          <Fingerprint className="h-3.5 w-3.5 text-zinc-500" aria-hidden />
+                                          SHA-256 fingerprint
+                                        </p>
+                                        <p className="break-all font-mono text-[10px] leading-relaxed text-zinc-400" title={fpDisp.full}>
+                                          {fpDisp.short}
+                                        </p>
+                                      </div>
+                                    ) : null}
+                                    {ssl.bits != null ? (
+                                      <div className="space-y-1.5">
+                                        <p className="text-[10px] font-bold uppercase tracking-tight text-zinc-500">Public key</p>
+                                        <p className="font-mono text-xs text-zinc-300">{ssl.bits}-bit public key</p>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                ) : null}
                               </div>
                             </div>
                           </section>
@@ -2316,7 +2316,7 @@ export default async function MonitorDetailPage({
                                   return (
                                     <div key={h.key} className="text-[10px] p-2 bg-white/40 dark:bg-zinc-950/40 rounded border border-red-50 dark:border-red-900/30">
                                       <p className="font-bold text-zinc-600 dark:text-zinc-400 uppercase mb-1">{h.label}</p>
-                                      
+
                                       {(() => {
                                         const mainStr = String(mainVal || 'Missing')
                                         const driftStr = String(driftVal || 'Missing')
@@ -2459,15 +2459,15 @@ export default async function MonitorDetailPage({
                       const last24h = Array.from({ length: 24 }, (_, i) => {
                         const d = new Date(now)
                         d.setHours(d.getHours() - (23 - i), 0, 0, 0)
-                        
+
                         const match = incidentTrends.find(t => {
                           const bucketDate = new Date(t.bucket);
                           return bucketDate.getHours() === d.getHours() && bucketDate.getDate() === d.getDate();
                         });
-                        
-                        return { 
-                          label: d.getHours(), 
-                          count: match ? Number(match.count) : 0 
+
+                        return {
+                          label: d.getHours(),
+                          count: match ? Number(match.count) : 0
                         }
                       })
 
