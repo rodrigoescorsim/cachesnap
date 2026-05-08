@@ -14,6 +14,7 @@ export function formatChartLabel(iso: string, range: string): string {
   if (range === '7d' || range === '30d' || range === '90d') {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
+  // 1h and 4h show hours + minutes; 24h and fallback show HH:MM
   return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 

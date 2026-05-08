@@ -237,6 +237,28 @@ describe('globalImpactEmptyStateCopy', () => {
       subtitle: 'No comparable samples in 7D',
     })
   })
+
+  it('handles 90D period correctly', () => {
+    expect(globalImpactEmptyStateCopy('warmup', '90D')).toEqual({
+      title: 'Collecting comparable pairs',
+      subtitle: 'Need more comparable samples in 90D',
+    })
+    expect(globalImpactEmptyStateCopy('enabled', '90D')).toEqual({
+      title: 'No comparison yet',
+      subtitle: 'No comparable samples in 90D',
+    })
+  })
+
+  it('handles short periods 1H and 4H', () => {
+    expect(globalImpactEmptyStateCopy('warmup', '1H')).toEqual({
+      title: 'Collecting comparable pairs',
+      subtitle: 'Need more comparable samples in 1H',
+    })
+    expect(globalImpactEmptyStateCopy('enabled', '4H')).toEqual({
+      title: 'No comparison yet',
+      subtitle: 'No comparable samples in 4H',
+    })
+  })
 })
 
 describe('regionalBenefitPendingLabel', () => {

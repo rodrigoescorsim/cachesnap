@@ -28,6 +28,7 @@ import {
   type PerformanceView,
   VALID_ALERT_TYPES,
   ALERT_TYPE_LABELS,
+  TIMEFRAME_TOOLTIPS,
 } from './monitor-href'
 import { type Alert } from '@/types/monitor'
 import { AlertHistoryTable } from './alert-history-table'
@@ -528,18 +529,24 @@ export default async function MonitorDetailPage({
   const viewValue = readFirst(rawSearchParams.view)
   const alertTypeValue = readFirst(rawSearchParams.alert_type)
 
-  const range = rangeValue === '7d' ? '7d'
+  const range = rangeValue === '1h' ? '1h'
+    : rangeValue === '4h' ? '4h'
+    : rangeValue === '7d' ? '7d'
     : rangeValue === '30d' ? '30d'
-      : rangeValue === '90d' ? '90d'
-        : '24h'
-  const dbInterval = range === '7d' ? '7 days'
+    : rangeValue === '90d' ? '90d'
+    : '24h'
+  const dbInterval = range === '1h' ? '1 hour'
+    : range === '4h' ? '4 hours'
+    : range === '7d' ? '7 days'
     : range === '30d' ? '30 days'
-      : range === '90d' ? '90 days'
-        : '24 hours'
-  const bucketSize = range === '7d' ? '6 hours'
+    : range === '90d' ? '90 days'
+    : '24 hours'
+  const bucketSize = range === '1h' ? '5 minutes'
+    : range === '4h' ? '15 minutes'
+    : range === '7d' ? '6 hours'
     : range === '30d' ? '1 day'
-      : range === '90d' ? '3 days'
-        : '30 minutes'
+    : range === '90d' ? '3 days'
+    : '30 minutes'
   const activeTab = normalizeTab(tabValue)
   const filteredAlertType = normalizeAlertType(alertTypeValue)
   const activeView: PerformanceView = activeTab === 'performance' ? normalizeView(viewValue) : 'real-time'
@@ -1602,10 +1609,9 @@ export default async function MonitorDetailPage({
                       }
                     >
                       <div className="flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 dark:bg-white/5 px-1.5 border border-zinc-200 dark:border-white/10">
-                        {['24h', '7d', '30d', '90d'].map((r) => (
-                          <PremiumTooltip key={r} content={`Analyze the last ${r} of regional performance`}>
+                        {(['1h', '4h', '24h', '7d', '30d', '90d'] as const).map((r) => (
+                          <PremiumTooltip key={r} content={TIMEFRAME_TOOLTIPS[r]}>
                             <Link
-                              key={r}
                               href={buildViewHref('performance', r)}
                               className={`px-3 h-6 flex items-center justify-center rounded-lg text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 ${range === r
                                 ? 'bg-white dark:bg-white/10 text-zinc-900 dark:text-white shadow-lg shadow-black/5 ring-1 ring-black/5'
@@ -1737,7 +1743,7 @@ export default async function MonitorDetailPage({
 
                   {activeView === 'trends' && spikes.length > 0 && (
                     <section className="space-y-4">
-                      <ViewSectionHeader title={`Recent performance spikes — ${range === '7d' ? 'last 7 days' : range === '30d' ? 'last 30 days' : range === '90d' ? 'last 90 days' : 'last 24h'}`} />
+                      <ViewSectionHeader title={`Recent performance spikes — ${range === '1h' ? 'last hour' : range === '4h' ? 'last 4 hours' : range === '7d' ? 'last 7 days' : range === '30d' ? 'last 30 days' : range === '90d' ? 'last 90 days' : 'last 24 hours'}`} />
                       <div className="rounded-2xl border border-border bg-surface divide-y divide-white/[0.03] overflow-hidden">
                         {spikes.map((spike, index) => (
                           <div key={index} className="flex items-center justify-between py-5 px-4 hover:bg-white/[0.03] transition-all group/spike">

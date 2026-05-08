@@ -1,5 +1,14 @@
 /** URL builders for monitor detail query tabs and performance views (shared by server page + client rail). */
 
+export const TIMEFRAME_TOOLTIPS: Record<string, string> = {
+  '1h': 'Last 1 hour — most recent activity',
+  '4h': 'Last 4 hours — short-term trends',
+  '24h': 'Last 24 hours — daily overview',
+  '7d': 'Last 7 days — weekly patterns',
+  '30d': 'Last 30 days — monthly overview',
+  '90d': 'Last 90 days — quarterly view',
+}
+
 export type MonitorTab =
   | 'performance'
   | 'on-demand'

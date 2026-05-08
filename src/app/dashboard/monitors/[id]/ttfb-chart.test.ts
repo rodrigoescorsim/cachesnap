@@ -23,7 +23,15 @@ describe('formatChartLabel', () => {
     expect(formatChartLabel(iso, '24h')).toMatch(/^\d{2}:\d{2}$/)
   })
 
-  it('falls back to 24h format for unknown range values', () => {
+  it('uses HH:MM format for the 1h range', () => {
+    expect(formatChartLabel(iso, '1h')).toMatch(/^\d{2}:\d{2}$/)
+  })
+
+  it('uses HH:MM format for the 4h range', () => {
+    expect(formatChartLabel(iso, '4h')).toMatch(/^\d{2}:\d{2}$/)
+  })
+
+  it('falls back to HH:MM format for unknown range values', () => {
     expect(formatChartLabel(iso, 'unknown')).toMatch(/^\d{2}:\d{2}$/)
   })
 })

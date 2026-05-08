@@ -6,7 +6,7 @@ import { TIMING } from './timing-metrics-palette'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import { getTtfbColorClass, getCacheColor } from '@/lib/thresholds'
 import { AlertTriangle, TrendingUp, TrendingDown, ChevronUp, ChevronDown, Activity, Link as LinkIcon, Unlink } from 'lucide-react'
-import { buildViewHref } from './monitor-href'
+import { buildViewHref, TIMEFRAME_TOOLTIPS } from './monitor-href'
 import Link from 'next/link'
 import { ViewSectionHeader } from '@/components/dashboard/dashboard-ui'
 
@@ -1274,8 +1274,8 @@ export function TtfbChart({
                 </PremiumTooltip>
 
                 <div className="flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 dark:bg-white/5 px-1.5 border border-zinc-200 dark:border-white/10">
-                  {['24h', '7d', '30d', '90d'].map((r) => (
-                    <PremiumTooltip key={r} content={`Analyze the last ${r} of historical performance`}>
+                  {(['1h', '4h', '24h', '7d', '30d', '90d'] as const).map((r) => (
+                    <PremiumTooltip key={r} content={TIMEFRAME_TOOLTIPS[r]}>
                       <Link
                         href={buildViewHref('trends', r, monitorId)}
                         className={`px-3 h-6 flex items-center justify-center rounded-lg text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 ${range === r

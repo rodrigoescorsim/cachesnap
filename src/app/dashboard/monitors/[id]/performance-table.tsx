@@ -4,7 +4,7 @@ import React, { useState, Fragment } from 'react'
 import { ChevronDown, ChevronUp, Zap, Gauge, ShieldAlert } from 'lucide-react'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import { extractPop, resolveCdnLabel, popToCity } from '@/lib/edge-helpers'
-import { isCacheHit, getCacheDisplayLabel } from '@/lib/cache-utils'
+import { isCacheHit, getCacheDisplayLabel, isCacheBypass } from '@/lib/cache-utils'
 import { getCacheColor, getCacheTooltip, getTtfbTooltip, getTtfbColorClass, getCacheHitTier } from '@/lib/thresholds'
 import {
   MONITOR_TABLE,
@@ -272,7 +272,8 @@ export function PerformanceTable({
                           direction="top"
                         >
                           {(() => {
-                            const isIntentional = Math.round(s.cache_hit_pct) === 0 && (!s.common_cache_status || !isCacheHit(s.common_cache_status))
+                            const isIntentional = Math.round(s.cache_hit_pct) === 0 && isCacheBypass(s.common_cache_status)
+                            
                             if (isIntentional) {
                               const label = (liveDominantStatus === 'DYNAMIC' || liveDominantStatus === 'BYPASS' || liveDominantStatus === 'NO HEADER') 
                                 ? liveDominantStatus 

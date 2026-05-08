@@ -84,9 +84,18 @@ export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded 
   const badge = formatAuditBadge(readiness)
   const readinessState = resolveReadinessState(readiness)
 
-  const [period, setPeriod] = useState<'1H' | '4H' | '24H' | '7D' | '30D'>('24H')
-  const periods = ['1H', '4H', '24H', '7D', '30D'] as const
+  const [period, setPeriod] = useState<'1H' | '4H' | '24H' | '7D' | '30D' | '90D'>('24H')
+  const periods = ['1H', '4H', '24H', '7D', '30D', '90D'] as const
   const globalEmptyState = globalImpactEmptyStateCopy(readinessState, period)
+
+  const PERIOD_TOOLTIPS: Record<typeof periods[number], string> = {
+    '1H': 'Last 1 hour — most recent activity',
+    '4H': 'Last 4 hours — short-term trends',
+    '24H': 'Last 24 hours — daily overview',
+    '7D': 'Last 7 days — weekly patterns',
+    '30D': 'Last 30 days — monthly overview',
+    '90D': 'Last 90 days — quarterly view',
+  }
 
   const filteredData = useMemo(() => {
     const now = new Date()
@@ -97,6 +106,7 @@ export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded 
       '24H': 24 * MS_PER_HOUR,
       '7D': 7 * 24 * MS_PER_HOUR,
       '30D': 30 * 24 * MS_PER_HOUR,
+      '90D': 90 * 24 * MS_PER_HOUR,
     }
     const limit = PERIOD_MS[period]
     return data.filter(item => (now.getTime() - item.hour.getTime()) <= limit)
@@ -227,16 +237,17 @@ export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded 
         <div className="flex items-center gap-2">
           <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
             {periods.map(p => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${period === p
-                  ? 'bg-white/10 text-white shadow-lg'
-                  : 'text-zinc-500 hover:text-zinc-300'
-                  }`}
-              >
-                {p}
-              </button>
+              <PremiumTooltip key={p} content={PERIOD_TOOLTIPS[p]} position="bottom-center">
+                <button
+                  onClick={() => setPeriod(p)}
+                  className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${period === p
+                    ? 'bg-white/10 text-white shadow-lg'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                    }`}
+                >
+                  {p}
+                </button>
+              </PremiumTooltip>
             ))}
           </div>
         </div>
