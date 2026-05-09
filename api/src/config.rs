@@ -111,6 +111,9 @@ pub struct Config {
     pub probe_dispatch: ProbeDispatchConfig,
     /// Intervalo entre ciclos do worker de auditoria de alertas (Cache Hit, SSL, Anycast, etc).
     pub alerts_worker_interval_secs: u64,
+    /// Secret for signing one-click snooze tokens embedded in alert emails.
+    /// Falls back to probe_secret if not set (still secure, but rotating is cleaner).
+    pub alert_snooze_secret: String,
 }
 
 impl Config {
@@ -131,10 +134,23 @@ impl Config {
             api_url: std::env::var("API_URL")
                 .unwrap_or_else(|_| "http://localhost:3001".to_string()),
             probe_dispatch: ProbeDispatchConfig::from_env(),
-            alerts_worker_interval_secs: env_u64_allow_zero(
-                "ALERTS_WORKER_INTERVAL_SECS",
-                900,
-            ),
+            alerts_worker_interval_secs: {
+                let secs = env_u64_allow_zero("ALERTS_WORKER_INTERVAL_SECS", 900);
+                if secs > 0 && secs < 300 {
+                    warn!(
+                        secs,
+                        "ALERTS_WORKER_INTERVAL_SECS is very low — alert cooldowns may not work correctly. Minimum recommended: 300s"
+                    );
+                }
+                secs
+            },
+            alert_snooze_secret: std::env::var("ALERT_SNOOZE_SECRET")
+                .ok()
+                .filter(|v| !v.is_empty())
+                .unwrap_or_else(|| {
+                    warn!("ALERT_SNOOZE_SECRET not set — falling back to PROBE_SECRET for snooze token signing");
+                    std::env::var("PROBE_SECRET").unwrap_or_else(|_| "changeme".to_string())
+                }),
         })
     }
 }

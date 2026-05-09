@@ -1,4 +1,4 @@
-use crate::{alerts::notifier::{self, AlertNotification}, AppState};
+use crate::{alerts::worker, AppState};
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -73,6 +73,7 @@ struct MonitorTrendConfig {
     alert_ttfb_trend_comparators: Vec<String>,
     alert_ttfb_trend_direction: String,
     alert_trend_min_samples: i32,
+    #[allow(dead_code)]
     alert_trend_cooldown_minutes: i32,
     alert_trend_require_consecutive: bool,
     alert_trend_global_enabled: bool,
@@ -196,28 +197,6 @@ fn alert_type_for(metric: &str, scope: &str, is_improvement: bool) -> &'static s
         ("ttfb_avg_ms",   "global", true)  => "ttfb_trend_down_global",
         _ => "unknown_trend",
     }
-}
-
-async fn cooldown_active(
-    state: &AppState,
-    monitor_id: Uuid,
-    region: &str,
-    alert_type: &str,
-    comparator: &str,
-    cooldown_minutes: i32,
-) -> bool {
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM alerts WHERE monitor_id = $1 AND region = $2 AND alert_type = $3 AND comparator = $4 AND created_at > NOW() - ($5 * INTERVAL '1 minute')",
-    )
-    .bind(monitor_id)
-    .bind(region)
-    .bind(alert_type)
-    .bind(comparator)
-    .bind(cooldown_minutes)
-    .fetch_one(&state.db)
-    .await
-    .unwrap_or(0);
-    count > 0
 }
 
 async fn consecutive_confirmed(
@@ -347,15 +326,6 @@ async fn check_metric(
         let is_improvement = metric == "ttfb_avg_ms" && delta <= -effective_threshold;
         let alert_type = alert_type_for(metric, scope, is_improvement);
 
-        if cooldown_active(state, m.id, region, alert_type, comparator, m.alert_trend_cooldown_minutes).await {
-            warn!(
-                "trend_detector: monitor={} region={} metric={} comparator={} decision=skipped reason=cooldown",
-                m.id, region, metric, comparator
-            );
-            skipped += 1;
-            continue;
-        }
-
         if require_consecutive && !consecutive_confirmed(state, m.id, region, alert_type, comparator).await {
             warn!(
                 "trend_detector: monitor={} region={} metric={} comparator={} decision=skipped reason=not_confirmed",
@@ -374,12 +344,23 @@ async fn check_metric(
 
         let (diagnosis, action) = build_messages(metric, region, scope, comparator_label, current, reference, delta);
 
-        if let Err(e) = save_trend_alert(
-            state, m.id, region, alert_type, metric,
-            current, reference, delta, current_samples as i32,
-            comparator, scope, diagnosis, action,
-        ).await {
-            warn!("trend_detector: failed to save alert monitor={} region={} type={}: {}", m.id, region, alert_type, e);
+        let affected = vec![region.to_string()];
+        if let Err(e) = worker::handle_incident(
+            state,
+            m.id,
+            alert_type,
+            affected,
+            Some(current),
+            Some(reference),
+            Some(diagnosis),
+            Some(action),
+            Some(delta),
+            Some(comparator.clone()),
+            None,
+        )
+        .await
+        {
+            warn!("trend_detector: handle_incident failed monitor={} type={}: {}", m.id, alert_type, e);
             skipped += 1;
             continue;
         }
@@ -427,66 +408,6 @@ fn build_messages(
     };
 
     (diagnosis, action)
-}
-
-async fn save_trend_alert(
-    state: &AppState,
-    monitor_id: Uuid,
-    region: &str,
-    alert_type: &str,
-    metric: &str,
-    actual: f64,
-    baseline: f64,
-    delta_pct: f64,
-    sample_count: i32,
-    comparator: &str,
-    scope: &str,
-    diagnosis: String,
-    action: String,
-) -> Result<(), anyhow::Error> {
-    let alert_id = sqlx::query_scalar::<_, Uuid>(
-        r#"
-        INSERT INTO alerts (
-            monitor_id, region, alert_type, metric,
-            actual_ms, baseline_ms, diagnosis, action,
-            delta_pct, sample_count, comparator, scope
-        ) VALUES (
-            $1, $2, $3, $4,
-            $5, $6, $7, $8,
-            $9, $10, $11, $12
-        ) RETURNING id
-        "#,
-    )
-    .bind(monitor_id)
-    .bind(region)
-    .bind(alert_type)
-    .bind(metric)
-    .bind(actual)
-    .bind(baseline)
-    .bind(&diagnosis)
-    .bind(&action)
-    .bind(delta_pct)
-    .bind(sample_count)
-    .bind(comparator)
-    .bind(scope)
-    .fetch_one(&state.db)
-    .await?;
-
-    tokio::spawn(notifier::notify(state.clone(), AlertNotification {
-        alert_id,
-        monitor_id,
-        alert_type: alert_type.to_string(),
-        region: region.to_string(),
-        diagnosis: Some(diagnosis),
-        action: Some(action),
-        actual_ms: Some(actual),
-        baseline_ms: Some(baseline),
-        deviation_factor: None,
-        delta_pct: Some(delta_pct),
-        comparator: Some(comparator.to_string()),
-    }));
-
-    Ok(())
 }
 
 #[cfg(test)]

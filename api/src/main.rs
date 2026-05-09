@@ -128,6 +128,10 @@ async fn main() -> Result<()> {
         .route("/api/monitors/active", get(routes::monitors::list_active))
         .route("/api/monitors/:id/dispatch", post(routes::dispatch::handler))
         .route("/api/monitors/:id/evaluate-readiness", post(routes::evaluate::handler))
+        .route(
+            "/api/monitors/:id/incidents/:incident_id/snooze",
+            get(routes::alerts::snooze_incident),
+        )
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state);

@@ -3,13 +3,14 @@ import React from 'react'
 /**
  * Padrão de ponto pulsante discreto usado em cabeçalhos e indicadores de "Live".
  */
-export const LiveDot = () => (
-  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+export const LiveDot = ({ colorClass = 'bg-emerald-500' }: { colorClass?: string }) => (
+  <span className={`h-1.5 w-1.5 rounded-full animate-pulse shrink-0 ${colorClass}`} />
 )
 
 interface ViewSectionHeaderProps {
   title: React.ReactNode
   showDot?: boolean
+  dotColorClass?: string
   className?: string
   children?: React.ReactNode
 }
@@ -18,10 +19,10 @@ interface ViewSectionHeaderProps {
  * Cabeçalho de seção padronizado para as abas do Monitor.
  * Inclui o LiveDot opcional e mantém a altura fixa (h-9) para evitar saltos.
  */
-export const ViewSectionHeader = ({ title, showDot = true, className = '', children }: ViewSectionHeaderProps) => (
-  <div className={`flex h-9 items-center justify-between gap-3 mb-3 ${className}`}>
+export const ViewSectionHeader = ({ title, showDot = true, dotColorClass, className = '', children }: ViewSectionHeaderProps) => (
+  <div className={`flex items-center justify-between gap-3 mb-5 px-1 ${className}`}>
     <h2 className="cs-view-section-title">
-      {showDot && <LiveDot />}
+      {showDot && <LiveDot colorClass={dotColorClass} />}
       {title}
     </h2>
     {children}

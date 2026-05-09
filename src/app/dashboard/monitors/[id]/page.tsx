@@ -11,6 +11,7 @@ import { HourlyPatternChart } from './hourly-pattern-chart'
 import { TtfbHeatmap } from './ttfb-heatmap'
 import { MonitorHeaderToolbar } from './monitor-header-toolbar'
 import { MonitorSettingsPanel } from './monitor-settings-panel'
+import { ActiveIncidentsPanel, type ActiveIncident } from './active-incidents-panel'
 import { type TrendComparator } from './monitor-edit-form'
 import { LiveActivityHeader } from './live-activity-header'
 import { RealTimeHub } from '../../real-time-hub'
@@ -981,6 +982,24 @@ export default async function MonitorDetailPage({
       AND error IS NULL
     ORDER BY region, time DESC
   `
+
+  const activeIncidents = await sql<ActiveIncident[]>`
+    SELECT
+      id::text,
+      alert_type,
+      severity,
+      affected_regions,
+      opened_at,
+      last_notified_at,
+      notification_count,
+      snoozed_until,
+      last_actual,
+      last_threshold,
+      EXTRACT(EPOCH FROM (NOW() - opened_at))::float * 1000 AS duration_ms
+    FROM alert_incidents
+    WHERE monitor_id = ${id} AND resolved_at IS NULL
+    ORDER BY opened_at DESC
+  `.catch(() => [] as ActiveIncident[])
 
   const monitorHostname = safeHostname(monitor.url)
 
@@ -2382,7 +2401,7 @@ export default async function MonitorDetailPage({
 
           {activeTab === 'incidents' && (
             <section className="space-y-4">
-              <ViewSectionHeader title="Active Incidents & Alerts" showDot={false} />
+              <ViewSectionHeader title="Active Incidents & Alerts" showDot={true} dotColorClass="bg-amber-500" />
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
@@ -2494,39 +2513,41 @@ export default async function MonitorDetailPage({
                 </div>
               )}
 
-              <div id="alert-history" className="space-y-4 scroll-mt-24">
-                <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-                  <h2 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-tight flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4" />
-                    Alert history
-                  </h2>
-                  <div className="flex flex-wrap gap-1 bg-zinc-100 dark:bg-zinc-800/50 p-1 rounded-lg">
+              <div className="pt-2">
+                <ActiveIncidentsPanel monitorId={monitor.id} incidents={activeIncidents} regionLabels={regionLabels} />
+              </div>
+
+              <div id="alert-history" className="space-y-4 scroll-mt-24 pt-4">
+                <ViewSectionHeader title="Alert History" showDot={true} dotColorClass="bg-amber-500" />
+
+                <div className="flex flex-wrap gap-1 bg-surface border border-border p-1.5 rounded-lg">
+                  <Link
+                    href={buildMonitorHref('incidents', range, null)}
+                    scroll={false}
+                    className={`px-2.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all ${filteredAlertType == null
+                      ? 'bg-zinc-900 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-900 shadow-sm'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-white/5'
+                      }`}
+                  >
+                    All
+                  </Link>
+                  {VALID_ALERT_TYPES.map(type => (
                     <Link
-                      href={buildMonitorHref('incidents', range, null)}
-                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all ${filteredAlertType == null
+                      key={type}
+                      href={buildMonitorHref('incidents', range, type)}
+                      scroll={false}
+                      className={`px-2.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all ${filteredAlertType === type
                         ? 'bg-zinc-900 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-900 shadow-sm'
-                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
+                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-white/5'
                         }`}
                     >
-                      All
+                      {ALERT_TYPE_LABELS[type]}
                     </Link>
-                    {VALID_ALERT_TYPES.map(type => (
-                      <Link
-                        key={type}
-                        href={buildMonitorHref('incidents', range, type)}
-                        className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all ${filteredAlertType === type
-                          ? 'bg-zinc-900 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-900 shadow-sm'
-                          : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
-                          }`}
-                      >
-                        {ALERT_TYPE_LABELS[type]}
-                      </Link>
-                    ))}
-                  </div>
+                  ))}
                 </div>
 
                 {alerts.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-border bg-surface/30 p-12 text-center">
+                  <div className="rounded-2xl border border-dashed border-border bg-surface/30 p-12 flex flex-col items-center justify-center min-h-[400px] text-center">
                     <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-950/20 flex items-center justify-center mx-auto mb-4">
                       <ShieldCheck className="w-6 h-6 text-emerald-500" />
                     </div>

@@ -12,6 +12,7 @@ async fn get_test_state() -> AppState {
     dotenvy::dotenv().ok();
     let config = Arc::new(config::Config::from_env().unwrap());
     let db = db::connect(&config.database_url).await.unwrap();
+    db::run_migrations(&db).await.unwrap();
     let redis = redis::connect(&config.redis_url).unwrap();
     let (tx, _) = broadcast::channel(1024);
     let http = reqwest::Client::new();
@@ -69,43 +70,52 @@ fn create_test_payload(monitor_id: Uuid, region: &str) -> ProbeResultPayload {
     }
 }
 
+/// Cleanup helper: removes all test data for a monitor/user pair.
+async fn cleanup(state: &AppState, monitor_id: Uuid, user_id: Uuid) {
+    // alert_incidents cascade-deletes from monitors ON DELETE CASCADE
+    sqlx::query("DELETE FROM alerts WHERE monitor_id = $1").bind(monitor_id).execute(&state.db).await.ok();
+    sqlx::query("DELETE FROM probe_results WHERE monitor_id = $1").bind(monitor_id).execute(&state.db).await.ok();
+    sqlx::query("DELETE FROM monitors WHERE id = $1").bind(monitor_id).execute(&state.db).await.ok();
+    sqlx::query("DELETE FROM users WHERE id = $1").bind(user_id).execute(&state.db).await.ok();
+}
+
 #[tokio::test]
 async fn test_downtime_aggregation_logic() {
     let state = get_test_state().await;
     let monitor_id = Uuid::new_v4();
-
     let user_id = Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)"
-    )
-    .bind(user_id)
-    .bind(format!("test-{}@cachesnap.com", user_id))
-    .bind("hash")
-    .execute(&state.db).await.unwrap();
+
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(format!("test-{}@cachesnap.com", user_id))
+        .bind("hash")
+        .execute(&state.db).await.unwrap();
 
     sqlx::query(
-        "INSERT INTO monitors (id, user_id, url, name, is_active, alert_down_enabled, alert_threshold_ms, alert_threshold_hit_ms) 
+        "INSERT INTO monitors (id, user_id, url, name, is_active, alert_down_enabled, alert_threshold_ms, alert_threshold_hit_ms)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
     )
-    .bind(monitor_id)
-    .bind(user_id)
-    .bind("http://test-aggregation.com")
-    .bind("Test Aggregation")
-    .bind(true)
-    .bind(true)
-    .bind(1000)
-    .bind(500)
+    .bind(monitor_id).bind(user_id)
+    .bind("http://test-aggregation.com").bind("Test Aggregation")
+    .bind(true).bind(true).bind(1000).bind(500)
     .execute(&state.db).await.unwrap();
 
-    let regions = vec!["us-east", "eu-west", "sa-east"];
-    for region in regions {
+    for region in ["us-east", "eu-west", "sa-east"] {
         let mut payload = create_test_payload(monitor_id, region);
         payload.status_code = Some(503);
         payload.error = Some("Service Unavailable".to_string());
         check_for_anomalies(state.clone(), payload).await;
     }
 
+    // Wait for the 15s aggregation window to close
     tokio::time::sleep(Duration::from_secs(18)).await;
+
+    // New design: 1 incident + 1 alert history record (FirstFire)
+    let incident_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'down'"
+    )
+    .bind(monitor_id)
+    .fetch_one(&state.db).await.unwrap();
 
     let alert_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM alerts WHERE monitor_id = $1 AND alert_type = 'down'"
@@ -113,44 +123,34 @@ async fn test_downtime_aggregation_logic() {
     .bind(monitor_id)
     .fetch_one(&state.db).await.unwrap();
 
-    assert_eq!(alert_count, 1, "Deveria ter apenas 1 alerta consolidado");
+    assert_eq!(incident_count, 1, "Should have exactly 1 open incident");
+    assert_eq!(alert_count, 1, "Should have exactly 1 alert history record (FirstFire)");
 
-    sqlx::query("DELETE FROM alerts WHERE monitor_id = $1").bind(monitor_id).execute(&state.db).await.unwrap();
-    sqlx::query("DELETE FROM monitors WHERE id = $1").bind(monitor_id).execute(&state.db).await.unwrap();
-    sqlx::query("DELETE FROM users WHERE id = $1").bind(user_id).execute(&state.db).await.unwrap();
+    cleanup(&state, monitor_id, user_id).await;
 }
 
 #[tokio::test]
 async fn test_ttfb_threshold_aggregation() {
     let state = get_test_state().await;
     let monitor_id = Uuid::new_v4();
-
     let user_id = Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)"
-    )
-    .bind(user_id)
-    .bind(format!("test-{}@cachesnap.com", user_id))
-    .bind("hash")
-    .execute(&state.db).await.unwrap();
+
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(format!("test-{}@cachesnap.com", user_id))
+        .bind("hash")
+        .execute(&state.db).await.unwrap();
 
     sqlx::query(
-        "INSERT INTO monitors (id, user_id, url, name, is_active, alert_ttfb_enabled, alert_threshold_ms, alert_threshold_hit_ms, alert_sensitivity) 
+        "INSERT INTO monitors (id, user_id, url, name, is_active, alert_ttfb_enabled, alert_threshold_ms, alert_threshold_hit_ms, alert_sensitivity)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
     )
-    .bind(monitor_id)
-    .bind(user_id)
-    .bind("http://test-ttfb.com")
-    .bind("Test TTFB")
-    .bind(true)
-    .bind(true)
-    .bind(500)
-    .bind(500)
-    .bind(3)
+    .bind(monitor_id).bind(user_id)
+    .bind("http://test-ttfb.com").bind("Test TTFB")
+    .bind(true).bind(true).bind(500).bind(500).bind(3)
     .execute(&state.db).await.unwrap();
 
-    let regions = vec!["us-west", "ap-south"];
-    for region in regions {
+    for region in ["us-west", "ap-south"] {
         let mut payload = create_test_payload(monitor_id, region);
         payload.ttfb_ms = Some(1200.0);
         payload.status_code = Some(200);
@@ -160,15 +160,16 @@ async fn test_ttfb_threshold_aggregation() {
 
     tokio::time::sleep(Duration::from_secs(18)).await;
 
-    let alert_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM alerts WHERE monitor_id = $1 AND alert_type = 'ttfb_threshold'"
+    let incident_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'ttfb_threshold'"
     )
     .bind(monitor_id)
     .fetch_one(&state.db).await.unwrap();
 
-    sqlx::query("DELETE FROM alerts WHERE monitor_id = $1").bind(monitor_id).execute(&state.db).await.unwrap();
-    sqlx::query("DELETE FROM monitors WHERE id = $1").bind(monitor_id).execute(&state.db).await.unwrap();
-    sqlx::query("DELETE FROM users WHERE id = $1").bind(user_id).execute(&state.db).await.unwrap();
+    // May be 0 if sensitivity=3 requires consecutive breaches not yet present; still tests no panic
+    let _ = incident_count;
+
+    cleanup(&state, monitor_id, user_id).await;
 }
 
 #[tokio::test]
@@ -179,32 +180,36 @@ async fn test_worker_cache_hit_aggregation() {
     let monitor_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
 
-    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)").bind(user_id).bind(format!("worker-{}@test.com", user_id)).bind("hash").execute(&state.db).await.unwrap();
-    
-    // Monitor com alerta de Cache Hit ativado (threshold 90%)
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(format!("worker-{}@test.com", user_id))
+        .bind("hash")
+        .execute(&state.db).await.unwrap();
+
     sqlx::query(
-        "INSERT INTO monitors (id, user_id, url, name, is_active, alert_cache_hit_enabled, alert_cache_hit_threshold_pct) 
+        "INSERT INTO monitors (id, user_id, url, name, is_active, alert_cache_hit_enabled, alert_cache_hit_threshold_pct)
          VALUES ($1, $2, $3, $4, $5, $6, $7)"
     )
-    .bind(monitor_id).bind(user_id).bind("http://worker-test.com").bind("Worker Test").bind(true).bind(true).bind(90.0)
+    .bind(monitor_id).bind(user_id)
+    .bind("http://worker-test.com").bind("Worker Test")
+    .bind(true).bind(true).bind(90.0)
     .execute(&state.db).await.unwrap();
 
-    // Simular dados de cache baixo (50%) em 2 regiões
-    let regions = vec!["us-east", "eu-west"];
-    for region in regions {
-        // Inserir 10 registros (5 HIT, 5 MISS) para gerar 50% de hit rate
+    // 50% cache hit rate (5 HIT, 5 MISS) in 2 regions
+    for region in ["us-east", "eu-west"] {
         for i in 0..10 {
             let status = if i < 5 { "HIT" } else { "MISS" };
             sqlx::query(
-                "INSERT INTO probe_results (time, monitor_id, region, ttfb_ms, cache_status, status_code) 
+                "INSERT INTO probe_results (time, monitor_id, region, ttfb_ms, cache_status, status_code)
                  VALUES (NOW() - INTERVAL '5 minutes', $1, $2, 100.0, $3, 200)"
-            ).bind(monitor_id).bind(region).bind(status).execute(&state.db).await.unwrap();
+            )
+            .bind(monitor_id).bind(region).bind(status)
+            .execute(&state.db).await.unwrap();
         }
     }
 
-    // Forçar atualização da view materializada do TimescaleDB
     sqlx::query("CALL refresh_continuous_aggregate('probe_results_hourly', NULL, NULL)")
-        .execute(&state.db).await.ok(); // ok() pois pode falhar se não houver dados suficientes, mas seguimos
+        .execute(&state.db).await.ok();
 
     let cfg = MonitorAlertConfig {
         id: monitor_id,
@@ -214,20 +219,392 @@ async fn test_worker_cache_hit_aggregation() {
         alert_zombie_cache_enabled: false,
     };
 
-    // Rodar auditoria
     audit_monitor_alerts(&state, &cfg).await.unwrap();
 
-    // Verificar se gerou apenas 1 alerta de cache_hit_low marcado como Multiple
-    let (count, region): (i64, String) = sqlx::query_as(
+    // 1 open incident
+    let incident_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'cache_hit_low' AND resolved_at IS NULL"
+    )
+    .bind(monitor_id)
+    .fetch_one(&state.db).await.unwrap();
+
+    // 1 alert history record with region = "Multiple" (2 affected regions)
+    let (alert_count, region): (i64, String) = sqlx::query_as(
         "SELECT COUNT(*), region FROM alerts WHERE monitor_id = $1 AND alert_type = 'cache_hit_low' GROUP BY region"
+    )
+    .bind(monitor_id)
+    .fetch_one(&state.db).await.unwrap();
+
+    assert_eq!(incident_count, 1, "Expected 1 open incident");
+    assert_eq!(alert_count, 1, "Expected 1 alert history record (FirstFire)");
+    assert_eq!(region, "Multiple", "Expected region='Multiple' for multi-region detection");
+
+    // Verify incident stores the correct severity
+    let severity: String = sqlx::query_scalar(
+        "SELECT severity FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
+    )
+    .bind(monitor_id)
+    .fetch_one(&state.db).await.unwrap();
+    assert_eq!(severity, "medium");
+
+    // Run audit again — cooldown should prevent a second alert (notification_count stays 1)
+    audit_monitor_alerts(&state, &cfg).await.unwrap();
+
+    let notif_count: i32 = sqlx::query_scalar(
+        "SELECT notification_count FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
+    )
+    .bind(monitor_id)
+    .fetch_one(&state.db).await.unwrap();
+
+    assert_eq!(notif_count, 1, "Cooldown should prevent second notification");
+
+    cleanup(&state, monitor_id, user_id).await;
+    sqlx::query("DELETE FROM probe_results_hourly WHERE monitor_id = $1").bind(monitor_id).execute(&state.db).await.ok();
+}
+
+// ── Scenario 3: Digest is sent after the repeat cooldown window elapses ──────
+
+#[tokio::test]
+async fn test_digest_after_cooldown_elapsed() {
+    use crate::alerts::worker::handle_incident;
+
+    let state = get_test_state().await;
+    let monitor_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(format!("digest-{}@test.com", user_id))
+        .bind("hash")
+        .execute(&state.db).await.unwrap();
+
+    sqlx::query("INSERT INTO monitors (id, user_id, url, name, is_active) VALUES ($1, $2, $3, $4, $5)")
+        .bind(monitor_id).bind(user_id)
+        .bind("http://digest-test.com").bind("Digest Test").bind(true)
+        .execute(&state.db).await.unwrap();
+
+    // First call → FirstFire (notification_count = 1)
+    handle_incident(&state, monitor_id, "cache_hit_low",
+        vec!["us-east".to_string()], Some(30.0), Some(80.0),
+        None, None, None, None, None)
+    .await.unwrap();
+
+    let notif_count_first: i32 = sqlx::query_scalar(
+        "SELECT notification_count FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
+    ).bind(monitor_id).fetch_one(&state.db).await.unwrap();
+    assert_eq!(notif_count_first, 1, "FirstFire should increment notification_count to 1");
+
+    // Simulate 9 hours elapsed (past the 8h MEDIUM cooldown)
+    sqlx::query(
+        "UPDATE alert_incidents SET last_notified_at = NOW() - INTERVAL '9 hours'
+         WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
+    ).bind(monitor_id).execute(&state.db).await.unwrap();
+
+    // Second call → Digest (notification_count = 2)
+    handle_incident(&state, monitor_id, "cache_hit_low",
+        vec!["us-east".to_string(), "eu-west".to_string()], Some(28.0), Some(80.0),
+        None, None, None, None, None)
+    .await.unwrap();
+
+    let notif_count_second: i32 = sqlx::query_scalar(
+        "SELECT notification_count FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
+    ).bind(monitor_id).fetch_one(&state.db).await.unwrap();
+    assert_eq!(notif_count_second, 2, "Digest should increment notification_count to 2 after cooldown");
+
+    // Incident must still be open
+    let resolved: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
+        "SELECT resolved_at FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
+    ).bind(monitor_id).fetch_one(&state.db).await.unwrap();
+    assert!(resolved.is_none(), "Incident must still be open after Digest");
+
+    cleanup(&state, monitor_id, user_id).await;
+}
+
+// ── Scenario 4: Incident closes without recovery when condition clears (MEDIUM) ──
+
+#[tokio::test]
+async fn test_incident_resolves_no_recovery_medium() {
+    use crate::alerts::worker::{audit_monitor_alerts, MonitorAlertConfig};
+    use crate::alerts::severity::alert_severity;
+
+    let state = get_test_state().await;
+    let monitor_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user_id).bind(format!("resolve-{}@test.com", user_id)).bind("hash")
+        .execute(&state.db).await.unwrap();
+
+    sqlx::query(
+        "INSERT INTO monitors (id, user_id, url, name, is_active, alert_cache_hit_enabled, alert_cache_hit_threshold_pct)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)"
+    ).bind(monitor_id).bind(user_id)
+    .bind("http://resolve-test.com").bind("Resolve Test")
+    .bind(true).bind(true).bind(90.0)
+    .execute(&state.db).await.unwrap();
+
+    // Insert a pre-existing open incident with notification_count=0 (never notified)
+    sqlx::query(
+        "INSERT INTO alert_incidents (monitor_id, alert_type, severity, affected_regions, notification_count, opened_at)
+         VALUES ($1, 'cache_hit_low', 'medium', ARRAY['us-east'], 0, NOW() - INTERVAL '2 hours')"
+    ).bind(monitor_id).execute(&state.db).await.unwrap();
+
+    // Insert probe data with GOOD cache hit rate (above threshold) so audit finds no issue
+    sqlx::query(
+        "INSERT INTO probe_results (time, monitor_id, region, ttfb_ms, cache_status, status_code)
+         VALUES (NOW() - INTERVAL '5 minutes', $1, 'us-east', 100.0, 'HIT', 200)"
+    ).bind(monitor_id).execute(&state.db).await.unwrap();
+
+    let cfg = MonitorAlertConfig {
+        id: monitor_id,
+        alert_cache_hit_enabled: true,
+        alert_cache_hit_threshold_pct: 90.0,
+        alert_anycast_enabled: false,
+        alert_zombie_cache_enabled: false,
+    };
+
+    // Audit runs: no cache_hit_low detected (1 HIT probe, sample_count < 5)
+    // → resolve_cleared_worker_incidents closes the incident
+    audit_monitor_alerts(&state, &cfg).await.unwrap();
+
+    let resolved_at: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
+        "SELECT resolved_at FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
+    ).bind(monitor_id).fetch_one(&state.db).await.unwrap();
+    assert!(resolved_at.is_some(), "Incident must be closed when condition no longer fires");
+
+    // MEDIUM severity does NOT send recovery emails
+    assert!(!alert_severity("cache_hit_low").sends_recovery(), "MEDIUM must not send recovery");
+
+    cleanup(&state, monitor_id, user_id).await;
+    sqlx::query("DELETE FROM probe_results_hourly WHERE monitor_id = $1").bind(monitor_id).execute(&state.db).await.ok();
+}
+
+// ── Scenario 5: Critical incident is eligible for recovery email ──────────────
+
+#[tokio::test]
+async fn test_critical_incident_recovery_eligible() {
+    use crate::alerts::worker::{handle_incident, resolve_stale_probe_incidents};
+    use crate::alerts::severity::alert_severity;
+
+    let state = get_test_state().await;
+    let monitor_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user_id).bind(format!("crit-{}@test.com", user_id)).bind("hash")
+        .execute(&state.db).await.unwrap();
+
+    sqlx::query("INSERT INTO monitors (id, user_id, url, name, is_active) VALUES ($1, $2, $3, $4, $5)")
+        .bind(monitor_id).bind(user_id)
+        .bind("http://crit-test.com").bind("Crit Test").bind(true)
+        .execute(&state.db).await.unwrap();
+
+    // Open a CRITICAL (down) incident via handle_incident → FirstFire
+    handle_incident(&state, monitor_id, "down",
+        vec!["us-east".to_string(), "eu-west".to_string()],
+        None, None,
+        Some("Site unreachable".to_string()),
+        Some("Check server status".to_string()),
+        None, None, None)
+    .await.unwrap();
+
+    let (severity, notif_count): (String, i32) = sqlx::query_as(
+        "SELECT severity, notification_count FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'down'"
     ).bind(monitor_id).fetch_one(&state.db).await.unwrap();
 
-    assert_eq!(count, 1);
-    assert_eq!(region, "Multiple");
+    assert_eq!(severity, "critical");
+    assert_eq!(notif_count, 1, "FirstFire must set notification_count = 1");
 
-    sqlx::query("DELETE FROM alerts WHERE monitor_id = $1").bind(monitor_id).execute(&state.db).await.unwrap();
-    sqlx::query("DELETE FROM probe_results WHERE monitor_id = $1").bind(monitor_id).execute(&state.db).await.unwrap();
-    sqlx::query("DELETE FROM probe_results_hourly WHERE monitor_id = $1").bind(monitor_id).execute(&state.db).await.unwrap();
-    sqlx::query("DELETE FROM monitors WHERE id = $1").bind(monitor_id).execute(&state.db).await.unwrap();
-    sqlx::query("DELETE FROM users WHERE id = $1").bind(user_id).execute(&state.db).await.unwrap();
+    // Backdate last_notified_at past the stale window (2× 60min cooldown = 120min)
+    sqlx::query(
+        "UPDATE alert_incidents SET last_notified_at = NOW() - INTERVAL '125 minutes'
+         WHERE monitor_id = $1 AND alert_type = 'down'"
+    ).bind(monitor_id).execute(&state.db).await.unwrap();
+
+    // resolve_stale_probe_incidents auto-closes incidents inactive past 2× cooldown
+    resolve_stale_probe_incidents(&state).await.unwrap();
+
+    let resolved_at: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
+        "SELECT resolved_at FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'down'"
+    ).bind(monitor_id).fetch_one(&state.db).await.unwrap();
+    assert!(resolved_at.is_some(), "Critical incident must be closed after stale window");
+
+    // Recovery email is eligible: sends_recovery() && notification_count > 0
+    assert!(alert_severity("down").sends_recovery(), "CRITICAL must send recovery");
+    assert!(notif_count > 0, "notification_count must be > 0 for recovery to trigger");
+
+    cleanup(&state, monitor_id, user_id).await;
+}
+
+// ── Scenario 6: Active snooze suppresses Digest ───────────────────────────────
+
+#[tokio::test]
+async fn test_snooze_blocks_notification() {
+    use crate::alerts::worker::handle_incident;
+
+    let state = get_test_state().await;
+    let monitor_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user_id).bind(format!("snooze-{}@test.com", user_id)).bind("hash")
+        .execute(&state.db).await.unwrap();
+
+    sqlx::query("INSERT INTO monitors (id, user_id, url, name, is_active) VALUES ($1, $2, $3, $4, $5)")
+        .bind(monitor_id).bind(user_id)
+        .bind("http://snooze-test.com").bind("Snooze Test").bind(true)
+        .execute(&state.db).await.unwrap();
+
+    // Fire → FirstFire
+    handle_incident(&state, monitor_id, "cache_hit_low",
+        vec!["ap-south-1".to_string()], Some(25.0), Some(80.0),
+        None, None, None, None, None)
+    .await.unwrap();
+
+    let count_after_first: i32 = sqlx::query_scalar(
+        "SELECT notification_count FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
+    ).bind(monitor_id).fetch_one(&state.db).await.unwrap();
+    assert_eq!(count_after_first, 1);
+
+    // Backdate last_notified_at past cooldown AND apply snooze
+    sqlx::query(
+        "UPDATE alert_incidents
+         SET last_notified_at = NOW() - INTERVAL '9 hours',
+             snoozed_until     = NOW() + INTERVAL '24 hours'
+         WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
+    ).bind(monitor_id).execute(&state.db).await.unwrap();
+
+    // Fire again → should be suppressed by snooze, NOT by cooldown
+    handle_incident(&state, monitor_id, "cache_hit_low",
+        vec!["ap-south-1".to_string()], Some(25.0), Some(80.0),
+        None, None, None, None, None)
+    .await.unwrap();
+
+    let count_after_snooze: i32 = sqlx::query_scalar(
+        "SELECT notification_count FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
+    ).bind(monitor_id).fetch_one(&state.db).await.unwrap();
+    assert_eq!(count_after_snooze, 1, "Snooze must suppress the notification");
+
+    cleanup(&state, monitor_id, user_id).await;
+}
+
+// ── Scenario 7: Expired snooze resumes normal notification cadence ─────────────
+
+#[tokio::test]
+async fn test_expired_snooze_allows_notification() {
+    use crate::alerts::worker::handle_incident;
+
+    let state = get_test_state().await;
+    let monitor_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user_id).bind(format!("expsnz-{}@test.com", user_id)).bind("hash")
+        .execute(&state.db).await.unwrap();
+
+    sqlx::query("INSERT INTO monitors (id, user_id, url, name, is_active) VALUES ($1, $2, $3, $4, $5)")
+        .bind(monitor_id).bind(user_id)
+        .bind("http://expsnooze-test.com").bind("ExpSnooze Test").bind(true)
+        .execute(&state.db).await.unwrap();
+
+    // Fire → FirstFire
+    handle_incident(&state, monitor_id, "cache_hit_low",
+        vec!["us-east".to_string()], Some(30.0), Some(80.0),
+        None, None, None, None, None)
+    .await.unwrap();
+
+    // Backdate last_notified_at past cooldown AND set an EXPIRED snooze
+    sqlx::query(
+        "UPDATE alert_incidents
+         SET last_notified_at = NOW() - INTERVAL '9 hours',
+             snoozed_until     = NOW() - INTERVAL '1 hour'
+         WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
+    ).bind(monitor_id).execute(&state.db).await.unwrap();
+
+    // Fire again → expired snooze + elapsed cooldown → Digest should go through
+    handle_incident(&state, monitor_id, "cache_hit_low",
+        vec!["us-east".to_string()], Some(30.0), Some(80.0),
+        None, None, None, None, None)
+    .await.unwrap();
+
+    let notif_count: i32 = sqlx::query_scalar(
+        "SELECT notification_count FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
+    ).bind(monitor_id).fetch_one(&state.db).await.unwrap();
+    assert_eq!(notif_count, 2, "Expired snooze must allow Digest to fire normally");
+
+    cleanup(&state, monitor_id, user_id).await;
+}
+
+// ── Scenario 8: Two incident types on same monitor are fully independent ───────
+
+#[tokio::test]
+async fn test_independent_incidents_same_monitor() {
+    use crate::alerts::worker::handle_incident;
+
+    let state = get_test_state().await;
+    let monitor_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user_id).bind(format!("indep-{}@test.com", user_id)).bind("hash")
+        .execute(&state.db).await.unwrap();
+
+    sqlx::query("INSERT INTO monitors (id, user_id, url, name, is_active) VALUES ($1, $2, $3, $4, $5)")
+        .bind(monitor_id).bind(user_id)
+        .bind("http://indep-test.com").bind("Indep Test").bind(true)
+        .execute(&state.db).await.unwrap();
+
+    // Open two different incident types
+    handle_incident(&state, monitor_id, "cache_hit_low",
+        vec!["us-east".to_string()], Some(30.0), Some(80.0),
+        None, None, None, None, None)
+    .await.unwrap();
+
+    handle_incident(&state, monitor_id, "ssl_expiry",
+        vec!["eu-west".to_string()], Some(5.0), Some(15.0),
+        None, None, None, None, None)
+    .await.unwrap();
+
+    // Both incidents open, each with notification_count = 1
+    let cache_count: i32 = sqlx::query_scalar(
+        "SELECT notification_count FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
+    ).bind(monitor_id).fetch_one(&state.db).await.unwrap();
+
+    let ssl_count: i32 = sqlx::query_scalar(
+        "SELECT notification_count FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'ssl_expiry'"
+    ).bind(monitor_id).fetch_one(&state.db).await.unwrap();
+
+    assert_eq!(cache_count, 1);
+    assert_eq!(ssl_count, 1);
+
+    // Advance only cache_hit_low past cooldown (8h) and fire again
+    sqlx::query(
+        "UPDATE alert_incidents SET last_notified_at = NOW() - INTERVAL '9 hours'
+         WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
+    ).bind(monitor_id).execute(&state.db).await.unwrap();
+
+    handle_incident(&state, monitor_id, "cache_hit_low",
+        vec!["us-east".to_string()], Some(30.0), Some(80.0),
+        None, None, None, None, None)
+    .await.unwrap();
+
+    // cache_hit_low now has count=2; ssl_expiry is untouched at count=1
+    let cache_count_after: i32 = sqlx::query_scalar(
+        "SELECT notification_count FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
+    ).bind(monitor_id).fetch_one(&state.db).await.unwrap();
+
+    let ssl_count_after: i32 = sqlx::query_scalar(
+        "SELECT notification_count FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'ssl_expiry'"
+    ).bind(monitor_id).fetch_one(&state.db).await.unwrap();
+
+    assert_eq!(cache_count_after, 2, "cache_hit_low should have fired Digest independently");
+    assert_eq!(ssl_count_after, 1, "ssl_expiry must remain unaffected by cache_hit_low cycle");
+
+    // Total open incidents for this monitor: 2
+    let total_open: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM alert_incidents WHERE monitor_id = $1 AND resolved_at IS NULL"
+    ).bind(monitor_id).fetch_one(&state.db).await.unwrap();
+    assert_eq!(total_open, 2);
+
+    cleanup(&state, monitor_id, user_id).await;
 }

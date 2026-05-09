@@ -20,10 +20,12 @@ function makeMonitor(overrides: Partial<Monitor> = {}): Monitor {
     url:              'https://example.com',
     status:           'active',
     ttfbCurrent:      100,
+    ttfbAvg1h:        100,
     ttfbCurrentDelta: 0,
     ttfbAvg24h:       100,
     ttfbSparkline:    [100, 105, 95, 110],
     cacheHitCurrent:  90,
+    cacheHitAvg1h:    90,
     cacheHitAvg24h:   88,
     cacheHitDelta:    2,
     regions:          [],
@@ -118,7 +120,7 @@ describe('deriveInsights', () => {
 
   describe('all-healthy', () => {
     it('returns a single "all-healthy" insight when every monitor is within thresholds', () => {
-      const monitors = [makeMonitor({ ttfbCurrent: 80, cacheHitCurrent: 95 })]
+      const monitors = [makeMonitor({ ttfbAvg1h: 80, cacheHitAvg1h: 95 })]
       const insights = deriveInsights(monitors)
       expect(insights).toHaveLength(1)
       expect(insights[0].id).toBe('all-healthy')
@@ -126,19 +128,19 @@ describe('deriveInsights', () => {
     })
 
     it('includes average TTFB in the healthy description', () => {
-      const monitors = [makeMonitor({ ttfbCurrent: 120 })]
+      const monitors = [makeMonitor({ ttfbAvg1h: 120 })]
       const { description } = deriveInsights(monitors)[0]
       expect(description).toContain('120ms')
     })
 
     it('includes avg cache efficiency when cache data is available', () => {
-      const monitors = [makeMonitor({ ttfbCurrent: 80, cacheHitCurrent: 92 })]
+      const monitors = [makeMonitor({ ttfbAvg1h: 80, cacheHitAvg1h: 92 })]
       const { description } = deriveInsights(monitors)[0]
       expect(description).toContain('92%')
     })
 
     it('omits cache efficiency when no monitor reports cache data', () => {
-      const monitors = [makeMonitor({ ttfbCurrent: 80, cacheHitCurrent: null })]
+      const monitors = [makeMonitor({ ttfbAvg1h: 80, cacheHitAvg1h: null })]
       const { description } = deriveInsights(monitors)[0]
       expect(description).not.toContain('%')
     })
@@ -148,22 +150,22 @@ describe('deriveInsights', () => {
 
   describe('critical-ttfb', () => {
     it('fires when TTFB exceeds the critical threshold', () => {
-      const monitors = [makeMonitor({ ttfbCurrent: TTFB_CRITICAL + 1 })]
+      const monitors = [makeMonitor({ ttfbAvg1h: TTFB_CRITICAL + 1 })]
       const insights = deriveInsights(monitors)
       expect(insights[0].id).toBe('critical-ttfb')
       expect(insights[0].severity).toBe('critical')
     })
 
     it('does NOT fire at exactly the critical threshold', () => {
-      const monitors = [makeMonitor({ ttfbCurrent: TTFB_CRITICAL })]
+      const monitors = [makeMonitor({ ttfbAvg1h: TTFB_CRITICAL })]
       const insights = deriveInsights(monitors)
       expect(insights[0].id).not.toBe('critical-ttfb')
     })
 
     it('targets the worst-TTFB monitor', () => {
       const monitors = [
-        makeMonitor({ id: 'slow', url: 'https://slow.com', ttfbCurrent: TTFB_CRITICAL + 1 }),
-        makeMonitor({ id: 'fast', url: 'https://fast.com', ttfbCurrent: 150 }),
+        makeMonitor({ id: 'slow', url: 'https://slow.com', ttfbAvg1h: TTFB_CRITICAL + 1 }),
+        makeMonitor({ id: 'fast', url: 'https://fast.com', ttfbAvg1h: 150 }),
       ]
       const insight = deriveInsights(monitors).find(i => i.id === 'critical-ttfb')!
       expect(insight.actionHref).toContain('slow')
@@ -172,20 +174,20 @@ describe('deriveInsights', () => {
 
   describe('high-ttfb', () => {
     it('fires when TTFB is between high and critical thresholds', () => {
-      const monitors = [makeMonitor({ ttfbCurrent: TTFB_HIGH + 1 })]
+      const monitors = [makeMonitor({ ttfbAvg1h: TTFB_HIGH + 1 })]
       const insights = deriveInsights(monitors)
       expect(insights[0].id).toBe('high-ttfb')
       expect(insights[0].severity).toBe('warning')
     })
 
     it('does NOT fire at exactly the high threshold', () => {
-      const monitors = [makeMonitor({ ttfbCurrent: TTFB_HIGH })]
+      const monitors = [makeMonitor({ ttfbAvg1h: TTFB_HIGH })]
       const ids = deriveInsights(monitors).map(i => i.id)
       expect(ids).not.toContain('high-ttfb')
     })
 
     it('does NOT fire when critical-ttfb already fires (same slot)', () => {
-      const monitors = [makeMonitor({ ttfbCurrent: TTFB_CRITICAL + 1 })]
+      const monitors = [makeMonitor({ ttfbAvg1h: TTFB_CRITICAL + 1 })]
       const ids = deriveInsights(monitors).map(i => i.id)
       expect(ids).not.toContain('high-ttfb')
     })
@@ -195,34 +197,34 @@ describe('deriveInsights', () => {
 
   describe('low-cache', () => {
     it('fires as warning when cache hit is below CACHE_WARN but above CACHE_CRITICAL', () => {
-      const monitors = [makeMonitor({ ttfbCurrent: 100, cacheHitCurrent: CACHE_WARN - 1 })]
+      const monitors = [makeMonitor({ ttfbAvg1h: 100, cacheHitAvg1h: CACHE_WARN - 1 })]
       const insight = deriveInsights(monitors).find(i => i.id === 'low-cache')!
       expect(insight).toBeDefined()
       expect(insight.severity).toBe('warning')
     })
 
     it('fires as critical when cache hit is below CACHE_CRITICAL', () => {
-      const monitors = [makeMonitor({ ttfbCurrent: 100, cacheHitCurrent: CACHE_CRITICAL - 1 })]
+      const monitors = [makeMonitor({ ttfbAvg1h: 100, cacheHitAvg1h: CACHE_CRITICAL - 1 })]
       const insight = deriveInsights(monitors).find(i => i.id === 'low-cache')!
       expect(insight.severity).toBe('critical')
     })
 
     it('does NOT fire when cache hit is exactly at the warning threshold', () => {
-      const monitors = [makeMonitor({ ttfbCurrent: 100, cacheHitCurrent: CACHE_WARN })]
+      const monitors = [makeMonitor({ ttfbAvg1h: 100, cacheHitAvg1h: CACHE_WARN })]
       const ids = deriveInsights(monitors).map(i => i.id)
       expect(ids).not.toContain('low-cache')
     })
 
     it('does NOT fire when cacheHitCurrent is null (no data)', () => {
-      const monitors = [makeMonitor({ ttfbCurrent: 100, cacheHitCurrent: null })]
+      const monitors = [makeMonitor({ ttfbAvg1h: 100, cacheHitAvg1h: null })]
       const ids = deriveInsights(monitors).map(i => i.id)
       expect(ids).not.toContain('low-cache')
     })
 
     it('targets the monitor with the lowest cache hit', () => {
       const monitors = [
-        makeMonitor({ id: 'bad',  url: 'https://bad.com',  ttfbCurrent: 100, cacheHitCurrent: 20 }),
-        makeMonitor({ id: 'good', url: 'https://good.com', ttfbCurrent: 100, cacheHitCurrent: 60 }),
+        makeMonitor({ id: 'bad',  url: 'https://bad.com',  ttfbAvg1h: 100, cacheHitAvg1h: 20 }),
+        makeMonitor({ id: 'good', url: 'https://good.com', ttfbAvg1h: 100, cacheHitAvg1h: 60 }),
       ]
       const insight = deriveInsights(monitors).find(i => i.id === 'low-cache')!
       expect(insight.actionHref).toContain('bad')
@@ -236,7 +238,7 @@ describe('deriveInsights', () => {
       const regions = [
         { code: 'sa-east', label: 'São Paulo', flag: '🇧🇷', isSlow: true, isError: false },
       ]
-      const monitors = [makeMonitor({ ttfbCurrent: 100, slowRegionCount: 1, regions })]
+      const monitors = [makeMonitor({ ttfbAvg1h: 100, slowRegionCount: 1, regions })]
       const ids = deriveInsights(monitors).map(i => i.id)
       expect(ids).toContain('slow-regions')
     })
@@ -256,16 +258,16 @@ describe('deriveInsights', () => {
       // Build a scenario where all 4 pre-gate slots are filled artificially.
       // This is an integration test of priority ordering.
       const base = makeMonitor({
-        ttfbCurrent:      TTFB_CRITICAL + 1,
-        cacheHitCurrent:  CACHE_CRITICAL - 1,
-        ttfbCurrentDelta: DELTA_WARN + 1,
+        ttfbAvg1h:        TTFB_CRITICAL + 1,
+        cacheHitAvg1h:    CACHE_CRITICAL - 1,
+        ttfbAvg24h:       100, // ensure delta triggers
         slowRegionCount:  1,
         regions: [{ code: 'sa', label: 'SA', flag: '🇧🇷', isSlow: true, isError: false }],
       })
       // 3 additional degrading monitors to generate more ttfb-degradation candidates
       const extras = [
-        makeMonitor({ id: 'x2', ttfbCurrentDelta: DELTA_WARN + 2, slowRegionCount: 0 }),
-        makeMonitor({ id: 'x3', ttfbCurrentDelta: DELTA_WARN + 3, slowRegionCount: 0 }),
+        makeMonitor({ id: 'x2', ttfbAvg1h: 150, ttfbAvg24h: 100, slowRegionCount: 0 }),
+        makeMonitor({ id: 'x3', ttfbAvg1h: 160, ttfbAvg24h: 100, slowRegionCount: 0 }),
       ]
       const insights = deriveInsights([base, ...extras])
       // critical-ttfb + low-cache = 2 insights, then slow-regions and degradation
@@ -279,28 +281,28 @@ describe('deriveInsights', () => {
 
   describe('ttfb-degradation', () => {
     it('fires when TTFB delta exceeds the warning threshold', () => {
-      const monitors = [makeMonitor({ ttfbCurrent: 100, ttfbCurrentDelta: DELTA_WARN + 1 })]
+      const monitors = [makeMonitor({ ttfbAvg1h: 130, ttfbAvg24h: 100 })]
       const ids = deriveInsights(monitors).map(i => i.id)
       expect(ids).toContain('ttfb-degradation')
     })
 
     it('does NOT fire when delta is exactly at the threshold', () => {
-      const monitors = [makeMonitor({ ttfbCurrent: 100, ttfbCurrentDelta: DELTA_WARN })]
+      const monitors = [makeMonitor({ ttfbAvg1h: 120, ttfbAvg24h: 100 })]
       const ids = deriveInsights(monitors).map(i => i.id)
       expect(ids).not.toContain('ttfb-degradation')
     })
 
     it('targets the monitor with the largest delta', () => {
       const monitors = [
-        makeMonitor({ id: 'worse', url: 'https://worse.com', ttfbCurrentDelta: 50 }),
-        makeMonitor({ id: 'bad',   url: 'https://bad.com',   ttfbCurrentDelta: 30 }),
+        makeMonitor({ id: 'worse', url: 'https://worse.com', ttfbAvg1h: 150, ttfbAvg24h: 100 }), // +50%
+        makeMonitor({ id: 'bad',   url: 'https://bad.com',   ttfbAvg1h: 130, ttfbAvg24h: 100 }), // +30%
       ]
       const insight = deriveInsights(monitors).find(i => i.id === 'ttfb-degradation')!
       expect(insight.actionHref).toContain('worse')
     })
 
     it('includes the formatted delta percentage in the description', () => {
-      const monitors = [makeMonitor({ ttfbCurrentDelta: 25.7 })]
+      const monitors = [makeMonitor({ ttfbAvg1h: 125.7, ttfbAvg24h: 100 })]
       const insight = deriveInsights(monitors).find(i => i.id === 'ttfb-degradation')!
       expect(insight.description).toContain('+25.7%')
     })
@@ -311,9 +313,9 @@ describe('deriveInsights', () => {
   describe('output cap', () => {
     it('returns at most 5 insights', () => {
       const monitor = makeMonitor({
-        ttfbCurrent:      TTFB_CRITICAL + 1,
-        cacheHitCurrent:  CACHE_CRITICAL - 1,
-        ttfbCurrentDelta: DELTA_WARN + 1,
+        ttfbAvg1h:        TTFB_CRITICAL + 1,
+        cacheHitAvg1h:    CACHE_CRITICAL - 1,
+        ttfbAvg24h:       100,
         slowRegionCount:  2,
         regions: [
           { code: 'sa', label: 'São Paulo',  flag: '🇧🇷', isSlow: true, isError: false },
@@ -325,7 +327,7 @@ describe('deriveInsights', () => {
     })
 
     it('never returns the all-healthy insight alongside problem insights', () => {
-      const monitors = [makeMonitor({ ttfbCurrent: TTFB_CRITICAL + 1 })]
+      const monitors = [makeMonitor({ ttfbAvg1h: TTFB_CRITICAL + 1 })]
       const insights = deriveInsights(monitors)
       const ids = insights.map(i => i.id)
       expect(ids).not.toContain('all-healthy')

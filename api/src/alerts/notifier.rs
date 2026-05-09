@@ -1,160 +1,571 @@
-use crate::AppState;
+use crate::{
+    alerts::severity::{
+        alert_severity, alert_type_display, format_duration, format_duration_short,
+        is_cache_metric, metric_unit,
+    },
+    AppState,
+};
+use hmac::{Hmac, Mac};
 use serde_json::json;
+use sha2::Sha256;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
-pub struct AlertNotification {
-    pub alert_id: Uuid,
-    pub monitor_id: Uuid,
-    pub alert_type: String,
-    pub region: String,
-    pub diagnosis: Option<String>,
-    pub action: Option<String>,
-    pub actual_ms: Option<f64>,
-    pub baseline_ms: Option<f64>,
-    pub deviation_factor: Option<f64>,
-    // Trend alert context (None for non-trend alerts)
-    pub delta_pct: Option<f64>,
-    pub comparator: Option<String>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+pub enum NotificationType {
+    FirstFire,
+    Digest,
+    Recovery,
 }
 
-pub async fn notify(state: AppState, notif: AlertNotification) {
-    // Fetch monitor notification settings + url/name
-    let monitor = sqlx::query!(
-        r#"
-        SELECT url, name,
-               notify_email, notify_email_enabled,
-               notify_slack_webhook, notify_slack_enabled
-        FROM monitors WHERE id = $1
-        "#,
-        notif.monitor_id
+impl NotificationType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            NotificationType::FirstFire => "first_fire",
+            NotificationType::Digest => "digest",
+            NotificationType::Recovery => "recovery",
+        }
+    }
+}
+
+pub struct IncidentNotification {
+    pub incident_id: Uuid,
+    pub alert_record_id: Uuid,
+    pub monitor_id: Uuid,
+    pub alert_type: String,
+    pub affected_regions: Vec<String>,
+    pub notification_type: NotificationType,
+    pub actual: Option<f64>,
+    pub threshold: Option<f64>,
+    pub duration: chrono::Duration,
+    pub notification_count: i32,
+    // Trend-specific context (None for non-trend alerts)
+    pub delta_pct: Option<f64>,
+    pub comparator: Option<String>,
+    #[allow(dead_code)]
+    pub deviation_factor: Option<f64>,
+    pub diagnosis: Option<String>,
+    pub action: Option<String>,
+}
+
+pub struct RecoveryNotification {
+    pub monitor_id: Uuid,
+    pub alert_type: String,
+    pub affected_regions: Vec<String>,
+    pub duration: chrono::Duration,
+    pub notification_count: i32,
+    pub actual: Option<f64>,
+    pub threshold: Option<f64>,
+}
+
+struct MonitorNotifConfig {
+    url: String,
+    name: Option<String>,
+    notify_email: Option<String>,
+    notify_email_enabled: bool,
+    notify_slack_webhook: Option<String>,
+    notify_slack_enabled: bool,
+}
+
+async fn fetch_monitor_config(state: &AppState, monitor_id: Uuid) -> Option<MonitorNotifConfig> {
+    let row = sqlx::query!(
+        "SELECT url, name, notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled
+         FROM monitors WHERE id = $1",
+        monitor_id
     )
     .fetch_optional(&state.db)
     .await;
 
-    let monitor = match monitor {
-        Ok(Some(m)) => m,
-        Ok(None) => return,
+    match row {
+        Ok(Some(m)) => Some(MonitorNotifConfig {
+            url: m.url,
+            name: m.name,
+            notify_email: m.notify_email,
+            notify_email_enabled: m.notify_email_enabled,
+            notify_slack_webhook: m.notify_slack_webhook,
+            notify_slack_enabled: m.notify_slack_enabled,
+        }),
+        Ok(None) => None,
         Err(e) => {
-            error!("notifier: failed to fetch monitor {}: {}", notif.monitor_id, e);
-            return;
+            error!("notifier: failed to fetch monitor {}: {}", monitor_id, e);
+            None
         }
+    }
+}
+
+pub async fn notify_incident(state: AppState, notif: IncidentNotification) {
+    let monitor = match fetch_monitor_config(&state, notif.monitor_id).await {
+        Some(m) => m,
+        None => return,
     };
 
-    let monitor_label = monitor.name.as_deref()
-        .unwrap_or_else(|| monitor.url.as_str())
-        .to_string();
+    let monitor_label = monitor.name.as_deref().unwrap_or(monitor.url.as_str()).to_string();
+    let region_label = if notif.affected_regions.len() > 1 {
+        format!("{} regions", notif.affected_regions.len())
+    } else {
+        notif.affected_regions.first().cloned().unwrap_or_else(|| "unknown".to_string())
+    };
 
-    let subject = format!(
-        "[CacheSnap] {} alert · {} · {}",
-        capitalize(&notif.alert_type), notif.region, monitor_label
-    );
-    let body_text = build_body_text(&notif, &monitor_label);
+    let type_label = alert_type_display(&notif.alert_type);
+    let subject = build_incident_subject(&notif, type_label, &monitor_label);
+    let snooze_url = build_snooze_url(&state, notif.monitor_id, notif.incident_id);
 
     let mut notified_email = false;
     let mut notified_slack = false;
 
-    // --- Email via Resend ---
     if monitor.notify_email_enabled {
         if let Some(to_email) = &monitor.notify_email {
             if let Some(api_key) = &state.config.resend_api_key {
-                let html = build_email_html(&notif, &monitor_label, &monitor.url);
+                let html = build_incident_email_html(
+                    &notif,
+                    &monitor_label,
+                    &monitor.url,
+                    &region_label,
+                    &snooze_url,
+                    &state.config.app_url,
+                );
                 let t0 = std::time::Instant::now();
                 match send_email(api_key, to_email, &subject, &html).await {
                     Ok(()) => {
                         notified_email = true;
                         let latency_ms = t0.elapsed().as_millis() as f64;
-                        info!("notifier: email sent to {} for alert {}", to_email, notif.alert_id);
-                        let db = state.db.clone();
-                        tokio::spawn(async move {
-                            let _ = sqlx::query(
-                                "INSERT INTO ops_alert_delivery_stats \
-                                 (time, channel, provider, success_count, fail_count, avg_latency_ms) \
-                                 VALUES (NOW(), 'email', 'resend', 1, 0, $1)"
-                            )
-                            .bind(latency_ms)
-                            .execute(&db)
-                            .await;
-                        });
+                        info!("notifier: email sent to {} for incident {}", to_email, notif.incident_id);
+                        record_delivery(&state, "email", "resend", true, latency_ms, notif.notification_type.as_str()).await;
                     }
                     Err(e) => {
                         let latency_ms = t0.elapsed().as_millis() as f64;
-                        error!("notifier: email failed for alert {}: {}", notif.alert_id, e);
-                        let db = state.db.clone();
-                        tokio::spawn(async move {
-                            let _ = sqlx::query(
-                                "INSERT INTO ops_alert_delivery_stats \
-                                 (time, channel, provider, success_count, fail_count, avg_latency_ms) \
-                                 VALUES (NOW(), 'email', 'resend', 0, 1, $1)"
-                            )
-                            .bind(latency_ms)
-                            .execute(&db)
-                            .await;
-                        });
+                        error!("notifier: email failed for incident {}: {}", notif.incident_id, e);
+                        record_delivery(&state, "email", "resend", false, latency_ms, notif.notification_type.as_str()).await;
                     }
                 }
             } else {
-                warn!("notifier: RESEND_API_KEY not set — skipping email for alert {}", notif.alert_id);
+                warn!("notifier: RESEND_API_KEY not set — skipping email for incident {}", notif.incident_id);
             }
         }
     }
 
-    // --- Slack / Discord webhook ---
     if monitor.notify_slack_enabled {
         if let Some(webhook_url) = &monitor.notify_slack_webhook {
+            let slack_text = build_slack_incident_text(&notif, &monitor_label, &region_label);
             let t0 = std::time::Instant::now();
-            match send_slack(webhook_url, &body_text).await {
+            match send_slack(webhook_url, &slack_text).await {
                 Ok(()) => {
                     notified_slack = true;
                     let latency_ms = t0.elapsed().as_millis() as f64;
-                    info!("notifier: slack sent for alert {}", notif.alert_id);
-                    let db = state.db.clone();
-                    tokio::spawn(async move {
-                        let _ = sqlx::query(
-                            "INSERT INTO ops_alert_delivery_stats \
-                             (time, channel, provider, success_count, fail_count, avg_latency_ms) \
-                             VALUES (NOW(), 'slack', 'webhook', 1, 0, $1)"
-                        )
-                        .bind(latency_ms)
-                        .execute(&db)
-                        .await;
-                    });
+                    info!("notifier: slack sent for incident {}", notif.incident_id);
+                    record_delivery(&state, "slack", "webhook", true, latency_ms, notif.notification_type.as_str()).await;
                 }
                 Err(e) => {
                     let latency_ms = t0.elapsed().as_millis() as f64;
-                    error!("notifier: slack failed for alert {}: {}", notif.alert_id, e);
-                    let db = state.db.clone();
-                    tokio::spawn(async move {
-                        let _ = sqlx::query(
-                            "INSERT INTO ops_alert_delivery_stats \
-                             (time, channel, provider, success_count, fail_count, avg_latency_ms) \
-                             VALUES (NOW(), 'slack', 'webhook', 0, 1, $1)"
-                        )
-                        .bind(latency_ms)
-                        .execute(&db)
-                        .await;
-                    });
+                    error!("notifier: slack failed for incident {}: {}", notif.incident_id, e);
+                    record_delivery(&state, "slack", "webhook", false, latency_ms, notif.notification_type.as_str()).await;
                 }
             }
         }
     }
 
-    // Update notified flags on the alert row
     if notified_email || notified_slack {
         let _ = sqlx::query!(
-            r#"
-            UPDATE alerts
-            SET notified_email = $1, notified_slack = $2
-            WHERE id = $3
-            "#,
+            "UPDATE alerts SET notified_email = $1, notified_slack = $2 WHERE id = $3",
             notified_email,
             notified_slack,
-            notif.alert_id
+            notif.alert_record_id
         )
         .execute(&state.db)
         .await;
     }
 }
+
+pub async fn notify_recovery(state: AppState, notif: RecoveryNotification) {
+    let severity = alert_severity(&notif.alert_type);
+    if !severity.sends_recovery() || notif.notification_count == 0 {
+        return;
+    }
+
+    let monitor = match fetch_monitor_config(&state, notif.monitor_id).await {
+        Some(m) => m,
+        None => return,
+    };
+
+    let monitor_label = monitor.name.as_deref().unwrap_or(monitor.url.as_str()).to_string();
+    let type_label = alert_type_display(&notif.alert_type);
+    let subject = format!("[CacheSnap] Resolved: {} · {}", type_label, monitor_label);
+
+    if monitor.notify_email_enabled {
+        if let Some(to_email) = &monitor.notify_email {
+            if let Some(api_key) = &state.config.resend_api_key {
+                let html = build_recovery_email_html(&notif, &monitor_label, type_label);
+                let t0 = std::time::Instant::now();
+                match send_email(api_key, to_email, &subject, &html).await {
+                    Ok(()) => {
+                        let latency_ms = t0.elapsed().as_millis() as f64;
+                        info!("notifier: recovery email sent for {}", notif.alert_type);
+                        record_delivery(&state, "email", "resend", true, latency_ms, "recovery").await;
+                    }
+                    Err(e) => {
+                        let latency_ms = t0.elapsed().as_millis() as f64;
+                        error!("notifier: recovery email failed: {}", e);
+                        record_delivery(&state, "email", "resend", false, latency_ms, "recovery").await;
+                    }
+                }
+            }
+        }
+    }
+
+    if monitor.notify_slack_enabled {
+        if let Some(webhook_url) = &monitor.notify_slack_webhook {
+            let text = build_slack_recovery_text(&notif, &monitor_label, type_label);
+            if let Ok(()) = send_slack(webhook_url, &text).await {
+                info!("notifier: recovery slack sent for {}", notif.alert_type);
+            }
+        }
+    }
+}
+
+// --- Subject builders ---
+
+fn build_incident_subject(n: &IncidentNotification, type_label: &str, monitor_label: &str) -> String {
+    let severity = alert_severity(&n.alert_type);
+    match n.notification_type {
+        NotificationType::FirstFire => format!(
+            "[CacheSnap] {}: {} · {}",
+            severity.as_str().to_uppercase(),
+            type_label,
+            monitor_label
+        ),
+        NotificationType::Digest => {
+            let dur = format_duration_short(&n.duration);
+            format!("[CacheSnap] Still ongoing: {} · {} · {}", type_label, dur, monitor_label)
+        }
+        NotificationType::Recovery => {
+            format!("[CacheSnap] Resolved: {} · {}", type_label, monitor_label)
+        }
+    }
+}
+
+// --- HMAC snooze token ---
+
+pub fn build_snooze_url(state: &AppState, monitor_id: Uuid, incident_id: Uuid) -> String {
+    let expires = chrono::Utc::now().timestamp() + 7 * 24 * 3600;
+    let token = sign_snooze_token(&state.config.alert_snooze_secret, incident_id, expires);
+    format!(
+        "{}/api/monitors/{}/incidents/{}/snooze?token={}&expires={}",
+        state.config.api_url, monitor_id, incident_id, token, expires
+    )
+}
+
+pub fn sign_snooze_token(secret: &str, incident_id: Uuid, expires: i64) -> String {
+    type HmacSha256 = Hmac<Sha256>;
+    let message = format!("snooze:{}:{}", incident_id, expires);
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC accepts any key size");
+    mac.update(message.as_bytes());
+    hex::encode(mac.finalize().into_bytes())
+}
+
+pub fn verify_snooze_token(secret: &str, incident_id: Uuid, expires: i64, token: &str) -> bool {
+    let expected = sign_snooze_token(secret, incident_id, expires);
+    // Constant-time comparison via HMAC verify
+    type HmacSha256 = Hmac<Sha256>;
+    let message = format!("snooze:{}:{}", incident_id, expires);
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC accepts any key size");
+    mac.update(message.as_bytes());
+    mac.verify_slice(&hex::decode(token).unwrap_or_default()).is_ok()
+        && expected == token  // belt-and-suspenders: also ensure hex round-trip matches
+}
+
+// --- Email HTML builders ---
+
+fn build_incident_email_html(
+    n: &IncidentNotification,
+    monitor_label: &str,
+    monitor_url: &str,
+    region_label: &str,
+    snooze_url: &str,
+    app_url: &str,
+) -> String {
+    let severity = alert_severity(&n.alert_type);
+    let type_label = alert_type_display(&n.alert_type);
+    let unit = metric_unit(&n.alert_type);
+
+    let (header_bg, header_label) = match n.notification_type {
+        NotificationType::FirstFire => (severity.color(), "New Alert"),
+        NotificationType::Digest => ("#6b7280", "Still Ongoing"),
+        NotificationType::Recovery => ("#16a34a", "Resolved"),
+    };
+
+    let context_html = match n.notification_type {
+        NotificationType::FirstFire => String::new(),
+        NotificationType::Digest => format!(
+            "<p style='margin:0 0 12px;font-size:14px;color:#6b7280'>Ongoing for <strong>{}</strong> &middot; {} notification{} sent</p>",
+            format_duration(&n.duration),
+            n.notification_count,
+            if n.notification_count == 1 { "" } else { "s" }
+        ),
+        NotificationType::Recovery => format!(
+            "<p style='margin:0 0 12px;font-size:14px;color:#16a34a'>Resolved after <strong>{}</strong></p>",
+            format_duration(&n.duration)
+        ),
+    };
+
+    let metrics_html = build_metrics_html(n, unit, severity.color());
+    let diagnosis = n.diagnosis.as_deref().unwrap_or("");
+    let action = n.action.as_deref().unwrap_or("");
+    let dashboard_url = format!("{}/dashboard", app_url);
+
+    format!(
+        r#"<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 16px">
+<tr><td align="center">
+<table width="580" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
+  <tr>
+    <td style="background:{header_bg};padding:14px 24px">
+      <span style="color:#fff;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px">{header_label}</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:24px">
+      <h2 style="margin:0 0 4px;font-size:20px;color:#111;font-weight:700">{type_label}</h2>
+      <p style="margin:0 0 16px;font-size:14px;color:#6b7280">{monitor_label_escaped} &middot; {region_label_escaped}</p>
+      {context_html}
+      {metrics_html}
+      {diag_html}
+      {action_html}
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;padding-top:16px;border-top:1px solid #e5e7eb">
+        <tr>
+          <td style="font-size:13px;color:#9ca3af">
+            <a href="{snooze_url}" style="color:#9ca3af;text-decoration:underline">Snooze 24h</a>
+            &nbsp;&middot;&nbsp;
+            <a href="{monitor_url}" style="color:#2563eb;text-decoration:none">View monitor</a>
+            &nbsp;&middot;&nbsp;
+            <a href="{dashboard_url}" style="color:#6b7280;text-decoration:none">Dashboard</a>
+          </td>
+          <td align="right" style="font-size:11px;color:#d1d5db">CacheSnap</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>"#,
+        header_bg = header_bg,
+        header_label = header_label,
+        type_label = html_escape(type_label),
+        monitor_label_escaped = html_escape(monitor_label),
+        region_label_escaped = html_escape(region_label),
+        context_html = context_html,
+        metrics_html = metrics_html,
+        diag_html = if !diagnosis.is_empty() {
+            format!("<p style='margin:0 0 8px;font-size:14px;color:#374151'>{}</p>", html_escape(diagnosis))
+        } else {
+            String::new()
+        },
+        action_html = if !action.is_empty() {
+            format!(
+                "<p style='margin:0 0 16px;font-size:14px;color:#1d4ed8'><strong>Action:</strong> {}</p>",
+                html_escape(action)
+            )
+        } else {
+            String::new()
+        },
+        snooze_url = snooze_url,
+        monitor_url = monitor_url,
+        dashboard_url = dashboard_url,
+    )
+}
+
+fn build_metrics_html(n: &IncidentNotification, unit: &str, severity_color: &str) -> String {
+    if let (Some(actual), Some(threshold)) = (n.actual, n.threshold) {
+        format!(
+            r#"<table cellpadding="12" cellspacing="0" style="background:#f9fafb;border-radius:6px;margin-bottom:16px;width:100%">
+  <tr>
+    <td>
+      <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Current</div>
+      <div style="font-size:26px;font-weight:700;color:{severity_color}">{actual:.1}{unit}</div>
+    </td>
+    <td>
+      <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Threshold</div>
+      <div style="font-size:26px;font-weight:700;color:#374151">{threshold:.1}{unit}</div>
+    </td>
+  </tr>
+</table>"#,
+            severity_color = severity_color,
+            actual = actual,
+            unit = unit,
+            threshold = threshold,
+        )
+    } else if let (Some(actual), Some(delta), Some(baseline)) =
+        (n.actual, n.delta_pct, n.threshold)
+    {
+        let sign = if delta > 0.0 { "+" } else { "" };
+        let cmp = n.comparator.as_deref().map(comparator_display).unwrap_or("reference");
+        let delta_color = if is_cache_metric(&n.alert_type) {
+            if delta < 0.0 { "#dc2626" } else { "#16a34a" }
+        } else {
+            if delta > 0.0 { "#dc2626" } else { "#16a34a" }
+        };
+        format!(
+            r#"<table cellpadding="12" cellspacing="0" style="background:#f9fafb;border-radius:6px;margin-bottom:16px;width:100%">
+  <tr>
+    <td>
+      <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Current</div>
+      <div style="font-size:26px;font-weight:700;color:{severity_color}">{actual:.1}{unit}</div>
+    </td>
+    <td>
+      <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">vs {cmp}</div>
+      <div style="font-size:26px;font-weight:700;color:{delta_color}">{sign}{delta:.1}%</div>
+    </td>
+    <td>
+      <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Reference</div>
+      <div style="font-size:26px;font-weight:700;color:#6b7280">{baseline:.1}{unit}</div>
+    </td>
+  </tr>
+</table>"#,
+            severity_color = severity_color,
+            actual = actual,
+            unit = unit,
+            cmp = cmp,
+            sign = sign,
+            delta = delta.abs(),
+            delta_color = delta_color,
+            baseline = baseline,
+        )
+    } else {
+        String::new()
+    }
+}
+
+fn build_recovery_email_html(
+    n: &RecoveryNotification,
+    monitor_label: &str,
+    type_label: &str,
+) -> String {
+    let duration_text = format_duration(&n.duration);
+    let unit = metric_unit(&n.alert_type);
+
+    let metric_html = if let (Some(actual), Some(threshold)) = (n.actual, n.threshold) {
+        format!(
+            "<p style='margin:0 0 12px;font-size:14px;color:#374151'>Final reading: <strong>{:.1}{}</strong> (threshold: {:.1}{})</p>",
+            actual, unit, threshold, unit
+        )
+    } else {
+        String::new()
+    };
+
+    format!(
+        r#"<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 16px">
+<tr><td align="center">
+<table width="580" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.1)">
+  <tr>
+    <td style="background:#16a34a;padding:14px 24px">
+      <span style="color:#fff;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px">Resolved</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:24px">
+      <h2 style="margin:0 0 4px;font-size:20px;color:#111;font-weight:700">{type_label}</h2>
+      <p style="margin:0 0 16px;font-size:14px;color:#6b7280">{monitor_label_escaped}</p>
+      <p style="margin:0 0 12px;font-size:14px;color:#16a34a">Issue resolved after <strong>{duration_text}</strong>.</p>
+      {metric_html}
+      <p style="margin:0;font-size:13px;color:#9ca3af">{notification_count} notification{s} sent during this incident.</p>
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0 16px">
+      <p style="margin:0;font-size:11px;color:#d1d5db">CacheSnap &mdash; Edge performance monitoring</p>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>"#,
+        type_label = html_escape(type_label),
+        monitor_label_escaped = html_escape(monitor_label),
+        duration_text = duration_text,
+        metric_html = metric_html,
+        notification_count = n.notification_count,
+        s = if n.notification_count == 1 { "" } else { "s" },
+    )
+}
+
+// --- Slack message builders ---
+
+fn build_slack_incident_text(
+    n: &IncidentNotification,
+    monitor_label: &str,
+    region_label: &str,
+) -> String {
+    let severity = alert_severity(&n.alert_type);
+    let type_label = alert_type_display(&n.alert_type);
+    let unit = metric_unit(&n.alert_type);
+
+    let prefix = match n.notification_type {
+        NotificationType::FirstFire => format!(
+            ":warning: *[{}]* {}",
+            severity.as_str().to_uppercase(),
+            type_label
+        ),
+        NotificationType::Digest => format!(
+            ":hourglass_flowing_sand: *[ONGOING {}]* {}",
+            format_duration_short(&n.duration),
+            type_label
+        ),
+        NotificationType::Recovery => format!(":white_check_mark: *[RESOLVED]* {}", type_label),
+    };
+
+    let mut parts = vec![format!(
+        "{} · *{}* ({})",
+        prefix, monitor_label, region_label
+    )];
+
+    if let (Some(actual), Some(threshold)) = (n.actual, n.threshold) {
+        parts.push(format!(
+            "{:.1}{} current · threshold {:.1}{}",
+            actual, unit, threshold, unit
+        ));
+    } else if let (Some(actual), Some(delta)) = (n.actual, n.delta_pct) {
+        let sign = if delta > 0.0 { "+" } else { "" };
+        let cmp = n.comparator.as_deref().map(comparator_display).unwrap_or("reference");
+        parts.push(format!(
+            "{:.1}{} current · {}{:.1}% vs {}",
+            actual,
+            unit,
+            sign,
+            delta,
+            cmp
+        ));
+    }
+
+    if let Some(d) = &n.diagnosis {
+        parts.push(d.clone());
+    }
+
+    parts.join("\n")
+}
+
+fn build_slack_recovery_text(n: &RecoveryNotification, monitor_label: &str, type_label: &str) -> String {
+    let regions = if n.affected_regions.is_empty() {
+        String::new()
+    } else if n.affected_regions.len() == 1 {
+        format!(" ({})", n.affected_regions[0])
+    } else {
+        format!(" ({} regions)", n.affected_regions.len())
+    };
+    format!(
+        ":white_check_mark: *[RESOLVED]* {}{} · *{}* · resolved after {}",
+        type_label,
+        regions,
+        monitor_label,
+        format_duration(&n.duration)
+    )
+}
+
+// --- HTTP senders ---
 
 async fn send_email(api_key: &str, to: &str, subject: &str, html: &str) -> Result<(), String> {
     let client = reqwest::Client::new();
@@ -162,7 +573,7 @@ async fn send_email(api_key: &str, to: &str, subject: &str, html: &str) -> Resul
         .post("https://api.resend.com/emails")
         .bearer_auth(api_key)
         .json(&json!({
-            "from": "CacheSnap <onboarding@resend.dev>",
+            "from": "CacheSnap <noreply@cachesnap.com>",
             "to": [to],
             "subject": subject,
             "html": html,
@@ -198,80 +609,340 @@ async fn send_slack(webhook_url: &str, text: &str) -> Result<(), String> {
     }
 }
 
-fn build_body_text(n: &AlertNotification, monitor_label: &str) -> String {
-    let mut lines = vec![
-        format!("*[CacheSnap]* {} alert for *{}* ({})", capitalize(&n.alert_type), monitor_label, n.region),
-    ];
-    if let Some(d) = &n.diagnosis {
-        lines.push(d.clone());
-    }
-    if let Some(a) = &n.action {
-        lines.push(format!("Action: {}", a));
-    }
-    // Trend alert: show delta % and absolute values
-    if let (Some(delta), Some(actual), Some(baseline)) = (n.delta_pct, n.actual_ms, n.baseline_ms) {
-        let cmp_label = n.comparator.as_deref().map(comparator_display).unwrap_or("reference");
-        let sign = if delta > 0.0 { "+" } else { "" };
-        if n.alert_type.contains("ttfb") {
-            lines.push(format!("TTFB: {:.0}ms now vs {:.0}ms {} ({}{:.1}%)", actual, baseline, cmp_label, sign, delta));
-        } else {
-            lines.push(format!("Cache hit: {:.1}% now vs {:.1}% {} ({}{:.1}%)", actual, baseline, cmp_label, sign, delta));
-        }
-    } else if let (Some(actual), Some(baseline), Some(factor)) = (n.actual_ms, n.baseline_ms, n.deviation_factor) {
-        lines.push(format!("{:.0}ms vs {:.0}ms baseline ({:.1}x slower)", actual, baseline, factor));
-    }
-    lines.join("\n")
+// --- Delivery stats ---
+
+async fn record_delivery(
+    state: &AppState,
+    channel: &'static str,
+    provider: &'static str,
+    success: bool,
+    latency_ms: f64,
+    notification_type: &str,
+) {
+    let (success_c, fail_c): (i32, i32) = if success { (1, 0) } else { (0, 1) };
+    let db = state.db.clone();
+    let notif_type = notification_type.to_string();
+    tokio::spawn(async move {
+        let _ = sqlx::query(
+            "INSERT INTO ops_alert_delivery_stats \
+             (time, channel, provider, success_count, fail_count, avg_latency_ms, notification_type) \
+             VALUES (NOW(), $1, $2, $3, $4, $5, $6)",
+        )
+        .bind(channel)
+        .bind(provider)
+        .bind(success_c)
+        .bind(fail_c)
+        .bind(latency_ms)
+        .bind(notif_type)
+        .execute(&db)
+        .await;
+    });
 }
 
-fn build_email_html(n: &AlertNotification, monitor_label: &str, monitor_url: &str) -> String {
-    let diagnosis = n.diagnosis.as_deref().unwrap_or("");
-    let action = n.action.as_deref().unwrap_or("");
-    let perf_line = if let (Some(delta), Some(actual), Some(baseline)) = (n.delta_pct, n.actual_ms, n.baseline_ms) {
-        let cmp_label = n.comparator.as_deref().map(comparator_display).unwrap_or("reference");
-        let sign = if delta > 0.0 { "+" } else { "" };
-        if n.alert_type.contains("ttfb") {
-            format!("<p style='color:#666'>TTFB: {:.0}ms now vs {:.0}ms {} ({}{:.1}%)</p>", actual, baseline, cmp_label, sign, delta)
-        } else {
-            format!("<p style='color:#666'>Cache hit: {:.1}% now vs {:.1}% {} ({}{:.1}%)</p>", actual, baseline, cmp_label, sign, delta)
-        }
-    } else if let (Some(actual), Some(baseline), Some(factor)) = (n.actual_ms, n.baseline_ms, n.deviation_factor) {
-        format!("<p style='color:#666'>{:.0}ms vs {:.0}ms baseline ({:.1}x slower)</p>", actual, baseline, factor)
-    } else { String::new() };
+// --- Helpers ---
 
-    format!(
-        r#"<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
-  <h2 style="color:#111">{type_label} alert &middot; {region}</h2>
-  <p style="color:#555">Monitor: <strong>{label}</strong><br>
-  <a href="{url}" style="color:#0066cc">{url}</a></p>
-  {diag}
-  {action_html}
-  {perf}
-  <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
-  <p style="color:#999;font-size:12px">CacheSnap &mdash; Edge performance monitoring</p>
-</div>"#,
-        type_label = capitalize(&n.alert_type),
-        region = n.region,
-        label = monitor_label,
-        url = monitor_url,
-        diag = if !diagnosis.is_empty() { format!("<p style='color:#333'>{}</p>", diagnosis) } else { String::new() },
-        action_html = if !action.is_empty() { format!("<p style='color:#0055aa'><strong>Action:</strong> {}</p>", action) } else { String::new() },
-        perf = perf_line,
-    )
-}
-
-fn capitalize(s: &str) -> String {
-    let mut c = s.chars();
-    match c.next() {
-        None => String::new(),
-        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-    }
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 fn comparator_display(c: &str) -> &str {
     match c {
-        "prev_hour"          => "previous hour",
+        "prev_hour" => "previous hour",
         "same_hour_prev_day" => "same time yesterday",
-        "day_avg"            => "24h average",
-        other                => other,
+        "day_avg" => "24h average",
+        other => other,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_notification_type_str() {
+        assert_eq!(NotificationType::FirstFire.as_str(), "first_fire");
+        assert_eq!(NotificationType::Digest.as_str(), "digest");
+        assert_eq!(NotificationType::Recovery.as_str(), "recovery");
+    }
+
+    #[test]
+    fn test_html_escape() {
+        assert_eq!(
+            html_escape("Cache <hit> & \"rate\""),
+            "Cache &lt;hit&gt; &amp; &quot;rate&quot;"
+        );
+        assert_eq!(html_escape("plain text"), "plain text");
+    }
+
+    #[test]
+    fn test_comparator_display() {
+        assert_eq!(comparator_display("prev_hour"), "previous hour");
+        assert_eq!(comparator_display("same_hour_prev_day"), "same time yesterday");
+        assert_eq!(comparator_display("day_avg"), "24h average");
+        assert_eq!(comparator_display("custom_cmp"), "custom_cmp");
+    }
+
+    #[test]
+    fn test_snooze_token_is_deterministic() {
+        let secret = "test-secret-key";
+        let incident_id = Uuid::nil();
+        let expires = 9_999_999_999i64;
+        let t1 = sign_snooze_token(secret, incident_id, expires);
+        let t2 = sign_snooze_token(secret, incident_id, expires);
+        assert_eq!(t1, t2);
+        assert_eq!(t1.len(), 64); // SHA-256 = 32 bytes = 64 hex chars
+    }
+
+    #[test]
+    fn test_snooze_token_verify() {
+        let secret = "test-secret-key";
+        let incident_id = Uuid::from_u128(42);
+        let expires = 9_999_999_999i64;
+        let token = sign_snooze_token(secret, incident_id, expires);
+        assert!(verify_snooze_token(secret, incident_id, expires, &token));
+    }
+
+    #[test]
+    fn test_snooze_token_wrong_secret() {
+        let incident_id = Uuid::from_u128(42);
+        let expires = 9_999_999_999i64;
+        let token = sign_snooze_token("correct-secret", incident_id, expires);
+        assert!(!verify_snooze_token("wrong-secret", incident_id, expires, &token));
+    }
+
+    #[test]
+    fn test_snooze_token_different_incidents() {
+        let secret = "test-secret";
+        let expires = 9_999_999_999i64;
+        let t1 = sign_snooze_token(secret, Uuid::from_u128(1), expires);
+        let t2 = sign_snooze_token(secret, Uuid::from_u128(2), expires);
+        assert_ne!(t1, t2);
+    }
+
+    #[test]
+    fn test_snooze_token_tampered() {
+        let secret = "test-secret";
+        let incident_id = Uuid::from_u128(1);
+        let expires = 9_999_999_999i64;
+        let token = sign_snooze_token(secret, incident_id, expires);
+        let tampered = format!("{}x", &token[..token.len() - 1]);
+        assert!(!verify_snooze_token(secret, incident_id, expires, &tampered));
+    }
+
+    // --- build_incident_subject ---
+
+    fn make_incident(notification_type: NotificationType, alert_type: &str) -> IncidentNotification {
+        IncidentNotification {
+            incident_id: Uuid::nil(),
+            alert_record_id: Uuid::nil(),
+            monitor_id: Uuid::nil(),
+            alert_type: alert_type.to_string(),
+            affected_regions: vec!["us-east-1".to_string()],
+            notification_type,
+            actual: Some(45.0),
+            threshold: Some(80.0),
+            duration: chrono::Duration::hours(2),
+            notification_count: 1,
+            delta_pct: None,
+            comparator: None,
+            deviation_factor: None,
+            diagnosis: None,
+            action: None,
+        }
+    }
+
+    fn make_recovery(alert_type: &str, notification_count: i32) -> RecoveryNotification {
+        RecoveryNotification {
+            monitor_id: Uuid::nil(),
+            alert_type: alert_type.to_string(),
+            affected_regions: vec!["us-east-1".to_string()],
+            duration: chrono::Duration::hours(3),
+            notification_count,
+            actual: Some(95.0),
+            threshold: Some(80.0),
+        }
+    }
+
+    #[test]
+    fn test_subject_first_fire_no_snake_case() {
+        let n = make_incident(NotificationType::FirstFire, "cache_hit_low");
+        let subject = build_incident_subject(&n, alert_type_display("cache_hit_low"), "example.com");
+        assert!(!subject.contains('_'), "subject must not contain snake_case: {subject}");
+        assert!(subject.contains("MEDIUM"), "severity must be uppercase in FirstFire subject");
+        assert!(subject.contains("Cache Hit Rate Low"));
+        assert!(subject.contains("example.com"));
+    }
+
+    #[test]
+    fn test_subject_first_fire_critical() {
+        let n = make_incident(NotificationType::FirstFire, "down");
+        let subject = build_incident_subject(&n, alert_type_display("down"), "my-monitor");
+        assert!(subject.starts_with("[CacheSnap] CRITICAL:"), "got: {subject}");
+        assert!(subject.contains("Monitor Offline"));
+    }
+
+    #[test]
+    fn test_subject_digest_includes_duration() {
+        let n = make_incident(NotificationType::Digest, "ttfb_threshold");
+        let subject = build_incident_subject(&n, alert_type_display("ttfb_threshold"), "site.com");
+        assert!(subject.contains("Still ongoing"), "got: {subject}");
+        assert!(subject.contains("2h"), "duration short-form must appear: got {subject}");
+        assert!(subject.contains("TTFB Threshold Exceeded"));
+    }
+
+    #[test]
+    fn test_subject_recovery_format() {
+        let n = make_incident(NotificationType::Recovery, "anomaly");
+        let subject = build_incident_subject(&n, alert_type_display("anomaly"), "api.example.com");
+        assert!(subject.starts_with("[CacheSnap] Resolved:"), "got: {subject}");
+        assert!(subject.contains("Latency Anomaly"));
+        assert!(subject.contains("api.example.com"));
+        assert!(!subject.contains('_'), "no snake_case in recovery subject: {subject}");
+    }
+
+    // --- build_incident_email_html ---
+
+    #[test]
+    fn test_email_html_no_panic_notification_count_1() {
+        let n = make_incident(NotificationType::FirstFire, "cache_hit_low");
+        let html = build_incident_email_html(
+            &n, "My Monitor", "https://example.com", "us-east-1",
+            "https://snooze.url", "https://app.cachesnap.com",
+        );
+        assert!(html.contains("Cache Hit Rate Low"), "type label missing");
+        assert!(html.contains("My Monitor"));
+    }
+
+    #[test]
+    fn test_email_html_none_diagnosis_action() {
+        let mut n = make_incident(NotificationType::FirstFire, "ttfb_threshold");
+        n.diagnosis = None;
+        n.action = None;
+        let html = build_incident_email_html(
+            &n, "mon", "https://example.com", "eu-west-1",
+            "https://snooze", "https://app",
+        );
+        assert!(!html.contains("<strong>Action:</strong>"), "empty action must not render");
+        assert!(html.contains("TTFB Threshold Exceeded"));
+    }
+
+    #[test]
+    fn test_email_html_with_diagnosis_and_action() {
+        let mut n = make_incident(NotificationType::Digest, "ttfb_threshold");
+        n.diagnosis = Some("CDN congestion detected".to_string());
+        n.action = Some("Check origin latency".to_string());
+        let html = build_incident_email_html(
+            &n, "mon", "https://example.com", "eu-west-1",
+            "https://snooze", "https://app",
+        );
+        assert!(html.contains("CDN congestion detected"));
+        assert!(html.contains("Check origin latency"));
+        assert!(html.contains("Action:"));
+    }
+
+    #[test]
+    fn test_email_html_digest_shows_ongoing() {
+        let n = make_incident(NotificationType::Digest, "down");
+        let html = build_incident_email_html(
+            &n, "mon", "https://example.com", "global",
+            "https://snooze", "https://app",
+        );
+        assert!(html.contains("Still Ongoing") || html.contains("Ongoing for"), "got no ongoing marker");
+    }
+
+    // --- build_slack_incident_text ---
+
+    #[test]
+    fn test_slack_first_fire_has_warning_emoji() {
+        let n = make_incident(NotificationType::FirstFire, "down");
+        let text = build_slack_incident_text(&n, "My Site", "global");
+        assert!(text.contains(":warning:"), "FirstFire must use :warning: emoji");
+        assert!(text.contains("CRITICAL"));
+        assert!(text.contains("Monitor Offline"));
+    }
+
+    #[test]
+    fn test_slack_digest_has_hourglass_emoji() {
+        let n = make_incident(NotificationType::Digest, "cache_hit_low");
+        let text = build_slack_incident_text(&n, "My Site", "us-east-1");
+        assert!(text.contains(":hourglass_flowing_sand:"), "Digest must use hourglass emoji");
+        assert!(text.contains("ONGOING"));
+    }
+
+    #[test]
+    fn test_slack_recovery_has_checkmark_emoji() {
+        let n = make_incident(NotificationType::Recovery, "ttfb_threshold");
+        let text = build_slack_incident_text(&n, "My Site", "ap-southeast-1");
+        assert!(text.contains(":white_check_mark:"), "Recovery must use checkmark emoji");
+        assert!(text.contains("RESOLVED"));
+    }
+
+    #[test]
+    fn test_slack_incident_includes_metric_values() {
+        let n = make_incident(NotificationType::FirstFire, "cache_hit_low");
+        let text = build_slack_incident_text(&n, "my-monitor", "eu-west-1");
+        assert!(text.contains("45.0%"), "actual must appear with % unit");
+        assert!(text.contains("80.0%"), "threshold must appear");
+    }
+
+    // --- build_slack_recovery_text ---
+
+    #[test]
+    fn test_slack_recovery_text_single_region() {
+        let n = make_recovery("cache_hit_low", 3);
+        let text = build_slack_recovery_text(&n, "my-monitor", "Cache Hit Rate Low");
+        assert!(text.contains(":white_check_mark:"));
+        assert!(text.contains("RESOLVED"));
+        assert!(text.contains("my-monitor"));
+        assert!(text.contains("3 hours"), "duration must appear");
+        assert!(text.contains("us-east-1"), "region must appear for single-region incident");
+    }
+
+    #[test]
+    fn test_slack_recovery_text_multi_region() {
+        let mut n = make_recovery("down", 5);
+        n.affected_regions = vec!["us-east-1".to_string(), "eu-west-1".to_string(), "ap-southeast-1".to_string()];
+        let text = build_slack_recovery_text(&n, "cdn-monitor", "Monitor Offline");
+        assert!(text.contains("3 regions"), "multi-region must say N regions");
+    }
+
+    #[test]
+    fn test_slack_recovery_text_no_snake_case() {
+        let n = make_recovery("cache_hit_trend_drop_global", 2);
+        let text = build_slack_recovery_text(&n, "monitor", "Cache Hit Trend Drop (Global)");
+        assert!(!text.contains("cache_hit_trend_drop_global"), "alert_type slug must not appear raw");
+    }
+
+    // --- build_recovery_email_html ---
+
+    #[test]
+    fn test_recovery_email_html_renders_without_panic() {
+        let n = make_recovery("down", 4);
+        let html = build_recovery_email_html(&n, "my-monitor", "Monitor Offline");
+        assert!(html.contains("Monitor Offline"));
+        assert!(html.contains("my-monitor"));
+        assert!(html.contains("3 hours"), "duration must appear in recovery email");
+        assert!(html.contains("4 notification"), "notification count must appear");
+    }
+
+    #[test]
+    fn test_recovery_email_html_metric_values() {
+        let n = make_recovery("cache_hit_low", 2);
+        let html = build_recovery_email_html(&n, "mon", "Cache Hit Rate Low");
+        assert!(html.contains("95.0%"), "actual must appear with unit");
+        assert!(html.contains("80.0%"), "threshold must appear");
+    }
+
+    #[test]
+    fn test_recovery_email_html_no_metrics_when_none() {
+        let mut n = make_recovery("down", 1);
+        n.actual = None;
+        n.threshold = None;
+        let html = build_recovery_email_html(&n, "mon", "Monitor Offline");
+        assert!(!html.contains("Final reading"), "no metric row when values are None");
+        assert!(html.contains("1 notification"), "singular form");
     }
 }

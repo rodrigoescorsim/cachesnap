@@ -54,6 +54,11 @@ tokio-cron-scheduler = "0.10"
 # Password hashing (para auth compartilhada com Next.js)
 argon2 = "0.5"
 
+# HMAC-SHA256 for signed snooze tokens in alert emails
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+
 [dev-dependencies]
 tokio-test = "0.4"
 

@@ -56,25 +56,7 @@ export function AlertHistoryTable({ alerts, regionLabels }: AlertHistoryTablePro
 
   return (
     <div className="space-y-4">
-      {/* ── Fixed Header ── */}
-      <div className="cs-card bg-black/20 border-white/5 rounded-xl overflow-hidden mb-2 shadow-sm">
-        <div className={MONITOR_TABLE.innerScroll}>
-          <table className={`${MONITOR_TABLE.tableBase} table-fixed`}>
-            <ColGroup />
-            <thead>
-              <tr className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">
-                <th className="px-4 py-3 text-left">Timestamp</th>
-                <th className="px-4 py-3 text-left">Region</th>
-                <th className="px-4 py-3 text-left">Event Type</th>
-                <th className="px-4 py-3 text-left">Metric</th>
-                <th className="px-4 py-3 text-right">Threshold</th>
-                <th className="px-4 py-3 text-right">Observed</th>
-                <th className="px-4 py-3 text-right">Severity</th>
-              </tr>
-            </thead>
-          </table>
-        </div>
-      </div>
+
 
       {/* ── Alert Cards ── */}
       <div className="space-y-3">
@@ -99,10 +81,28 @@ export function AlertHistoryTable({ alerts, regionLabels }: AlertHistoryTablePro
           return (
             <Fragment key={parent.id}>
               {isDifferentDay && (
-                <div className="py-2 px-1">
+                <div className="py-2 px-1 mb-2">
                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500/80">
                     {dateLabel}
                   </span>
+                  <div className="mt-4">
+                    <div className={MONITOR_TABLE.innerScroll}>
+                      <table className={`${MONITOR_TABLE.tableBase} table-fixed`}>
+                        <ColGroup />
+                        <thead>
+                          <tr className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight border-b border-border/50">
+                            <th className="px-4 py-3 text-left">Timestamp</th>
+                            <th className="px-4 py-3 text-left">Region</th>
+                            <th className="px-4 py-3 text-left">Event Type</th>
+                            <th className="px-4 py-3 text-left">Metric</th>
+                            <th className="px-4 py-3 text-right">Threshold</th>
+                            <th className="px-4 py-3 text-right">Observed</th>
+                            <th className="px-4 py-3 text-right">Severity</th>
+                          </tr>
+                        </thead>
+                      </table>
+                    </div>
+                  </div>
                 </div>
               )}
 
