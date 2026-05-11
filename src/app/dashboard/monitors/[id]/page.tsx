@@ -510,7 +510,7 @@ function formatMs(value: number | null): string {
 
 import { BypassAudit } from './bypass-audit'
 import { AdvisorCard } from '@/components/advisor/advisor-card'
-import { deriveMonitorDetailLiveAdvisor, deriveMonitorPerformancePeriodAdvisor, deriveMonitorTrendsAdvisor } from '@/components/advisor/advisor-card.helpers'
+import { deriveMonitorDetailLiveAdvisor, deriveMonitorPerformancePeriodAdvisor, deriveMonitorTrendsAdvisor, deriveMonitorPatternsAdvisor, deriveMonitorSecurityAdvisor } from '@/components/advisor/advisor-card.helpers'
 
 
 export default async function MonitorDetailPage({
@@ -1266,6 +1266,35 @@ export default async function MonitorDetailPage({
       : null,
   })
 
+  const patternsAdvisorState = deriveMonitorPatternsAdvisor({
+    url: monitor.url,
+    range,
+    monitorId: monitor.id,
+    hourlyPattern,
+  })
+
+  const _secProfiles = new Map<string, string[]>()
+  for (const row of securityByRegion) {
+    const sig = JSON.stringify(buildSecurityComparisonProfile(row.security_headers))
+    if (!_secProfiles.has(sig)) _secProfiles.set(sig, [])
+    _secProfiles.get(sig)!.push(row.region)
+  }
+  const _sortedSecProfiles = [..._secProfiles.values()].sort((a, b) => b.length - a.length)
+  const _hasDrift = _sortedSecProfiles.length > 1
+  const _driftRegionCount = _hasDrift
+    ? _sortedSecProfiles.slice(1).reduce((sum, regions) => sum + regions.length, 0)
+    : 0
+  const securityAdvisorState = deriveMonitorSecurityAdvisor({
+    url: monitor.url,
+    monitorId: monitor.id,
+    securityScore: security?.score ?? null,
+    sslDaysRemaining: security?.ssl?.days_remaining ?? null,
+    sslProtocol: security?.ssl?.protocol ?? null,
+    hasDrift: _hasDrift,
+    driftRegionCount: _driftRegionCount,
+    hasHsts: !!(security?.hsts),
+  })
+
   const liveFreezeStorageKey = `live_updates_frozen_${monitor.id}`
   const latestDataAt = latestProbes.length > 0
     ? Math.max(...latestProbes.map(p => p.last_probe_at ? new Date(p.last_probe_at).getTime() : 0))
@@ -1897,6 +1926,9 @@ export default async function MonitorDetailPage({
 
               {activeView === 'patterns' && (
                 <div id="patterns-view" className="space-y-6">
+                  {patternsAdvisorState && (
+                    <AdvisorCard state={patternsAdvisorState} hideActions={true} />
+                  )}
                   {hourlyPattern.length === 0 && heatmapRows.length === 0 ? (
                     <section id="patterns-empty-state" className="space-y-4">
                       <ViewSectionHeader title="Patterns Analysis" />
@@ -2044,6 +2076,9 @@ export default async function MonitorDetailPage({
           {activeTab === 'security' && (
             <div className="space-y-4">
               <ViewSectionHeader title="Security Headers Audit" />
+              {securityAdvisorState && (
+                <AdvisorCard state={securityAdvisorState} hideActions={true} />
+              )}
 
               {!security && securityByRegion.length === 0 && (
                 <p className="text-sm text-zinc-400">No security data yet.</p>

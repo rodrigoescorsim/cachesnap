@@ -616,6 +616,230 @@ export function deriveMonitorTrendsAdvisor(input: MonitorTrendsAdvisorInput): Ad
   }
 }
 
+// ─── Monitor detail — patterns view ──────────────────────────────────────────
+
+export type MonitorPatternsAdvisorInput = {
+  url: string
+  range: string
+  monitorId: string
+  hourlyPattern: Array<{
+    hour_of_day: number
+    ttfb_avg: number
+    ttfb_p95: number | null
+    cache_hit_pct: number | null
+    sample_count: number
+  }>
+}
+
+export function deriveMonitorPatternsAdvisor(input: MonitorPatternsAdvisorInput): AdvisorState | null {
+  const { url, range, monitorId, hourlyPattern } = input
+  if (hourlyPattern.length < 3) return null
+
+  const host = hostname(url)
+  const sorted = [...hourlyPattern].sort((a, b) => b.ttfb_avg - a.ttfb_avg)
+  const worstHour = sorted[0]
+  const bestHour = sorted[sorted.length - 1]
+  const overallAvgTtfb = Math.round(hourlyPattern.reduce((s, h) => s + h.ttfb_avg, 0) / hourlyPattern.length)
+  const spread = worstHour.ttfb_avg - bestHour.ttfb_avg
+
+  const withCacheData = hourlyPattern.filter(h => h.cache_hit_pct !== null)
+  const worstCacheHour = withCacheData.length > 0
+    ? [...withCacheData].sort((a, b) => (a.cache_hit_pct ?? 100) - (b.cache_hit_pct ?? 100))[0]
+    : null
+
+  const fmt = (h: number) => `${String(h).padStart(2, '0')}:00`
+
+  // ── Critical: Peak hour at or above SLOW threshold ──────────────────────
+  if (worstHour.ttfb_avg >= MONITOR_TTFB.SLOW) {
+    return {
+      severity: 'critical',
+      headline: `Peak hour latency: ${worstHour.ttfb_avg}ms at ${fmt(worstHour.hour_of_day)}`,
+      body: `${host} shows critical latency during peak load hours. Overall avg: ${overallAvgTtfb}ms.`,
+      recommendation: "Pre-warm the CDN cache before peak hours or scale origin capacity to handle demand.",
+      actions: [
+        { label: `Analyze ${host} Performance`, href: buildViewHref('performance', range, monitorId) },
+        { label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', range, monitorId) },
+      ],
+    }
+  }
+
+  // ── Warning: Peak hour above FAST, low cache hit at some hour, or high spread
+  const isPeakWarning = worstHour.ttfb_avg >= MONITOR_TTFB.FAST
+  const isCacheDipWarning = worstCacheHour !== null && (worstCacheHour.cache_hit_pct ?? 100) < MONITOR_CACHE.GOOD
+  const isHighVariance = spread >= 300 && spread > overallAvgTtfb
+
+  if (isPeakWarning || isCacheDipWarning || isHighVariance) {
+    const parts: string[] = []
+    const bodyParts: string[] = []
+
+    if (isPeakWarning) {
+      parts.push(`Peak ${worstHour.ttfb_avg}ms at ${fmt(worstHour.hour_of_day)}`)
+      bodyParts.push(`Latency peaks at ${worstHour.ttfb_avg}ms (${fmt(worstHour.hour_of_day)}), lowest at ${bestHour.ttfb_avg}ms (${fmt(bestHour.hour_of_day)}).`)
+    }
+    if (isCacheDipWarning) {
+      parts.push(`Cache dip: ${worstCacheHour.cache_hit_pct}% at ${fmt(worstCacheHour.hour_of_day)}`)
+      if (!isPeakWarning) bodyParts.push(`Cache hit drops to ${worstCacheHour.cache_hit_pct}% at ${fmt(worstCacheHour.hour_of_day)}.`)
+    }
+    if (isHighVariance && !isPeakWarning) {
+      parts.push(`${spread}ms spread`)
+      bodyParts.push(`Wide latency variance: ${spread}ms spread between best and worst hours.`)
+    }
+
+    return {
+      severity: 'warning',
+      headline: parts.join(' · '),
+      body: bodyParts.join(' '),
+      recommendation: isCacheDipWarning
+        ? "Check if peak-hour traffic triggers cache misses — review TTL settings and cache key rules."
+        : "Consider pre-warming the cache or scaling origin capacity before peak load windows.",
+      actions: [{ label: `Analyze ${host} Performance`, href: buildViewHref('performance', range, monitorId) }],
+    }
+  }
+
+  // ── Good ────────────────────────────────────────────────────────────────
+  const spreadNote = spread > 100
+    ? ` Peak at ${fmt(worstHour.hour_of_day)} (${worstHour.ttfb_avg}ms), lowest at ${fmt(bestHour.hour_of_day)} (${bestHour.ttfb_avg}ms).`
+    : ''
+  return {
+    severity: 'good',
+    headline: 'Stable hourly patterns',
+    body: `${host} shows consistent performance across all hours. Avg: ${overallAvgTtfb}ms.${spreadNote}`,
+    actions: [],
+  }
+}
+
+// ─── Monitor detail — security view ──────────────────────────────────────────
+
+const SSL_CRITICAL_DAYS = 15
+const SSL_WARNING_DAYS = 30
+const SECURITY_SCORE_CRITICAL = 2
+const SECURITY_SCORE_WARNING = 5
+
+export type MonitorSecurityAdvisorInput = {
+  url: string
+  monitorId: string
+  securityScore: number | null
+  sslDaysRemaining: number | null
+  sslProtocol: string | null
+  hasDrift: boolean
+  driftRegionCount: number
+  hasHsts: boolean
+}
+
+export function deriveMonitorSecurityAdvisor(input: MonitorSecurityAdvisorInput): AdvisorState | null {
+  const { url, securityScore, sslDaysRemaining, sslProtocol, hasDrift, driftRegionCount, hasHsts } = input
+  if (securityScore === null) return null
+
+  const host = hostname(url)
+
+  // ── Critical: SSL expired ──────────────────────────────────────────────
+  if (sslDaysRemaining !== null && sslDaysRemaining <= 0) {
+    return {
+      severity: 'critical',
+      headline: 'SSL certificate expired',
+      body: `${host} has an expired certificate. Browsers will reject the connection and show security warnings to all visitors.`,
+      recommendation: "Renew the TLS certificate immediately via your CA or hosting provider.",
+      actions: [],
+    }
+  }
+
+  // ── Critical: SSL expiring very soon ──────────────────────────────────
+  if (sslDaysRemaining !== null && sslDaysRemaining < SSL_CRITICAL_DAYS) {
+    return {
+      severity: 'critical',
+      headline: `SSL expiring in ${sslDaysRemaining} day${sslDaysRemaining !== 1 ? 's' : ''}`,
+      body: `${host} TLS certificate expires imminently. After expiry, browsers will block access for all users.`,
+      recommendation: "Renew the certificate immediately. Check if auto-renewal is configured.",
+      actions: [],
+    }
+  }
+
+  // ── Critical: Very low security score ─────────────────────────────────
+  if (securityScore <= SECURITY_SCORE_CRITICAL) {
+    return {
+      severity: 'critical',
+      headline: `Security score: ${securityScore}/9 — critical`,
+      body: `${host} is missing most security headers, leaving it exposed to XSS, clickjacking, and protocol downgrade attacks.`,
+      recommendation: "Add HSTS, Content-Security-Policy, X-Frame-Options, and X-Content-Type-Options at minimum.",
+      causes: [
+        "Missing HSTS allows SSL-stripping attacks.",
+        "Missing CSP enables malicious script injection.",
+        "Missing X-Frame-Options exposes users to clickjacking.",
+      ],
+      actions: [],
+    }
+  }
+
+  // ── Warning: SSL expiring soon ────────────────────────────────────────
+  if (sslDaysRemaining !== null && sslDaysRemaining < SSL_WARNING_DAYS) {
+    return {
+      severity: 'warning',
+      headline: `SSL renewing soon: ${sslDaysRemaining} days left`,
+      body: `${host} certificate expires in ${sslDaysRemaining} days. Schedule renewal before it reaches the critical window.`,
+      recommendation: "Enable auto-renewal with Let's Encrypt or your CA if not already configured.",
+      actions: [],
+    }
+  }
+
+  // ── Warning: Moderate security score ──────────────────────────────────
+  if (securityScore <= SECURITY_SCORE_WARNING) {
+    return {
+      severity: 'warning',
+      headline: `Security score: ${securityScore}/9`,
+      body: `${host} is missing several security headers. Each gap is an exploitable attack surface.`,
+      recommendation: "Prioritize adding HSTS and CSP. Review the checklist below.",
+      causes: [
+        "Missing HSTS allows HTTP downgrade and SSL-stripping attacks.",
+        "Missing CSP enables cross-site scripting vulnerabilities.",
+        "Missing X-Frame-Options exposes users to clickjacking.",
+      ],
+      actions: [],
+    }
+  }
+
+  // ── Warning: Security drift across regions ────────────────────────────
+  if (hasDrift) {
+    return {
+      severity: 'warning',
+      headline: `Security drift: ${driftRegionCount} region${driftRegionCount !== 1 ? 's' : ''} differ`,
+      body: `Inconsistent security headers detected across regions. Some edge nodes may be less protected than others.`,
+      recommendation: "Ensure your CDN or origin propagates a uniform security header policy to all edge nodes.",
+      actions: [],
+    }
+  }
+
+  // ── Warning: Deprecated TLS protocol ──────────────────────────────────
+  if (sslProtocol && (sslProtocol.includes('1.0') || sslProtocol.includes('1.1'))) {
+    return {
+      severity: 'warning',
+      headline: `Deprecated TLS: ${sslProtocol}`,
+      body: `${host} is serving over ${sslProtocol}, which is deprecated and vulnerable to known attacks (POODLE, BEAST).`,
+      recommendation: "Disable TLS 1.0 and 1.1 in your CDN or server config. Enforce TLS 1.2+ minimum.",
+      actions: [],
+    }
+  }
+
+  // ── Warning: HSTS missing despite otherwise good score ────────────────
+  if (!hasHsts) {
+    return {
+      severity: 'warning',
+      headline: 'HSTS header missing',
+      body: `${host} lacks Strict-Transport-Security. Browsers may connect via HTTP first, enabling protocol downgrade attacks.`,
+      recommendation: "Add 'Strict-Transport-Security: max-age=31536000; includeSubDomains' to all HTTPS responses.",
+      actions: [],
+    }
+  }
+
+  // ── Good ────────────────────────────────────────────────────────────────
+  const sslNote = sslDaysRemaining !== null ? ` · SSL valid (${sslDaysRemaining}d)` : ''
+  return {
+    severity: 'good',
+    headline: `Security posture good: ${securityScore}/9`,
+    body: `${host} has all critical security headers active. No drift or certificate issues detected.${sslNote}`,
+    actions: [],
+  }
+}
+
 // ─── Internal ─────────────────────────────────────────────────────────────────
 
 function hostname(url: string): string {
