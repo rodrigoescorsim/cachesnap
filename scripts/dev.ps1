@@ -1,3 +1,16 @@
+# Load root .env into current process so spawned windows inherit vars needed
+# by sqlx compile-time query macros (DATABASE_URL) and the API runtime.
+$rootEnv = Join-Path $PSScriptRoot "..\.env"
+Get-Content $rootEnv |
+    Where-Object { $_ -match '^\s*[A-Za-z_]' -and $_ -notmatch '^\s*#' } |
+    ForEach-Object {
+        $kv = $_ -split '=', 2
+        if ($kv.Count -eq 2) {
+            $k = $kv[0].Trim(); $v = $kv[1].Trim()
+            [System.Environment]::SetEnvironmentVariable($k, $v, 'Process')
+        }
+    }
+
 Write-Host "[*] Subindo infraestrutura (TimescaleDB + Redis)..." -ForegroundColor Cyan
 docker-compose up -d
 
