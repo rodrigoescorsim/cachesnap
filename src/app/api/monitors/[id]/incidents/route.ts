@@ -19,24 +19,24 @@ export async function GET(
 
   const incidents = await sql`
     SELECT
-      id::text,
-      alert_type,
-      severity,
-      affected_regions,
-      opened_at,
-      last_notified_at,
-      notification_count,
+      alert_incidents.id::text,
+      alert_incidents.alert_type,
+      alert_incidents.severity,
+      alert_incidents.affected_regions,
+      alert_incidents.opened_at,
+      alert_incidents.last_notified_at,
+      alert_incidents.notification_count,
       COUNT(a.id) FILTER (WHERE a.notified_email OR a.notified_slack)::int AS delivered_notification_count,
       COUNT(a.id) FILTER (WHERE NOT a.notified_email AND NOT a.notified_slack)::int AS failed_notification_count,
-      snoozed_until,
-      last_actual,
-      last_threshold,
-      EXTRACT(EPOCH FROM (NOW() - opened_at))::float * 1000 AS duration_ms
+      alert_incidents.snoozed_until,
+      alert_incidents.last_actual,
+      alert_incidents.last_threshold,
+      EXTRACT(EPOCH FROM (NOW() - alert_incidents.opened_at))::float * 1000 AS duration_ms
     FROM alert_incidents
     LEFT JOIN alerts a ON a.incident_id = alert_incidents.id
     WHERE alert_incidents.monitor_id = ${id} AND alert_incidents.resolved_at IS NULL
     GROUP BY alert_incidents.id
-    ORDER BY opened_at DESC
+    ORDER BY alert_incidents.opened_at DESC
   `
 
   return NextResponse.json({ incidents })

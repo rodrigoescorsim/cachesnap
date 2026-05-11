@@ -985,25 +985,25 @@ export default async function MonitorDetailPage({
 
   const activeIncidents = await sql<ActiveIncident[]>`
     SELECT
-      id::text,
-      alert_type,
-      severity,
-      affected_regions,
-      opened_at,
-      last_notified_at,
-      notification_count,
+      alert_incidents.id::text,
+      alert_incidents.alert_type,
+      alert_incidents.severity,
+      alert_incidents.affected_regions,
+      alert_incidents.opened_at,
+      alert_incidents.last_notified_at,
+      alert_incidents.notification_count,
       COUNT(a.id) FILTER (WHERE a.notified_email OR a.notified_slack)::int AS delivered_notification_count,
       COUNT(a.id) FILTER (WHERE NOT a.notified_email AND NOT a.notified_slack)::int AS failed_notification_count,
-      snoozed_until,
-      last_actual,
-      last_threshold,
-      EXTRACT(EPOCH FROM (NOW() - opened_at))::float * 1000 AS duration_ms
+      alert_incidents.snoozed_until,
+      alert_incidents.last_actual,
+      alert_incidents.last_threshold,
+      EXTRACT(EPOCH FROM (NOW() - alert_incidents.opened_at))::float * 1000 AS duration_ms
     FROM alert_incidents
     LEFT JOIN alerts a ON a.incident_id = alert_incidents.id
     WHERE alert_incidents.monitor_id = ${id} AND alert_incidents.resolved_at IS NULL
     GROUP BY alert_incidents.id
-    ORDER BY opened_at DESC
-  `.catch(() => [] as ActiveIncident[])
+    ORDER BY alert_incidents.opened_at DESC
+  `
 
   const monitorHostname = safeHostname(monitor.url)
 
@@ -2445,13 +2445,15 @@ export default async function MonitorDetailPage({
                 <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <History className="w-4 h-4 text-zinc-400" />
-                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Last 24h Volume</span>
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">
+                      {range === '1h' ? 'Last Hour' : range === '4h' ? 'Last 4h' : range === '7d' ? 'Last 7d' : range === '30d' ? 'Last 30d' : range === '90d' ? 'Last 90d' : 'Last 24h'} Volume
+                    </span>
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                       {incidentTrends.reduce((sum, t) => sum + t.count, 0)}
                     </span>
-                    <span className="text-xs text-zinc-400">total incidents</span>
+                    <span className="text-xs text-zinc-400">alert events</span>
                   </div>
                 </div>
 
