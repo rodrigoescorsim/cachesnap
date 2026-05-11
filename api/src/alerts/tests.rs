@@ -320,7 +320,8 @@ async fn test_digest_after_cooldown_elapsed() {
     cleanup(&state, monitor_id, user_id).await;
 }
 
-// ── Scenario 4: Incident closes without recovery when condition clears (MEDIUM) ──
+// ── Scenario 4: Incident closes without recovery when condition is CONFIRMED clear ──
+// Requires ≥5 samples above threshold in probe_results_hourly (positive measurement).
 
 #[tokio::test]
 async fn test_incident_resolves_no_recovery_medium() {
@@ -340,40 +341,108 @@ async fn test_incident_resolves_no_recovery_medium() {
          VALUES ($1, $2, $3, $4, $5, $6, $7)"
     ).bind(monitor_id).bind(user_id)
     .bind("http://resolve-test.com").bind("Resolve Test")
-    .bind(true).bind(true).bind(90.0)
+    .bind(true).bind(true).bind(50.0)
     .execute(&state.db).await.unwrap();
 
-    // Insert a pre-existing open incident with notification_count=0 (never notified)
     sqlx::query(
         "INSERT INTO alert_incidents (monitor_id, alert_type, severity, affected_regions, notification_count, opened_at)
-         VALUES ($1, 'cache_hit_low', 'medium', ARRAY['us-east'], 0, NOW() - INTERVAL '2 hours')"
+         VALUES ($1, 'cache_hit_low', 'medium', ARRAY['us-east'], 1, NOW() - INTERVAL '2 hours')"
     ).bind(monitor_id).execute(&state.db).await.unwrap();
 
-    // Insert probe data with GOOD cache hit rate (above threshold) so audit finds no issue
-    sqlx::query(
-        "INSERT INTO probe_results (time, monitor_id, region, ttfb_ms, cache_status, status_code)
-         VALUES (NOW() - INTERVAL '5 minutes', $1, 'us-east', 100.0, 'HIT', 200)"
-    ).bind(monitor_id).execute(&state.db).await.unwrap();
+    // Insert ≥5 ALL-HIT probes → 100% hit rate, above the 50% threshold.
+    // This is a confirmed-clear signal: the aggregate will have sample_count ≥ 5
+    // and hit_pct above threshold, so the incident must be resolved.
+    for _ in 0..6 {
+        sqlx::query(
+            "INSERT INTO probe_results (time, monitor_id, region, ttfb_ms, cache_status, status_code)
+             VALUES (NOW() - INTERVAL '5 minutes', $1, 'us-east', 100.0, 'HIT', 200)"
+        ).bind(monitor_id).execute(&state.db).await.unwrap();
+    }
+
+    sqlx::query("CALL refresh_continuous_aggregate('probe_results_hourly', NULL, NULL)")
+        .execute(&state.db).await.ok();
 
     let cfg = MonitorAlertConfig {
         id: monitor_id,
         alert_cache_hit_enabled: true,
-        alert_cache_hit_threshold_pct: 90.0,
+        alert_cache_hit_threshold_pct: 50.0,
         alert_anycast_enabled: false,
         alert_zombie_cache_enabled: false,
     };
 
-    // Audit runs: no cache_hit_low detected (1 HIT probe, sample_count < 5)
-    // → resolve_cleared_worker_incidents closes the incident
     audit_monitor_alerts(&state, &cfg).await.unwrap();
 
     let resolved_at: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
         "SELECT resolved_at FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
     ).bind(monitor_id).fetch_one(&state.db).await.unwrap();
-    assert!(resolved_at.is_some(), "Incident must be closed when condition no longer fires");
+    assert!(resolved_at.is_some(), "Incident must be closed when cache is confirmed above threshold");
 
-    // MEDIUM severity does NOT send recovery emails
     assert!(!alert_severity("cache_hit_low").sends_recovery(), "MEDIUM must not send recovery");
+
+    cleanup(&state, monitor_id, user_id).await;
+    sqlx::query("DELETE FROM probe_results_hourly WHERE monitor_id = $1").bind(monitor_id).execute(&state.db).await.ok();
+}
+
+// ── Scenario 4b: Insufficient aggregate data must NOT resolve an open incident ──
+// Regression test for the false-resolve bug: when probe_results_hourly has
+// sample_count < 5 (stale aggregate, low probe frequency, or DELAYED monitor),
+// an open cache_hit_low incident must stay open rather than be silently closed.
+
+#[tokio::test]
+async fn test_insufficient_data_preserves_open_incident() {
+    use crate::alerts::worker::{audit_monitor_alerts, MonitorAlertConfig};
+
+    let state = get_test_state().await;
+    let monitor_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user_id).bind(format!("insuf-{}@test.com", user_id)).bind("hash")
+        .execute(&state.db).await.unwrap();
+
+    sqlx::query(
+        "INSERT INTO monitors (id, user_id, url, name, is_active, alert_cache_hit_enabled, alert_cache_hit_threshold_pct)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)"
+    ).bind(monitor_id).bind(user_id)
+    .bind("http://insuf-test.com").bind("Insuf Test")
+    .bind(true).bind(true).bind(50.0)
+    .execute(&state.db).await.unwrap();
+
+    // Pre-existing open incident (e.g. opened by a previous audit that had enough data)
+    sqlx::query(
+        "INSERT INTO alert_incidents (monitor_id, alert_type, severity, affected_regions, notification_count, opened_at)
+         VALUES ($1, 'cache_hit_low', 'medium', ARRAY['us-east'], 1, NOW() - INTERVAL '1 hour')"
+    ).bind(monitor_id).execute(&state.db).await.unwrap();
+
+    // Only 1 raw probe (so latest_probes is non-empty → audit proceeds).
+    // probe_results_hourly is NOT refreshed, so sample_count = 0 for this monitor.
+    // This simulates a DELAYED monitor: probes exist in the raw table but the
+    // continuous aggregate hasn't caught up.
+    sqlx::query(
+        "INSERT INTO probe_results (time, monitor_id, region, ttfb_ms, cache_status, status_code)
+         VALUES (NOW() - INTERVAL '30 minutes', $1, 'us-east', 100.0, 'MISS', 200)"
+    ).bind(monitor_id).execute(&state.db).await.unwrap();
+
+    // Do NOT call refresh_continuous_aggregate — aggregate has 0 samples for this monitor.
+
+    let cfg = MonitorAlertConfig {
+        id: monitor_id,
+        alert_cache_hit_enabled: true,
+        alert_cache_hit_threshold_pct: 50.0,
+        alert_anycast_enabled: false,
+        alert_zombie_cache_enabled: false,
+    };
+
+    audit_monitor_alerts(&state, &cfg).await.unwrap();
+
+    let resolved_at: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
+        "SELECT resolved_at FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
+    ).bind(monitor_id).fetch_one(&state.db).await.unwrap();
+    assert!(
+        resolved_at.is_none(),
+        "Incident must NOT be resolved when aggregate has insufficient data — \
+         absence of measurement is not evidence of recovery"
+    );
 
     cleanup(&state, monitor_id, user_id).await;
     sqlx::query("DELETE FROM probe_results_hourly WHERE monitor_id = $1").bind(monitor_id).execute(&state.db).await.ok();

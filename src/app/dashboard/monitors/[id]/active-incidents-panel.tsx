@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Clock, MapPin, ArrowRight } from 'lucide-react'
+import { Clock, MapPin, ArrowRight, CheckCircle2 } from 'lucide-react'
 import { LiveDot } from '@/components/dashboard/dashboard-ui'
 
 export interface ActiveIncident {
@@ -105,7 +105,22 @@ function getActionTab(alertType: string): string {
 }
 
 export function ActiveIncidentsPanel({ monitorId, incidents, regionLabels = {} }: ActiveIncidentsPanelProps) {
-  if (incidents.length === 0) return null
+  if (incidents.length === 0) {
+    return (
+      <section aria-labelledby="active-incidents-heading" className="space-y-3">
+        <div className="flex items-center gap-2 mb-4 px-1">
+          <h2 id="active-incidents-heading" className="cs-view-section-title flex items-center gap-2">
+            <LiveDot colorClass="bg-emerald-500" />
+            Active Incidents
+          </h2>
+        </div>
+        <div className="rounded-xl bg-surface border border-border p-6 flex items-center gap-3 text-zinc-400">
+          <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+          <span className="text-sm">All clear — no active incidents right now.</span>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section aria-labelledby="active-incidents-heading" className="space-y-3">

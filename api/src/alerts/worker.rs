@@ -109,13 +109,29 @@ pub async fn audit_monitor_alerts(
     }
 
     let mut detections: Vec<Detection> = Vec::new();
+    // Types confirmed clear by a positive measurement (above threshold with sufficient data).
+    // Only these are eligible for incident resolution — absence of data is not enough.
+    let mut confirmed_cleared: Vec<String> = Vec::new();
+
+    // Track whether cache_hit was fully measured (at least one region with sufficient data).
+    let mut cache_hit_any_firing = false;
+    let mut cache_hit_any_cleared = false;
 
     for probe in &latest_probes {
         let region = &probe.region;
 
         if monitor.alert_cache_hit_enabled {
-            if let Some(d) = check_cache_hit(state, monitor, region).await? {
-                detections.push(d);
+            match check_cache_hit(state, monitor, region).await? {
+                CacheHitResult::Firing(d) => {
+                    detections.push(d);
+                    cache_hit_any_firing = true;
+                }
+                CacheHitResult::Cleared => {
+                    cache_hit_any_cleared = true;
+                }
+                CacheHitResult::Insufficient => {
+                    // Not enough data — keep any existing open incident as-is.
+                }
             }
         }
         if let Some(sec) = &probe.security_headers {
@@ -139,6 +155,12 @@ pub async fn audit_monitor_alerts(
                 }
             }
         }
+    }
+
+    // cache_hit_low is confirmed cleared only when every region with sufficient data
+    // measured above threshold and none fired.
+    if monitor.alert_cache_hit_enabled && !cache_hit_any_firing && cache_hit_any_cleared {
+        confirmed_cleared.push("cache_hit_low".to_string());
     }
 
     // Group detections by alert_type — one incident per type, with all affected regions
@@ -169,17 +191,27 @@ pub async fn audit_monitor_alerts(
         .await?;
     }
 
-    // Resolve incidents for worker-managed types that are no longer detected
-    resolve_cleared_worker_incidents(state, monitor.id, &still_firing).await?;
+    // Resolve incidents for worker-managed types that are no longer detected.
+    // Pass confirmed_cleared so cache_hit_low is only resolved on a positive measurement,
+    // not silently dropped when data is insufficient.
+    resolve_cleared_worker_incidents(state, monitor.id, &still_firing, &confirmed_cleared).await?;
 
     Ok(())
+}
+
+enum CacheHitResult {
+    Firing(Detection),
+    /// Measured above threshold — safe to resolve the incident.
+    Cleared,
+    /// Aggregate has too few samples to make a determination — preserve existing incident state.
+    Insufficient,
 }
 
 async fn check_cache_hit(
     state: &AppState,
     monitor: &MonitorAlertConfig,
     region: &str,
-) -> Result<Option<Detection>, anyhow::Error> {
+) -> Result<CacheHitResult, anyhow::Error> {
     let hit_data = sqlx::query_as::<_, (Option<f64>, Option<i64>)>(
         "SELECT (SUM(hit_count)::float / NULLIF(SUM(total_count), 0)) * 100,
                 SUM(total_count)::bigint
@@ -191,22 +223,26 @@ async fn check_cache_hit(
     .fetch_one(&state.db)
     .await?;
 
-    if let (Some(hit_pct), Some(sample_count)) = hit_data {
-        if sample_count >= 5 && hit_pct < monitor.alert_cache_hit_threshold_pct {
-            return Ok(Some(Detection {
-                region: region.to_string(),
-                alert_type: "cache_hit_low".to_string(),
-                actual: hit_pct,
-                threshold: Some(monitor.alert_cache_hit_threshold_pct),
-                diagnosis: format!(
-                    "Only {:.1}% of requests served from CDN cache — most are reaching the origin server directly.",
-                    hit_pct
-                ),
-                action: "Check your CDN cache rules and Cache-Control headers.".to_string(),
-            }));
+    match hit_data {
+        (Some(hit_pct), Some(sample_count)) if sample_count >= 5 => {
+            if hit_pct < monitor.alert_cache_hit_threshold_pct {
+                Ok(CacheHitResult::Firing(Detection {
+                    region: region.to_string(),
+                    alert_type: "cache_hit_low".to_string(),
+                    actual: hit_pct,
+                    threshold: Some(monitor.alert_cache_hit_threshold_pct),
+                    diagnosis: format!(
+                        "Only {:.1}% of requests served from CDN cache — most are reaching the origin server directly.",
+                        hit_pct
+                    ),
+                    action: "Check your CDN cache rules and Cache-Control headers.".to_string(),
+                }))
+            } else {
+                Ok(CacheHitResult::Cleared)
+            }
         }
+        _ => Ok(CacheHitResult::Insufficient),
     }
-    Ok(None)
 }
 
 fn check_ssl_expiry(region: &str, sec: &serde_json::Value) -> Option<Detection> {
@@ -477,11 +513,20 @@ async fn resolve_cleared_worker_incidents(
     state: &AppState,
     monitor_id: Uuid,
     still_firing: &[String],
+    confirmed_cleared: &[String],
 ) -> Result<(), anyhow::Error> {
+    // Types that resolve only on a confirmed positive measurement (not on absence of data).
+    const REQUIRES_POSITIVE_CLEAR: &[&str] = &["cache_hit_low"];
     const WORKER_TYPES: &[&str] = &["cache_hit_low", "ssl_expiry", "anycast", "zombie_cache"];
 
     for &wt in WORKER_TYPES {
         if still_firing.contains(&wt.to_string()) {
+            continue;
+        }
+        // For metric-based types, require an explicit above-threshold measurement before
+        // resolving. Insufficient data (e.g. stale aggregate, low probe frequency) must
+        // not close an open incident.
+        if REQUIRES_POSITIVE_CLEAR.contains(&wt) && !confirmed_cleared.contains(&wt.to_string()) {
             continue;
         }
 
