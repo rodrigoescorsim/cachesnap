@@ -45,8 +45,22 @@ export function isCacheBypass(status: string | null | undefined): boolean {
 export function getCacheDisplayLabel(status: string | null | undefined): string {
   if (!status || status === '—') return 'NO HEADER'
   const upper = status.toUpperCase()
-  
-  // 1. Priority keywords - if these exist anywhere, they are the status
+
+  // 1. CDN vendor-prefixed format: "BYPASS:Cloudflare DYNAMIC", "HIT:Vercel HIT", etc.
+  //    Parse the suffix first so the actual CDN status wins over the category prefix.
+  if (upper.includes(':')) {
+    const details = upper.split(':')[1].trim()
+    const words = details.split(' ')
+    const lastWord = words[words.length - 1]
+    const PROVIDERS = ['CLOUDFRONT', 'CLOUDFLARE', 'AKAMAI', 'FASTLY', 'VERCEL']
+    if (PROVIDERS.includes(lastWord)) {
+      if (words.length > 1) return words[words.length - 2]
+      return upper.split(':')[0].trim()
+    }
+    return lastWord
+  }
+
+  // 2. Keyword shortcuts for plain (non-prefixed) statuses
   if (upper.includes('HIT')) return 'HIT'
   if (upper.includes('MISS')) return 'MISS'
   if (upper.includes('BYPASS')) return 'BYPASS'
@@ -57,20 +71,5 @@ export function getCacheDisplayLabel(status: string | null | undefined): string 
   if (upper.includes('REVALIDATED')) return 'REVALIDATED'
   if (upper.includes('ERROR')) return 'MISS'
 
-  // 2. Fallback for colon-separated strings if no keyword found
-  if (upper.includes(':')) {
-    const parts = upper.split(':')
-    const details = parts[1].trim()
-    const detailParts = details.split(' ')
-    const lastWord = detailParts[detailParts.length - 1]
-    
-    // Avoid returning provider names if we can
-    if (['CLOUDFRONT', 'CLOUDFLARE', 'AKAMAI', 'FASTLY'].includes(lastWord)) {
-      if (detailParts.length > 1) return detailParts[detailParts.length - 2]
-      return parts[0].trim() // Return the prefix (e.g. BYPASS)
-    }
-    return lastWord
-  }
-  
   return upper
 }
