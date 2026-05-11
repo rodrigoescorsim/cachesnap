@@ -233,11 +233,9 @@ export function PerformanceTable({
                         )}
                       </div>
                     </td>
-                    <td className="cs-table-compact-td pl-0">
+                    <td className="cs-table-compact-td font-bold text-zinc-200">
                       <PremiumTooltip content={regionDescriptions[s.region] ?? s.region} position="top-left">
-                        <span className="font-bold text-zinc-200 group-hover/row:text-white transition-colors">
-                          {regionLabels[s.region] ?? s.region}
-                        </span>
+                        {regionLabels[s.region] ?? s.region}
                       </PremiumTooltip>
                     </td>
                     <td className="cs-table-compact-td text-center">
