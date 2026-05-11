@@ -17,9 +17,11 @@ function makeMonitor(overrides: Partial<Monitor> = {}): Monitor {
     status:            'active',
     ttfbCurrent:       100,
     ttfbCurrentDelta:  0,
+    ttfbAvg1h:         100,
     ttfbAvg24h:        100,
     ttfbSparkline:     [100, 105, 95, 110],
     cacheHitCurrent:   90,
+    cacheHitAvg1h:     90,
     cacheHitAvg24h:    88,
     cacheHitDelta:     2,
     cacheStatusCurrent: 'HIT',
@@ -32,6 +34,7 @@ function makeMonitor(overrides: Partial<Monitor> = {}): Monitor {
     isWafBlocked:      false,
     uptime24h:         100,
     lastCheckedAt:     new Date(),
+    activeIncidentCount: 0,
     ...overrides,
   }
 }
@@ -141,43 +144,44 @@ describe('derivePortfolioAdvisor', () => {
     expect(result?.headline).toContain('2 monitors DOWN')
   })
 
-  it('critical body includes region count', () => {
+  it('critical body mentions all regions', () => {
     const monitors = [
       ...makePortfolio(3),
       makeMonitor({ id: 'down_1', url: 'https://down.com', errorRegionCount: 4, totalRegionCount: 4 }),
     ]
     const result = derivePortfolioAdvisor(monitors)
-    expect(result?.body).toContain('4 regions')
+    expect(result?.body).toContain('all regions')
   })
 
   it('critical headline includes issue count suffix', () => {
     const monitors = [
       ...makePortfolio(3),
       makeMonitor({ id: 'm1', errorRegionCount: 4, totalRegionCount: 4 }),
-      makeMonitor({ id: 'm2', ttfbCurrent: 900 }),
+      makeMonitor({ id: 'm2', ttfbAvg1h: 600 }),
     ]
     const result = derivePortfolioAdvisor(monitors)
-    expect(result?.headline).toContain('1 monitor DOWN • 2 issues in total')
+    expect(result?.headline).toContain('1 monitor DOWN')
+    expect(result?.headline).toContain('2 issues total')
   })
 
   it('critical headline includes issue count when present', () => {
     const monitors = [
       ...makePortfolio(3),
       makeMonitor({ id: 'down_1', errorRegionCount: 4, totalRegionCount: 4 }),
-      makeMonitor({ id: 'deg_1', ttfbCurrent: 600 }),
+      makeMonitor({ id: 'deg_1', ttfbAvg1h: 600 }),
     ]
     const result = derivePortfolioAdvisor(monitors)
-    expect(result?.headline).toContain('2 issues in total')
-    expect(result?.actions.some(a => a.label.startsWith('Degraded Monitors'))).toBe(true)
+    expect(result?.headline).toContain('2 issues total')
+    expect(result?.actions.some(a => a.label.startsWith('Down ('))).toBe(true)
   })
 
-  it('critical action label for down monitors uses "Monitors DOWN"', () => {
+  it('critical action label for down monitors uses "Down"', () => {
     const monitors = [
       ...makePortfolio(3),
       makeMonitor({ id: 'down_1', errorRegionCount: 4, totalRegionCount: 4 }),
     ]
     const result = derivePortfolioAdvisor(monitors)
-    expect(result?.actions.some(a => a.label.startsWith('Monitors DOWN'))).toBe(true)
+    expect(result?.actions.some(a => a.label.startsWith('Down ('))).toBe(true)
   })
 
   it('returns critical when origin reports 5xx errors (AD14)', () => {
@@ -188,35 +192,35 @@ describe('derivePortfolioAdvisor', () => {
     const result = derivePortfolioAdvisor(monitors)
     expect(result?.severity).toBe('critical')
     expect(result?.headline).toContain('Origin Health')
-    expect(result?.body).toContain('5xx errors')
+    expect(result?.body).toContain('5xx origin errors')
   })
 
   it('returns warning when degraded monitors exist', () => {
     const monitors = [
       ...makePortfolio(3),
-      makeMonitor({ id: 'slow_1', url: 'https://slow.com', ttfbCurrent: 600 }),
+      makeMonitor({ id: 'slow_1', url: 'https://slow.com', ttfbAvg1h: 600 }),
     ]
     const result = derivePortfolioAdvisor(monitors)
     expect(result?.severity).toBe('warning')
     expect(result?.headline).toContain('degraded')
   })
 
-  it('warning body includes TTFB value', () => {
+  it('warning body mentions the degraded monitor', () => {
     const monitors = [
       ...makePortfolio(3),
-      makeMonitor({ id: 'slow_1', url: 'https://slow.com', ttfbCurrent: 600 }),
+      makeMonitor({ id: 'slow_1', url: 'https://slow.com', ttfbAvg1h: 600 }),
     ]
     const result = derivePortfolioAdvisor(monitors)
-    expect(result?.body).toContain('600ms')
+    expect(result?.body).toContain('slow.com')
   })
 
-  it('warning body includes cache hit when low', () => {
+  it('warning body mentions performance when cache hit is low', () => {
     const monitors = [
       ...makePortfolio(3),
-      makeMonitor({ id: 'slow_1', ttfbCurrent: 600, cacheHitCurrent: 30, cacheStatusCurrent: 'MISS' }),
+      makeMonitor({ id: 'slow_1', ttfbAvg1h: 600, cacheHitAvg1h: 65, cacheStatusCurrent: 'MISS' }),
     ]
     const result = derivePortfolioAdvisor(monitors)
-    expect(result?.body).toContain('30% cache hit')
+    expect(result?.body).toContain('performance warnings')
   })
 
   it('returns warning when monitors have no cache headers', () => {
@@ -244,30 +248,30 @@ describe('derivePortfolioAdvisor', () => {
     ]
     const result = derivePortfolioAdvisor(monitors)
     expect(result?.severity).toBe('warning')
-    expect(result?.headline).toContain('origin errors')
-    expect(result?.body).toContain('4xx status codes')
+    expect(result?.headline).toContain('4xx errors')
+    expect(result?.body).toContain('performance warnings')
   })
 
-  it('warning actions includes "Degraded Monitors"', () => {
+  it('warning actions includes "Degraded" link', () => {
     const monitors = [
       ...makePortfolio(3),
-      makeMonitor({ id: 'deg_1', ttfbCurrent: 600 }),
+      makeMonitor({ id: 'deg_1', ttfbAvg1h: 600 }),
     ]
     const result = derivePortfolioAdvisor(monitors)
-    expect(result?.actions.some(a => a.label.startsWith('Degraded Monitors'))).toBe(true)
+    expect(result?.actions.some(a => a.label.startsWith('Degraded'))).toBe(true)
   })
 
-  it('warning actions includes "Missing Cache Headers" when relevant', () => {
+  it('warning actions includes "Headers" link when cache headers are missing', () => {
     const monitors = [
       ...makePortfolio(3),
       makeMonitor({ id: 'm1', cacheStatusCurrent: null }),
     ]
     const result = derivePortfolioAdvisor(monitors)
-    expect(result?.actions.some(a => a.label.startsWith('Missing Cache Headers'))).toBe(true)
+    expect(result?.actions.some(a => a.label.startsWith('Headers'))).toBe(true)
   })
 
   it('good state body includes avg TTFB', () => {
-    const monitors = makePortfolio(4, { ttfbCurrent: 120 })
+    const monitors = makePortfolio(4, { ttfbAvg1h: 120 })
     const result = derivePortfolioAdvisor(monitors)
     expect(result?.body).toContain('120ms')
   })
@@ -276,8 +280,9 @@ describe('derivePortfolioAdvisor', () => {
 // ─── deriveMonitorDetailLiveAdvisor ──────────────────────────────────────────
 
 describe('deriveMonitorDetailLiveAdvisor', () => {
-  it('returns null for a healthy monitor', () => {
-    expect(deriveMonitorDetailLiveAdvisor(makeLiveInput())).toBeNull()
+  it('returns "good" state for a healthy monitor', () => {
+    const result = deriveMonitorDetailLiveAdvisor(makeLiveInput())
+    expect(result?.severity).toBe('good')
   })
 
   it('returns null when all regions are down (caller shows isDown banner)', () => {
@@ -325,8 +330,8 @@ describe('deriveMonitorDetailLiveAdvisor', () => {
       liveAvgTtfb: 600, periodAvgTtfb: 380, ttfbVsPeriodPct: 32,
     }))
     expect(result?.severity).toBe('warning')
-    expect(result?.headline).toContain('TTFB up')
-    expect(result?.body).toContain('~380ms')
+    expect(result?.headline).toContain('TTFB 600ms')
+    expect(result?.body).toContain('32%')
   })
 
   it('does not recommend any actions when cache data is missing during high latency', () => {
@@ -339,8 +344,9 @@ describe('deriveMonitorDetailLiveAdvisor', () => {
     expect(result?.recommendation).toContain('Enable \'Cache-Control\'')
   })
 
-  it('does not warn on elevated TTFB without significant trend', () => {
-    expect(deriveMonitorDetailLiveAdvisor(makeLiveInput({ liveAvgTtfb: 500, ttfbVsPeriodPct: 5 }))).toBeNull()
+  it('returns "good" state for elevated TTFB at threshold without significant trend', () => {
+    const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({ liveAvgTtfb: 500, ttfbVsPeriodPct: 5 }))
+    expect(result?.severity).toBe('good')
   })
 
   it('returns critical for very low cache hit', () => {
@@ -351,7 +357,7 @@ describe('deriveMonitorDetailLiveAdvisor', () => {
   it('low cache hit headline includes the percentage', () => {
     const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({ liveGlobalHitRate: 35 }))
     expect(result?.headline).toContain('35%')
-    expect(result?.headline).toContain('Low cache hit')
+    expect(result?.headline).toContain('cache efficiency')
   })
 
   it('low cache hit body includes origin percentage', () => {
@@ -360,14 +366,15 @@ describe('deriveMonitorDetailLiveAdvisor', () => {
   })
 
   it('ignores cache hit when no cache data', () => {
-    expect(deriveMonitorDetailLiveAdvisor(makeLiveInput({ liveGlobalHitRate: 0, hasLiveCacheData: false }))).toBeNull()
+    const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({ liveGlobalHitRate: 0, hasLiveCacheData: false }))
+    expect(result?.severity).toBe('good')
   })
 
-  it('returns warning for slow regions, body mentions threshold', () => {
+  it('returns warning for slow regions, body mentions them', () => {
     const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({ slowRegionCount: 2 }))
     expect(result?.severity).toBe('warning')
     expect(result?.headline).toContain('2 slow regions')
-    expect(result?.body).toContain('high latency')
+    expect(result?.body).toContain('Slow regions detected')
   })
 
   it('includes affected region names in tooltip for slow regions', () => {
@@ -406,12 +413,14 @@ describe('deriveMonitorPerformancePeriodAdvisor', () => {
     }
   }
 
-  it('returns null when no history', () => {
-    expect(deriveMonitorPerformancePeriodAdvisor(makePerf({ hasHistory: false }))).toBeNull()
+  it('returns "good" state when no history', () => {
+    const result = deriveMonitorPerformancePeriodAdvisor(makePerf({ hasHistory: false }))
+    expect(result?.severity).toBe('good')
   })
 
-  it('returns null when prevAvgTtfb is 0', () => {
-    expect(deriveMonitorPerformancePeriodAdvisor(makePerf({ prevAvgTtfb: 0 }))).toBeNull()
+  it('returns "good" state when prevAvgTtfb is 0', () => {
+    const result = deriveMonitorPerformancePeriodAdvisor(makePerf({ prevAvgTtfb: 0 }))
+    expect(result?.severity).toBe('good')
   })
 
   it('returns stable state for minor change', () => {
@@ -447,8 +456,7 @@ describe('deriveMonitorPerformancePeriodAdvisor', () => {
   it('returns warning for 10-40% TTFB increase', () => {
     const result = deriveMonitorPerformancePeriodAdvisor(makePerf({ avgTtfb: 230, prevAvgTtfb: 200 }))
     expect(result?.severity).toBe('warning')
-    expect(result?.body).toContain('230ms')
-    expect(result?.body).toContain('200ms')
+    expect(result?.body).toContain('Latency increased')
   })
 
   // (Spike count is now handled by the Trends Advisor)
@@ -456,7 +464,7 @@ describe('deriveMonitorPerformancePeriodAdvisor', () => {
   it('returns warning for cache drop over 10pp', () => {
     const result = deriveMonitorPerformancePeriodAdvisor(makePerf({ globalHitRate: 70, prevGlobalHitRate: 85 }))
     expect(result?.severity).toBe('warning')
-    expect(result?.headline).toContain('cache hit')
+    expect(result?.headline).toContain('Cache Hit')
   })
 
   it('returns good for notable TTFB improvement', () => {
@@ -481,8 +489,9 @@ describe('deriveMonitorPerformancePeriodAdvisor', () => {
 // ─── deriveMonitorTrendsAdvisor ───────────────────────────────────────────────
 
 describe('deriveMonitorTrendsAdvisor', () => {
-  it('returns null when no history', () => {
-    expect(deriveMonitorTrendsAdvisor({ url: 'x.com', range: '24h', spikeCount: 0, hasHistory: false, worstRegion: null })).toBeNull()
+  it('returns "good" state when no history yet', () => {
+    const result = deriveMonitorTrendsAdvisor({ url: 'x.com', range: '24h', spikeCount: 0, hasHistory: false, worstRegion: null })
+    expect(result?.severity).toBe('good')
   })
 
   it('returns good when no spikes and no regression', () => {

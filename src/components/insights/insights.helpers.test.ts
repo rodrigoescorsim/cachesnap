@@ -28,11 +28,17 @@ function makeMonitor(overrides: Partial<Monitor> = {}): Monitor {
     cacheHitAvg1h:    90,
     cacheHitAvg24h:   88,
     cacheHitDelta:    2,
+    cacheStatusCurrent: 'HIT',
     regions:          [],
     slowRegionCount:  0,
     totalRegionCount: 4,
     errorRegionCount: 0,
+    error5xxCount:    0,
+    error4xxCount:    0,
+    isWafBlocked:     false,
+    uptime24h:        100,
     lastCheckedAt:    new Date(),
+    activeIncidentCount: 0,
     ...overrides,
   }
 }

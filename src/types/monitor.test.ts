@@ -19,9 +19,11 @@ function makeMonitor(overrides: Partial<Monitor> = {}): Monitor {
     status: 'active',
     ttfbCurrent: 100,
     ttfbCurrentDelta: -5,
+    ttfbAvg1h: 100,
     ttfbAvg24h: 110,
     ttfbSparkline: [100, 105, 95, 110],
     cacheHitCurrent: 95,
+    cacheHitAvg1h: 95,
     cacheHitAvg24h: 92,
     cacheHitDelta: 3,
     cacheStatusCurrent: 'HIT',
@@ -29,9 +31,12 @@ function makeMonitor(overrides: Partial<Monitor> = {}): Monitor {
     slowRegionCount: 0,
     totalRegionCount: 4,
     errorRegionCount: 0,
+    error5xxCount: 0,
+    error4xxCount: 0,
     isWafBlocked: false,
     uptime24h: 100,
     lastCheckedAt: new Date(),
+    activeIncidentCount: 0,
     ...overrides,
   }
 }
@@ -137,11 +142,11 @@ describe('monitorMatchesQuickFilter', () => {
     })
 
     it('fails when TTFB meets or exceeds FAST threshold', () => {
-      expect(monitorMatchesQuickFilter(makeMonitor({ ttfbCurrent: MONITOR_TTFB.FAST, cacheHitCurrent: 99 }), 'healthy')).toBe(false)
+      expect(monitorMatchesQuickFilter(makeMonitor({ ttfbAvg1h: MONITOR_TTFB.FAST, cacheHitCurrent: 99 }), 'healthy')).toBe(false)
     })
 
     it('fails when cache hit is strictly below GOOD threshold (with data)', () => {
-      expect(monitorMatchesQuickFilter(makeMonitor({ ttfbCurrent: 50, cacheHitCurrent: MONITOR_CACHE.GOOD - 1 }), 'healthy')).toBe(false)
+      expect(monitorMatchesQuickFilter(makeMonitor({ ttfbCurrent: 50, cacheHitAvg1h: MONITOR_CACHE.GOOD - 1 }), 'healthy')).toBe(false)
     })
 
     it('passes for intentional BYPASS when numeric hit is low (delivery is dynamic, not a cache failure)', () => {
@@ -160,11 +165,11 @@ describe('monitorMatchesQuickFilter', () => {
 
   describe('"degraded"', () => {
     it('passes when TTFB meets or exceeds FAST threshold', () => {
-      expect(monitorMatchesQuickFilter(makeMonitor({ ttfbCurrent: MONITOR_TTFB.FAST }), 'degraded')).toBe(true)
+      expect(monitorMatchesQuickFilter(makeMonitor({ ttfbAvg1h: MONITOR_TTFB.FAST }), 'degraded')).toBe(true)
     })
 
     it('passes when cache hit is below LOW threshold (with data)', () => {
-      expect(monitorMatchesQuickFilter(makeMonitor({ ttfbCurrent: 100, cacheHitCurrent: MONITOR_CACHE.LOW - 1 }), 'degraded')).toBe(true)
+      expect(monitorMatchesQuickFilter(makeMonitor({ ttfbCurrent: 100, cacheHitAvg1h: MONITOR_CACHE.LOW - 1 }), 'degraded')).toBe(true)
     })
 
     it('does not flag null cache hit as degraded', () => {
@@ -188,7 +193,7 @@ describe('monitorMatchesQuickFilter', () => {
 
   describe('"high-ttfb"', () => {
     it('passes when TTFB meets or exceeds FAST threshold', () => {
-      expect(monitorMatchesQuickFilter(makeMonitor({ ttfbCurrent: MONITOR_TTFB.FAST }), 'high-ttfb')).toBe(true)
+      expect(monitorMatchesQuickFilter(makeMonitor({ ttfbAvg1h: MONITOR_TTFB.FAST }), 'high-ttfb')).toBe(true)
     })
 
     it('fails when TTFB is below FAST threshold', () => {
@@ -198,7 +203,7 @@ describe('monitorMatchesQuickFilter', () => {
 
   describe('"low-cache-hit"', () => {
     it('passes when cache hit is below LOW threshold', () => {
-      expect(monitorMatchesQuickFilter(makeMonitor({ cacheHitCurrent: MONITOR_CACHE.LOW - 1 }), 'low-cache-hit')).toBe(true)
+      expect(monitorMatchesQuickFilter(makeMonitor({ cacheHitAvg1h: MONITOR_CACHE.LOW - 1 }), 'low-cache-hit')).toBe(true)
     })
 
     it('does not flag null cache hit as low (no data ≠ problem)', () => {
@@ -292,9 +297,9 @@ describe('monitorMatchesQuickFilter — outage states', () => {
     expect(monitorMatchesQuickFilter(down, 'healthy')).toBe(false)
   })
 
-  it('"degraded" accepts a fully DOWN monitor', () => {
+  it('"degraded" does NOT match a fully DOWN monitor (use "down" filter instead)', () => {
     const down = makeMonitor({ errorRegionCount: 4, totalRegionCount: 4, ttfbCurrent: 0, cacheHitCurrent: null })
-    expect(monitorMatchesQuickFilter(down, 'degraded')).toBe(true)
+    expect(monitorMatchesQuickFilter(down, 'degraded')).toBe(false)
   })
 
   it('"degraded" accepts a partially degraded monitor (some regions erroring)', () => {
