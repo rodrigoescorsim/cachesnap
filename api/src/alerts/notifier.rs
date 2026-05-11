@@ -126,17 +126,17 @@ pub async fn notify_incident(state: AppState, notif: IncidentNotification) {
                     &state.config.app_url,
                 );
                 let t0 = std::time::Instant::now();
-                match send_email(api_key, to_email, &subject, &html).await {
+                match send_email(api_key, &state.config.alert_from_email, to_email, &subject, &html).await {
                     Ok(()) => {
                         notified_email = true;
                         let latency_ms = t0.elapsed().as_millis() as f64;
-                        info!("notifier: email sent to {} for incident {}", to_email, notif.incident_id);
-                        record_delivery(&state, "email", "resend", true, latency_ms, notif.notification_type.as_str()).await;
+                        info!("notifier: email sent for incident {}", notif.incident_id);
+                        record_delivery(&state, "email", "resend", true, latency_ms, notif.notification_type.as_str(), None).await;
                     }
                     Err(e) => {
                         let latency_ms = t0.elapsed().as_millis() as f64;
                         error!("notifier: email failed for incident {}: {}", notif.incident_id, e);
-                        record_delivery(&state, "email", "resend", false, latency_ms, notif.notification_type.as_str()).await;
+                        record_delivery(&state, "email", "resend", false, latency_ms, notif.notification_type.as_str(), Some(e)).await;
                     }
                 }
             } else {
@@ -154,12 +154,12 @@ pub async fn notify_incident(state: AppState, notif: IncidentNotification) {
                     notified_slack = true;
                     let latency_ms = t0.elapsed().as_millis() as f64;
                     info!("notifier: slack sent for incident {}", notif.incident_id);
-                    record_delivery(&state, "slack", "webhook", true, latency_ms, notif.notification_type.as_str()).await;
+                    record_delivery(&state, "slack", "webhook", true, latency_ms, notif.notification_type.as_str(), None).await;
                 }
                 Err(e) => {
                     let latency_ms = t0.elapsed().as_millis() as f64;
                     error!("notifier: slack failed for incident {}: {}", notif.incident_id, e);
-                    record_delivery(&state, "slack", "webhook", false, latency_ms, notif.notification_type.as_str()).await;
+                    record_delivery(&state, "slack", "webhook", false, latency_ms, notif.notification_type.as_str(), Some(e)).await;
                 }
             }
         }
@@ -197,16 +197,16 @@ pub async fn notify_recovery(state: AppState, notif: RecoveryNotification) {
             if let Some(api_key) = &state.config.resend_api_key {
                 let html = build_recovery_email_html(&notif, &monitor_label, type_label);
                 let t0 = std::time::Instant::now();
-                match send_email(api_key, to_email, &subject, &html).await {
+                match send_email(api_key, &state.config.alert_from_email, to_email, &subject, &html).await {
                     Ok(()) => {
                         let latency_ms = t0.elapsed().as_millis() as f64;
                         info!("notifier: recovery email sent for {}", notif.alert_type);
-                        record_delivery(&state, "email", "resend", true, latency_ms, "recovery").await;
+                        record_delivery(&state, "email", "resend", true, latency_ms, "recovery", None).await;
                     }
                     Err(e) => {
                         let latency_ms = t0.elapsed().as_millis() as f64;
                         error!("notifier: recovery email failed: {}", e);
-                        record_delivery(&state, "email", "resend", false, latency_ms, "recovery").await;
+                        record_delivery(&state, "email", "resend", false, latency_ms, "recovery", Some(e)).await;
                     }
                 }
             }
@@ -567,13 +567,13 @@ fn build_slack_recovery_text(n: &RecoveryNotification, monitor_label: &str, type
 
 // --- HTTP senders ---
 
-async fn send_email(api_key: &str, to: &str, subject: &str, html: &str) -> Result<(), String> {
+async fn send_email(api_key: &str, from: &str, to: &str, subject: &str, html: &str) -> Result<(), String> {
     let client = reqwest::Client::new();
     let res = client
         .post("https://api.resend.com/emails")
         .bearer_auth(api_key)
         .json(&json!({
-            "from": "CacheSnap <noreply@cachesnap.com>",
+            "from": from,
             "to": [to],
             "subject": subject,
             "html": html,
@@ -618,15 +618,20 @@ async fn record_delivery(
     success: bool,
     latency_ms: f64,
     notification_type: &str,
+    error_message: Option<String>,
 ) {
     let (success_c, fail_c): (i32, i32) = if success { (1, 0) } else { (0, 1) };
     let db = state.db.clone();
     let notif_type = notification_type.to_string();
+    let error_message = error_message.map(|message| {
+        let compact = message.split_whitespace().collect::<Vec<_>>().join(" ");
+        compact.chars().take(500).collect::<String>()
+    });
     tokio::spawn(async move {
         let _ = sqlx::query(
             "INSERT INTO ops_alert_delivery_stats \
-             (time, channel, provider, success_count, fail_count, avg_latency_ms, notification_type) \
-             VALUES (NOW(), $1, $2, $3, $4, $5, $6)",
+             (time, channel, provider, success_count, fail_count, avg_latency_ms, notification_type, error_message) \
+             VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7)",
         )
         .bind(channel)
         .bind(provider)
@@ -634,6 +639,7 @@ async fn record_delivery(
         .bind(fail_c)
         .bind(latency_ms)
         .bind(notif_type)
+        .bind(error_message)
         .execute(&db)
         .await;
     });

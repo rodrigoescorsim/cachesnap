@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const windowMinutes = WINDOW_MINUTES[windowParam] ?? 15
   const since = new Date(Date.now() - windowMinutes * 60 * 1000)
 
-  const [totals, byType] = await Promise.all([
+  const [totals, byType, providerTotals] = await Promise.all([
     sql<{ total: number; delivered: number }[]>`
       SELECT
         COUNT(*)::int                                                              AS total,
@@ -39,10 +39,25 @@ export async function GET(request: NextRequest) {
       GROUP BY alert_type
       ORDER BY total DESC
     `,
+    sql<{
+      total: number
+      delivered: number
+      failed: number
+      mean_latency_ms: number | null
+    }[]>`
+      SELECT
+        COALESCE(SUM(success_count + fail_count), 0)::int AS total,
+        COALESCE(SUM(success_count), 0)::int AS delivered,
+        COALESCE(SUM(fail_count), 0)::int AS failed,
+        ROUND(AVG(avg_latency_ms))::int AS mean_latency_ms
+      FROM ops_alert_delivery_stats
+      WHERE time > ${since}
+    `.catch(() => []),
   ])
 
-  const total = totals[0]?.total ?? 0
-  const delivered = totals[0]?.delivered ?? 0
+  const providerTotal = providerTotals[0]?.total ?? 0
+  const total = providerTotal || totals[0]?.total || 0
+  const delivered = providerTotal ? providerTotals[0]?.delivered ?? 0 : totals[0]?.delivered ?? 0
   const deliveryRate = total > 0 ? Math.round((delivered / total) * 1000) / 10 : null
 
   return NextResponse.json({
@@ -51,7 +66,8 @@ export async function GET(request: NextRequest) {
       total_alerts: total,
       by_type: byType,
       delivery_rate: deliveryRate,
-      mean_delivery_latency_ms: null,
+      failed_deliveries: providerTotals[0]?.failed ?? null,
+      mean_delivery_latency_ms: providerTotals[0]?.mean_latency_ms ?? null,
     },
   })
 }

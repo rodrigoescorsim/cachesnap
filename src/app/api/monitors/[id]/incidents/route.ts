@@ -26,12 +26,16 @@ export async function GET(
       opened_at,
       last_notified_at,
       notification_count,
+      COUNT(a.id) FILTER (WHERE a.notified_email OR a.notified_slack)::int AS delivered_notification_count,
+      COUNT(a.id) FILTER (WHERE NOT a.notified_email AND NOT a.notified_slack)::int AS failed_notification_count,
       snoozed_until,
       last_actual,
       last_threshold,
       EXTRACT(EPOCH FROM (NOW() - opened_at))::float * 1000 AS duration_ms
     FROM alert_incidents
-    WHERE monitor_id = ${id} AND resolved_at IS NULL
+    LEFT JOIN alerts a ON a.incident_id = alert_incidents.id
+    WHERE alert_incidents.monitor_id = ${id} AND alert_incidents.resolved_at IS NULL
+    GROUP BY alert_incidents.id
     ORDER BY opened_at DESC
   `
 

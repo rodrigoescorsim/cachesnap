@@ -148,6 +148,8 @@ interface DeliveryData {
     total_alerts: number
     by_type: AlertByType[]
     delivery_rate: number | null
+    failed_deliveries: number | null
+    mean_delivery_latency_ms: number | null
   }
 }
 
@@ -760,24 +762,44 @@ function DeliverySection({ data, loading }: { data: DeliveryData | null; loading
   }
 
   const rate = data.data.delivery_rate
+  const total = data.data.total_alerts
+  const failed = data.data.failed_deliveries ?? data.data.by_type.reduce((sum, t) => sum + t.failed, 0)
+  const delivered = Math.max(0, total - failed)
+  const latency = data.data.mean_delivery_latency_ms
 
   return (
     <section>
       <SectionTitle icon={Layers} title="Alerting Delivery" />
       <div className="cs-card px-4 py-4">
         <div className="cs-card-wash" />
-        <div className="relative z-10 mb-4 grid grid-cols-3 gap-4">
+        <div className="relative z-10 mb-4 grid grid-cols-2 gap-4 lg:grid-cols-5">
           <div>
             <p className="mb-1 text-[9px] font-black uppercase tracking-widest text-zinc-500">
-              Total Alerts
+              Attempts
             </p>
             <p className="text-[22px] font-black tabular-nums text-zinc-100">
-              {data.data.total_alerts}
+              {total}
             </p>
           </div>
           <div>
             <p className="mb-1 text-[9px] font-black uppercase tracking-widest text-zinc-500">
-              Delivery Rate
+              Delivered
+            </p>
+            <p className="text-[22px] font-black tabular-nums text-emerald-400">
+              {delivered}
+            </p>
+          </div>
+          <div>
+            <p className="mb-1 text-[9px] font-black uppercase tracking-widest text-zinc-500">
+              Failed
+            </p>
+            <p className={`text-[22px] font-black tabular-nums ${failed > 0 ? 'text-rose-400' : 'text-zinc-600'}`}>
+              {failed}
+            </p>
+          </div>
+          <div>
+            <p className="mb-1 text-[9px] font-black uppercase tracking-widest text-zinc-500">
+              Delivery
             </p>
             {rate !== null ? (
               <p
@@ -793,13 +815,23 @@ function DeliverySection({ data, loading }: { data: DeliveryData | null; loading
           </div>
           <div>
             <p className="mb-1 text-[9px] font-black uppercase tracking-widest text-zinc-500">
-              Window
+              Avg Latency
             </p>
-            <p className="text-[22px] font-black text-zinc-500">{data.data.window}</p>
+            {latency !== null ? (
+              <p className="text-[22px] font-black tabular-nums text-zinc-300">
+                {latency}
+                <span className="text-[12px] font-medium text-zinc-500">ms</span>
+              </p>
+            ) : (
+              <p className="text-[22px] font-black text-zinc-700">N/A</p>
+            )}
           </div>
         </div>
+        <p className="relative z-10 mb-3 border-t border-border/60 pt-3 text-[10px] text-zinc-600">
+          Window: {data.data.window}
+        </p>
         {data.data.by_type.length > 0 && (
-          <div className="relative z-10 space-y-1.5 border-t border-border/60 pt-3">
+          <div className="relative z-10 space-y-1.5">
             {data.data.by_type.map(t => (
               <div key={t.alert_type} className="flex items-center gap-3 text-[11px]">
                 <span className="min-w-[80px] capitalize text-zinc-500">{t.alert_type}</span>

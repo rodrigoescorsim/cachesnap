@@ -10,6 +10,8 @@ export interface ActiveIncident {
   opened_at: Date | string
   last_notified_at: Date | string | null
   notification_count: number
+  delivered_notification_count?: number
+  failed_notification_count?: number
   snoozed_until: Date | string | null
   last_actual: number | null
   last_threshold: number | null
@@ -79,12 +81,15 @@ function isCacheMetric(alertType: string): boolean {
 
 export function formatMetricDelta(actual: number, threshold: number, alertType: string): string {
   const diff = actual - threshold
+  const absDiff = Math.abs(diff)
+
   if (isCacheMetric(alertType)) {
-    const sign = diff >= 0 ? '+' : '−'
-    return `${sign}${Math.abs(diff).toFixed(1)}pp vs threshold`
+    if (diff < 0) return `${absDiff.toFixed(1)}% below target`
+    return `${absDiff.toFixed(1)}% above target`
   }
-  const sign = diff >= 0 ? '+' : '−'
-  return `${sign}${Math.abs(Math.round(diff))}ms vs threshold`
+
+  if (diff > 0) return `${Math.round(absDiff)}ms above limit`
+  return `${Math.round(absDiff)}ms below limit`
 }
 
 function formatMetricValue(value: number, alertType: string): string {
@@ -119,6 +124,9 @@ export function ActiveIncidentsPanel({ monitorId, incidents, regionLabels = {} }
           const sev = SEVERITY_STYLES[incident.severity] ?? SEVERITY_STYLES.low
           const display = alertTypeDisplay(incident.alert_type)
           const duration = formatDuration(incident.duration_ms)
+          const deliveredCount = incident.delivered_notification_count ?? 0
+          const failedCount = incident.failed_notification_count ?? 0
+          const pendingCount = Math.max(0, incident.notification_count - deliveredCount - failedCount)
           const isSnoozed =
             incident.snoozed_until != null &&
             new Date(incident.snoozed_until) > new Date()
@@ -167,9 +175,21 @@ export function ActiveIncidentsPanel({ monitorId, incidents, regionLabels = {} }
                   Active for {duration}
                 </span>
 
-                {incident.notification_count > 0 && (
+                {deliveredCount > 0 && (
                   <span className="text-zinc-500">
-                    {incident.notification_count} notification{incident.notification_count !== 1 ? 's' : ''} sent
+                    {deliveredCount} delivered
+                  </span>
+                )}
+
+                {failedCount > 0 && (
+                  <span className="text-red-400">
+                    {failedCount} delivery failed
+                  </span>
+                )}
+
+                {pendingCount > 0 && deliveredCount === 0 && failedCount === 0 && (
+                  <span className="text-zinc-500">
+                    {pendingCount} delivery pending
                   </span>
                 )}
               </div>
@@ -179,7 +199,7 @@ export function ActiveIncidentsPanel({ monitorId, incidents, regionLabels = {} }
                 {incident.last_actual != null ? (
                   <div className="flex flex-wrap items-center gap-3 text-xs">
                     <span className="text-zinc-400">
-                      Current:{' '}
+                      Observed:{' '}
                       <span className={`font-semibold ${sev.text}`}>
                         {formatMetricValue(incident.last_actual, incident.alert_type)}
                       </span>
@@ -188,7 +208,7 @@ export function ActiveIncidentsPanel({ monitorId, incidents, regionLabels = {} }
                       <>
                         <span className="text-zinc-600">·</span>
                         <span className="text-zinc-500">
-                          Threshold: {formatMetricValue(incident.last_threshold, incident.alert_type)}
+                          Target: {formatMetricValue(incident.last_threshold, incident.alert_type)}
                         </span>
                         <span className={`font-medium ${sev.text}`}>
                           ({formatMetricDelta(incident.last_actual, incident.last_threshold, incident.alert_type)})

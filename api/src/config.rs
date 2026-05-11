@@ -105,6 +105,7 @@ pub struct Config {
     pub port: u16,
     pub probe_secret: String,
     pub resend_api_key: Option<String>,
+    pub alert_from_email: String,
     pub slack_webhook_url: Option<String>,
     pub app_url: String,
     pub api_url: String,
@@ -128,6 +129,8 @@ impl Config {
                 .context("PORT (or API_PORT) must be a valid number")?,
             probe_secret: required("PROBE_SECRET")?,
             resend_api_key: optional("RESEND_API_KEY"),
+            alert_from_email: std::env::var("ALERT_FROM_EMAIL")
+                .unwrap_or_else(|_| "CacheSnap <onboarding@resend.dev>".to_string()),
             slack_webhook_url: optional("SLACK_WEBHOOK_URL"),
             app_url: std::env::var("APP_URL")
                 .unwrap_or_else(|_| "http://localhost:3000".to_string()),

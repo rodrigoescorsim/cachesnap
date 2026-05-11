@@ -21,7 +21,7 @@ export async function GET() {
 
   const since15m = new Date(Date.now() - 15 * 60 * 1000)
 
-  const [regions, regionErrors] = await Promise.all([
+  const [regions, regionErrors, resendRows] = await Promise.all([
     sql<{ id: string }[]>`
       SELECT id FROM regions WHERE enabled = true ORDER BY id
     `,
@@ -34,19 +34,60 @@ export async function GET() {
       WHERE time > ${since15m}
       GROUP BY region
     `,
+    sql<{
+      success_count: number
+      fail_count: number
+      last_success_age_s: number | null
+      latest_error: string | null
+    }[]>`
+      SELECT
+        COALESCE(SUM(success_count), 0)::int AS success_count,
+        COALESCE(SUM(fail_count), 0)::int AS fail_count,
+        EXTRACT(EPOCH FROM (NOW() - MAX(time) FILTER (WHERE success_count > 0)))::int AS last_success_age_s,
+        (
+          SELECT error_message
+          FROM ops_alert_delivery_stats latest
+          WHERE latest.channel = 'email'
+            AND latest.provider = 'resend'
+            AND latest.fail_count > 0
+            AND latest.time > ${since15m}
+          ORDER BY latest.time DESC
+          LIMIT 1
+        ) AS latest_error
+      FROM ops_alert_delivery_stats
+      WHERE channel = 'email'
+        AND provider = 'resend'
+        AND time > ${since15m}
+    `.catch(() => []),
   ])
 
   const regionIds = regions.map(r => r.id)
   const regionMap = new Map(regionErrors.map(r => [r.region, r]))
+  const resend = resendRows[0]
+  const resendSuccess = Number(resend?.success_count ?? 0)
+  const resendFailures = Number(resend?.fail_count ?? 0)
+  const resendTotal = resendSuccess + resendFailures
+  const latestResendError = resend?.latest_error ? resend.latest_error.slice(0, 160) : null
+  const resendStatus: ProviderStatus = resendTotal === 0
+    ? 'unknown'
+    : resendFailures === 0
+      ? 'healthy'
+      : resendSuccess === 0
+        ? 'critical'
+        : 'warning'
+  const resendDetail = resendTotal === 0
+    ? 'No email attempts in last 15 min'
+    : resendFailures > 0
+      ? `${resendFailures} failed / ${resendSuccess} delivered in 15 min${latestResendError ? `: ${latestResendError}` : ''}`
+      : `${resendSuccess} delivered in 15 min`
 
   const providers: ProviderEntry[] = [
-    // Resend: no delivery log table yet — mark unknown
     {
       name: 'Resend',
-      status: 'unknown',
-      detail: 'Delivery log not yet implemented',
-      error_count_15m: null,
-      last_success_age_s: null,
+      status: resendStatus,
+      detail: resendDetail,
+      error_count_15m: resendFailures,
+      last_success_age_s: resend?.last_success_age_s ?? null,
     },
   ]
 

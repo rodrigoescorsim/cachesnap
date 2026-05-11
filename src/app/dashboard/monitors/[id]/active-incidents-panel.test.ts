@@ -7,8 +7,6 @@ import {
   type ActiveIncident,
 } from './active-incidents-panel'
 
-// --- formatDuration ---
-
 describe('formatDuration', () => {
   it('returns "0 minutes" for 0ms', () => {
     expect(formatDuration(0)).toBe('0 minutes')
@@ -41,8 +39,6 @@ describe('formatDuration', () => {
     expect(formatDuration(7 * 86_400_000)).toBe('7 days')
   })
 })
-
-// --- alertTypeDisplay ---
 
 describe('alertTypeDisplay', () => {
   const knownTypes = [
@@ -84,39 +80,25 @@ describe('alertTypeDisplay', () => {
   })
 })
 
-// --- formatMetricDelta ---
-
 describe('formatMetricDelta', () => {
-  it('shows pp (percentage points) for cache metrics below threshold', () => {
-    const result = formatMetricDelta(65.0, 80.0, 'cache_hit_low')
-    expect(result).toContain('pp vs threshold')
-    expect(result).toContain('15.0')
-    expect(result).toContain('−')
+  it('shows clear copy for cache metrics below target', () => {
+    expect(formatMetricDelta(65.0, 80.0, 'cache_hit_low')).toBe('15.0% below target')
   })
 
-  it('shows pp for cache_hit_trend types', () => {
-    const result = formatMetricDelta(70.0, 75.0, 'cache_hit_trend_drop_region')
-    expect(result).toContain('pp vs threshold')
+  it('uses target copy for cache_hit_trend types', () => {
+    expect(formatMetricDelta(70.0, 75.0, 'cache_hit_trend_drop_region')).toBe('5.0% below target')
   })
 
-  it('shows positive sign when actual exceeds threshold for cache metric', () => {
-    const result = formatMetricDelta(90.0, 80.0, 'cache_hit_low')
-    expect(result).toContain('+')
-    expect(result).toContain('10.0pp vs threshold')
+  it('shows above target when cache metric exceeds target', () => {
+    expect(formatMetricDelta(90.0, 80.0, 'cache_hit_low')).toBe('10.0% above target')
   })
 
-  it('shows ms for TTFB metrics above threshold', () => {
-    const result = formatMetricDelta(350, 200, 'ttfb_threshold')
-    expect(result).toContain('ms vs threshold')
-    expect(result).toContain('150')
-    expect(result).toContain('+')
+  it('shows above limit for TTFB metrics over threshold', () => {
+    expect(formatMetricDelta(350, 200, 'ttfb_threshold')).toBe('150ms above limit')
   })
 
-  it('shows minus sign for TTFB below threshold', () => {
-    const result = formatMetricDelta(150, 200, 'ttfb_threshold')
-    expect(result).toContain('ms vs threshold')
-    expect(result).toContain('50')
-    expect(result).toContain('−')
+  it('shows below limit for TTFB below threshold', () => {
+    expect(formatMetricDelta(150, 200, 'ttfb_threshold')).toBe('50ms below limit')
   })
 
   it('rounds ms to integers', () => {
@@ -125,16 +107,13 @@ describe('formatMetricDelta', () => {
   })
 
   it('shows ms for down alert type', () => {
-    const result = formatMetricDelta(1500, 1000, 'down')
-    expect(result).toContain('ms vs threshold')
+    expect(formatMetricDelta(1500, 1000, 'down')).toBe('500ms above limit')
   })
 })
 
-// --- ActiveIncidentsPanel (null return for empty) ---
-
 describe('ActiveIncidentsPanel', () => {
   it('returns null when incidents array is empty', () => {
-    const result = ActiveIncidentsPanel({ incidents: [] })
+    const result = ActiveIncidentsPanel({ monitorId: 'mon', incidents: [] })
     expect(result).toBeNull()
   })
 
@@ -147,12 +126,14 @@ describe('ActiveIncidentsPanel', () => {
       opened_at: new Date().toISOString(),
       last_notified_at: null,
       notification_count: 1,
+      delivered_notification_count: 0,
+      failed_notification_count: 1,
       snoozed_until: null,
       last_actual: null,
       last_threshold: null,
       duration_ms: 3_600_000,
     }
-    const result = ActiveIncidentsPanel({ incidents: [incident] })
+    const result = ActiveIncidentsPanel({ monitorId: 'mon', incidents: [incident] })
     expect(result).not.toBeNull()
   })
 })

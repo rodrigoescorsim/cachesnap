@@ -348,6 +348,59 @@ export function MonitorEditForm({
             </div>
           </div>
         </section>
+        {/* NOTIFICATIONS SECTION */}
+        <section className="cs-card cs-card-focus p-6 md:col-span-2">
+          <div className="cs-card-wash" />
+          <h3 className="cs-section-header">Where to send alerts</h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <CsCheckbox
+                  id={`${p}-notify-email-toggle`}
+                  checked={values.notify_email_enabled}
+                  onChange={(e) => handleInputChange('notify_email_enabled', e.target.checked)}
+                />
+                <label htmlFor={`${p}-notify-email-toggle`} className="text-xs font-bold text-zinc-300 cursor-pointer select-none">
+                  Email
+                </label>
+              </div>
+              <input
+                type="email"
+                value={values.notify_email}
+                onChange={(e) => handleInputChange('notify_email', e.target.value)}
+                disabled={!values.notify_email_enabled}
+                placeholder="alerts@yourcompany.com"
+                className={`w-full h-11 cs-input ${errors.notify_email ? 'cs-input-error' : ''}`}
+              />
+              {errors.notify_email && <span className="cs-error-msg">{errors.notify_email}</span>}
+              <p className="text-xs text-zinc-400 leading-relaxed">We&apos;ll send a message every time an alert fires or recovers.</p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <CsCheckbox
+                  id={`${p}-notify-slack-toggle`}
+                  checked={values.notify_slack_enabled}
+                  onChange={(e) => handleInputChange('notify_slack_enabled', e.target.checked)}
+                />
+                <label htmlFor={`${p}-notify-slack-toggle`} className="text-xs font-bold text-zinc-300 cursor-pointer select-none">
+                  Slack / Discord Webhook
+                </label>
+              </div>
+              <input
+                type="url"
+                value={values.notify_slack_webhook}
+                onChange={(e) => handleInputChange('notify_slack_webhook', e.target.value)}
+                disabled={!values.notify_slack_enabled}
+                placeholder="https://hooks.slack.com/services/..."
+                className={`w-full h-11 cs-input ${errors.notify_slack_webhook ? 'cs-input-error' : ''}`}
+              />
+              {errors.notify_slack_webhook && <span className="cs-error-msg">{errors.notify_slack_webhook}</span>}
+            </div>
+          </div>
+        </section>
+
 
         {/* ALERTS SECTION */}
         <section className="cs-card cs-card-focus p-6 md:col-span-2">
@@ -805,58 +858,6 @@ export function MonitorEditForm({
           )}
         </section>
 
-        {/* NOTIFICATIONS SECTION */}
-        <section className="cs-card cs-card-focus p-6 md:col-span-2">
-          <div className="cs-card-wash" />
-          <h3 className="cs-section-header">Where to send alerts</h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <CsCheckbox
-                  id={`${p}-notify-email-toggle`}
-                  checked={values.notify_email_enabled}
-                  onChange={(e) => handleInputChange('notify_email_enabled', e.target.checked)}
-                />
-                <label htmlFor={`${p}-notify-email-toggle`} className="text-xs font-bold text-zinc-300 cursor-pointer select-none">
-                  Email
-                </label>
-              </div>
-              <input
-                type="email"
-                value={values.notify_email}
-                onChange={(e) => handleInputChange('notify_email', e.target.value)}
-                disabled={!values.notify_email_enabled}
-                placeholder="alerts@yourcompany.com"
-                className={`w-full h-11 cs-input ${errors.notify_email ? 'cs-input-error' : ''}`}
-              />
-              {errors.notify_email && <span className="cs-error-msg">{errors.notify_email}</span>}
-              <p className="text-xs text-zinc-400 leading-relaxed">We&apos;ll send a message every time an alert fires or recovers.</p>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <CsCheckbox
-                  id={`${p}-notify-slack-toggle`}
-                  checked={values.notify_slack_enabled}
-                  onChange={(e) => handleInputChange('notify_slack_enabled', e.target.checked)}
-                />
-                <label htmlFor={`${p}-notify-slack-toggle`} className="text-xs font-bold text-zinc-300 cursor-pointer select-none">
-                  Slack / Discord Webhook
-                </label>
-              </div>
-              <input
-                type="url"
-                value={values.notify_slack_webhook}
-                onChange={(e) => handleInputChange('notify_slack_webhook', e.target.value)}
-                disabled={!values.notify_slack_enabled}
-                placeholder="https://hooks.slack.com/services/..."
-                className={`w-full h-11 cs-input ${errors.notify_slack_webhook ? 'cs-input-error' : ''}`}
-              />
-              {errors.notify_slack_webhook && <span className="cs-error-msg">{errors.notify_slack_webhook}</span>}
-            </div>
-          </div>
-        </section>
       </div>
     </div>
   )
