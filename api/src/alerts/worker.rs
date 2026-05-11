@@ -180,9 +180,9 @@ async fn check_cache_hit(
     monitor: &MonitorAlertConfig,
     region: &str,
 ) -> Result<Option<Detection>, anyhow::Error> {
-    let hit_data = sqlx::query_as::<_, (Option<f64>, Option<i64>, Option<i64>)>(
-        "SELECT (SUM(hit_count)::float / NULLIF(SUM(cdn_count), 0)) * 100,
-                SUM(total_count)::bigint, SUM(cdn_count)::bigint
+    let hit_data = sqlx::query_as::<_, (Option<f64>, Option<i64>)>(
+        "SELECT (SUM(hit_count)::float / NULLIF(SUM(total_count), 0)) * 100,
+                SUM(total_count)::bigint
          FROM probe_results_hourly
          WHERE monitor_id = $1 AND region = $2 AND bucket > NOW() - INTERVAL '24 hours'",
     )
@@ -191,19 +191,16 @@ async fn check_cache_hit(
     .fetch_one(&state.db)
     .await?;
 
-    if let (Some(hit_pct), Some(sample_count), Some(cdn_sample_count)) = hit_data {
-        if cdn_sample_count > 0
-            && sample_count >= 5
-            && hit_pct < monitor.alert_cache_hit_threshold_pct
-        {
+    if let (Some(hit_pct), Some(sample_count)) = hit_data {
+        if sample_count >= 5 && hit_pct < monitor.alert_cache_hit_threshold_pct {
             return Ok(Some(Detection {
                 region: region.to_string(),
                 alert_type: "cache_hit_low".to_string(),
                 actual: hit_pct,
                 threshold: Some(monitor.alert_cache_hit_threshold_pct),
                 diagnosis: format!(
-                    "Cache hit rate dropped to {:.1}% (threshold: {:.0}%)",
-                    hit_pct, monitor.alert_cache_hit_threshold_pct
+                    "Only {:.1}% of requests served from CDN cache — most are reaching the origin server directly.",
+                    hit_pct
                 ),
                 action: "Check your CDN cache rules and Cache-Control headers.".to_string(),
             }));

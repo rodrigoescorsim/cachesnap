@@ -364,7 +364,7 @@ export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded 
         )}
 
         {/* Readiness Banner for Disabled/Error states */}
-        {shouldShowBanner(readiness) && readiness.state !== 'warmup' && (
+        {shouldShowBanner(readiness) && readiness.state !== 'warmup' && !isLiveActive && (
           <ReadinessBanner readiness={readiness} isOffline={!!isDown} />
         )}
 
