@@ -161,4 +161,32 @@ describe('toMonitor', () => {
     const m = toMonitor(makeRow({ error_region_count: 0 }))
     expect(m.errorRegionCount).toBe(0)
   })
+
+  // ── activeIncidentCount — shared definition across monitors table, detail badge, and alerts tab ──
+
+  it('maps active_incident_count integer to activeIncidentCount', () => {
+    expect(toMonitor(makeRow({ active_incident_count: 3 })).activeIncidentCount).toBe(3)
+  })
+
+  it('maps active_incident_count string (postgres return) to number', () => {
+    expect(toMonitor(makeRow({ active_incident_count: '2' })).activeIncidentCount).toBe(2)
+  })
+
+  it('maps null active_incident_count to 0 (no open incidents)', () => {
+    // COALESCE in summary SQL returns 0, but null is also safe here
+    expect(toMonitor(makeRow({ active_incident_count: null })).activeIncidentCount).toBe(0)
+  })
+
+  it('maps zero active_incident_count correctly', () => {
+    expect(toMonitor(makeRow({ active_incident_count: 0 })).activeIncidentCount).toBe(0)
+  })
+
+  it('active incident count is always a non-negative integer', () => {
+    [0, 1, 5, 10].forEach(n => {
+      const m = toMonitor(makeRow({ active_incident_count: n }))
+      expect(m.activeIncidentCount).toBe(n)
+      expect(Number.isInteger(m.activeIncidentCount)).toBe(true)
+      expect(m.activeIncidentCount).toBeGreaterThanOrEqual(0)
+    })
+  })
 })
