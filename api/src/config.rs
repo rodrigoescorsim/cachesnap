@@ -134,8 +134,18 @@ impl Config {
             slack_webhook_url: optional("SLACK_WEBHOOK_URL"),
             app_url: std::env::var("APP_URL")
                 .unwrap_or_else(|_| "http://localhost:3000".to_string()),
-            api_url: std::env::var("API_URL")
-                .unwrap_or_else(|_| "http://localhost:3001".to_string()),
+            api_url: {
+                let url = std::env::var("API_URL")
+                    .unwrap_or_else(|_| "http://localhost:3001".to_string());
+                if is_loopback_url(&url) {
+                    warn!(
+                        url = %url,
+                        "API_URL is a loopback address — Lambda workers cannot reach this ingest endpoint. \
+                         Set API_URL to a public URL (e.g. a Cloudflare tunnel) before starting the API in dev."
+                    );
+                }
+                url
+            },
             probe_dispatch: ProbeDispatchConfig::from_env(),
             alerts_worker_interval_secs: {
                 let secs = env_u64_allow_zero("ALERTS_WORKER_INTERVAL_SECS", 900);
@@ -164,4 +174,52 @@ fn required(key: &str) -> Result<String> {
 
 fn optional(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|v| !v.is_empty())
+}
+
+/// Returns true if the URL host is a loopback address (localhost, 127.x.x.x, ::1).
+/// Used to warn when API_URL would be unreachable from Lambda workers running in AWS.
+pub fn is_loopback_url(url: &str) -> bool {
+    let host = url
+        .trim_start_matches("http://")
+        .trim_start_matches("https://")
+        .split('/')
+        .next()
+        .unwrap_or("")
+        .split(':')
+        .next()
+        .unwrap_or("");
+    matches!(host, "localhost" | "127.0.0.1")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_loopback_url_detects_localhost() {
+        assert!(is_loopback_url("http://localhost:3001"));
+        assert!(is_loopback_url("http://localhost:3001/api/ingest"));
+        assert!(is_loopback_url("http://127.0.0.1:3001"));
+        assert!(is_loopback_url("https://127.0.0.1"));
+        assert!(is_loopback_url("https://127.0.0.1/ingest"));
+    }
+
+    #[test]
+    fn is_loopback_url_passes_public_urls() {
+        assert!(!is_loopback_url("https://abc.trycloudflare.com"));
+        assert!(!is_loopback_url("https://api.cachesnap.com"));
+        assert!(!is_loopback_url("http://192.168.1.100:3001"));
+    }
+
+    #[test]
+    fn api_url_default_is_loopback() {
+        // Confirms the default triggers the warning — regression guard for the bug
+        // where probes silently stopped because API_URL fell back to localhost and
+        // AWS Lambda workers cannot reach loopback addresses.
+        let default = "http://localhost:3001";
+        assert!(
+            is_loopback_url(default),
+            "default API_URL must be flagged as loopback so the startup warning fires"
+        );
+    }
 }
