@@ -32,6 +32,7 @@ export interface MonitorSummaryRow {
   uptime_24h: number | string | null
   last_checked_at: string | null
   sparkline: Array<number | string>
+  active_incident_count: number | string | null
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -80,5 +81,6 @@ export function toMonitor(row: MonitorSummaryRow): Monitor {
     uptime24h:         toNumOrNull(row.uptime_24h),
     // new Date(0) = epoch signals "never probed" — displayed as "–" in the UI
     lastCheckedAt:    row.last_checked_at ? new Date(row.last_checked_at) : new Date(0),
+    activeIncidentCount: toNum(row.active_incident_count),
   }
 }

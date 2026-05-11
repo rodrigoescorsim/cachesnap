@@ -508,6 +508,9 @@ function SkeletonRow({
           <div className="cs-skeleton h-2.5 w-10" />
         </div>
       </td>
+      <td className="cs-table-compact-td !py-3">
+        <div className="cs-skeleton h-4 w-6 rounded-full" />
+      </td>
       <td className="cs-table-compact-td !py-3" />
     </tr>
   )
@@ -523,6 +526,7 @@ const HEADER_HELP: Record<string, string> = {
   hit24hAvg: 'Average cache efficiency over the last 24 hours.',
   regions: 'Latency breakdown across geographic regions. "Clear" means no slow or failing regions.',
   uptime24h: 'Successful checks in the last 24 hours.',
+  activeIncidents: 'Open incidents currently firing for this monitor.',
 }
 
 // ─── Column definitions ───────────────────────────────────────────────────────
@@ -898,6 +902,35 @@ function buildMonitorColumns(
       cell: ({ getValue }) => <UptimeBar value={getValue()} />,
     }),
 
+    col.accessor('activeIncidentCount', {
+      id: 'activeIncidentCount',
+      header: () => <MonitorsThTooltip label="Incidents" description={HEADER_HELP.activeIncidents} />,
+      size: 8,
+      enableSorting: true,
+      sortingFn: (a, b) => a.original.activeIncidentCount - b.original.activeIncidentCount,
+      cell: ({ getValue, row }) => {
+        const count = getValue() as number
+        const m = row.original
+        if (count === 0) {
+          return (
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">—</span>
+          )
+        }
+        return (
+          <PremiumTooltip content={`${count} active incident${count !== 1 ? 's' : ''} — click to review`} position="top-center" direction="top">
+            <Link
+              href={`/dashboard/monitors/${m.id}?tab=incidents`}
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[10px] font-black text-red-400 transition-colors hover:bg-red-500/20"
+            >
+              <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+              {count}
+            </Link>
+          </PremiumTooltip>
+        )
+      },
+    }),
+
     col.display({
       id: 'actions',
       header: '',
@@ -978,7 +1011,7 @@ export function MonitorsTable({
     return displayMonitors.some((m) => m.cacheHitAvg24h !== null)
   }, [displayMonitors])
 
-  const monitorWidthPct = showHit24hAvgColumn ? 30 : 39
+  const monitorWidthPct = showHit24hAvgColumn ? 22 : 31
 
   const columns = useMemo(
     () => buildMonitorColumns(

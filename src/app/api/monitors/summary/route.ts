@@ -121,6 +121,14 @@ export async function GET() {
       GROUP BY l.monitor_id
     ),
 
+    -- Open (unresolved) incidents per monitor
+    inc AS (
+      SELECT monitor_id, COUNT(*)::int AS active_incident_count
+      FROM alert_incidents
+      WHERE resolved_at IS NULL
+      GROUP BY monitor_id
+    ),
+
     -- Hourly TTFB sparkline over the last 24 hours (up to 24 points)
     spark AS (
       SELECT
@@ -178,7 +186,8 @@ export async function GET() {
       COALESCE(c.error_4xx_count,    0)                                                     AS error_4xx_count,
       (COALESCE(c.waf_region_count, 0) >= 2 OR (COALESCE(c.total_region_count, 0) = 1 AND COALESCE(c.waf_region_count, 0) = 1)) AS is_waf_blocked,
       c.last_checked_at,
-      COALESCE(s.sparkline, ARRAY[]::int[])                                                 AS sparkline
+      COALESCE(s.sparkline, ARRAY[]::int[])                                                 AS sparkline,
+      COALESCE(i.active_incident_count, 0)                                                   AS active_incident_count
 
     FROM monitors m
     LEFT JOIN curr  c ON c.monitor_id = m.id
@@ -186,6 +195,7 @@ export async function GET() {
     LEFT JOIN h1    h1 ON h1.monitor_id = m.id
     LEFT JOIN reg   r ON r.monitor_id = m.id
     LEFT JOIN spark s ON s.monitor_id = m.id
+    LEFT JOIN inc   i ON i.monitor_id = m.id
     WHERE m.user_id = ${user.id}
     ORDER BY m.created_at DESC
   `

@@ -41,6 +41,7 @@ export interface Monitor {
   isWafBlocked: boolean
   uptime24h: number | null
   lastCheckedAt: Date
+  activeIncidentCount: number
 }
 
 export interface Alert {

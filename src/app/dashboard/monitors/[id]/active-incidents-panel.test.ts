@@ -112,9 +112,9 @@ describe('formatMetricDelta', () => {
 })
 
 describe('ActiveIncidentsPanel', () => {
-  it('returns null when incidents array is empty', () => {
+  it('renders empty state when incidents array is empty', () => {
     const result = ActiveIncidentsPanel({ monitorId: 'mon', incidents: [] })
-    expect(result).toBeNull()
+    expect(result).not.toBeNull()
   })
 
   it('returns non-null for non-empty incidents', () => {

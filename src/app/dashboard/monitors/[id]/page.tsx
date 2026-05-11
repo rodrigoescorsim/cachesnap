@@ -1480,21 +1480,21 @@ export default async function MonitorDetailPage({
               className="flex shrink-0 items-center gap-2 sm:gap-3"
               aria-label="Monitor actions"
             >
-              {/* Active Alerts compact badge */}
+              {/* Active Incidents compact badge */}
               <PremiumTooltip
-                content={alerts.length > 0 ? `${alerts.length} active alert${alerts.length !== 1 ? 's' : ''} — click to review` : 'No active alerts'}
+                content={activeIncidents.length > 0 ? `${activeIncidents.length} active incident${activeIncidents.length !== 1 ? 's' : ''} — click to review` : 'No active incidents'}
                 position="top-left"
               >
                 <Link
                   href={buildMonitorHref('incidents', range, null, null, '', monitor.id)}
                   scroll={false}
-                  className={`inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0 text-[10px] font-bold uppercase tracking-tight transition-all hover:opacity-80 ${alerts.length > 0
+                  className={`inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0 text-[10px] font-bold uppercase tracking-tight transition-all hover:opacity-80 ${activeIncidents.length > 0
                     ? 'border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500/20'
                     : 'border-border bg-white/5 text-zinc-500'
                     }`}
                 >
-                  <AlertTriangle className={`h-3 w-3 shrink-0 ${alerts.length > 0 ? 'text-red-400' : 'text-zinc-500'}`} />
-                  <span>{alerts.length > 0 ? alerts.length : '—'}</span>
+                  <AlertTriangle className={`h-3 w-3 shrink-0 ${activeIncidents.length > 0 ? 'text-red-400' : 'text-zinc-500'}`} />
+                  <span>{activeIncidents.length > 0 ? activeIncidents.length : '—'}</span>
                 </Link>
               </PremiumTooltip>
 
