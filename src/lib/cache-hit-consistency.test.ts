@@ -42,8 +42,8 @@ describe('cache-hit consistency in critical SQL files', () => {
     'src/app/api/monitors/summary/route.ts',
     'api/src/scheduler/readiness.rs',
     'api/src/baseline/calculator.rs',
-    'migrations/020_cache_hits_hourly_aggregate.sql',
-    'migrations/022_probe_results_hourly.sql',
+    // 020/022 are superseded by 030 which recreates the views with the full status list
+    'migrations/030_add_cdn_count_to_hourly_cagg.sql',
   ]
 
   for (const file of criticalSqlFiles) {
