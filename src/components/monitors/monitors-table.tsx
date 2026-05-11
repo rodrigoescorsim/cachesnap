@@ -249,10 +249,11 @@ function UptimeBar({ value }: { value: number | null }) {
   return (
     <PremiumTooltip
       content={`Successful checks in the last 24h: ${rounded.toFixed(1)}%.`}
-      position="top-right"
+      position="top-center"
       direction="top"
     >
-      <div className="flex items-center justify-end gap-2.5">
+      <div className="flex flex-col items-center gap-1">
+        <span className="text-[10px] font-bold tabular-nums text-zinc-300 leading-none">{rounded.toFixed(1)}%</span>
         <div className="relative h-1.5 w-16 overflow-hidden rounded-full bg-white/[0.07] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.025)]">
           <div
             className="h-full rounded-full transition-all"
@@ -266,7 +267,6 @@ function UptimeBar({ value }: { value: number | null }) {
             />
           )}
         </div>
-        <span className="inline-block w-[5.5ch] text-right text-[11px] font-bold tabular-nums text-zinc-300">{rounded.toFixed(1)}%</span>
       </div>
     </PremiumTooltip>
   )
