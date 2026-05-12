@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { Info } from 'lucide-react'
 import { CustomSelect } from '@/components/custom-select'
 import { CsCheckbox } from '@/components/cs-checkbox'
+import { PremiumTooltip } from '@/components/premium-tooltip'
 
 export type TrendComparator = 'prev_hour' | 'same_hour_prev_day' | 'day_avg'
 
@@ -676,9 +678,16 @@ export function MonitorEditForm({
 
             {/* ── LEFT: Cache rate drop ─────────────────────────────────── */}
             <div className="space-y-3">
-              <p className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">Cache rate drop</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">Cache rate drop</p>
+                <PremiumTooltip content="Absolute drop in cache hit rate between the current window and the reference period, measured in percentage points. E.g. 90% → 70% = 20 pp." position="top-left">
+                  <Info className="h-3.5 w-3.5 text-zinc-400/90 hover:text-zinc-200 transition-colors cursor-help" aria-hidden />
+                </PremiumTooltip>
+              </div>
 
-              <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest">Per region · 4h</p>
+              <PremiumTooltip content="Watches each probe region separately over a 4-hour window. Catches localized drops before they spread." position="top-left">
+                <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest cursor-help">Per region · 4h</p>
+              </PremiumTooltip>
               <div className="flex items-center gap-3">
                 <CsCheckbox
                   id={`${p}-alert_cache_hit_trend_enabled`}
@@ -703,7 +712,9 @@ export function MonitorEditForm({
 
               <div className="border-t border-white/10 my-1" />
 
-              <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest">Global · 1h</p>
+              <PremiumTooltip content="Aggregates all regions into one metric over a 1-hour window. Catches site-wide shifts faster." position="top-left">
+                <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest cursor-help">Global · 1h</p>
+              </PremiumTooltip>
               <div className="flex items-center gap-3">
                 <CsCheckbox
                   id={`${p}-alert_cache_hit_trend_global_enabled`}
@@ -729,9 +740,16 @@ export function MonitorEditForm({
 
             {/* ── RIGHT: TTFB Trend ─────────────────────────────────────── */}
             <div className="space-y-3">
-              <p className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">TTFB Trend</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">TTFB Trend</p>
+                <PremiumTooltip content="Percentage change in average TTFB between the current window and the reference period." position="top-left">
+                  <Info className="h-3.5 w-3.5 text-zinc-400/90 hover:text-zinc-200 transition-colors cursor-help" aria-hidden />
+                </PremiumTooltip>
+              </div>
 
-              <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest">Per region · 4h</p>
+              <PremiumTooltip content="Watches each probe region separately over a 4-hour window. Catches localized drops before they spread." position="top-left">
+                <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest cursor-help">Per region · 4h</p>
+              </PremiumTooltip>
               <div className="flex items-center gap-3">
                 <CsCheckbox
                   id={`${p}-alert_ttfb_trend_enabled`}
@@ -756,7 +774,9 @@ export function MonitorEditForm({
 
               <div className="border-t border-white/10 my-1" />
 
-              <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest">Global · 1h</p>
+              <PremiumTooltip content="Aggregates all regions into one metric over a 1-hour window. Catches site-wide shifts faster." position="top-left">
+                <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest cursor-help">Global · 1h</p>
+              </PremiumTooltip>
               <div className="flex items-center gap-3">
                 <CsCheckbox
                   id={`${p}-alert_ttfb_trend_global_enabled`}
@@ -846,22 +866,28 @@ export function MonitorEditForm({
                   })}
                 </div>
                 <div className="flex gap-1.5 pt-1">
-                  {([
-                    { value: 'worsening' as const, label: 'Worsening only' },
-                    { value: 'both' as const, label: 'Any direction' },
-                  ]).map(opt => (
+                  <button
+                    type="button"
+                    onClick={() => handleInputChange('alert_ttfb_trend_direction', 'worsening')}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all border ${values.alert_ttfb_trend_direction === 'worsening'
+                      ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 text-white'
+                      : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
+                    }`}
+                  >
+                    Worsening only
+                  </button>
+                  <PremiumTooltip content="Also fires if TTFB drops unexpectedly — may indicate cache bypass or routing change." position="top-center">
                     <button
-                      key={opt.value}
                       type="button"
-                      onClick={() => handleInputChange('alert_ttfb_trend_direction', opt.value)}
-                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all border ${values.alert_ttfb_trend_direction === opt.value
+                      onClick={() => handleInputChange('alert_ttfb_trend_direction', 'both')}
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all border ${values.alert_ttfb_trend_direction === 'both'
                         ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 text-white'
                         : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
                       }`}
                     >
-                      {opt.label}
+                      Any direction
                     </button>
-                  ))}
+                  </PremiumTooltip>
                 </div>
               </div>
             </div>
