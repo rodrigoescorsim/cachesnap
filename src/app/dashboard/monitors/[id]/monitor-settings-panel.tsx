@@ -34,9 +34,10 @@ export function MonitorSettingsPanel(props: {
   alertTtfbTrendThresholdPct: number
   alertTtfbTrendComparators: TrendComparator[]
   alertTtfbTrendDirection: 'worsening' | 'both'
-  alertTrendRequireConsecutive: boolean
-  alertTrendGlobalEnabled: boolean
-  alertTrendGlobalThresholdFactor: number
+  alertCacheHitTrendGlobalEnabled: boolean
+  alertCacheHitTrendGlobalThresholdPp: number
+  alertTtfbTrendGlobalEnabled: boolean
+  alertTtfbTrendGlobalThresholdPct: number
   globalHitAvg?: number
   globalMissAvg?: number
 }) {

@@ -29,7 +29,7 @@ export interface MonitorEditFormProps {
   alertCacheHitEnabled: boolean
   alertCacheHitThresholdPct: number
   cacheHitCriticalPct: number
-  // Trend alerts
+  // Trend alerts — regional (4h window)
   alertCacheHitTrendEnabled: boolean
   alertCacheHitTrendThresholdPp: number
   alertCacheHitTrendComparators: TrendComparator[]
@@ -37,9 +37,11 @@ export interface MonitorEditFormProps {
   alertTtfbTrendThresholdPct: number
   alertTtfbTrendComparators: TrendComparator[]
   alertTtfbTrendDirection: 'worsening' | 'both'
-  alertTrendRequireConsecutive: boolean
-  alertTrendGlobalEnabled: boolean
-  alertTrendGlobalThresholdFactor: number
+  // Trend alerts — global (1h window)
+  alertCacheHitTrendGlobalEnabled: boolean
+  alertCacheHitTrendGlobalThresholdPp: number
+  alertTtfbTrendGlobalEnabled: boolean
+  alertTtfbTrendGlobalThresholdPct: number
   globalHitAvg?: number
   globalMissAvg?: number
   /** Prefix for input ids when multiple forms could exist */
@@ -77,9 +79,10 @@ export function MonitorEditForm({
   alertTtfbTrendThresholdPct,
   alertTtfbTrendComparators,
   alertTtfbTrendDirection,
-  alertTrendRequireConsecutive,
-  alertTrendGlobalEnabled,
-  alertTrendGlobalThresholdFactor,
+  alertCacheHitTrendGlobalEnabled,
+  alertCacheHitTrendGlobalThresholdPp,
+  alertTtfbTrendGlobalEnabled,
+  alertTtfbTrendGlobalThresholdPct,
   globalHitAvg = 0,
   globalMissAvg = 0,
   idPrefix = 'settings',
@@ -111,15 +114,16 @@ export function MonitorEditForm({
     alert_cache_hit_threshold_pct: alertCacheHitThresholdPct ?? 80,
     cache_hit_critical_pct: cacheHitCriticalPct ?? 50,
     alert_cache_hit_trend_enabled: alertCacheHitTrendEnabled ?? true,
-    alert_cache_hit_trend_threshold_pp: alertCacheHitTrendThresholdPp ?? 10,
+    alert_cache_hit_trend_threshold_pp: alertCacheHitTrendThresholdPp ?? 20,
     alert_cache_hit_trend_comparators: alertCacheHitTrendComparators ?? ['prev_hour', 'day_avg'],
     alert_ttfb_trend_enabled: alertTtfbTrendEnabled ?? true,
-    alert_ttfb_trend_threshold_pct: alertTtfbTrendThresholdPct || 50,
+    alert_ttfb_trend_threshold_pct: alertTtfbTrendThresholdPct ?? 60,
     alert_ttfb_trend_comparators: alertTtfbTrendComparators ?? ['prev_hour', 'day_avg'],
     alert_ttfb_trend_direction: alertTtfbTrendDirection ?? 'worsening',
-    alert_trend_require_consecutive: alertTrendRequireConsecutive ?? false,
-    alert_trend_global_enabled: alertTrendGlobalEnabled ?? true,
-    alert_trend_global_threshold_factor: alertTrendGlobalThresholdFactor ?? 1.5,
+    alert_cache_hit_trend_global_enabled: alertCacheHitTrendGlobalEnabled ?? true,
+    alert_cache_hit_trend_global_threshold_pp: alertCacheHitTrendGlobalThresholdPp ?? 10,
+    alert_ttfb_trend_global_enabled: alertTtfbTrendGlobalEnabled ?? true,
+    alert_ttfb_trend_global_threshold_pct: alertTtfbTrendGlobalThresholdPct ?? 30,
   })
   type FormValues = typeof values
 
@@ -156,17 +160,13 @@ export function MonitorEditForm({
       const n = Number(value)
       if (isNaN(n) || n < 0 || n > 100) return 'Must be between 0 and 100%'
     }
-    if (field === 'alert_cache_hit_trend_threshold_pp') {
+    if (field === 'alert_cache_hit_trend_threshold_pp' || field === 'alert_cache_hit_trend_global_threshold_pp') {
       const n = Number(value)
       if (isNaN(n) || n < 0.5 || n > 100) return 'Must be between 0.5 and 100 pp'
     }
-    if (field === 'alert_ttfb_trend_threshold_pct') {
+    if (field === 'alert_ttfb_trend_threshold_pct' || field === 'alert_ttfb_trend_global_threshold_pct') {
       const n = Number(value)
       if (isNaN(n) || n < 1 || n > 100) return 'Must be between 1 and 100%'
-    }
-    if (field === 'alert_trend_global_threshold_factor') {
-      const n = Number(value)
-      if (isNaN(n) || n < 1.0 || n > 5.0) return 'Must be between 1.0 and 5.0'
     }
     return null
   }, [])
@@ -182,8 +182,10 @@ export function MonitorEditForm({
     const cacheHitCriticalErr = validate('cache_hit_critical_pct', current.cache_hit_critical_pct, current)
     const cacheHitTrendErr = validate('alert_cache_hit_trend_threshold_pp', current.alert_cache_hit_trend_threshold_pp, current)
     const ttfbTrendErr = validate('alert_ttfb_trend_threshold_pct', current.alert_ttfb_trend_threshold_pct, current)
+    const cacheHitTrendGlobalErr = validate('alert_cache_hit_trend_global_threshold_pp', current.alert_cache_hit_trend_global_threshold_pp, current)
+    const ttfbTrendGlobalErr = validate('alert_ttfb_trend_global_threshold_pct', current.alert_ttfb_trend_global_threshold_pct, current)
 
-    if (emailErr || slackErr || thresholdErr || cacheAgeHoursErr || cacheHitErr || cacheHitCriticalErr || cacheHitTrendErr || ttfbTrendErr) {
+    if (emailErr || slackErr || thresholdErr || cacheAgeHoursErr || cacheHitErr || cacheHitCriticalErr || cacheHitTrendErr || ttfbTrendErr || cacheHitTrendGlobalErr || ttfbTrendGlobalErr) {
       setErrors(prev => ({
         ...prev,
         notify_email: emailErr,
@@ -195,6 +197,8 @@ export function MonitorEditForm({
         cache_hit_critical_pct: cacheHitCriticalErr,
         alert_cache_hit_trend_threshold_pp: cacheHitTrendErr,
         alert_ttfb_trend_threshold_pct: ttfbTrendErr,
+        alert_cache_hit_trend_global_threshold_pp: cacheHitTrendGlobalErr,
+        alert_ttfb_trend_global_threshold_pct: ttfbTrendGlobalErr,
       }))
       return
     }
@@ -257,7 +261,8 @@ export function MonitorEditForm({
       values.cache_hit_critical_pct !== lastSavedValues.current.cache_hit_critical_pct ||
       values.alert_cache_hit_trend_threshold_pp !== lastSavedValues.current.alert_cache_hit_trend_threshold_pp ||
       values.alert_ttfb_trend_threshold_pct !== lastSavedValues.current.alert_ttfb_trend_threshold_pct ||
-      values.alert_trend_global_threshold_factor !== lastSavedValues.current.alert_trend_global_threshold_factor
+      values.alert_cache_hit_trend_global_threshold_pp !== lastSavedValues.current.alert_cache_hit_trend_global_threshold_pp ||
+      values.alert_ttfb_trend_global_threshold_pct !== lastSavedValues.current.alert_ttfb_trend_global_threshold_pct
 
     const delay = isTyping ? 800 : 0
     const timeout = setTimeout(() => triggerSave(values), delay)
@@ -664,12 +669,14 @@ export function MonitorEditForm({
           <div className="cs-card-wash" />
           <h3 className="cs-section-header">Trend alerts</h3>
           <p className="text-xs text-zinc-400 mb-5 relative z-10">
-            Get notified when your response time or cache rate shifts significantly — before small regressions become bigger problems. Trends compare hourly windows against a reference point you choose.
+            Get notified when response time or cache rate shifts significantly. Regional alerts use a 4-hour rolling window (~48 probes) for statistical reliability. Global alerts use a 1-hour window across all regions combined (~96 probes).
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
-            {/* CACHE HIT TREND */}
+
+            {/* ── CACHE RATE DROP — PER REGION ──────────────────────────────── */}
             <div className="space-y-4">
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Per region · 4h window</p>
               <div className="flex items-start gap-3">
                 <CsCheckbox
                   id={`${p}-alert_cache_hit_trend_enabled`}
@@ -680,14 +687,14 @@ export function MonitorEditForm({
                 <label htmlFor={`${p}-alert_cache_hit_trend_enabled`} className="cursor-pointer select-none flex-1">
                   <span className="text-xs font-bold text-zinc-200 block">Cache rate drop</span>
                   <span className="text-xs text-zinc-400 leading-relaxed">
-                    Alert when CDN cache hit rate falls by at least the threshold (in percentage points vs the reference window). May indicate a misconfiguration or cache purge.
+                    Fires when cache hit rate drops by more than the threshold below, measured in percentage points (pp) — not relative percent. May indicate a misconfiguration or cache purge.
                   </span>
                 </label>
               </div>
 
               <div className={`ml-7 space-y-4 transition-opacity ${values.alert_cache_hit_trend_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
                 <div className="space-y-1.5">
-                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Drop threshold</span>
+                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Drop threshold (pp)</span>
                   <div className="relative w-24">
                     <input
                       type="number" min={0.5} max={100} step={0.5}
@@ -699,7 +706,7 @@ export function MonitorEditForm({
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-500 pointer-events-none">pp</span>
                   </div>
                   <p className="text-[10px] text-zinc-600 leading-snug max-w-xs">
-                    Minimum fall in cache hit rate (percentage points) vs the reference window before we alert. Example: 10 pp means 75% → 65% triggers; 10% → 5% does not.
+                    Example: 20 pp means 95% → 75% triggers; 10% → 5% does not.
                   </p>
                   {errors.alert_cache_hit_trend_threshold_pp && (
                     <span className="cs-error-msg">{errors.alert_cache_hit_trend_threshold_pp}</span>
@@ -737,12 +744,14 @@ export function MonitorEditForm({
                       )
                     })}
                   </div>
+                  <p className="text-[10px] text-zinc-600">Also applies to global checks below.</p>
                 </div>
               </div>
             </div>
 
-            {/* TTFB TREND */}
+            {/* ── TTFB TREND — PER REGION ───────────────────────────────────── */}
             <div className="space-y-4">
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Per region · 4h window</p>
               <div className="flex items-start gap-3">
                 <CsCheckbox
                   id={`${p}-alert_ttfb_trend_enabled`}
@@ -830,63 +839,90 @@ export function MonitorEditForm({
                       )
                     })}
                   </div>
+                  <p className="text-[10px] text-zinc-600">Also applies to global checks below.</p>
                 </div>
               </div>
             </div>
+
+            {/* ── CACHE RATE DROP — GLOBAL ───────────────────────────────────── */}
+            <div className="space-y-4 pt-4 border-t border-white/5">
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Global · 1h window · ~96 probes</p>
+              <div className="flex items-start gap-3">
+                <CsCheckbox
+                  id={`${p}-alert_cache_hit_trend_global_enabled`}
+                  align="start"
+                  checked={values.alert_cache_hit_trend_global_enabled}
+                  onChange={(e) => handleInputChange('alert_cache_hit_trend_global_enabled', e.target.checked)}
+                />
+                <label htmlFor={`${p}-alert_cache_hit_trend_global_enabled`} className="cursor-pointer select-none flex-1">
+                  <span className="text-xs font-bold text-zinc-200 block">Cache rate drop</span>
+                  <span className="text-xs text-zinc-400 leading-relaxed">
+                    Fires when the cache hit rate across all regions combined drops by more than the threshold. Detects systemic issues within 1 hour.
+                  </span>
+                </label>
+              </div>
+
+              <div className={`ml-7 space-y-1.5 transition-opacity ${values.alert_cache_hit_trend_global_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
+                <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Drop threshold (pp)</span>
+                <div className="relative w-24">
+                  <input
+                    type="number" min={0.5} max={100} step={0.5}
+                    value={values.alert_cache_hit_trend_global_threshold_pp}
+                    onChange={(e) => handleInputChange('alert_cache_hit_trend_global_threshold_pp', Number(e.target.value))}
+                    disabled={!values.alert_cache_hit_trend_global_enabled}
+                    className={`h-9 w-full cs-input text-sm pr-10 text-center ${errors.alert_cache_hit_trend_global_threshold_pp ? 'cs-input-error' : ''}`}
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-500 pointer-events-none">pp</span>
+                </div>
+                <p className="text-[10px] text-zinc-600 leading-snug max-w-xs">
+                  Lower than the regional threshold — global changes are smoothed across regions.
+                </p>
+                {errors.alert_cache_hit_trend_global_threshold_pp && (
+                  <span className="cs-error-msg">{errors.alert_cache_hit_trend_global_threshold_pp}</span>
+                )}
+              </div>
+            </div>
+
+            {/* ── TTFB TREND — GLOBAL ───────────────────────────────────────── */}
+            <div className="space-y-4 pt-4 border-t border-white/5">
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Global · 1h window · ~96 probes</p>
+              <div className="flex items-start gap-3">
+                <CsCheckbox
+                  id={`${p}-alert_ttfb_trend_global_enabled`}
+                  align="start"
+                  checked={values.alert_ttfb_trend_global_enabled}
+                  onChange={(e) => handleInputChange('alert_ttfb_trend_global_enabled', e.target.checked)}
+                />
+                <label htmlFor={`${p}-alert_ttfb_trend_global_enabled`} className="cursor-pointer select-none flex-1">
+                  <span className="text-xs font-bold text-zinc-200 block">TTFB Trend</span>
+                  <span className="text-xs text-zinc-400 leading-relaxed">
+                    Fires when TTFB across all regions shifts by more than the threshold. Catches widespread degradation faster than regional checks.
+                  </span>
+                </label>
+              </div>
+
+              <div className={`ml-7 space-y-1.5 transition-opacity ${values.alert_ttfb_trend_global_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
+                <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Change threshold</span>
+                <div className="relative w-24">
+                  <input
+                    type="number" min={1} max={100} step={1}
+                    value={values.alert_ttfb_trend_global_threshold_pct}
+                    onChange={(e) => handleInputChange('alert_ttfb_trend_global_threshold_pct', Number(e.target.value))}
+                    disabled={!values.alert_ttfb_trend_global_enabled}
+                    className={`h-9 w-full cs-input text-sm pr-8 text-center ${errors.alert_ttfb_trend_global_threshold_pct ? 'cs-input-error' : ''}`}
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">%</span>
+                </div>
+                <p className="text-[10px] text-zinc-600 leading-snug max-w-xs">
+                  Lower than the regional threshold — global TTFB averages out regional variance.
+                </p>
+                {errors.alert_ttfb_trend_global_threshold_pct && (
+                  <span className="cs-error-msg">{errors.alert_ttfb_trend_global_threshold_pct}</span>
+                )}
+              </div>
+            </div>
+
           </div>
-
-          {(values.alert_cache_hit_trend_enabled || values.alert_ttfb_trend_enabled) && (
-            <div className="mt-6 pt-5 border-t border-white/6 relative z-10">
-              <h4 className="cs-section-header">FINE TUNING</h4>
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-2">
-                  <CsCheckbox
-                    id={`${p}-trend-require-consecutive`}
-                    checked={values.alert_trend_require_consecutive}
-                    onChange={(e) => handleInputChange('alert_trend_require_consecutive', e.target.checked)}
-                  />
-                  <label htmlFor={`${p}-trend-require-consecutive`} className="text-xs text-zinc-400 cursor-pointer select-none">
-                    Confirm over 2 windows
-                  </label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CsCheckbox
-                    id={`${p}-trend-global-enabled`}
-                    checked={values.alert_trend_global_enabled}
-                    onChange={(e) => handleInputChange('alert_trend_global_enabled', e.target.checked)}
-                  />
-                  <label
-                    htmlFor={`${p}-trend-global-enabled`}
-                    className="text-xs text-zinc-400 cursor-pointer select-none"
-                    title="Per-region alerts stay on; this adds the same trend checks on all regions combined."
-                  >
-                    Also alert using global aggregate
-                  </label>
-                </div>
-              </div>
-
-              {values.alert_trend_global_enabled && (
-                <div className="mt-5 pt-4 border-t border-white/5 space-y-1.5">
-                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Aggregate multiplier</span>
-                  <div className="flex items-center gap-3">
-                    <div className="relative w-24">
-                      <input
-                        type="number" min={1.0} max={5.0} step={0.1}
-                        value={values.alert_trend_global_threshold_factor}
-                        onChange={(e) => handleInputChange('alert_trend_global_threshold_factor', Number(e.target.value))}
-                        className={`h-9 w-full cs-input text-sm text-center ${errors.alert_trend_global_threshold_factor ? 'cs-input-error' : ''}`}
-                      />
-                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">×</span>
-                    </div>
-                    <span className="text-xs text-zinc-500">your pp threshold × this factor (TTFB trends still use %)</span>
-                    {errors.alert_trend_global_threshold_factor && (
-                      <span className="cs-error-msg">{errors.alert_trend_global_threshold_factor}</span>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </section>
 
       </div>

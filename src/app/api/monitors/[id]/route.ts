@@ -35,9 +35,10 @@ const updateSchema = z.object({
   alert_ttfb_trend_threshold_pct: z.number().min(1).max(100).optional(),
   alert_ttfb_trend_comparators: z.array(z.enum(VALID_COMPARATORS)).min(1).optional(),
   alert_ttfb_trend_direction: z.enum(['worsening', 'both']).optional(),
-  alert_trend_require_consecutive: z.boolean().optional(),
-  alert_trend_global_enabled: z.boolean().optional(),
-  alert_trend_global_threshold_factor: z.number().min(1.0).max(5.0).optional(),
+  alert_cache_hit_trend_global_enabled: z.boolean().optional(),
+  alert_cache_hit_trend_global_threshold_pp: z.number().min(0.5).max(100).optional(),
+  alert_ttfb_trend_global_enabled: z.boolean().optional(),
+  alert_ttfb_trend_global_threshold_pct: z.number().min(1).max(100).optional(),
 })
 
 export async function GET(
@@ -57,7 +58,8 @@ export async function GET(
            alert_cache_hit_trend_enabled, alert_cache_hit_trend_threshold_pp, alert_cache_hit_trend_comparators,
            alert_ttfb_trend_enabled, alert_ttfb_trend_threshold_pct, alert_ttfb_trend_comparators,
            alert_ttfb_trend_direction,
-           alert_trend_require_consecutive, alert_trend_global_enabled, alert_trend_global_threshold_factor,
+           alert_cache_hit_trend_global_enabled, alert_cache_hit_trend_global_threshold_pp,
+           alert_ttfb_trend_global_enabled, alert_ttfb_trend_global_threshold_pct,
            created_at
     FROM monitors WHERE id = ${id} AND user_id = ${user.id} LIMIT 1
   `
@@ -94,7 +96,8 @@ export async function PATCH(
     alert_cache_hit_trend_enabled, alert_cache_hit_trend_threshold_pp, alert_cache_hit_trend_comparators,
     alert_ttfb_trend_enabled, alert_ttfb_trend_threshold_pct, alert_ttfb_trend_comparators,
     alert_ttfb_trend_direction,
-    alert_trend_require_consecutive, alert_trend_global_enabled, alert_trend_global_threshold_factor,
+    alert_cache_hit_trend_global_enabled, alert_cache_hit_trend_global_threshold_pp,
+    alert_ttfb_trend_global_enabled, alert_ttfb_trend_global_threshold_pct,
   } = parsed.data
 
   const allUndefined = [
@@ -106,7 +109,8 @@ export async function PATCH(
     alert_cache_hit_trend_enabled, alert_cache_hit_trend_threshold_pp, alert_cache_hit_trend_comparators,
     alert_ttfb_trend_enabled, alert_ttfb_trend_threshold_pct, alert_ttfb_trend_comparators,
     alert_ttfb_trend_direction,
-    alert_trend_require_consecutive, alert_trend_global_enabled, alert_trend_global_threshold_factor,
+    alert_cache_hit_trend_global_enabled, alert_cache_hit_trend_global_threshold_pp,
+    alert_ttfb_trend_global_enabled, alert_ttfb_trend_global_threshold_pct,
   ].every(v => v === undefined)
 
   if (allUndefined) {
@@ -143,9 +147,10 @@ export async function PATCH(
       alert_ttfb_trend_threshold_pct       = COALESCE(${alert_ttfb_trend_threshold_pct ?? null}, alert_ttfb_trend_threshold_pct),
       alert_ttfb_trend_comparators         = COALESCE(${alert_ttfb_trend_comparators ?? null}, alert_ttfb_trend_comparators),
       alert_ttfb_trend_direction           = COALESCE(${alert_ttfb_trend_direction ?? null}, alert_ttfb_trend_direction),
-      alert_trend_require_consecutive      = COALESCE(${alert_trend_require_consecutive ?? null}, alert_trend_require_consecutive),
-      alert_trend_global_enabled           = COALESCE(${alert_trend_global_enabled ?? null}, alert_trend_global_enabled),
-      alert_trend_global_threshold_factor  = COALESCE(${alert_trend_global_threshold_factor ?? null}, alert_trend_global_threshold_factor)
+      alert_cache_hit_trend_global_enabled        = COALESCE(${alert_cache_hit_trend_global_enabled ?? null}, alert_cache_hit_trend_global_enabled),
+      alert_cache_hit_trend_global_threshold_pp   = COALESCE(${alert_cache_hit_trend_global_threshold_pp ?? null}, alert_cache_hit_trend_global_threshold_pp),
+      alert_ttfb_trend_global_enabled             = COALESCE(${alert_ttfb_trend_global_enabled ?? null}, alert_ttfb_trend_global_enabled),
+      alert_ttfb_trend_global_threshold_pct       = COALESCE(${alert_ttfb_trend_global_threshold_pct ?? null}, alert_ttfb_trend_global_threshold_pct)
     WHERE id = ${id} AND user_id = ${user.id}
     RETURNING id, url, name, check_interval_seconds, audit_interval_seconds, is_active,
               notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
@@ -156,7 +161,8 @@ export async function PATCH(
               alert_cache_hit_trend_enabled, alert_cache_hit_trend_threshold_pp, alert_cache_hit_trend_comparators,
               alert_ttfb_trend_enabled, alert_ttfb_trend_threshold_pct, alert_ttfb_trend_comparators,
               alert_ttfb_trend_direction,
-              alert_trend_require_consecutive, alert_trend_global_enabled, alert_trend_global_threshold_factor,
+              alert_cache_hit_trend_global_enabled, alert_cache_hit_trend_global_threshold_pp,
+              alert_ttfb_trend_global_enabled, alert_ttfb_trend_global_threshold_pct,
               created_at
   `
 

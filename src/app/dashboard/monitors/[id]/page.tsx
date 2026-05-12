@@ -562,7 +562,8 @@ export default async function MonitorDetailPage({
     alert_cache_hit_trend_enabled: boolean; alert_cache_hit_trend_threshold_pp: number; alert_cache_hit_trend_comparators: string[];
     alert_ttfb_trend_enabled: boolean; alert_ttfb_trend_threshold_pct: number; alert_ttfb_trend_comparators: string[];
     alert_ttfb_trend_direction: string;
-    alert_trend_require_consecutive: boolean; alert_trend_global_enabled: boolean; alert_trend_global_threshold_factor: number;
+    alert_cache_hit_trend_global_enabled: boolean; alert_cache_hit_trend_global_threshold_pp: number;
+    alert_ttfb_trend_global_enabled: boolean; alert_ttfb_trend_global_threshold_pct: number;
   }[]>`
     SELECT id, url, name, is_active, check_interval_seconds, audit_interval_seconds,
            notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
@@ -573,7 +574,8 @@ export default async function MonitorDetailPage({
            alert_cache_hit_trend_enabled, alert_cache_hit_trend_threshold_pp, alert_cache_hit_trend_comparators,
            alert_ttfb_trend_enabled, alert_ttfb_trend_threshold_pct, alert_ttfb_trend_comparators,
            alert_ttfb_trend_direction,
-           alert_trend_require_consecutive, alert_trend_global_enabled, alert_trend_global_threshold_factor
+           alert_cache_hit_trend_global_enabled, alert_cache_hit_trend_global_threshold_pp,
+           alert_ttfb_trend_global_enabled, alert_ttfb_trend_global_threshold_pct
     FROM monitors WHERE id = ${id} AND user_id = ${user.id} LIMIT 1
   `
   if (!monitor) notFound()
@@ -2102,9 +2104,10 @@ export default async function MonitorDetailPage({
                     alertTtfbTrendThresholdPct={monitor.alert_ttfb_trend_threshold_pct}
                     alertTtfbTrendComparators={(monitor.alert_ttfb_trend_comparators ?? ['prev_hour', 'day_avg']) as TrendComparator[]}
                     alertTtfbTrendDirection={(monitor.alert_ttfb_trend_direction ?? 'worsening') as 'worsening' | 'both'}
-                    alertTrendRequireConsecutive={monitor.alert_trend_require_consecutive}
-                    alertTrendGlobalEnabled={monitor.alert_trend_global_enabled}
-                    alertTrendGlobalThresholdFactor={monitor.alert_trend_global_threshold_factor}
+                    alertCacheHitTrendGlobalEnabled={monitor.alert_cache_hit_trend_global_enabled}
+                    alertCacheHitTrendGlobalThresholdPp={monitor.alert_cache_hit_trend_global_threshold_pp}
+                    alertTtfbTrendGlobalEnabled={monitor.alert_ttfb_trend_global_enabled}
+                    alertTtfbTrendGlobalThresholdPct={monitor.alert_ttfb_trend_global_threshold_pct}
                     globalHitAvg={globalHitAvg}
                     globalMissAvg={globalMissAvg}
                   />
