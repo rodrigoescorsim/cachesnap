@@ -446,6 +446,10 @@ notify_email_enabled    BOOLEAN
 notify_slack_webhook    TEXT
 notify_slack_enabled    BOOLEAN
 cdn_provider            TEXT        -- detectado automaticamente pelo probe
+alert_trend_min_samples INT         -- padrão 10: mínimo de probes na hora atual e na janela de referência antes de avaliar alertas de tendência (cache hit / TTFB), ver `api/src/trend/detector.rs`
+alert_ttfb_trend_threshold_pct FLOAT -- padrão 50: limiar em % de mudança relativa de TTFB vs janela de referência (`api/src/trend/detector.rs`)
+alert_cache_hit_trend_comparators TEXT[] -- padrão {prev_hour, day_avg}; same_hour_prev_day opcional no UI
+alert_ttfb_trend_comparators     TEXT[] -- idem
 ```
 
 ---
