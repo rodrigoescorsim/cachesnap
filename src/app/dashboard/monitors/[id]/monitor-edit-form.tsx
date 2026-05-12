@@ -37,7 +37,6 @@ export interface MonitorEditFormProps {
   alertTtfbTrendThresholdPct: number
   alertTtfbTrendComparators: TrendComparator[]
   alertTtfbTrendDirection: 'worsening' | 'both'
-  alertTrendMinSamples: number
   alertTrendRequireConsecutive: boolean
   alertTrendGlobalEnabled: boolean
   alertTrendGlobalThresholdFactor: number
@@ -78,7 +77,6 @@ export function MonitorEditForm({
   alertTtfbTrendThresholdPct,
   alertTtfbTrendComparators,
   alertTtfbTrendDirection,
-  alertTrendMinSamples,
   alertTrendRequireConsecutive,
   alertTrendGlobalEnabled,
   alertTrendGlobalThresholdFactor,
@@ -119,7 +117,6 @@ export function MonitorEditForm({
     alert_ttfb_trend_threshold_pct: alertTtfbTrendThresholdPct || 50,
     alert_ttfb_trend_comparators: alertTtfbTrendComparators ?? ['prev_hour', 'day_avg'],
     alert_ttfb_trend_direction: alertTtfbTrendDirection ?? 'worsening',
-    alert_trend_min_samples: alertTrendMinSamples ?? 10,
     alert_trend_require_consecutive: alertTrendRequireConsecutive ?? false,
     alert_trend_global_enabled: alertTrendGlobalEnabled ?? true,
     alert_trend_global_threshold_factor: alertTrendGlobalThresholdFactor ?? 1.5,
@@ -167,10 +164,6 @@ export function MonitorEditForm({
       const n = Number(value)
       if (isNaN(n) || n < 1 || n > 100) return 'Must be between 1 and 100%'
     }
-    if (field === 'alert_trend_min_samples') {
-      const n = Number(value)
-      if (isNaN(n) || n < 1 || n > 60) return 'Must be between 1 and 60'
-    }
     if (field === 'alert_trend_global_threshold_factor') {
       const n = Number(value)
       if (isNaN(n) || n < 1.0 || n > 5.0) return 'Must be between 1.0 and 5.0'
@@ -189,9 +182,8 @@ export function MonitorEditForm({
     const cacheHitCriticalErr = validate('cache_hit_critical_pct', current.cache_hit_critical_pct, current)
     const cacheHitTrendErr = validate('alert_cache_hit_trend_threshold_pp', current.alert_cache_hit_trend_threshold_pp, current)
     const ttfbTrendErr = validate('alert_ttfb_trend_threshold_pct', current.alert_ttfb_trend_threshold_pct, current)
-    const minSamplesErr = validate('alert_trend_min_samples', current.alert_trend_min_samples, current)
 
-    if (emailErr || slackErr || thresholdErr || cacheAgeHoursErr || cacheHitErr || cacheHitCriticalErr || cacheHitTrendErr || ttfbTrendErr || minSamplesErr) {
+    if (emailErr || slackErr || thresholdErr || cacheAgeHoursErr || cacheHitErr || cacheHitCriticalErr || cacheHitTrendErr || ttfbTrendErr) {
       setErrors(prev => ({
         ...prev,
         notify_email: emailErr,
@@ -203,7 +195,6 @@ export function MonitorEditForm({
         cache_hit_critical_pct: cacheHitCriticalErr,
         alert_cache_hit_trend_threshold_pp: cacheHitTrendErr,
         alert_ttfb_trend_threshold_pct: ttfbTrendErr,
-        alert_trend_min_samples: minSamplesErr,
       }))
       return
     }
@@ -266,7 +257,6 @@ export function MonitorEditForm({
       values.cache_hit_critical_pct !== lastSavedValues.current.cache_hit_critical_pct ||
       values.alert_cache_hit_trend_threshold_pp !== lastSavedValues.current.alert_cache_hit_trend_threshold_pp ||
       values.alert_ttfb_trend_threshold_pct !== lastSavedValues.current.alert_ttfb_trend_threshold_pct ||
-      values.alert_trend_min_samples !== lastSavedValues.current.alert_trend_min_samples ||
       values.alert_trend_global_threshold_factor !== lastSavedValues.current.alert_trend_global_threshold_factor
 
     const delay = isTyping ? 800 : 0
@@ -845,57 +835,39 @@ export function MonitorEditForm({
             </div>
           </div>
 
-          {/* FINE-TUNING — shared between both metrics */}
           {(values.alert_cache_hit_trend_enabled || values.alert_ttfb_trend_enabled) && (
             <div className="mt-6 pt-5 border-t border-white/6 relative z-10">
-              <p className="cs-label mb-4">Fine-tuning <span className="text-zinc-600 font-normal normal-case tracking-normal">— optional, reduces false positives</span></p>
-              <div className="flex flex-col sm:flex-row gap-6">
-                {/* Numeric inputs */}
-                <div className="grid grid-cols-1 gap-4 flex-1 max-w-xs">
-                  <div className="space-y-1.5">
-                    <label htmlFor={`${p}-trend-min-samples`} className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">Min samples / hour</label>
-                    <input
-                      id={`${p}-trend-min-samples`}
-                      type="number" min={1} max={60} step={1}
-                      value={values.alert_trend_min_samples}
-                      onChange={(e) => handleInputChange('alert_trend_min_samples', Number(e.target.value))}
-                      className={`h-9 w-full cs-input text-sm text-center ${errors.alert_trend_min_samples ? 'cs-input-error' : ''}`}
-                    />
-                    <p className="text-[10px] text-zinc-600 leading-snug max-w-xs">
-                      Default 10: we skip trend evaluation unless the current hour and the reference window each have at least this many probes (fewer noisy alerts).
-                    </p>
-                    {errors.alert_trend_min_samples && <span className="cs-error-msg">{errors.alert_trend_min_samples}</span>}
-                  </div>
+              <h4 className="cs-section-header">FINE TUNING</h4>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <CsCheckbox
+                    id={`${p}-trend-require-consecutive`}
+                    checked={values.alert_trend_require_consecutive}
+                    onChange={(e) => handleInputChange('alert_trend_require_consecutive', e.target.checked)}
+                  />
+                  <label htmlFor={`${p}-trend-require-consecutive`} className="text-xs text-zinc-400 cursor-pointer select-none">
+                    Confirm over 2 windows
+                  </label>
                 </div>
-
-                {/* Checkboxes */}
-                <div className="flex flex-col gap-3 justify-center sm:border-l sm:border-white/5 sm:pl-6">
-                  <div className="flex items-center gap-2">
-                    <CsCheckbox
-                      id={`${p}-trend-require-consecutive`}
-                      checked={values.alert_trend_require_consecutive}
-                      onChange={(e) => handleInputChange('alert_trend_require_consecutive', e.target.checked)}
-                    />
-                    <label htmlFor={`${p}-trend-require-consecutive`} className="text-xs text-zinc-400 cursor-pointer select-none">
-                      Confirm over 2 windows
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CsCheckbox
-                      id={`${p}-trend-global-enabled`}
-                      checked={values.alert_trend_global_enabled}
-                      onChange={(e) => handleInputChange('alert_trend_global_enabled', e.target.checked)}
-                    />
-                    <label htmlFor={`${p}-trend-global-enabled`} className="text-xs text-zinc-400 cursor-pointer select-none">
-                      Also alert on fleet-wide trend
-                    </label>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <CsCheckbox
+                    id={`${p}-trend-global-enabled`}
+                    checked={values.alert_trend_global_enabled}
+                    onChange={(e) => handleInputChange('alert_trend_global_enabled', e.target.checked)}
+                  />
+                  <label
+                    htmlFor={`${p}-trend-global-enabled`}
+                    className="text-xs text-zinc-400 cursor-pointer select-none"
+                    title="Per-region alerts stay on; this adds the same trend checks on all regions combined."
+                  >
+                    Also alert using global aggregate
+                  </label>
                 </div>
               </div>
 
               {values.alert_trend_global_enabled && (
                 <div className="mt-5 pt-4 border-t border-white/5 space-y-1.5">
-                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Fleet-wide multiplier</span>
+                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Aggregate multiplier</span>
                   <div className="flex items-center gap-3">
                     <div className="relative w-24">
                       <input

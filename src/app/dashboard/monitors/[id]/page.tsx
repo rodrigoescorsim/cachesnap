@@ -561,7 +561,7 @@ export default async function MonitorDetailPage({
     alert_cache_hit_enabled: boolean; alert_cache_hit_threshold_pct: number; cache_hit_critical_pct: number;
     alert_cache_hit_trend_enabled: boolean; alert_cache_hit_trend_threshold_pp: number; alert_cache_hit_trend_comparators: string[];
     alert_ttfb_trend_enabled: boolean; alert_ttfb_trend_threshold_pct: number; alert_ttfb_trend_comparators: string[];
-    alert_ttfb_trend_direction: string; alert_trend_min_samples: number;
+    alert_ttfb_trend_direction: string;
     alert_trend_require_consecutive: boolean; alert_trend_global_enabled: boolean; alert_trend_global_threshold_factor: number;
   }[]>`
     SELECT id, url, name, is_active, check_interval_seconds, audit_interval_seconds,
@@ -572,7 +572,7 @@ export default async function MonitorDetailPage({
            alert_cache_hit_enabled, alert_cache_hit_threshold_pct, cache_hit_critical_pct,
            alert_cache_hit_trend_enabled, alert_cache_hit_trend_threshold_pp, alert_cache_hit_trend_comparators,
            alert_ttfb_trend_enabled, alert_ttfb_trend_threshold_pct, alert_ttfb_trend_comparators,
-           alert_ttfb_trend_direction, alert_trend_min_samples,
+           alert_ttfb_trend_direction,
            alert_trend_require_consecutive, alert_trend_global_enabled, alert_trend_global_threshold_factor
     FROM monitors WHERE id = ${id} AND user_id = ${user.id} LIMIT 1
   `
@@ -2102,7 +2102,6 @@ export default async function MonitorDetailPage({
                     alertTtfbTrendThresholdPct={monitor.alert_ttfb_trend_threshold_pct}
                     alertTtfbTrendComparators={(monitor.alert_ttfb_trend_comparators ?? ['prev_hour', 'day_avg']) as TrendComparator[]}
                     alertTtfbTrendDirection={(monitor.alert_ttfb_trend_direction ?? 'worsening') as 'worsening' | 'both'}
-                    alertTrendMinSamples={monitor.alert_trend_min_samples}
                     alertTrendRequireConsecutive={monitor.alert_trend_require_consecutive}
                     alertTrendGlobalEnabled={monitor.alert_trend_global_enabled}
                     alertTrendGlobalThresholdFactor={monitor.alert_trend_global_threshold_factor}
