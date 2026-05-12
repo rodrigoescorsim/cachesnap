@@ -85,18 +85,20 @@ CREATE TABLE monitors (
     alert_cache_hit_enabled         BOOLEAN NOT NULL DEFAULT TRUE,
     alert_cache_hit_threshold_pct   FLOAT   NOT NULL DEFAULT 50.0,
 
-    -- Alertas de tendência
-    alert_cache_hit_trend_enabled           BOOLEAN NOT NULL DEFAULT TRUE,
-    alert_cache_hit_trend_threshold_pct     FLOAT   NOT NULL DEFAULT 40.0,
-    alert_cache_hit_trend_comparators       TEXT[]  NOT NULL DEFAULT ARRAY['prev_hour', 'day_avg'],
-    alert_ttfb_trend_enabled                BOOLEAN NOT NULL DEFAULT TRUE,
-    alert_ttfb_trend_threshold_pct          FLOAT   NOT NULL DEFAULT 50.0,
-    alert_ttfb_trend_comparators            TEXT[]  NOT NULL DEFAULT ARRAY['prev_hour', 'day_avg'],
-    alert_ttfb_trend_direction              TEXT    NOT NULL DEFAULT 'worsening',
-    alert_trend_min_samples                 INT     NOT NULL DEFAULT 10,
-    alert_trend_require_consecutive         BOOLEAN NOT NULL DEFAULT FALSE,
-    alert_trend_global_enabled              BOOLEAN NOT NULL DEFAULT FALSE,
-    alert_trend_global_threshold_factor     FLOAT   NOT NULL DEFAULT 1.5,
+    -- Alertas de tendência (regional — janela 4h)
+    alert_cache_hit_trend_enabled               BOOLEAN NOT NULL DEFAULT TRUE,
+    alert_cache_hit_trend_threshold_pp          FLOAT   NOT NULL DEFAULT 20.0,
+    alert_cache_hit_trend_comparators           TEXT[]  NOT NULL DEFAULT ARRAY['prev_hour', 'day_avg'],
+    alert_ttfb_trend_enabled                    BOOLEAN NOT NULL DEFAULT TRUE,
+    alert_ttfb_trend_threshold_pct              FLOAT   NOT NULL DEFAULT 60.0,
+    alert_ttfb_trend_comparators                TEXT[]  NOT NULL DEFAULT ARRAY['prev_hour', 'day_avg'],
+    alert_ttfb_trend_direction                  TEXT    NOT NULL DEFAULT 'worsening',
+    alert_trend_min_samples                     INT     NOT NULL DEFAULT 10,
+    -- Alertas de tendência (global — janela 1h, ~96 amostras)
+    alert_cache_hit_trend_global_enabled        BOOLEAN NOT NULL DEFAULT TRUE,
+    alert_cache_hit_trend_global_threshold_pp   FLOAT   NOT NULL DEFAULT 10.0,
+    alert_ttfb_trend_global_enabled             BOOLEAN NOT NULL DEFAULT TRUE,
+    alert_ttfb_trend_global_threshold_pct       FLOAT   NOT NULL DEFAULT 30.0,
 
     -- Audit readiness
     audit_readiness_state               TEXT  NOT NULL DEFAULT 'disabled',
