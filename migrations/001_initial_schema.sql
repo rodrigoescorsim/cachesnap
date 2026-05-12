@@ -94,7 +94,6 @@ CREATE TABLE monitors (
     alert_ttfb_trend_comparators            TEXT[]  NOT NULL DEFAULT ARRAY['prev_hour', 'day_avg'],
     alert_ttfb_trend_direction              TEXT    NOT NULL DEFAULT 'worsening',
     alert_trend_min_samples                 INT     NOT NULL DEFAULT 10,
-    alert_trend_cooldown_minutes            INT     NOT NULL DEFAULT 60,
     alert_trend_require_consecutive         BOOLEAN NOT NULL DEFAULT FALSE,
     alert_trend_global_enabled              BOOLEAN NOT NULL DEFAULT FALSE,
     alert_trend_global_threshold_factor     FLOAT   NOT NULL DEFAULT 1.5,
