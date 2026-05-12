@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { unauthorized } from '@/lib/api-auth'
 import sql from '@/lib/db'
-import { MONITOR_TTFB } from '@/lib/thresholds'
 
 // Static flag map — region IDs are stable, no need to store in DB
 const FLAG_MAP: Record<string, string> = {
@@ -93,7 +92,6 @@ export async function GET() {
         )                                                                                AS cache_hit_current,
         MODE() WITHIN GROUP (ORDER BY COALESCE(cache_status, 'NO HEADER')) FILTER (WHERE error IS NULL) AS dominant_cache_status,
         MAX(probe_time)                                                                  AS last_checked_at,
-        COUNT(*) FILTER (WHERE ttfb_ms > ${MONITOR_TTFB.FAST} AND error IS NULL)::int   AS slow_region_count,
         COUNT(*)::int                                                                    AS total_region_count,
         COUNT(*) FILTER (WHERE error IS NOT NULL)::int                                   AS error_region_count,
         COUNT(*) FILTER (WHERE status_code >= 500 AND error IS NULL)::int                AS error_5xx_count,
@@ -101,6 +99,24 @@ export async function GET() {
         COUNT(*) FILTER (WHERE status_code IN (401, 403))::int                           AS waf_region_count
       FROM latest
       GROUP BY monitor_id
+    ),
+
+    -- Slow region count using each monitor's configured TTFB thresholds (HIT vs MISS)
+    slow AS (
+      SELECT
+        l.monitor_id,
+        COUNT(*) FILTER (
+          WHERE l.ttfb_ms IS NOT NULL AND l.error IS NULL AND (
+            CASE
+              WHEN l.cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT')
+                THEN l.ttfb_ms > m.alert_threshold_hit_ms
+              ELSE l.ttfb_ms > m.alert_threshold_ms
+            END
+          )
+        )::int AS slow_region_count
+      FROM latest l
+      JOIN monitors m ON m.id = l.monitor_id AND m.user_id = ${user.id}
+      GROUP BY l.monitor_id
     ),
 
     -- Per-region detail array (label from regions table, flag added in app layer)
@@ -111,13 +127,18 @@ export async function GET() {
           jsonb_build_object(
             'code',    l.region,
             'label',   COALESCE(r.label, l.region),
-            'isSlow',  (l.ttfb_ms > ${MONITOR_TTFB.FAST} AND l.error IS NULL),
+            'isSlow',  (l.error IS NULL AND l.ttfb_ms IS NOT NULL AND CASE
+              WHEN l.cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT')
+                THEN l.ttfb_ms > m.alert_threshold_hit_ms
+              ELSE l.ttfb_ms > m.alert_threshold_ms
+            END),
             'isError', (l.error IS NOT NULL)
           )
           ORDER BY l.region
         ) AS regions
       FROM latest l
       LEFT JOIN regions r ON r.id = l.region
+      JOIN monitors m ON m.id = l.monitor_id AND m.user_id = ${user.id}
       GROUP BY l.monitor_id
     ),
 
@@ -179,7 +200,7 @@ export async function GET() {
       END                                                                                    AS cache_hit_delta,
 
       COALESCE(r.regions, '[]'::jsonb)                                                      AS regions,
-      COALESCE(c.slow_region_count,  0)                                                     AS slow_region_count,
+      COALESCE(sl.slow_region_count,  0)                                                    AS slow_region_count,
       COALESCE(c.total_region_count, 0)                                                     AS total_region_count,
       COALESCE(c.error_region_count, 0)                                                     AS error_region_count,
       COALESCE(c.error_5xx_count,    0)                                                     AS error_5xx_count,
@@ -190,12 +211,13 @@ export async function GET() {
       COALESCE(i.active_incident_count, 0)                                                   AS active_incident_count
 
     FROM monitors m
-    LEFT JOIN curr  c ON c.monitor_id = m.id
-    LEFT JOIN h24   h ON h.monitor_id = m.id
+    LEFT JOIN curr  c  ON c.monitor_id  = m.id
+    LEFT JOIN slow  sl ON sl.monitor_id = m.id
+    LEFT JOIN h24   h  ON h.monitor_id  = m.id
     LEFT JOIN h1    h1 ON h1.monitor_id = m.id
-    LEFT JOIN reg   r ON r.monitor_id = m.id
-    LEFT JOIN spark s ON s.monitor_id = m.id
-    LEFT JOIN inc   i ON i.monitor_id = m.id
+    LEFT JOIN reg   r  ON r.monitor_id  = m.id
+    LEFT JOIN spark s  ON s.monitor_id  = m.id
+    LEFT JOIN inc   i  ON i.monitor_id  = m.id
     WHERE m.user_id = ${user.id}
     ORDER BY m.created_at DESC
   `
