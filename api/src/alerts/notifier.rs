@@ -1008,7 +1008,7 @@ mod tests {
             !subject.contains("MEDIUM"),
             "medium severity stays out of subject: {subject}"
         );
-        assert!(subject.contains("Cache Hit Rate Low"));
+        assert!(subject.contains("Low Cache Hit Rate"));
         assert!(subject.contains("example.com"));
     }
 
@@ -1020,30 +1020,30 @@ mod tests {
             subject.starts_with("[CacheSnap] CRITICAL:"),
             "got: {subject}"
         );
-        assert!(subject.contains("Monitor Offline"));
+        assert!(subject.contains("Monitor Down"));
     }
 
     #[test]
     fn test_subject_digest_includes_duration() {
-        let n = make_incident(NotificationType::Digest, "ttfb_threshold");
-        let subject = build_incident_subject(&n, alert_type_display("ttfb_threshold"), "site.com");
+        let n = make_incident(NotificationType::Digest, "ttfb_limit");
+        let subject = build_incident_subject(&n, alert_type_display("ttfb_limit"), "site.com");
         assert!(subject.contains("Still ongoing"), "got: {subject}");
         assert!(
             subject.contains("2h"),
             "duration short-form must appear: got {subject}"
         );
-        assert!(subject.contains("TTFB Threshold Exceeded"));
+        assert!(subject.contains("TTFB Above Limit"));
     }
 
     #[test]
     fn test_subject_recovery_format() {
-        let n = make_incident(NotificationType::Recovery, "anomaly");
-        let subject = build_incident_subject(&n, alert_type_display("anomaly"), "api.example.com");
+        let n = make_incident(NotificationType::Recovery, "ttfb_anomaly");
+        let subject = build_incident_subject(&n, alert_type_display("ttfb_anomaly"), "api.example.com");
         assert!(
             subject.starts_with("[CacheSnap] Resolved:"),
             "got: {subject}"
         );
-        assert!(subject.contains("Latency Anomaly"));
+        assert!(subject.contains("TTFB Anomaly"));
         assert!(subject.contains("api.example.com"));
         assert!(
             !subject.contains('_'),
@@ -1065,14 +1065,14 @@ mod tests {
             "https://snooze.url",
             "https://app.cachesnap.com",
         );
-        assert!(html.contains("Cache Hit Rate Low"), "type label missing");
+        assert!(html.contains("Low Cache Hit Rate"), "type label missing");
         assert!(html.contains("My Monitor"));
         assert!(html.contains("Medium impact"));
     }
 
     #[test]
     fn test_email_html_none_diagnosis_action() {
-        let mut n = make_incident(NotificationType::FirstFire, "ttfb_threshold");
+        let mut n = make_incident(NotificationType::FirstFire, "ttfb_limit");
         n.diagnosis = None;
         n.action = None;
         let html = build_incident_email_html(
@@ -1088,12 +1088,12 @@ mod tests {
             !html.contains("<strong>Action:</strong>"),
             "empty action must not render"
         );
-        assert!(html.contains("TTFB Threshold Exceeded"));
+        assert!(html.contains("TTFB Above Limit"));
     }
 
     #[test]
     fn test_email_html_with_diagnosis_and_action() {
-        let mut n = make_incident(NotificationType::Digest, "ttfb_threshold");
+        let mut n = make_incident(NotificationType::Digest, "ttfb_limit");
         n.diagnosis = Some("CDN congestion detected".to_string());
         n.action = Some("Check origin latency".to_string());
         let html = build_incident_email_html(
@@ -1139,7 +1139,7 @@ mod tests {
             "FirstFire must use :warning: emoji"
         );
         assert!(text.contains("CRITICAL"));
-        assert!(text.contains("Monitor Offline"));
+        assert!(text.contains("Monitor Down"));
     }
 
     #[test]
@@ -1155,7 +1155,7 @@ mod tests {
 
     #[test]
     fn test_slack_recovery_has_checkmark_emoji() {
-        let n = make_incident(NotificationType::Recovery, "ttfb_threshold");
+        let n = make_incident(NotificationType::Recovery, "ttfb_limit");
         let text = build_slack_incident_text(&n, "My Site", "ap-southeast-1", &region_labels());
         assert!(
             text.contains(":white_check_mark:"),
@@ -1178,7 +1178,7 @@ mod tests {
     fn test_slack_recovery_text_single_region() {
         let n = make_recovery("cache_hit_low", 3);
         let text =
-            build_slack_recovery_text(&n, "my-monitor", "Cache Hit Rate Low", &region_labels());
+            build_slack_recovery_text(&n, "my-monitor", "Low Cache Hit Rate", &region_labels());
         assert!(text.contains(":white_check_mark:"));
         assert!(text.contains("RESOLVED"));
         assert!(text.contains("my-monitor"));
@@ -1198,7 +1198,7 @@ mod tests {
             "ap-southeast-1".to_string(),
         ];
         let text =
-            build_slack_recovery_text(&n, "cdn-monitor", "Monitor Offline", &region_labels());
+            build_slack_recovery_text(&n, "cdn-monitor", "Monitor Down", &region_labels());
         assert!(
             text.contains("3 regions"),
             "multi-region must say N regions"
@@ -1225,8 +1225,8 @@ mod tests {
     #[test]
     fn test_recovery_email_html_renders_without_panic() {
         let n = make_recovery("down", 4);
-        let html = build_recovery_email_html(&n, "my-monitor", "Monitor Offline");
-        assert!(html.contains("Monitor Offline"));
+        let html = build_recovery_email_html(&n, "my-monitor", "Monitor Down");
+        assert!(html.contains("Monitor Down"));
         assert!(html.contains("my-monitor"));
         assert!(
             html.contains("3 hours"),
@@ -1241,7 +1241,7 @@ mod tests {
     #[test]
     fn test_recovery_email_html_metric_values() {
         let n = make_recovery("cache_hit_low", 2);
-        let html = build_recovery_email_html(&n, "mon", "Cache Hit Rate Low");
+        let html = build_recovery_email_html(&n, "mon", "Low Cache Hit Rate");
         assert!(html.contains("95.0%"), "actual must appear with unit");
         assert!(html.contains("80.0%"), "threshold must appear");
     }
@@ -1251,7 +1251,7 @@ mod tests {
         let mut n = make_recovery("down", 1);
         n.actual = None;
         n.threshold = None;
-        let html = build_recovery_email_html(&n, "mon", "Monitor Offline");
+        let html = build_recovery_email_html(&n, "mon", "Monitor Down");
         assert!(
             !html.contains("Final reading"),
             "no metric row when values are None"

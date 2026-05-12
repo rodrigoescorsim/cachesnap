@@ -1,5 +1,5 @@
 use crate::{
-    alerts::detector::check_for_anomalies,
+    alerts::detector::check_probe_alerts,
     models::probe_result::ProbeResultPayload,
     AppState, config, db, redis, scheduler::dispatch_limiter::ProbeDispatchLimits,
 };
@@ -104,7 +104,7 @@ async fn test_downtime_aggregation_logic() {
         let mut payload = create_test_payload(monitor_id, region);
         payload.status_code = Some(503);
         payload.error = Some("Service Unavailable".to_string());
-        check_for_anomalies(state.clone(), payload).await;
+        check_probe_alerts(state.clone(), payload).await;
     }
 
     // Wait for the 15s aggregation window to close
@@ -155,13 +155,13 @@ async fn test_ttfb_threshold_aggregation() {
         payload.ttfb_ms = Some(1200.0);
         payload.status_code = Some(200);
         payload.cache_status = Some("MISS".to_string());
-        check_for_anomalies(state.clone(), payload).await;
+        check_probe_alerts(state.clone(), payload).await;
     }
 
     tokio::time::sleep(Duration::from_secs(18)).await;
 
     let incident_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'ttfb_threshold'"
+        "SELECT COUNT(*) FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'ttfb_limit'"
     )
     .bind(monitor_id)
     .fetch_one(&state.db).await.unwrap();
@@ -216,7 +216,7 @@ async fn test_worker_cache_hit_aggregation() {
         alert_cache_hit_enabled: true,
         alert_cache_hit_threshold_pct: 90.0,
         alert_anycast_enabled: false,
-        alert_zombie_cache_enabled: false,
+        alert_cache_age_enabled: false,
         alert_cache_age_threshold_hours: 72,
     };
 
@@ -368,7 +368,7 @@ async fn test_incident_resolves_no_recovery_medium() {
         alert_cache_hit_enabled: true,
         alert_cache_hit_threshold_pct: 50.0,
         alert_anycast_enabled: false,
-        alert_zombie_cache_enabled: false,
+        alert_cache_age_enabled: false,
         alert_cache_age_threshold_hours: 72,
     };
 
@@ -432,7 +432,7 @@ async fn test_insufficient_data_preserves_open_incident() {
         alert_cache_hit_enabled: true,
         alert_cache_hit_threshold_pct: 50.0,
         alert_anycast_enabled: false,
-        alert_zombie_cache_enabled: false,
+        alert_cache_age_enabled: false,
         alert_cache_age_threshold_hours: 72,
     };
 

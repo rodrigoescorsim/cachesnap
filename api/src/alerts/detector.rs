@@ -6,7 +6,7 @@ use crate::{
 use std::time::Duration;
 use tracing::error;
 
-pub fn is_anomalous(actual_ttfb: f64, avg: f64, stddev: f64, sigma_factor: f64) -> bool {
+pub fn is_ttfb_anomalous(actual_ttfb: f64, avg: f64, stddev: f64, sigma_factor: f64) -> bool {
     // TTFB > avg + (sigma × stddev), with a +500ms floor to prevent noise on ultra-fast sites.
     let threshold = f64::max(avg + (sigma_factor * stddev), avg + 500.0);
     actual_ttfb > threshold
@@ -27,14 +27,14 @@ struct MonitorAlertConfig {
     alert_sensitivity: i16,
     alert_down_enabled: bool,
     alert_ttfb_enabled: bool,
-    alert_anomaly_enabled: bool,
+    alert_ttfb_anomaly_enabled: bool,
 }
 
 async fn fetch_monitor_alert_config(state: &AppState, monitor_id: uuid::Uuid) -> Option<MonitorAlertConfig> {
     sqlx::query_as::<_, MonitorAlertConfig>(
         r#"
         SELECT alert_threshold_ms, alert_threshold_hit_ms, alert_sensitivity,
-               alert_down_enabled, alert_ttfb_enabled, alert_anomaly_enabled,
+               alert_down_enabled, alert_ttfb_enabled, alert_ttfb_anomaly_enabled,
                alert_trend_cooldown_minutes
         FROM monitors WHERE id = $1 LIMIT 1
         "#,
@@ -80,7 +80,7 @@ async fn count_consecutive_breaches(
     count.unwrap_or(0) as i32
 }
 
-pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
+pub async fn check_probe_alerts(state: AppState, payload: ProbeResultPayload) {
     let cfg = match fetch_monitor_alert_config(&state, payload.monitor_id).await {
         Some(c) => c,
         None => {
@@ -139,7 +139,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
             dispatch_probe_alert(
                 &state,
                 payload.clone(),
-                "ttfb_threshold",
+                "ttfb_limit",
                 Some(effective_threshold),
                 summary,
                 "Investigate origin response time and CDN routing.".to_string(),
@@ -150,7 +150,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
         return;
     }
 
-    if let (Some(actual_ttfb), true) = (payload.ttfb_ms, cfg.alert_anomaly_enabled) {
+    if let (Some(actual_ttfb), true) = (payload.ttfb_ms, cfg.alert_ttfb_anomaly_enabled) {
         if let Ok(Some(row)) = sqlx::query!(
             "SELECT ttfb_avg_ms, ttfb_stddev_ms FROM monitor_baselines WHERE monitor_id = $1 AND region = $2 LIMIT 1",
             payload.monitor_id,
@@ -163,7 +163,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
             let stddev = row.ttfb_stddev_ms.unwrap_or(0.0);
             let sigma_factor = sensitivity_to_sigma(cfg.alert_sensitivity);
 
-            if is_anomalous(actual_ttfb, avg, stddev, sigma_factor) {
+            if is_ttfb_anomalous(actual_ttfb, avg, stddev, sigma_factor) {
                 let summary = format!(
                     "Significant TTFB deviation detected compared to this region's 7-day average ({:.0}ms).",
                     avg
@@ -171,7 +171,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
                 dispatch_probe_alert(
                     &state,
                     payload.clone(),
-                    "anomaly",
+                    "ttfb_anomaly",
                     Some(avg),
                     summary,
                     "Investigate sudden latency spikes or regional routing changes.".to_string(),
@@ -186,7 +186,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
 /// Aggregates probe results across regions over a 15-second window, then calls
 /// `handle_incident` once with all affected regions consolidated.
 ///
-/// For "anomaly" alerts, `sigma_factor` is required: each region is only included
+/// For "ttfb_anomaly" alerts, `sigma_factor` is required: each region is only included
 /// when its own TTFB exceeds its own 7-day baseline threshold, preventing
 /// naturally-slow regions (e.g. far from origin on DYNAMIC sites) from being
 /// pulled into an incident triggered by a different region.
@@ -233,7 +233,7 @@ async fn dispatch_probe_alert(
             .ok()
             .map(|rows| rows.into_iter().map(|r| r.region).collect()),
 
-            "anomaly" => sqlx::query_as::<_, (String,)>(
+            "ttfb_anomaly" => sqlx::query_as::<_, (String,)>(
                 "SELECT DISTINCT pr.region
                  FROM probe_results pr
                  JOIN monitor_baselines mb
@@ -267,7 +267,7 @@ async fn dispatch_probe_alert(
         let regions = regions.unwrap_or_else(|| vec![payload_clone.region.clone()]);
 
         let count = regions.len();
-        let diagnosis = if count > 1 && alert_type == "anomaly" {
+        let diagnosis = if count > 1 && alert_type == "ttfb_anomaly" {
             format!(
                 "TTFB significantly above each region's 7-day average. Affected regions: {}.",
                 regions.join(", ")
@@ -304,20 +304,20 @@ mod tests {
 
     #[test]
     fn test_is_anomalous_standard() {
-        assert!(!is_anomalous(150.0, 100.0, 20.0, 3.0));
-        assert!(is_anomalous(601.0, 100.0, 20.0, 3.0));
+        assert!(!is_ttfb_anomalous(150.0, 100.0, 20.0, 3.0));
+        assert!(is_ttfb_anomalous(601.0, 100.0, 20.0, 3.0));
     }
 
     #[test]
     fn test_is_anomalous_high_variance() {
-        assert!(!is_anomalous(750.0, 200.0, 200.0, 3.0));
-        assert!(is_anomalous(801.0, 200.0, 200.0, 3.0));
+        assert!(!is_ttfb_anomalous(750.0, 200.0, 200.0, 3.0));
+        assert!(is_ttfb_anomalous(801.0, 200.0, 200.0, 3.0));
     }
 
     #[test]
     fn test_is_anomalous_zero_stddev() {
-        assert!(!is_anomalous(500.0, 50.0, 0.0, 3.0));
-        assert!(is_anomalous(551.0, 50.0, 0.0, 3.0));
+        assert!(!is_ttfb_anomalous(500.0, 50.0, 0.0, 3.0));
+        assert!(is_ttfb_anomalous(551.0, 50.0, 0.0, 3.0));
     }
 
     #[test]
@@ -331,7 +331,7 @@ mod tests {
     #[test]
     fn test_is_anomalous_500ms_floor() {
         // Fast site: mean 10ms — floor dominates (10 + 500 = 510ms)
-        assert!(!is_anomalous(400.0, 10.0, 5.0, 3.0));
-        assert!(is_anomalous(511.0, 10.0, 5.0, 3.0));
+        assert!(!is_ttfb_anomalous(400.0, 10.0, 5.0, 3.0));
+        assert!(is_ttfb_anomalous(511.0, 10.0, 5.0, 3.0));
     }
 }

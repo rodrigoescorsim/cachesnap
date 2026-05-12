@@ -53,11 +53,11 @@ impl std::fmt::Display for AlertSeverity {
 pub fn alert_severity(alert_type: &str) -> AlertSeverity {
     match alert_type {
         "down" => AlertSeverity::Critical,
-        "ttfb_threshold" | "anomaly" => AlertSeverity::High,
+        "ttfb_limit" | "ttfb_anomaly" => AlertSeverity::High,
         "cache_hit_low"
         | "cache_hit_trend_drop_region"
         | "cache_hit_trend_drop_global" => AlertSeverity::Medium,
-        // ttfb trends, anycast, zombie_cache, ssl_expiry, unknown
+        // ttfb trends, anycast, cache_age_alert, ssl_expiry, unknown
         _ => AlertSeverity::Low,
     }
 }
@@ -66,11 +66,11 @@ pub fn alert_severity(alert_type: &str) -> AlertSeverity {
 pub fn alert_type_display(alert_type: &str) -> &'static str {
     match alert_type {
         "down" => "Monitor Down",
-        "ttfb_threshold" => "TTFB Above Limit",
-        "anomaly" => "TTFB Anomaly",
+        "ttfb_limit" => "TTFB Above Limit",
+        "ttfb_anomaly" => "TTFB Anomaly",
         "cache_hit_low" => "Low Cache Hit Rate",
         "ssl_expiry" => "SSL Expiry Alert",
-        "zombie_cache" => "Cache Age Alert",
+        "cache_age_alert" => "Cache Age Alert",
         "anycast" => "Anycast Issue",
         "cache_hit_trend_drop_region" => "Cache Hit Drop (Region)",
         "cache_hit_trend_drop_global" => "Cache Hit Drop (Global)",
@@ -136,8 +136,8 @@ mod tests {
     #[test]
     fn test_all_known_types_have_display_names() {
         let known_types = [
-            "down", "ttfb_threshold", "anomaly", "cache_hit_low", "ssl_expiry",
-            "zombie_cache", "anycast", "cache_hit_trend_drop_region",
+            "down", "ttfb_limit", "ttfb_anomaly", "cache_hit_low", "ssl_expiry",
+            "cache_age_alert", "anycast", "cache_hit_trend_drop_region",
             "cache_hit_trend_drop_global", "ttfb_trend_up_region",
             "ttfb_trend_up_global", "ttfb_trend_down_region", "ttfb_trend_down_global",
         ];
@@ -156,13 +156,13 @@ mod tests {
     #[test]
     fn test_severity_tiers() {
         assert_eq!(alert_severity("down"), AlertSeverity::Critical);
-        assert_eq!(alert_severity("ttfb_threshold"), AlertSeverity::High);
-        assert_eq!(alert_severity("anomaly"), AlertSeverity::High);
+        assert_eq!(alert_severity("ttfb_limit"), AlertSeverity::High);
+        assert_eq!(alert_severity("ttfb_anomaly"), AlertSeverity::High);
         assert_eq!(alert_severity("cache_hit_low"), AlertSeverity::Medium);
         assert_eq!(alert_severity("cache_hit_trend_drop_region"), AlertSeverity::Medium);
         assert_eq!(alert_severity("ttfb_trend_up_region"), AlertSeverity::Low);
         assert_eq!(alert_severity("ssl_expiry"), AlertSeverity::Low);
-        assert_eq!(alert_severity("zombie_cache"), AlertSeverity::Low);
+        assert_eq!(alert_severity("cache_age_alert"), AlertSeverity::Low);
         assert_eq!(alert_severity("anycast"), AlertSeverity::Low);
     }
 

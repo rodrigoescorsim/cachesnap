@@ -210,7 +210,7 @@ pub async fn handler(
             let state_clone = state.clone();
             let payload_clone = payload.clone();
             tokio::spawn(async move {
-                crate::alerts::detector::check_for_anomalies(state_clone, payload_clone).await;
+                crate::alerts::detector::check_probe_alerts(state_clone, payload_clone).await;
             });
 
             // Probe-triggered incident resolution: eagerly closes zombie_cache / anycast /

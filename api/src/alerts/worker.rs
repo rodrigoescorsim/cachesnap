@@ -28,13 +28,13 @@ struct LatestProbeRow {
 
 #[derive(sqlx::FromRow)]
 struct PerProbeAlertConfig {
-    alert_zombie_cache_enabled: bool,
+    alert_cache_age_enabled: bool,
     alert_cache_age_threshold_hours: i32,
     alert_anycast_enabled: bool,
 }
 
 /// Called from the ingest path after every successful probe insert.
-/// Re-runs the per-probe detection logic for zombie_cache, anycast, and ssl_expiry;
+/// Re-runs the per-probe detection logic for cache_age_alert, anycast, and ssl_expiry;
 /// if none of the probes across all regions still trigger the condition, resolves the
 /// open incident immediately — without waiting for the next worker cycle.
 ///
@@ -46,7 +46,7 @@ pub async fn try_resolve_per_probe_incidents(state: &AppState, monitor_id: Uuid)
         "SELECT EXISTS(
              SELECT 1 FROM alert_incidents
              WHERE monitor_id = $1 AND resolved_at IS NULL
-             AND alert_type IN ('zombie_cache', 'anycast', 'ssl_expiry')
+             AND alert_type IN ('cache_age_alert', 'anycast', 'ssl_expiry')
          )",
     )
     .bind(monitor_id)
@@ -75,7 +75,7 @@ pub async fn try_resolve_per_probe_incidents(state: &AppState, monitor_id: Uuid)
     }
 
     let config: Option<PerProbeAlertConfig> = sqlx::query_as(
-        "SELECT alert_zombie_cache_enabled, alert_cache_age_threshold_hours, alert_anycast_enabled
+        "SELECT alert_cache_age_enabled, alert_cache_age_threshold_hours, alert_anycast_enabled
          FROM monitors WHERE id = $1 LIMIT 1",
     )
     .bind(monitor_id)
@@ -86,13 +86,13 @@ pub async fn try_resolve_per_probe_incidents(state: &AppState, monitor_id: Uuid)
     let Some(config) = config else { return };
 
     // Re-run detection across all regions' latest probes.
-    let mut zombie_firing = false;
+    let mut cache_age_firing = false;
     let mut anycast_firing = false;
     let mut ssl_firing = false;
 
     for probe in &latest_probes {
-        if config.alert_zombie_cache_enabled
-            && check_zombie_cache(
+        if config.alert_cache_age_enabled
+            && check_cache_age(
                 &probe.region,
                 probe.ttfb_ms.unwrap_or(0.0),
                 &probe.cache_status,
@@ -101,7 +101,7 @@ pub async fn try_resolve_per_probe_incidents(state: &AppState, monitor_id: Uuid)
             )
             .is_some()
         {
-            zombie_firing = true;
+            cache_age_firing = true;
         }
 
         if config.alert_anycast_enabled {
@@ -128,8 +128,8 @@ pub async fn try_resolve_per_probe_incidents(state: &AppState, monitor_id: Uuid)
     }
 
     // Resolve any type that was open but is no longer detected.
-    if config.alert_zombie_cache_enabled && !zombie_firing {
-        resolve_worker_incident_now(state, monitor_id, "zombie_cache").await;
+    if config.alert_cache_age_enabled && !cache_age_firing {
+        resolve_worker_incident_now(state, monitor_id, "cache_age_alert").await;
     }
     if config.alert_anycast_enabled && !anycast_firing {
         resolve_worker_incident_now(state, monitor_id, "anycast").await;
@@ -226,7 +226,7 @@ pub struct MonitorAlertConfig {
     pub alert_cache_hit_enabled: bool,
     pub alert_cache_hit_threshold_pct: f64,
     pub alert_anycast_enabled: bool,
-    pub alert_zombie_cache_enabled: bool,
+    pub alert_cache_age_enabled: bool,
     pub alert_cache_age_threshold_hours: i32,
 }
 
@@ -235,7 +235,7 @@ async fn fetch_active_monitors(state: &AppState) -> Result<Vec<MonitorAlertConfi
         MonitorAlertConfig,
         r#"
         SELECT id, alert_cache_hit_enabled, alert_cache_hit_threshold_pct,
-               alert_anycast_enabled, alert_zombie_cache_enabled,
+               alert_anycast_enabled, alert_cache_age_enabled,
                alert_cache_age_threshold_hours
         FROM monitors
         WHERE is_active = true
@@ -323,9 +323,9 @@ pub async fn audit_monitor_alerts(
                 }
             }
         }
-        if monitor.alert_zombie_cache_enabled {
+        if monitor.alert_cache_age_enabled {
             if let Some(ttfb) = probe.ttfb_ms {
-                if let Some(d) = check_zombie_cache(region, ttfb, &probe.cache_status, probe.age_s, monitor.alert_cache_age_threshold_hours) {
+                if let Some(d) = check_cache_age(region, ttfb, &probe.cache_status, probe.age_s, monitor.alert_cache_age_threshold_hours) {
                     detections.push(d);
                 }
             }
@@ -471,7 +471,7 @@ fn check_anycast(
     }
 }
 
-fn check_zombie_cache(
+fn check_cache_age(
     region: &str,
     ttfb_ms: f64,
     cache_status: &Option<String>,
@@ -496,7 +496,7 @@ fn check_zombie_cache(
     });
     Some(Detection {
         region: region.to_string(),
-        alert_type: "zombie_cache".to_string(),
+        alert_type: "cache_age_alert".to_string(),
         actual: age as f64,
         threshold: None,
         diagnosis: diag.summary,
@@ -694,7 +694,7 @@ async fn resolve_cleared_worker_incidents(
 ) -> Result<(), anyhow::Error> {
     // Types that resolve only on a confirmed positive measurement (not on absence of data).
     const REQUIRES_POSITIVE_CLEAR: &[&str] = &["cache_hit_low"];
-    const WORKER_TYPES: &[&str] = &["cache_hit_low", "ssl_expiry", "anycast", "zombie_cache"];
+    const WORKER_TYPES: &[&str] = &["cache_hit_low", "ssl_expiry", "anycast", "cache_age_alert"];
 
     for &wt in WORKER_TYPES {
         if still_firing.contains(&wt.to_string()) {
@@ -758,8 +758,8 @@ async fn resolve_cleared_worker_incidents(
 pub(crate) async fn resolve_stale_probe_incidents(state: &AppState) -> Result<(), anyhow::Error> {
     const PROBE_TYPES: &[&str] = &[
         "down",
-        "ttfb_threshold",
-        "anomaly",
+        "ttfb_limit",
+        "ttfb_anomaly",
         "ttfb_trend_up_region",
         "ttfb_trend_up_global",
         "ttfb_trend_down_region",
@@ -866,7 +866,7 @@ mod tests {
     }
 
     #[test]
-    fn test_zombie_cache_threshold() {
+    fn test_cache_age_threshold() {
         // Default threshold: 72 h = 259 200 s
         let threshold_hours = 72i32;
         let threshold_s = threshold_hours * 3600;
