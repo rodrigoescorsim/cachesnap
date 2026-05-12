@@ -65,19 +65,19 @@ pub fn alert_severity(alert_type: &str) -> AlertSeverity {
 /// Human-readable display name for alert_type slugs (no snake_case in emails).
 pub fn alert_type_display(alert_type: &str) -> &'static str {
     match alert_type {
-        "down" => "Monitor Offline",
-        "ttfb_threshold" => "TTFB Threshold Exceeded",
-        "anomaly" => "Latency Anomaly",
-        "cache_hit_low" => "Cache Hit Rate Low",
-        "ssl_expiry" => "SSL Certificate Expiring",
+        "down" => "Monitor Down",
+        "ttfb_threshold" => "TTFB Above Limit",
+        "anomaly" => "TTFB Anomaly",
+        "cache_hit_low" => "Low Cache Hit Rate",
+        "ssl_expiry" => "SSL Expiry Alert",
         "zombie_cache" => "Cache Age Alert",
-        "anycast" => "Anycast Routing Issue",
-        "cache_hit_trend_drop_region" => "Cache Hit Trend Drop (Region)",
-        "cache_hit_trend_drop_global" => "Cache Hit Trend Drop (Global)",
-        "ttfb_trend_up_region" => "TTFB Trend Worsening (Region)",
-        "ttfb_trend_up_global" => "TTFB Trend Worsening (Global)",
-        "ttfb_trend_down_region" => "TTFB Improved (Region)",
-        "ttfb_trend_down_global" => "TTFB Improved (Global)",
+        "anycast" => "Anycast Issue",
+        "cache_hit_trend_drop_region" => "Cache Hit Drop (Region)",
+        "cache_hit_trend_drop_global" => "Cache Hit Drop (Global)",
+        "ttfb_trend_up_region" => "TTFB Worsening (Region)",
+        "ttfb_trend_up_global" => "TTFB Worsening (Global)",
+        "ttfb_trend_down_region" => "TTFB Improving (Region)",
+        "ttfb_trend_down_global" => "TTFB Improving (Global)",
         _ => "Unknown Alert",
     }
 }

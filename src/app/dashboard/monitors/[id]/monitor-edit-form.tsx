@@ -429,9 +429,9 @@ export function MonitorEditForm({
                   onChange={(e) => handleInputChange('alert_ttfb_enabled', e.target.checked)}
                 />
                 <label htmlFor={`${p}-alert_ttfb_enabled`} className="cursor-pointer select-none flex-1">
-                  <span className="text-xs font-bold text-zinc-200 block">Response time limit (TTFB)</span>
+                  <span className="text-xs font-bold text-zinc-200 block">TTFB Above Limit</span>
                   <span className="text-xs text-zinc-400 leading-relaxed">
-                    Alert when Time to First Byte exceeds specific limits. Differentiated by cache status.
+                    Alert when TTFB exceeds your defined limit. Differentiated by cache status (MISS vs HIT).
                   </span>
 
                   <div className={`mt-4 space-y-5 transition-opacity ${values.alert_ttfb_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
@@ -507,9 +507,9 @@ export function MonitorEditForm({
                   onChange={(e) => handleInputChange('alert_anomaly_enabled', e.target.checked)}
                 />
                 <label htmlFor={`${p}-alert_anomaly_enabled`} className="cursor-pointer select-none flex-1">
-                  <span className="text-xs font-bold text-zinc-200 block">Unusual slowdown</span>
+                  <span className="text-xs font-bold text-zinc-200 block">TTFB Anomaly</span>
                   <span className="text-xs text-zinc-400 leading-relaxed">
-                    Alert when response time spikes well above your 7-day baseline.
+                    Alert when TTFB spikes well above this region's 7-day baseline.
                   </span>
                 </label>
               </div>
@@ -552,7 +552,7 @@ export function MonitorEditForm({
                     onChange={(e) => handleInputChange('alert_down_enabled', e.target.checked)}
                   />
                   <label htmlFor={`${p}-alert_down_right`} className="cursor-pointer select-none">
-                    <span className="text-xs font-bold text-zinc-200 block">Site down</span>
+                    <span className="text-xs font-bold text-zinc-200 block">Monitor Down</span>
                     <span className="text-xs text-zinc-400 leading-relaxed">
                       Alert when your site is unreachable or returns 5xx errors.
                     </span>
@@ -567,7 +567,7 @@ export function MonitorEditForm({
                     onChange={(e) => handleInputChange('alert_anycast_enabled', e.target.checked)}
                   />
                   <label htmlFor={`${p}-alert_anycast_enabled`} className="cursor-pointer select-none">
-                    <span className="text-xs font-bold text-zinc-200 block">Region mismatch</span>
+                    <span className="text-xs font-bold text-zinc-200 block">Anycast Issue</span>
                     <span className="text-xs text-zinc-400 leading-relaxed">Request routed to an unexpected CDN location — possible misconfiguration.</span>
                   </label>
                 </div>
@@ -614,7 +614,7 @@ export function MonitorEditForm({
                     onChange={(e) => handleInputChange('alert_cache_hit_enabled', e.target.checked)}
                   />
                   <label htmlFor={`${p}-alert_cache_hit_enabled`} className="cursor-pointer select-none flex-1">
-                    <span className="text-xs font-bold text-zinc-200 block">Low cache rate</span>
+                    <span className="text-xs font-bold text-zinc-200 block">Low Cache Hit Rate</span>
                     <span className="text-xs text-zinc-400 leading-relaxed">
                       Alert when fewer requests than expected hit the CDN cache. Based on a 24 h rolling average.
                     </span>
@@ -733,14 +733,14 @@ export function MonitorEditForm({
                   onChange={(e) => handleInputChange('alert_ttfb_trend_enabled', e.target.checked)}
                 />
                 <label htmlFor={`${p}-alert_ttfb_trend_enabled`} className="cursor-pointer select-none flex-1">
-                  <span className="text-xs font-bold text-zinc-200 block">Response time drift</span>
+                  <span className="text-xs font-bold text-zinc-200 block">TTFB Trend</span>
                   <span className="text-xs text-zinc-400 leading-relaxed">
-                    Alert when your site&apos;s response time shifts significantly compared to a reference window — useful for catching gradual slowdowns.
+                    Alert when TTFB shifts significantly compared to a reference window — useful for catching gradual slowdowns.
                   </span>
 
                   <div className={`mt-3 space-y-3 transition-opacity ${values.alert_ttfb_trend_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-400">Alert if response time changes more than</span>
+                      <span className="text-xs text-zinc-400">Alert if TTFB changes more than</span>
                       <div className="relative">
                         <input
                           type="number" min={1} max={100} step={1}

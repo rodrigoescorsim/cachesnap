@@ -41,18 +41,18 @@ export const VALID_ALERT_TYPES = [
 ] as const satisfies readonly AlertType[]
 
 export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
-  down: 'Offline',
-  ttfb_threshold: 'TTFB above limit',
-  anomaly: 'Anomaly',
-  anycast: 'Anycast',
-  cache_hit_trend_drop_region: 'Cache Hit ↓ (region)',
-  cache_hit_trend_drop_global: 'Cache Hit ↓ (global)',
-  ttfb_trend_up_region: 'TTFB ↑ (region)',
-  ttfb_trend_up_global: 'TTFB ↑ (global)',
-  ttfb_trend_down_region: 'TTFB ↓ (region)',
-  ttfb_trend_down_global: 'TTFB ↓ (global)',
+  down: 'Monitor Down',
+  ttfb_threshold: 'TTFB Above Limit',
+  anomaly: 'TTFB Anomaly',
+  anycast: 'Anycast Issue',
+  cache_hit_trend_drop_region: 'Cache Hit Drop (Region)',
+  cache_hit_trend_drop_global: 'Cache Hit Drop (Global)',
+  ttfb_trend_up_region: 'TTFB Worsening (Region)',
+  ttfb_trend_up_global: 'TTFB Worsening (Global)',
+  ttfb_trend_down_region: 'TTFB Improving (Region)',
+  ttfb_trend_down_global: 'TTFB Improving (Global)',
   zombie_cache: 'Cache Age Alert',
-  cache_hit_low: 'Cache hit low',
+  cache_hit_low: 'Low Cache Hit Rate',
 }
 
 export function buildMonitorHref(
