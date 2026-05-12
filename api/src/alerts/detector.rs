@@ -1,5 +1,6 @@
 use crate::{
     alerts::worker,
+    baseline::stratified::{probe_is_cache_hit, STRATIFIED_BASELINE_MIN_SAMPLES},
     models::probe_result::ProbeResultPayload,
     AppState,
 };
@@ -34,8 +35,7 @@ async fn fetch_monitor_alert_config(state: &AppState, monitor_id: uuid::Uuid) ->
     sqlx::query_as::<_, MonitorAlertConfig>(
         r#"
         SELECT alert_threshold_ms, alert_threshold_hit_ms, alert_sensitivity,
-               alert_down_enabled, alert_ttfb_enabled, alert_ttfb_anomaly_enabled,
-               alert_trend_cooldown_minutes
+               alert_down_enabled, alert_ttfb_enabled, alert_ttfb_anomaly_enabled
         FROM monitors WHERE id = $1 LIMIT 1
         "#,
     )
@@ -80,6 +80,42 @@ async fn count_consecutive_breaches(
     count.unwrap_or(0) as i32
 }
 
+#[derive(Debug, Clone, sqlx::FromRow)]
+struct MonitorBaselineRow {
+    ttfb_avg_ms: Option<f64>,
+    ttfb_stddev_ms: Option<f64>,
+    ttfb_hit_avg_ms: Option<f64>,
+    ttfb_hit_stddev_ms: Option<f64>,
+    ttfb_hit_sample_count: Option<i32>,
+    ttfb_miss_avg_ms: Option<f64>,
+    ttfb_miss_stddev_ms: Option<f64>,
+    ttfb_miss_sample_count: Option<i32>,
+}
+
+/// Picks HIT-only, MISS-only, or combined (7-day) stats so a MISS is not compared to a HIT baseline.
+fn effective_baseline_for_anomaly(
+    cache_status: Option<&str>,
+    mb: &MonitorBaselineRow,
+) -> (f64, f64) {
+    if probe_is_cache_hit(cache_status) {
+        if mb.ttfb_hit_sample_count.unwrap_or(0) >= STRATIFIED_BASELINE_MIN_SAMPLES {
+            if let Some(avg) = mb.ttfb_hit_avg_ms {
+                return (avg, mb.ttfb_hit_stddev_ms.unwrap_or(0.0));
+            }
+        }
+    } else if cache_status.is_some() && !probe_is_cache_hit(cache_status) {
+        if mb.ttfb_miss_sample_count.unwrap_or(0) >= STRATIFIED_BASELINE_MIN_SAMPLES {
+            if let Some(avg) = mb.ttfb_miss_avg_ms {
+                return (avg, mb.ttfb_miss_stddev_ms.unwrap_or(0.0));
+            }
+        }
+    }
+    (
+        mb.ttfb_avg_ms.unwrap_or(0.0),
+        mb.ttfb_stddev_ms.unwrap_or(0.0),
+    )
+}
+
 pub async fn check_probe_alerts(state: AppState, payload: ProbeResultPayload) {
     let cfg = match fetch_monitor_alert_config(&state, payload.monitor_id).await {
         Some(c) => c,
@@ -89,11 +125,7 @@ pub async fn check_probe_alerts(state: AppState, payload: ProbeResultPayload) {
         }
     };
 
-    let is_hit = payload
-        .cache_status
-        .as_deref()
-        .map(|s| s == "HIT" || s == "STALE" || s == "REVALIDATED")
-        .unwrap_or(false);
+    let is_hit = probe_is_cache_hit(payload.cache_status.as_deref());
     let effective_threshold = if is_hit {
         cfg.alert_threshold_hit_ms as f64
     } else {
@@ -151,22 +183,32 @@ pub async fn check_probe_alerts(state: AppState, payload: ProbeResultPayload) {
     }
 
     if let (Some(actual_ttfb), true) = (payload.ttfb_ms, cfg.alert_ttfb_anomaly_enabled) {
-        if let Ok(Some(row)) = sqlx::query!(
-            "SELECT ttfb_avg_ms, ttfb_stddev_ms FROM monitor_baselines WHERE monitor_id = $1 AND region = $2 LIMIT 1",
-            payload.monitor_id,
-            payload.region
+        if let Ok(Some(row)) = sqlx::query_as::<_, MonitorBaselineRow>(
+            r#"SELECT ttfb_avg_ms, ttfb_stddev_ms,
+                      ttfb_hit_avg_ms, ttfb_hit_stddev_ms, ttfb_hit_sample_count,
+                      ttfb_miss_avg_ms, ttfb_miss_stddev_ms, ttfb_miss_sample_count
+               FROM monitor_baselines WHERE monitor_id = $1 AND region = $2 LIMIT 1"#,
         )
+        .bind(payload.monitor_id)
+        .bind(&payload.region)
         .fetch_optional(&state.db)
         .await
         {
-            let avg = row.ttfb_avg_ms.unwrap_or(0.0);
-            let stddev = row.ttfb_stddev_ms.unwrap_or(0.0);
+            let (avg, stddev) =
+                effective_baseline_for_anomaly(payload.cache_status.as_deref(), &row);
             let sigma_factor = sensitivity_to_sigma(cfg.alert_sensitivity);
 
             if is_ttfb_anomalous(actual_ttfb, avg, stddev, sigma_factor) {
+                let stratum = if probe_is_cache_hit(payload.cache_status.as_deref()) {
+                    "cached responses"
+                } else if payload.cache_status.is_some() {
+                    "uncached / edge-miss responses"
+                } else {
+                    "all responses"
+                };
                 let summary = format!(
-                    "Significant TTFB deviation detected compared to this region's 7-day average ({:.0}ms).",
-                    avg
+                    "Significant TTFB deviation vs 7-day baseline for {} in this region ({:.0}ms typical).",
+                    stratum, avg
                 );
                 dispatch_probe_alert(
                     &state,
@@ -234,19 +276,41 @@ async fn dispatch_probe_alert(
             .map(|rows| rows.into_iter().map(|r| r.region).collect()),
 
             "ttfb_anomaly" => sqlx::query_as::<_, (String,)>(
-                "SELECT DISTINCT pr.region
+                r#"SELECT DISTINCT pr.region
                  FROM probe_results pr
                  JOIN monitor_baselines mb
                    ON mb.monitor_id = pr.monitor_id AND mb.region = pr.region
                  WHERE pr.monitor_id = $1
                    AND pr.time > NOW() - INTERVAL '1 minute'
-                   AND pr.ttfb_ms > GREATEST(
-                       mb.ttfb_avg_ms + ($2::float8 * mb.ttfb_stddev_ms),
-                       mb.ttfb_avg_ms + 500.0
-                   )",
+                   AND pr.error IS NULL
+                   AND pr.ttfb_ms IS NOT NULL
+                   AND pr.ttfb_ms > (
+                     CASE
+                       WHEN pr.cache_status IN ('HIT', 'STALE', 'REVALIDATED')
+                            AND COALESCE(mb.ttfb_hit_sample_count, 0) >= $3
+                            AND mb.ttfb_hit_avg_ms IS NOT NULL
+                       THEN GREATEST(
+                         mb.ttfb_hit_avg_ms + ($2::float8 * COALESCE(mb.ttfb_hit_stddev_ms, 0.0)),
+                         mb.ttfb_hit_avg_ms + 500.0
+                       )
+                       WHEN pr.cache_status IS NOT NULL
+                            AND pr.cache_status NOT IN ('HIT', 'STALE', 'REVALIDATED')
+                            AND COALESCE(mb.ttfb_miss_sample_count, 0) >= $3
+                            AND mb.ttfb_miss_avg_ms IS NOT NULL
+                       THEN GREATEST(
+                         mb.ttfb_miss_avg_ms + ($2::float8 * COALESCE(mb.ttfb_miss_stddev_ms, 0.0)),
+                         mb.ttfb_miss_avg_ms + 500.0
+                       )
+                       ELSE GREATEST(
+                         COALESCE(mb.ttfb_avg_ms, 0.0) + ($2::float8 * COALESCE(mb.ttfb_stddev_ms, 0.0)),
+                         COALESCE(mb.ttfb_avg_ms, 0.0) + 500.0
+                       )
+                     END
+                   )"#,
             )
             .bind(payload_clone.monitor_id)
             .bind(sigma_factor.unwrap_or(3.0))
+            .bind(STRATIFIED_BASELINE_MIN_SAMPLES)
             .fetch_all(&state_clone.db)
             .await
             .ok()
@@ -333,5 +397,73 @@ mod tests {
         // Fast site: mean 10ms — floor dominates (10 + 500 = 510ms)
         assert!(!is_ttfb_anomalous(400.0, 10.0, 5.0, 3.0));
         assert!(is_ttfb_anomalous(511.0, 10.0, 5.0, 3.0));
+    }
+
+    #[test]
+    fn effective_baseline_uses_miss_stratum_when_miss_probe() {
+        let mb = MonitorBaselineRow {
+            ttfb_avg_ms: Some(40.0),
+            ttfb_stddev_ms: Some(10.0),
+            ttfb_hit_avg_ms: Some(15.0),
+            ttfb_hit_stddev_ms: Some(2.0),
+            ttfb_hit_sample_count: Some(5000),
+            ttfb_miss_avg_ms: Some(380.0),
+            ttfb_miss_stddev_ms: Some(40.0),
+            ttfb_miss_sample_count: Some(100),
+        };
+        let (avg, stddev) = effective_baseline_for_anomaly(Some("MISS"), &mb);
+        assert_eq!(avg, 380.0);
+        assert_eq!(stddev, 40.0);
+    }
+
+    #[test]
+    fn effective_baseline_uses_hit_stratum_when_hit_probe() {
+        let mb = MonitorBaselineRow {
+            ttfb_avg_ms: Some(200.0),
+            ttfb_stddev_ms: Some(50.0),
+            ttfb_hit_avg_ms: Some(25.0),
+            ttfb_hit_stddev_ms: Some(5.0),
+            ttfb_hit_sample_count: Some(100),
+            ttfb_miss_avg_ms: Some(800.0),
+            ttfb_miss_stddev_ms: Some(20.0),
+            ttfb_miss_sample_count: Some(50),
+        };
+        let (avg, stddev) = effective_baseline_for_anomaly(Some("HIT"), &mb);
+        assert_eq!(avg, 25.0);
+        assert_eq!(stddev, 5.0);
+    }
+
+    #[test]
+    fn effective_baseline_falls_back_when_insufficient_stratum_samples() {
+        let mb = MonitorBaselineRow {
+            ttfb_avg_ms: Some(90.0),
+            ttfb_stddev_ms: Some(15.0),
+            ttfb_hit_avg_ms: Some(20.0),
+            ttfb_hit_stddev_ms: Some(1.0),
+            ttfb_hit_sample_count: Some(10), // < STRATIFIED_BASELINE_MIN_SAMPLES
+            ttfb_miss_avg_ms: Some(400.0),
+            ttfb_miss_stddev_ms: Some(30.0),
+            ttfb_miss_sample_count: Some(10),
+        };
+        let (avg, _) = effective_baseline_for_anomaly(Some("HIT"), &mb);
+        assert_eq!(avg, 90.0);
+        let (avg2, _) = effective_baseline_for_anomaly(Some("MISS"), &mb);
+        assert_eq!(avg2, 90.0);
+    }
+
+    #[test]
+    fn effective_baseline_null_cache_status_uses_combined() {
+        let mb = MonitorBaselineRow {
+            ttfb_avg_ms: Some(120.0),
+            ttfb_stddev_ms: Some(20.0),
+            ttfb_hit_avg_ms: Some(20.0),
+            ttfb_hit_stddev_ms: Some(2.0),
+            ttfb_hit_sample_count: Some(5000),
+            ttfb_miss_avg_ms: Some(400.0),
+            ttfb_miss_stddev_ms: Some(30.0),
+            ttfb_miss_sample_count: Some(5000),
+        };
+        let (avg, _) = effective_baseline_for_anomaly(None, &mb);
+        assert_eq!(avg, 120.0);
     }
 }
