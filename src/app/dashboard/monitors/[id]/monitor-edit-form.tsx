@@ -38,7 +38,6 @@ export interface MonitorEditFormProps {
   alertTtfbTrendComparators: TrendComparator[]
   alertTtfbTrendDirection: 'worsening' | 'both'
   alertTrendMinSamples: number
-  alertTrendCooldownMinutes: number
   alertTrendRequireConsecutive: boolean
   alertTrendGlobalEnabled: boolean
   alertTrendGlobalThresholdFactor: number
@@ -80,7 +79,6 @@ export function MonitorEditForm({
   alertTtfbTrendComparators,
   alertTtfbTrendDirection,
   alertTrendMinSamples,
-  alertTrendCooldownMinutes,
   alertTrendRequireConsecutive,
   alertTrendGlobalEnabled,
   alertTrendGlobalThresholdFactor,
@@ -122,7 +120,6 @@ export function MonitorEditForm({
     alert_ttfb_trend_comparators: alertTtfbTrendComparators ?? ['prev_hour', 'day_avg'],
     alert_ttfb_trend_direction: alertTtfbTrendDirection ?? 'worsening',
     alert_trend_min_samples: alertTrendMinSamples ?? 10,
-    alert_trend_cooldown_minutes: alertTrendCooldownMinutes ?? 360,
     alert_trend_require_consecutive: alertTrendRequireConsecutive ?? false,
     alert_trend_global_enabled: alertTrendGlobalEnabled ?? true,
     alert_trend_global_threshold_factor: alertTrendGlobalThresholdFactor ?? 1.5,
@@ -174,10 +171,6 @@ export function MonitorEditForm({
       const n = Number(value)
       if (isNaN(n) || n < 1 || n > 60) return 'Must be between 1 and 60'
     }
-    if (field === 'alert_trend_cooldown_minutes') {
-      const n = Number(value)
-      if (isNaN(n) || n < 15 || n > 1440) return 'Must be between 15 and 1440 min'
-    }
     if (field === 'alert_trend_global_threshold_factor') {
       const n = Number(value)
       if (isNaN(n) || n < 1.0 || n > 5.0) return 'Must be between 1.0 and 5.0'
@@ -197,9 +190,8 @@ export function MonitorEditForm({
     const cacheHitTrendErr = validate('alert_cache_hit_trend_threshold_pp', current.alert_cache_hit_trend_threshold_pp, current)
     const ttfbTrendErr = validate('alert_ttfb_trend_threshold_pct', current.alert_ttfb_trend_threshold_pct, current)
     const minSamplesErr = validate('alert_trend_min_samples', current.alert_trend_min_samples, current)
-    const cooldownErr = validate('alert_trend_cooldown_minutes', current.alert_trend_cooldown_minutes, current)
 
-    if (emailErr || slackErr || thresholdErr || cacheAgeHoursErr || cacheHitErr || cacheHitCriticalErr || cacheHitTrendErr || ttfbTrendErr || minSamplesErr || cooldownErr) {
+    if (emailErr || slackErr || thresholdErr || cacheAgeHoursErr || cacheHitErr || cacheHitCriticalErr || cacheHitTrendErr || ttfbTrendErr || minSamplesErr) {
       setErrors(prev => ({
         ...prev,
         notify_email: emailErr,
@@ -212,7 +204,6 @@ export function MonitorEditForm({
         alert_cache_hit_trend_threshold_pp: cacheHitTrendErr,
         alert_ttfb_trend_threshold_pct: ttfbTrendErr,
         alert_trend_min_samples: minSamplesErr,
-        alert_trend_cooldown_minutes: cooldownErr,
       }))
       return
     }
@@ -276,7 +267,6 @@ export function MonitorEditForm({
       values.alert_cache_hit_trend_threshold_pp !== lastSavedValues.current.alert_cache_hit_trend_threshold_pp ||
       values.alert_ttfb_trend_threshold_pct !== lastSavedValues.current.alert_ttfb_trend_threshold_pct ||
       values.alert_trend_min_samples !== lastSavedValues.current.alert_trend_min_samples ||
-      values.alert_trend_cooldown_minutes !== lastSavedValues.current.alert_trend_cooldown_minutes ||
       values.alert_trend_global_threshold_factor !== lastSavedValues.current.alert_trend_global_threshold_factor
 
     const delay = isTyping ? 800 : 0
@@ -861,7 +851,7 @@ export function MonitorEditForm({
               <p className="cs-label mb-4">Fine-tuning <span className="text-zinc-600 font-normal normal-case tracking-normal">— optional, reduces false positives</span></p>
               <div className="flex flex-col sm:flex-row gap-6">
                 {/* Numeric inputs */}
-                <div className="grid grid-cols-2 gap-4 flex-1">
+                <div className="grid grid-cols-1 gap-4 flex-1 max-w-xs">
                   <div className="space-y-1.5">
                     <label htmlFor={`${p}-trend-min-samples`} className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">Min samples / hour</label>
                     <input
@@ -875,17 +865,6 @@ export function MonitorEditForm({
                       Default 10: we skip trend evaluation unless the current hour and the reference window each have at least this many probes (fewer noisy alerts).
                     </p>
                     {errors.alert_trend_min_samples && <span className="cs-error-msg">{errors.alert_trend_min_samples}</span>}
-                  </div>
-                  <div className="space-y-1.5">
-                    <label htmlFor={`${p}-trend-cooldown`} className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">Quiet period (min)</label>
-                    <input
-                      id={`${p}-trend-cooldown`}
-                      type="number" min={15} max={1440} step={15}
-                      value={values.alert_trend_cooldown_minutes}
-                      onChange={(e) => handleInputChange('alert_trend_cooldown_minutes', Number(e.target.value))}
-                      className={`h-9 w-full cs-input text-sm text-center ${errors.alert_trend_cooldown_minutes ? 'cs-input-error' : ''}`}
-                    />
-                    {errors.alert_trend_cooldown_minutes && <span className="cs-error-msg">{errors.alert_trend_cooldown_minutes}</span>}
                   </div>
                 </div>
 

@@ -73,8 +73,6 @@ struct MonitorTrendConfig {
     alert_ttfb_trend_comparators: Vec<String>,
     alert_ttfb_trend_direction: String,
     alert_trend_min_samples: i32,
-    #[allow(dead_code)]
-    alert_trend_cooldown_minutes: i32,
     alert_trend_require_consecutive: bool,
     alert_trend_global_enabled: bool,
     alert_trend_global_threshold_factor: f64,
@@ -83,14 +81,14 @@ struct MonitorTrendConfig {
 async fn fetch_trend_monitors(state: &AppState) -> Result<Vec<MonitorTrendConfig>, sqlx::Error> {
     let rows = sqlx::query_as::<_, (
         Uuid, bool, f64, Vec<String>, bool, f64, Vec<String>, String,
-        i32, i32, bool, bool, f64,
+        i32, bool, bool, f64,
     )>(
         r#"
         SELECT id,
                alert_cache_hit_trend_enabled,  alert_cache_hit_trend_threshold_pp, alert_cache_hit_trend_comparators,
                alert_ttfb_trend_enabled,        alert_ttfb_trend_threshold_pct,      alert_ttfb_trend_comparators,
                alert_ttfb_trend_direction,
-               alert_trend_min_samples,         alert_trend_cooldown_minutes,
+               alert_trend_min_samples,
                alert_trend_require_consecutive, alert_trend_global_enabled,
                alert_trend_global_threshold_factor
         FROM monitors
@@ -103,7 +101,7 @@ async fn fetch_trend_monitors(state: &AppState) -> Result<Vec<MonitorTrendConfig
 
     Ok(rows.into_iter().map(|(
         id, cache_en, cache_thr, cache_cmp, ttfb_en, ttfb_thr, ttfb_cmp, ttfb_dir,
-        min_s, cool, req_consec, global_en, global_factor,
+        min_s, req_consec, global_en, global_factor,
     )| MonitorTrendConfig {
         id,
         alert_cache_hit_trend_enabled: cache_en,
@@ -114,7 +112,6 @@ async fn fetch_trend_monitors(state: &AppState) -> Result<Vec<MonitorTrendConfig
         alert_ttfb_trend_comparators: ttfb_cmp,
         alert_ttfb_trend_direction: ttfb_dir,
         alert_trend_min_samples: min_s,
-        alert_trend_cooldown_minutes: cool,
         alert_trend_require_consecutive: req_consec,
         alert_trend_global_enabled: global_en,
         alert_trend_global_threshold_factor: global_factor,

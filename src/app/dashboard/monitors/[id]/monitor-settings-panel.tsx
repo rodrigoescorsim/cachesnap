@@ -35,7 +35,6 @@ export function MonitorSettingsPanel(props: {
   alertTtfbTrendComparators: TrendComparator[]
   alertTtfbTrendDirection: 'worsening' | 'both'
   alertTrendMinSamples: number
-  alertTrendCooldownMinutes: number
   alertTrendRequireConsecutive: boolean
   alertTrendGlobalEnabled: boolean
   alertTrendGlobalThresholdFactor: number
