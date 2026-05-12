@@ -556,8 +556,8 @@ export default async function MonitorDetailPage({
     notify_email: string | null; notify_email_enabled: boolean;
     notify_slack_webhook: string | null; notify_slack_enabled: boolean;
     alert_threshold_ms: number; alert_threshold_hit_ms: number; alert_sensitivity: number;
-    alert_down_enabled: boolean; alert_ttfb_enabled: boolean; alert_anomaly_enabled: boolean;
-    alert_anycast_enabled: boolean; alert_zombie_cache_enabled: boolean; alert_cache_age_threshold_hours: number;
+    alert_down_enabled: boolean; alert_ttfb_enabled: boolean; alert_ttfb_anomaly_enabled: boolean;
+    alert_anycast_enabled: boolean; alert_cache_age_enabled: boolean; alert_cache_age_threshold_hours: number;
     alert_cache_hit_enabled: boolean; alert_cache_hit_threshold_pct: number;
     alert_cache_hit_trend_enabled: boolean; alert_cache_hit_trend_threshold_pct: number; alert_cache_hit_trend_comparators: string[];
     alert_ttfb_trend_enabled: boolean; alert_ttfb_trend_threshold_pct: number; alert_ttfb_trend_comparators: string[];
@@ -567,8 +567,8 @@ export default async function MonitorDetailPage({
     SELECT id, url, name, is_active, check_interval_seconds, audit_interval_seconds,
            notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
            alert_threshold_ms, alert_threshold_hit_ms, alert_sensitivity,
-           alert_down_enabled, alert_ttfb_enabled, alert_anomaly_enabled,
-           alert_anycast_enabled, alert_zombie_cache_enabled, alert_cache_age_threshold_hours,
+           alert_down_enabled, alert_ttfb_enabled, alert_ttfb_anomaly_enabled,
+           alert_anycast_enabled, alert_cache_age_enabled, alert_cache_age_threshold_hours,
            alert_cache_hit_enabled, alert_cache_hit_threshold_pct,
            alert_cache_hit_trend_enabled, alert_cache_hit_trend_threshold_pct, alert_cache_hit_trend_comparators,
            alert_ttfb_trend_enabled, alert_ttfb_trend_threshold_pct, alert_ttfb_trend_comparators,
@@ -2046,9 +2046,9 @@ export default async function MonitorDetailPage({
                     alertSensitivity={monitor.alert_sensitivity}
                     alertDownEnabled={monitor.alert_down_enabled}
                     alertTtfbEnabled={monitor.alert_ttfb_enabled}
-                    alertAnomalyEnabled={monitor.alert_anomaly_enabled}
+                    alertTtfbAnomalyEnabled={monitor.alert_ttfb_anomaly_enabled}
                     alertAnycastEnabled={monitor.alert_anycast_enabled}
-                    alertZombieCacheEnabled={monitor.alert_zombie_cache_enabled}
+                    alertCacheAgeEnabled={monitor.alert_cache_age_enabled}
                     alertCacheAgeThresholdHours={monitor.alert_cache_age_threshold_hours}
                     alertCacheHitEnabled={monitor.alert_cache_hit_enabled}
                     alertCacheHitThresholdPct={monitor.alert_cache_hit_threshold_pct}

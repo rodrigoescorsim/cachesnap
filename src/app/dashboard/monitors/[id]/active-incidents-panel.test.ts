@@ -42,19 +42,19 @@ describe('formatDuration', () => {
 
 describe('alertTypeDisplay', () => {
   const knownTypes = [
-    ['down', 'Monitor Offline'],
-    ['ttfb_threshold', 'TTFB Threshold Exceeded'],
-    ['anomaly', 'Latency Anomaly'],
-    ['cache_hit_low', 'Cache Hit Rate Low'],
-    ['ssl_expiry', 'SSL Certificate Expiring'],
-    ['zombie_cache', 'Cache Age Alert'],
-    ['anycast', 'Anycast Routing Issue'],
-    ['cache_hit_trend_drop_region', 'Cache Hit Trend Drop (Region)'],
-    ['cache_hit_trend_drop_global', 'Cache Hit Trend Drop (Global)'],
-    ['ttfb_trend_up_region', 'TTFB Trend Worsening (Region)'],
-    ['ttfb_trend_up_global', 'TTFB Trend Worsening (Global)'],
-    ['ttfb_trend_down_region', 'TTFB Improved (Region)'],
-    ['ttfb_trend_down_global', 'TTFB Improved (Global)'],
+    ['down', 'Monitor Down'],
+    ['ttfb_limit', 'TTFB Above Limit'],
+    ['ttfb_anomaly', 'TTFB Anomaly'],
+    ['cache_hit_low', 'Low Cache Hit Rate'],
+    ['ssl_expiry', 'SSL Expiry Alert'],
+    ['cache_age_alert', 'Cache Age Alert'],
+    ['anycast', 'Anycast Issue'],
+    ['cache_hit_trend_drop_region', 'Cache Hit Drop (Region)'],
+    ['cache_hit_trend_drop_global', 'Cache Hit Drop (Global)'],
+    ['ttfb_trend_up_region', 'TTFB Worsening (Region)'],
+    ['ttfb_trend_up_global', 'TTFB Worsening (Global)'],
+    ['ttfb_trend_down_region', 'TTFB Improving (Region)'],
+    ['ttfb_trend_down_global', 'TTFB Improving (Global)'],
   ] as const
 
   it.each(knownTypes)('maps %s to a non-empty display name', (slug, expected) => {
@@ -94,15 +94,15 @@ describe('formatMetricDelta', () => {
   })
 
   it('shows above limit for TTFB metrics over threshold', () => {
-    expect(formatMetricDelta(350, 200, 'ttfb_threshold')).toBe('150ms above limit')
+    expect(formatMetricDelta(350, 200, 'ttfb_limit')).toBe('150ms above limit')
   })
 
   it('shows below limit for TTFB below threshold', () => {
-    expect(formatMetricDelta(150, 200, 'ttfb_threshold')).toBe('50ms below limit')
+    expect(formatMetricDelta(150, 200, 'ttfb_limit')).toBe('50ms below limit')
   })
 
   it('rounds ms to integers', () => {
-    const result = formatMetricDelta(350.7, 200.3, 'ttfb_threshold')
+    const result = formatMetricDelta(350.7, 200.3, 'ttfb_limit')
     expect(result).not.toContain('.')
   })
 

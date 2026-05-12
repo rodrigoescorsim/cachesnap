@@ -21,10 +21,10 @@ export type PerformanceView = 'real-time' | 'performance' | 'trends' | 'patterns
 
 export type AlertType =
   | 'down'
-  | 'ttfb_threshold'
-  | 'anomaly'
+  | 'ttfb_limit'
+  | 'ttfb_anomaly'
   | 'anycast'
-  | 'zombie_cache'
+  | 'cache_age_alert'
   | 'cache_hit_low'
   | 'cache_hit_trend_drop_region'
   | 'cache_hit_trend_drop_global'
@@ -34,7 +34,7 @@ export type AlertType =
   | 'ttfb_trend_down_global'
 
 export const VALID_ALERT_TYPES = [
-  'down', 'ttfb_threshold', 'anomaly', 'anycast', 'zombie_cache', 'cache_hit_low',
+  'down', 'ttfb_limit', 'ttfb_anomaly', 'anycast', 'cache_age_alert', 'cache_hit_low',
   'cache_hit_trend_drop_region', 'cache_hit_trend_drop_global',
   'ttfb_trend_up_region', 'ttfb_trend_up_global',
   'ttfb_trend_down_region', 'ttfb_trend_down_global',
@@ -42,8 +42,8 @@ export const VALID_ALERT_TYPES = [
 
 export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   down: 'Monitor Down',
-  ttfb_threshold: 'TTFB Above Limit',
-  anomaly: 'TTFB Anomaly',
+  ttfb_limit: 'TTFB Above Limit',
+  ttfb_anomaly: 'TTFB Anomaly',
   anycast: 'Anycast Issue',
   cache_hit_trend_drop_region: 'Cache Hit Drop (Region)',
   cache_hit_trend_drop_global: 'Cache Hit Drop (Global)',
@@ -51,7 +51,7 @@ export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   ttfb_trend_up_global: 'TTFB Worsening (Global)',
   ttfb_trend_down_region: 'TTFB Improving (Region)',
   ttfb_trend_down_global: 'TTFB Improving (Global)',
-  zombie_cache: 'Cache Age Alert',
+  cache_age_alert: 'Cache Age Alert',
   cache_hit_low: 'Low Cache Hit Rate',
 }
 

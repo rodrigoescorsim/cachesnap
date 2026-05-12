@@ -22,9 +22,9 @@ export interface MonitorEditFormProps {
   alertSensitivity: number
   alertDownEnabled: boolean
   alertTtfbEnabled: boolean
-  alertAnomalyEnabled: boolean
+  alertTtfbAnomalyEnabled: boolean
   alertAnycastEnabled: boolean
-  alertZombieCacheEnabled: boolean
+  alertCacheAgeEnabled: boolean
   alertCacheAgeThresholdHours: number
   alertCacheHitEnabled: boolean
   alertCacheHitThresholdPct: number
@@ -64,9 +64,9 @@ export function MonitorEditForm({
   alertSensitivity,
   alertDownEnabled,
   alertTtfbEnabled,
-  alertAnomalyEnabled,
+  alertTtfbAnomalyEnabled,
   alertAnycastEnabled,
-  alertZombieCacheEnabled,
+  alertCacheAgeEnabled,
   alertCacheAgeThresholdHours,
   alertCacheHitEnabled,
   alertCacheHitThresholdPct,
@@ -105,9 +105,9 @@ export function MonitorEditForm({
     alert_sensitivity: alertSensitivity || 2,
     alert_down_enabled: alertDownEnabled ?? true,
     alert_ttfb_enabled: alertTtfbEnabled ?? true,
-    alert_anomaly_enabled: alertAnomalyEnabled ?? true,
+    alert_ttfb_anomaly_enabled: alertTtfbAnomalyEnabled ?? true,
     alert_anycast_enabled: alertAnycastEnabled ?? true,
-    alert_zombie_cache_enabled: alertZombieCacheEnabled ?? false,
+    alert_cache_age_enabled: alertCacheAgeEnabled ?? false,
     alert_cache_age_threshold_hours: alertCacheAgeThresholdHours ?? 72,
     alert_cache_hit_enabled: alertCacheHitEnabled ?? true,
     alert_cache_hit_threshold_pct: alertCacheHitThresholdPct ?? 50,
@@ -501,12 +501,12 @@ export function MonitorEditForm({
               {/* Spike sensitivity — checkbox-gated */}
               <div className="flex items-start gap-3 pb-4">
                 <CsCheckbox
-                  id={`${p}-alert_anomaly_enabled`}
+                  id={`${p}-alert_ttfb_anomaly_enabled`}
                   align="start"
-                  checked={values.alert_anomaly_enabled}
-                  onChange={(e) => handleInputChange('alert_anomaly_enabled', e.target.checked)}
+                  checked={values.alert_ttfb_anomaly_enabled}
+                  onChange={(e) => handleInputChange('alert_ttfb_anomaly_enabled', e.target.checked)}
                 />
-                <label htmlFor={`${p}-alert_anomaly_enabled`} className="cursor-pointer select-none flex-1">
+                <label htmlFor={`${p}-alert_ttfb_anomaly_enabled`} className="cursor-pointer select-none flex-1">
                   <span className="text-xs font-bold text-zinc-200 block">TTFB Anomaly</span>
                   <span className="text-xs text-zinc-400 leading-relaxed">
                     Alert when TTFB spikes well above this region's 7-day baseline.
@@ -575,15 +575,15 @@ export function MonitorEditForm({
                 {/* Cache Age Alert — inline threshold */}
                 <div className="flex items-start gap-3">
                   <CsCheckbox
-                    id={`${p}-alert_zombie_cache_enabled`}
+                    id={`${p}-alert_cache_age_enabled`}
                     align="start"
-                    checked={values.alert_zombie_cache_enabled}
-                    onChange={(e) => handleInputChange('alert_zombie_cache_enabled', e.target.checked)}
+                    checked={values.alert_cache_age_enabled}
+                    onChange={(e) => handleInputChange('alert_cache_age_enabled', e.target.checked)}
                   />
-                  <label htmlFor={`${p}-alert_zombie_cache_enabled`} className="cursor-pointer select-none flex-1">
+                  <label htmlFor={`${p}-alert_cache_age_enabled`} className="cursor-pointer select-none flex-1">
                     <span className="text-xs font-bold text-zinc-200 block">Cache Age Alert</span>
                     <span className="text-xs text-zinc-400 leading-relaxed">Alert when cached content stays too old without refresh.</span>
-                    <div className={`mt-2 flex items-center gap-2 transition-opacity ${values.alert_zombie_cache_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
+                    <div className={`mt-2 flex items-center gap-2 transition-opacity ${values.alert_cache_age_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
                       <span className="text-xs text-zinc-400">Maximum cache age</span>
                       <div className="relative">
                         <input
@@ -593,7 +593,7 @@ export function MonitorEditForm({
                           step={1}
                           value={values.alert_cache_age_threshold_hours}
                           onChange={(e) => handleInputChange('alert_cache_age_threshold_hours', Number(e.target.value))}
-                          disabled={!values.alert_zombie_cache_enabled}
+                          disabled={!values.alert_cache_age_enabled}
                           className={`h-8 w-20 cs-input text-xs pr-8 text-center ${errors.alert_cache_age_threshold_hours ? 'cs-input-error' : ''}`}
                         />
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-500 pointer-events-none">h</span>

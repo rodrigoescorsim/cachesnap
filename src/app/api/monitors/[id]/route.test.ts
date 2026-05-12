@@ -33,9 +33,9 @@ const baseRow = {
   alert_threshold_ms: 1000,
   alert_sensitivity: 2,
   alert_down_enabled: true,
-  alert_anomaly_enabled: true,
+  alert_ttfb_anomaly_enabled: true,
   alert_anycast_enabled: false,
-  alert_zombie_cache_enabled: false,
+  alert_cache_age_enabled: false,
   alert_cache_age_threshold_hours: 72,
   alert_cache_hit_enabled: false,
   alert_cache_hit_threshold_pct: 80,
@@ -99,9 +99,9 @@ describe('PATCH /api/monitors/[id]', () => {
         alert_threshold_ms: 2500,
         alert_sensitivity: 1,
         alert_down_enabled: false,
-        alert_anomaly_enabled: false,
+        alert_ttfb_anomaly_enabled: false,
         alert_anycast_enabled: true,
-        alert_zombie_cache_enabled: true,
+        alert_cache_age_enabled: true,
         alert_cache_hit_enabled: true,
         alert_cache_hit_threshold_pct: 65.5,
       },
@@ -112,9 +112,9 @@ describe('PATCH /api/monitors/[id]', () => {
         alert_threshold_ms: 2500,
         alert_sensitivity: 1,
         alert_down_enabled: false,
-        alert_anomaly_enabled: false,
+        alert_ttfb_anomaly_enabled: false,
         alert_anycast_enabled: true,
-        alert_zombie_cache_enabled: true,
+        alert_cache_age_enabled: true,
         alert_cache_hit_enabled: true,
         alert_cache_hit_threshold_pct: 65.5,
       }),
@@ -126,9 +126,9 @@ describe('PATCH /api/monitors/[id]', () => {
     expect(json.alert_threshold_ms).toBe(2500)
     expect(json.alert_sensitivity).toBe(1)
     expect(json.alert_down_enabled).toBe(false)
-    expect(json.alert_anomaly_enabled).toBe(false)
+    expect(json.alert_ttfb_anomaly_enabled).toBe(false)
     expect(json.alert_anycast_enabled).toBe(true)
-    expect(json.alert_zombie_cache_enabled).toBe(true)
+    expect(json.alert_cache_age_enabled).toBe(true)
     expect(json.alert_cache_hit_enabled).toBe(true)
     expect(json.alert_cache_hit_threshold_pct).toBe(65.5)
 

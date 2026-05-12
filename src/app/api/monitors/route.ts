@@ -75,8 +75,8 @@ export async function POST(request: NextRequest) {
       user_id, url, name, check_interval_seconds, audit_interval_seconds, 
       audit_readiness_state, alert_threshold_ms, alert_threshold_hit_ms,
       alert_cache_hit_trend_threshold_pct, alert_ttfb_trend_threshold_pct,
-      alert_ttfb_enabled, alert_down_enabled, alert_anomaly_enabled, 
-      alert_anycast_enabled, alert_zombie_cache_enabled, alert_cache_hit_enabled,
+      alert_ttfb_enabled, alert_down_enabled, alert_ttfb_anomaly_enabled, 
+      alert_anycast_enabled, alert_cache_age_enabled, alert_cache_hit_enabled,
       alert_cache_hit_trend_enabled, alert_ttfb_trend_enabled,
       alert_cache_hit_trend_comparators, alert_ttfb_trend_comparators,
       notify_email, notify_email_enabled

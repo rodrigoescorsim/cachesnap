@@ -257,7 +257,7 @@ function AlertRow({
   } else if (alert.deviation_factor != null) {
     const df = alert.deviation_factor
     severity = df > 4 ? 'CRITICAL' : df > 2 ? 'WARNING' : 'INFO'
-  } else if (alert.alert_type === 'ttfb_threshold') {
+  } else if (alert.alert_type === 'ttfb_limit') {
     severity = ratio > 2.0 ? 'CRITICAL' : ratio > 1.25 ? 'WARNING' : 'INFO'
   }
 

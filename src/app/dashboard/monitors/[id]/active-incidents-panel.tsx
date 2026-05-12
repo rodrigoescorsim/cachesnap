@@ -26,11 +26,11 @@ interface ActiveIncidentsPanelProps {
 
 const ALERT_TYPE_DISPLAY: Record<string, string> = {
   down: 'Monitor Down',
-  ttfb_threshold: 'TTFB Above Limit',
-  anomaly: 'TTFB Anomaly',
+  ttfb_limit: 'TTFB Above Limit',
+  ttfb_anomaly: 'TTFB Anomaly',
   cache_hit_low: 'Low Cache Hit Rate',
   ssl_expiry: 'SSL Expiry Alert',
-  zombie_cache: 'Cache Age Alert',
+  cache_age_alert: 'Cache Age Alert',
   anycast: 'Anycast Issue',
   cache_hit_trend_drop_region: 'Cache Hit Drop (Region)',
   cache_hit_trend_drop_global: 'Cache Hit Drop (Global)',
@@ -100,7 +100,7 @@ function formatMetricValue(value: number, alertType: string): string {
 function getActionTab(alertType: string): string {
   if (alertType === 'down' || alertType === 'offline') return 'live'
   if (alertType.includes('cache_hit')) return 'trends'
-  if (alertType === 'anomaly' || alertType === 'zombie_cache' || alertType === 'anycast') return 'patterns'
+  if (alertType === 'ttfb_anomaly' || alertType === 'cache_age_alert' || alertType === 'anycast') return 'patterns'
   return 'performance'
 }
 
