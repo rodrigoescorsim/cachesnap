@@ -2,6 +2,13 @@ use crate::{alerts::worker, AppState};
 use tracing::{info, warn};
 use uuid::Uuid;
 
+// Regional window: 4 closed hourly buckets (~48 probes/region at 5-min interval)
+const REGIONAL_WINDOW_HOURS: i64 = 4;
+// Minimum samples before firing — allows for some probe downtime
+const REGIONAL_MIN_SAMPLES: i32 = 30;
+// Global window: 1 closed hourly bucket (~96 probes across 8 regions)
+const GLOBAL_MIN_SAMPLES: i32 = 70;
+
 pub async fn run_cycle(state: &AppState) -> Result<(), anyhow::Error> {
     let bucket_hour: chrono::DateTime<chrono::Utc> = sqlx::query_scalar(
         "SELECT date_trunc('hour', NOW()) - INTERVAL '1 hour'",
@@ -31,28 +38,26 @@ pub async fn run_cycle(state: &AppState) -> Result<(), anyhow::Error> {
         .filter(|r| r != "__global__")
         .collect::<Vec<_>>();
 
-        // Regional checks
+        // Regional checks — 4h rolling window
         for region in &regions {
             if m.alert_cache_hit_trend_enabled {
-                let (f, s) = check_metric(state, m, region, "cache_hit_pct", bucket_hour).await;
+                let (f, s) = check_regional(state, m, region, "cache_hit_pct", bucket_hour).await;
                 fired += f; skipped += s;
             }
             if m.alert_ttfb_trend_enabled {
-                let (f, s) = check_metric(state, m, region, "ttfb_avg_ms", bucket_hour).await;
+                let (f, s) = check_regional(state, m, region, "ttfb_avg_ms", bucket_hour).await;
                 fired += f; skipped += s;
             }
         }
 
-        // Global secondary checks
-        if m.alert_trend_global_enabled {
-            if m.alert_cache_hit_trend_enabled {
-                let (f, s) = check_metric(state, m, "__global__", "cache_hit_pct", bucket_hour).await;
-                fired += f; skipped += s;
-            }
-            if m.alert_ttfb_trend_enabled {
-                let (f, s) = check_metric(state, m, "__global__", "ttfb_avg_ms", bucket_hour).await;
-                fired += f; skipped += s;
-            }
+        // Global checks — 1h window via trend_baselines
+        if m.alert_cache_hit_trend_global_enabled {
+            let (f, s) = check_global(state, m, "cache_hit_pct", bucket_hour).await;
+            fired += f; skipped += s;
+        }
+        if m.alert_ttfb_trend_global_enabled {
+            let (f, s) = check_global(state, m, "ttfb_avg_ms", bucket_hour).await;
+            fired += f; skipped += s;
         }
     }
 
@@ -68,54 +73,94 @@ struct MonitorTrendConfig {
     alert_cache_hit_trend_enabled: bool,
     alert_cache_hit_trend_threshold_pp: f64,
     alert_cache_hit_trend_comparators: Vec<String>,
+    alert_cache_hit_trend_global_enabled: bool,
+    alert_cache_hit_trend_global_threshold_pp: f64,
     alert_ttfb_trend_enabled: bool,
     alert_ttfb_trend_threshold_pct: f64,
     alert_ttfb_trend_comparators: Vec<String>,
     alert_ttfb_trend_direction: String,
-    alert_trend_min_samples: i32,
-    alert_trend_require_consecutive: bool,
-    alert_trend_global_enabled: bool,
-    alert_trend_global_threshold_factor: f64,
+    alert_ttfb_trend_global_enabled: bool,
+    alert_ttfb_trend_global_threshold_pct: f64,
 }
 
 async fn fetch_trend_monitors(state: &AppState) -> Result<Vec<MonitorTrendConfig>, sqlx::Error> {
     let rows = sqlx::query_as::<_, (
-        Uuid, bool, f64, Vec<String>, bool, f64, Vec<String>, String,
-        i32, bool, bool, f64,
+        Uuid, bool, f64, Vec<String>, bool, f64,
+        bool, f64, Vec<String>, String, bool, f64,
     )>(
         r#"
         SELECT id,
-               alert_cache_hit_trend_enabled,  alert_cache_hit_trend_threshold_pp, alert_cache_hit_trend_comparators,
-               alert_ttfb_trend_enabled,        alert_ttfb_trend_threshold_pct,      alert_ttfb_trend_comparators,
+               alert_cache_hit_trend_enabled,        alert_cache_hit_trend_threshold_pp,  alert_cache_hit_trend_comparators,
+               alert_cache_hit_trend_global_enabled,  alert_cache_hit_trend_global_threshold_pp,
+               alert_ttfb_trend_enabled,              alert_ttfb_trend_threshold_pct,      alert_ttfb_trend_comparators,
                alert_ttfb_trend_direction,
-               alert_trend_min_samples,
-               alert_trend_require_consecutive, alert_trend_global_enabled,
-               alert_trend_global_threshold_factor
+               alert_ttfb_trend_global_enabled,       alert_ttfb_trend_global_threshold_pct
         FROM monitors
         WHERE is_active = true
-          AND (alert_cache_hit_trend_enabled = true OR alert_ttfb_trend_enabled = true)
+          AND (alert_cache_hit_trend_enabled = true OR alert_ttfb_trend_enabled = true
+               OR alert_cache_hit_trend_global_enabled = true OR alert_ttfb_trend_global_enabled = true)
         "#,
     )
     .fetch_all(&state.db)
     .await?;
 
     Ok(rows.into_iter().map(|(
-        id, cache_en, cache_thr, cache_cmp, ttfb_en, ttfb_thr, ttfb_cmp, ttfb_dir,
-        min_s, req_consec, global_en, global_factor,
+        id,
+        cache_en, cache_thr, cache_cmp, cache_g_en, cache_g_thr,
+        ttfb_en, ttfb_thr, ttfb_cmp, ttfb_dir, ttfb_g_en, ttfb_g_thr,
     )| MonitorTrendConfig {
         id,
         alert_cache_hit_trend_enabled: cache_en,
         alert_cache_hit_trend_threshold_pp: cache_thr,
         alert_cache_hit_trend_comparators: cache_cmp,
+        alert_cache_hit_trend_global_enabled: cache_g_en,
+        alert_cache_hit_trend_global_threshold_pp: cache_g_thr,
         alert_ttfb_trend_enabled: ttfb_en,
         alert_ttfb_trend_threshold_pct: ttfb_thr,
         alert_ttfb_trend_comparators: ttfb_cmp,
         alert_ttfb_trend_direction: ttfb_dir,
-        alert_trend_min_samples: min_s,
-        alert_trend_require_consecutive: req_consec,
-        alert_trend_global_enabled: global_en,
-        alert_trend_global_threshold_factor: global_factor,
+        alert_ttfb_trend_global_enabled: ttfb_g_en,
+        alert_ttfb_trend_global_threshold_pct: ttfb_g_thr,
     }).collect())
+}
+
+/// Fetches the 4h rolling aggregate for a single region from probe_results_hourly.
+/// Returns (cache_hit_pct, ttfb_avg_ms, total_count, sample_count).
+async fn fetch_regional_rolling(
+    state: &AppState,
+    monitor_id: Uuid,
+    region: &str,
+    bucket_hour: chrono::DateTime<chrono::Utc>,
+) -> Result<Option<(Option<f64>, Option<f64>, i32, i32)>, sqlx::Error> {
+    let window_start = bucket_hour - chrono::Duration::hours(REGIONAL_WINDOW_HOURS - 1);
+    let row = sqlx::query_as::<_, (Option<f64>, Option<f64>, Option<i64>, Option<i64>)>(
+        r#"
+        SELECT
+            CASE WHEN SUM(cdn_count) > 0
+                 THEN SUM(hit_count)::float8 / SUM(cdn_count) * 100.0
+                 ELSE NULL END,
+            CASE WHEN SUM(sample_count) > 0
+                 THEN SUM(ttfb_sum_ms) / SUM(sample_count)
+                 ELSE NULL END,
+            SUM(total_count)::bigint,
+            SUM(sample_count)::bigint
+        FROM probe_results_hourly
+        WHERE monitor_id = $1
+          AND region    = $2
+          AND bucket   >= $3
+          AND bucket   <= $4
+        "#,
+    )
+    .bind(monitor_id)
+    .bind(region)
+    .bind(window_start)
+    .bind(bucket_hour)
+    .fetch_optional(&state.db)
+    .await?;
+
+    Ok(row.map(|(hit_pct, ttfb, total, samples)| {
+        (hit_pct, ttfb, total.unwrap_or(0) as i32, samples.unwrap_or(0) as i32)
+    }))
 }
 
 struct BaselineRow {
@@ -174,26 +219,18 @@ fn delta_pct(current: f64, reference: f64) -> f64 {
     (current - reference) / reference * 100.0
 }
 
-/// Signed change in cache hit rate (percentage points): negative when hit rate dropped.
 fn cache_hit_pp_signed_delta(current: f64, reference: f64) -> f64 {
     current - reference
 }
 
-/// Relative decrease (0–100+) when reference > 0; for messaging only.
 fn cache_hit_relative_drop_pct(current: f64, reference: f64) -> f64 {
-    if reference <= 0.0 {
-        return 0.0;
-    }
+    if reference <= 0.0 { return 0.0; }
     (reference - current) / reference * 100.0
 }
 
-/// Fire when hit rate fell by at least `threshold_pp` vs reference (after global factor).
 fn should_fire_cache_hit_pp_drop(current: f64, reference: f64, threshold_pp: f64) -> bool {
-    if reference <= 0.0 {
-        return false;
-    }
-    let pp_drop = reference - current;
-    pp_drop >= threshold_pp
+    if reference <= 0.0 { return false; }
+    (reference - current) >= threshold_pp
 }
 
 fn should_fire_ttfb(delta: f64, threshold: f64, direction: &str) -> bool {
@@ -204,8 +241,8 @@ fn should_fire_ttfb(delta: f64, threshold: f64, direction: &str) -> bool {
 
 fn alert_type_for(metric: &str, scope: &str, is_improvement: bool) -> &'static str {
     match (metric, scope, is_improvement) {
-        ("cache_hit_pct", "region", _)   => "cache_hit_trend_drop_region",
-        ("cache_hit_pct", "global", _)   => "cache_hit_trend_drop_global",
+        ("cache_hit_pct", "region", _)     => "cache_hit_trend_drop_region",
+        ("cache_hit_pct", "global", _)     => "cache_hit_trend_drop_global",
         ("ttfb_avg_ms",   "region", false) => "ttfb_trend_up_region",
         ("ttfb_avg_ms",   "global", false) => "ttfb_trend_up_global",
         ("ttfb_avg_ms",   "region", true)  => "ttfb_trend_down_region",
@@ -214,69 +251,102 @@ fn alert_type_for(metric: &str, scope: &str, is_improvement: bool) -> &'static s
     }
 }
 
-async fn consecutive_confirmed(
-    state: &AppState,
-    monitor_id: Uuid,
-    region: &str,
-    alert_type: &str,
-    comparator: &str,
-) -> bool {
-    // Previous window alert would have been created ~1-2h ago
-    let count: i64 = sqlx::query_scalar(
-        r#"SELECT COUNT(*) FROM alerts
-           WHERE monitor_id = $1 AND region = $2 AND alert_type = $3 AND comparator = $4
-             AND created_at > NOW() - INTERVAL '3 hours'"#,
-    )
-    .bind(monitor_id)
-    .bind(region)
-    .bind(alert_type)
-    .bind(comparator)
-    .fetch_one(&state.db)
-    .await
-    .unwrap_or(0);
-    count > 0
-}
-
-// Returns (fired_count, skipped_count)
-async fn check_metric(
+/// Regional check: current value is a 4h rolling average from probe_results_hourly.
+/// Reference values come from trend_baselines (pre-computed prev_hour / day_avg / same_hour_yday).
+async fn check_regional(
     state: &AppState,
     m: &MonitorTrendConfig,
     region: &str,
     metric: &str,
     bucket_hour: chrono::DateTime<chrono::Utc>,
 ) -> (usize, usize) {
-    let scope = if region == "__global__" { "global" } else { "region" };
-    let is_global = scope == "global";
-
+    let comparators = if metric == "cache_hit_pct" {
+        &m.alert_cache_hit_trend_comparators
+    } else {
+        &m.alert_ttfb_trend_comparators
+    };
     let threshold = if metric == "cache_hit_pct" {
         m.alert_cache_hit_trend_threshold_pp
     } else {
         m.alert_ttfb_trend_threshold_pct
     };
 
-    let effective_threshold = if is_global {
-        threshold * m.alert_trend_global_threshold_factor
-    } else {
-        threshold
+    let rolling = match fetch_regional_rolling(state, m.id, region, bucket_hour).await {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            warn!("trend_detector: regional monitor={} region={} metric={} decision=skipped reason=no_rolling_data", m.id, region, metric);
+            return (0, comparators.len());
+        }
+        Err(e) => {
+            warn!("trend_detector: regional monitor={} region={} metric={} decision=skipped reason=db_error error={}", m.id, region, metric, e);
+            return (0, comparators.len());
+        }
     };
 
+    let (current, current_samples) = if metric == "cache_hit_pct" {
+        (rolling.0, rolling.2)  // cache_hit_pct, total_count
+    } else {
+        (rolling.1, rolling.3)  // ttfb_avg_ms, sample_count
+    };
+
+    let current = match current {
+        Some(v) => v,
+        None => {
+            warn!("trend_detector: regional monitor={} region={} metric={} decision=skipped reason=no_current_value", m.id, region, metric);
+            return (0, comparators.len());
+        }
+    };
+
+    if current_samples < REGIONAL_MIN_SAMPLES {
+        warn!(
+            "trend_detector: regional monitor={} region={} metric={} decision=skipped reason=insufficient_samples count={} min={}",
+            m.id, region, metric, current_samples, REGIONAL_MIN_SAMPLES
+        );
+        return (0, comparators.len());
+    }
+
+    // Reference values come from trend_baselines (1h granularity — acceptable as reference even for 4h current)
+    let baseline = match fetch_baseline(state, m.id, region, metric, bucket_hour).await {
+        Ok(Some(b)) => b,
+        Ok(None) => {
+            warn!("trend_detector: regional monitor={} region={} metric={} decision=skipped reason=no_baseline", m.id, region, metric);
+            return (0, comparators.len());
+        }
+        Err(e) => {
+            warn!("trend_detector: regional monitor={} region={} metric={} decision=skipped reason=baseline_db_error error={}", m.id, region, metric, e);
+            return (0, comparators.len());
+        }
+    };
+
+    run_comparators(state, m, region, "region", metric, comparators, current, current_samples, &baseline, threshold, bucket_hour).await
+}
+
+/// Global check: current value is the 1h aggregate from trend_baselines (__global__).
+async fn check_global(
+    state: &AppState,
+    m: &MonitorTrendConfig,
+    metric: &str,
+    bucket_hour: chrono::DateTime<chrono::Utc>,
+) -> (usize, usize) {
     let comparators = if metric == "cache_hit_pct" {
         &m.alert_cache_hit_trend_comparators
     } else {
         &m.alert_ttfb_trend_comparators
     };
+    let threshold = if metric == "cache_hit_pct" {
+        m.alert_cache_hit_trend_global_threshold_pp
+    } else {
+        m.alert_ttfb_trend_global_threshold_pct
+    };
 
-    // For global, require_consecutive is always true (conservative)
-    let require_consecutive = is_global || m.alert_trend_require_consecutive;
-
-    let baseline = match fetch_baseline(state, m.id, region, metric, bucket_hour).await {
+    let baseline = match fetch_baseline(state, m.id, "__global__", metric, bucket_hour).await {
         Ok(Some(b)) => b,
         Ok(None) => {
-            warn!("trend_detector: monitor={} region={} metric={} decision=skipped reason=no_baseline", m.id, region, metric);
+            warn!("trend_detector: global monitor={} metric={} decision=skipped reason=no_baseline", m.id, metric);
             return (0, comparators.len());
         }
         Err(e) => {
-            warn!("trend_detector: monitor={} region={} metric={} decision=skipped reason=db_error error={}", m.id, region, metric, e);
+            warn!("trend_detector: global monitor={} metric={} decision=skipped reason=db_error error={}", m.id, metric, e);
             return (0, comparators.len());
         }
     };
@@ -284,28 +354,44 @@ async fn check_metric(
     let current = match baseline.current_value {
         Some(v) => v,
         None => {
-            warn!("trend_detector: monitor={} region={} metric={} decision=skipped reason=no_current_value", m.id, region, metric);
+            warn!("trend_detector: global monitor={} metric={} decision=skipped reason=no_current_value", m.id, metric);
             return (0, comparators.len());
         }
     };
 
     let current_samples = baseline.current_samples.unwrap_or(0);
-    if current_samples < m.alert_trend_min_samples {
+    if current_samples < GLOBAL_MIN_SAMPLES {
         warn!(
-            "trend_detector: monitor={} region={} metric={} decision=skipped reason=insufficient_samples count={} min={}",
-            m.id, region, metric, current_samples, m.alert_trend_min_samples
+            "trend_detector: global monitor={} metric={} decision=skipped reason=insufficient_samples count={} min={}",
+            m.id, metric, current_samples, GLOBAL_MIN_SAMPLES
         );
         return (0, comparators.len());
     }
 
+    run_comparators(state, m, "__global__", "global", metric, comparators, current, current_samples, &baseline, threshold, bucket_hour).await
+}
+
+async fn run_comparators(
+    state: &AppState,
+    m: &MonitorTrendConfig,
+    region: &str,
+    scope: &str,
+    metric: &str,
+    comparators: &[String],
+    current: f64,
+    _current_samples: i32,
+    baseline: &BaselineRow,
+    threshold: f64,
+    _bucket_hour: chrono::DateTime<chrono::Utc>,
+) -> (usize, usize) {
     let mut fired = 0usize;
     let mut skipped = 0usize;
 
     for comparator in comparators {
         let (ref_value, ref_samples) = match comparator.as_str() {
-            "prev_hour" => (baseline.prev_hour_value, baseline.prev_hour_samples.unwrap_or(0)),
-            "same_hour_prev_day" => (baseline.same_hour_yday_value, baseline.same_hour_yday_samples.unwrap_or(0)),
-            "day_avg" => (baseline.day_avg_value, baseline.day_avg_samples.unwrap_or(0)),
+            "prev_hour"          => (baseline.prev_hour_value,      baseline.prev_hour_samples.unwrap_or(0)),
+            "same_hour_prev_day" => (baseline.same_hour_yday_value,  baseline.same_hour_yday_samples.unwrap_or(0)),
+            "day_avg"            => (baseline.day_avg_value,         baseline.day_avg_samples.unwrap_or(0)),
             _ => {
                 warn!("trend_detector: unknown comparator {}", comparator);
                 skipped += 1;
@@ -313,11 +399,12 @@ async fn check_metric(
             }
         };
 
+        let min_ref = if scope == "global" { GLOBAL_MIN_SAMPLES } else { REGIONAL_MIN_SAMPLES / 2 };
         let reference = match ref_value {
-            Some(v) if v > 0.0 && ref_samples >= m.alert_trend_min_samples => v,
+            Some(v) if v > 0.0 && ref_samples >= min_ref => v,
             _ => {
                 warn!(
-                    "trend_detector: monitor={} region={} metric={} comparator={} decision=skipped reason=no_baseline",
+                    "trend_detector: monitor={} region={} metric={} comparator={} decision=skipped reason=no_reference",
                     m.id, region, metric, comparator
                 );
                 skipped += 1;
@@ -326,10 +413,10 @@ async fn check_metric(
         };
 
         let fires = if metric == "cache_hit_pct" {
-            should_fire_cache_hit_pp_drop(current, reference, effective_threshold)
+            should_fire_cache_hit_pp_drop(current, reference, threshold)
         } else {
             let delta = delta_pct(current, reference);
-            should_fire_ttfb(delta, effective_threshold, &m.alert_ttfb_trend_direction)
+            should_fire_ttfb(delta, threshold, &m.alert_ttfb_trend_direction)
         };
 
         if !fires {
@@ -343,62 +430,33 @@ async fn check_metric(
             delta_pct(current, reference)
         };
 
-        let is_improvement = metric == "ttfb_avg_ms" && delta_for_incident <= -effective_threshold;
+        let is_improvement = metric == "ttfb_avg_ms" && delta_for_incident <= -threshold;
         let alert_type = alert_type_for(metric, scope, is_improvement);
 
-        if require_consecutive && !consecutive_confirmed(state, m.id, region, alert_type, comparator).await {
-            warn!(
-                "trend_detector: monitor={} region={} metric={} comparator={} decision=skipped reason=not_confirmed",
-                m.id, region, metric, comparator
-            );
-            skipped += 1;
-            continue;
-        }
-
         let comparator_label = match comparator.as_str() {
-            "prev_hour" => "previous hour",
+            "prev_hour"          => "previous hour",
             "same_hour_prev_day" => "same time yesterday",
-            "day_avg" => "24h average",
-            other => other,
+            "day_avg"            => "24h average",
+            other                => other,
         };
 
-        let (diagnosis, action) = build_messages(
-            metric,
-            region,
-            scope,
-            comparator_label,
-            current,
-            reference,
-            delta_for_incident,
-        );
+        let (diagnosis, action) = build_messages(metric, region, scope, comparator_label, current, reference, delta_for_incident);
 
         let affected = vec![region.to_string()];
         if let Err(e) = worker::handle_incident(
-            state,
-            m.id,
-            alert_type,
-            affected,
-            Some(current),
-            Some(reference),
-            Some(diagnosis),
-            Some(action),
-            Some(delta_for_incident),
-            Some(comparator.clone()),
-            None,
-        )
-        .await
-        {
+            state, m.id, alert_type, affected,
+            Some(current), Some(reference),
+            Some(diagnosis), Some(action),
+            Some(delta_for_incident), Some(comparator.clone()), None,
+        ).await {
             warn!("trend_detector: handle_incident failed monitor={} type={}: {}", m.id, alert_type, e);
             skipped += 1;
             continue;
         }
 
         info!(
-            "trend_detector: monitor={} region={} metric={} comparator={} decision=fired delta={:.1}{}",
-            m.id,
-            region,
-            metric,
-            comparator,
+            "trend_detector: monitor={} scope={} region={} metric={} comparator={} decision=fired delta={:.1}{}",
+            m.id, scope, region, metric, comparator,
             delta_for_incident,
             if metric == "cache_hit_pct" { "pp" } else { "%" }
         );
@@ -424,13 +482,9 @@ fn build_messages(
         let rel = cache_hit_relative_drop_pct(current, reference);
         let diagnosis = format!(
             "{}Cache hit fell {:.1} pp vs {} ({:.1}% relative) · {} · {:.1}% now vs {:.1}% reference",
-            scope_prefix,
-            pp_drop,
-            comparator_label,
-            rel,
+            scope_prefix, pp_drop, comparator_label, rel,
             if scope == "region" { region } else { "all regions" },
-            current,
-            reference,
+            current, reference,
         );
         let action = "Investigate CDN cache configuration or sudden traffic pattern change. Common causes: short TTL, missing Cache-Control headers, or high dynamic content ratio.".to_string();
         (diagnosis, action)
@@ -438,13 +492,9 @@ fn build_messages(
         let direction = if delta_pp_signed > 0.0 { "increased" } else { "improved" };
         let diagnosis = format!(
             "{}TTFB {} {:.1}% vs {} · {} · {:.0}ms now vs {:.0}ms reference",
-            scope_prefix,
-            direction,
-            delta_pp_signed.abs(),
-            comparator_label,
+            scope_prefix, direction, delta_pp_signed.abs(), comparator_label,
             if scope == "region" { region } else { "all regions" },
-            current,
-            reference,
+            current, reference,
         );
         let action = "Check origin server latency, CDN routing changes, or upstream infrastructure. Compare edge vs origin TTFB in the Performance tab.".to_string();
         (diagnosis, action)
@@ -466,18 +516,17 @@ mod tests {
 
     #[test]
     fn test_delta_pct_small_reference() {
-        // Should not panic; caller guards reference > 0
         let d = delta_pct(1.0, 0.1);
         assert!(d > 0.0);
     }
 
     #[test]
     fn test_cache_hit_pp_drop_fires() {
-        assert!(should_fire_cache_hit_pp_drop(5.0, 20.0, 10.0)); // −15 pp
-        assert!(should_fire_cache_hit_pp_drop(10.4, 20.5, 10.0)); // exactly 10.1 pp
-        assert!(!should_fire_cache_hit_pp_drop(11.0, 20.0, 10.0)); // 9 pp drop
+        assert!(should_fire_cache_hit_pp_drop(5.0, 20.0, 10.0));   // −15 pp
+        assert!(should_fire_cache_hit_pp_drop(10.4, 20.5, 10.0));  // 10.1 pp
+        assert!(!should_fire_cache_hit_pp_drop(11.0, 20.0, 10.0)); // 9 pp — no fire
         assert!(!should_fire_cache_hit_pp_drop(25.0, 20.0, 10.0)); // improvement
-        assert!(!should_fire_cache_hit_pp_drop(10.0, 0.0, 5.0)); // invalid ref
+        assert!(!should_fire_cache_hit_pp_drop(10.0, 0.0, 5.0));   // invalid ref
     }
 
     #[test]
@@ -492,37 +541,50 @@ mod tests {
 
     #[test]
     fn test_ttfb_worsening_only() {
-        assert!(should_fire_ttfb(10.0, 10.0, "worsening"));   // exactly at
-        assert!(should_fire_ttfb(15.0, 10.0, "worsening"));   // beyond
-        assert!(!should_fire_ttfb(9.9, 10.0, "worsening"));   // below
-        assert!(!should_fire_ttfb(-15.0, 10.0, "worsening")); // improvement — no fire
+        assert!(should_fire_ttfb(10.0, 10.0, "worsening"));
+        assert!(should_fire_ttfb(15.0, 10.0, "worsening"));
+        assert!(!should_fire_ttfb(9.9, 10.0, "worsening"));
+        assert!(!should_fire_ttfb(-15.0, 10.0, "worsening"));
     }
 
     #[test]
     fn test_ttfb_both_directions() {
-        assert!(should_fire_ttfb(10.0, 10.0, "both"));   // worsening
-        assert!(should_fire_ttfb(-10.0, 10.0, "both"));  // improvement at threshold
-        assert!(should_fire_ttfb(-15.0, 10.0, "both"));  // significant improvement
-        assert!(!should_fire_ttfb(-9.9, 10.0, "both"));  // improvement below threshold
-        assert!(!should_fire_ttfb(9.9, 10.0, "both"));   // worsening below threshold
+        assert!(should_fire_ttfb(10.0, 10.0, "both"));
+        assert!(should_fire_ttfb(-10.0, 10.0, "both"));
+        assert!(should_fire_ttfb(-15.0, 10.0, "both"));
+        assert!(!should_fire_ttfb(-9.9, 10.0, "both"));
+        assert!(!should_fire_ttfb(9.9, 10.0, "both"));
     }
 
     #[test]
     fn test_alert_type_routing() {
         assert_eq!(alert_type_for("cache_hit_pct", "region", false), "cache_hit_trend_drop_region");
         assert_eq!(alert_type_for("cache_hit_pct", "global", false), "cache_hit_trend_drop_global");
-        assert_eq!(alert_type_for("ttfb_avg_ms", "region", false), "ttfb_trend_up_region");
-        assert_eq!(alert_type_for("ttfb_avg_ms", "global", false), "ttfb_trend_up_global");
-        assert_eq!(alert_type_for("ttfb_avg_ms", "region", true),  "ttfb_trend_down_region");
-        assert_eq!(alert_type_for("ttfb_avg_ms", "global", true),  "ttfb_trend_down_global");
+        assert_eq!(alert_type_for("ttfb_avg_ms",   "region", false), "ttfb_trend_up_region");
+        assert_eq!(alert_type_for("ttfb_avg_ms",   "global", false), "ttfb_trend_up_global");
+        assert_eq!(alert_type_for("ttfb_avg_ms",   "region", true),  "ttfb_trend_down_region");
+        assert_eq!(alert_type_for("ttfb_avg_ms",   "global", true),  "ttfb_trend_down_global");
     }
 
     #[test]
-    fn test_global_threshold_factor() {
-        let base = 10.0f64;
-        let factor = 1.5f64;
-        let effective = base * factor;
-        assert!(!should_fire_cache_hit_pp_drop(11.0, 25.0, effective)); // 14 pp drop < 15
-        assert!(should_fire_cache_hit_pp_drop(5.0, 25.0, effective)); // 20 pp drop >= 15
+    fn test_regional_20pp_threshold_needs_5_flips() {
+        // 48 probes in 4h → each probe = 100/48 ≈ 2.08 pp
+        // 20 pp threshold requires ≈ 10 flips — solid signal
+        let reference = 100.0f64;
+        let current_9_flips  = 100.0 - 9.0 * (100.0 / 48.0); // ~18.75 pp drop — no fire
+        let current_10_flips = 100.0 - 10.0 * (100.0 / 48.0); // ~20.83 pp drop — fires
+        assert!(!should_fire_cache_hit_pp_drop(current_9_flips,  reference, 20.0));
+        assert!( should_fire_cache_hit_pp_drop(current_10_flips, reference, 20.0));
+    }
+
+    #[test]
+    fn test_global_10pp_threshold_needs_10_flips() {
+        // 96 probes in 1h (8 regions) → each probe = 100/96 ≈ 1.04 pp
+        // 10 pp threshold requires ≈ 10 flips — solid signal
+        let reference = 100.0f64;
+        let current_9_flips  = 100.0 - 9.0 * (100.0 / 96.0); // ~9.375 pp — no fire
+        let current_10_flips = 100.0 - 10.0 * (100.0 / 96.0); // ~10.42 pp — fires
+        assert!(!should_fire_cache_hit_pp_drop(current_9_flips,  reference, 10.0));
+        assert!( should_fire_cache_hit_pp_drop(current_10_flips, reference, 10.0));
     }
 }
