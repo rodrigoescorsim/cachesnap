@@ -577,6 +577,22 @@ export function MonitorEditForm({
             {/* RIGHT: ADDITIONAL ALERT TYPES */}
             <div className="space-y-4">
               <div className="space-y-4 pt-1">
+                {/* CACHE HIT RATE — warn threshold (Thresholds section) */}
+                <div className="flex items-start gap-3">
+                  <CsCheckbox
+                    id={`${p}-alert_cache_hit_enabled`}
+                    align="start"
+                    checked={values.alert_cache_hit_enabled}
+                    onChange={(e) => handleInputChange('alert_cache_hit_enabled', e.target.checked)}
+                  />
+                  <label htmlFor={`${p}-alert_cache_hit_enabled`} className="cursor-pointer select-none flex-1">
+                    <span className="text-xs font-bold text-zinc-200 block">Low Cache Hit Rate</span>
+                    <span className="text-xs text-zinc-400 leading-relaxed">
+                      Alert when cache hit rate drops below the warn threshold defined above. Based on a 24 h rolling average.
+                    </span>
+                  </label>
+                </div>
+
                 {/* Site down (Connectivity/Errors) */}
                 <div className="flex items-start gap-3">
                   <CsCheckbox
@@ -636,22 +652,6 @@ export function MonitorEditForm({
                         <span className="cs-error-msg">{errors.alert_cache_age_threshold_hours}</span>
                       )}
                     </div>
-                  </label>
-                </div>
-
-                {/* CACHE HIT RATE — inline threshold */}
-                <div className="flex items-start gap-3">
-                  <CsCheckbox
-                    id={`${p}-alert_cache_hit_enabled`}
-                    align="start"
-                    checked={values.alert_cache_hit_enabled}
-                    onChange={(e) => handleInputChange('alert_cache_hit_enabled', e.target.checked)}
-                  />
-                  <label htmlFor={`${p}-alert_cache_hit_enabled`} className="cursor-pointer select-none flex-1">
-                    <span className="text-xs font-bold text-zinc-200 block">Low Cache Hit Rate</span>
-                    <span className="text-xs text-zinc-400 leading-relaxed">
-                      Alert when cache hit rate drops below the warn threshold defined above. Based on a 24 h rolling average.
-                    </span>
                   </label>
                 </div>
               </div>
