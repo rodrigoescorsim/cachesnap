@@ -1,7 +1,7 @@
 use crate::{
     alerts::severity::{
         alert_severity, alert_type_display, format_duration, format_duration_short,
-        is_cache_metric, metric_unit,
+        is_cache_hit_trend_drop_alert, is_cache_metric, metric_unit,
     },
     AppState,
 };
@@ -561,28 +561,8 @@ fn build_incident_email_html(
 }
 
 fn build_metrics_html(n: &IncidentNotification, unit: &str, severity_color: &str) -> String {
-    if let (Some(actual), Some(threshold)) = (n.actual, n.threshold) {
-        format!(
-            r#"<table cellpadding="12" cellspacing="0" style="background:#f9fafb;border-radius:6px;margin-bottom:16px;width:100%">
-  <tr>
-    <td>
-      <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Current</div>
-      <div style="font-size:26px;font-weight:700;color:{severity_color}">{actual:.1}{unit}</div>
-    </td>
-    <td>
-      <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Threshold</div>
-      <div style="font-size:26px;font-weight:700;color:#374151">{threshold:.1}{unit}</div>
-    </td>
-  </tr>
-</table>"#,
-            severity_color = severity_color,
-            actual = actual,
-            unit = unit,
-            threshold = threshold,
-        )
-    } else if let (Some(actual), Some(delta), Some(baseline)) = (n.actual, n.delta_pct, n.threshold)
-    {
-        let sign = if delta > 0.0 { "+" } else { "" };
+    // Prefer 3-column layout when a delta exists (trend: current vs reference + change).
+    if let (Some(actual), Some(delta), Some(baseline)) = (n.actual, n.delta_pct, n.threshold) {
         let cmp = n
             .comparator
             .as_deref()
@@ -601,6 +581,21 @@ fn build_metrics_html(n: &IncidentNotification, unit: &str, severity_color: &str
                 "#16a34a"
             }
         };
+        let delta_cell = if is_cache_hit_trend_drop_alert(&n.alert_type) {
+            format!(
+                r#"<div style="font-size:26px;font-weight:700;color:{delta_color}">{delta:.1} pp</div>"#,
+                delta_color = delta_color,
+                delta = delta,
+            )
+        } else {
+            let sign = if delta > 0.0 { "+" } else { "" };
+            format!(
+                r#"<div style="font-size:26px;font-weight:700;color:{delta_color}">{sign}{delta_abs:.1}%</div>"#,
+                delta_color = delta_color,
+                sign = sign,
+                delta_abs = delta.abs(),
+            )
+        };
         format!(
             r#"<table cellpadding="12" cellspacing="0" style="background:#f9fafb;border-radius:6px;margin-bottom:16px;width:100%">
   <tr>
@@ -610,7 +605,7 @@ fn build_metrics_html(n: &IncidentNotification, unit: &str, severity_color: &str
     </td>
     <td>
       <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">vs {cmp}</div>
-      <div style="font-size:26px;font-weight:700;color:{delta_color}">{sign}{delta:.1}%</div>
+      {delta_cell}
     </td>
     <td>
       <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Reference</div>
@@ -622,10 +617,27 @@ fn build_metrics_html(n: &IncidentNotification, unit: &str, severity_color: &str
             actual = actual,
             unit = unit,
             cmp = cmp,
-            sign = sign,
-            delta = delta.abs(),
-            delta_color = delta_color,
+            delta_cell = delta_cell,
             baseline = baseline,
+        )
+    } else if let (Some(actual), Some(threshold)) = (n.actual, n.threshold) {
+        format!(
+            r#"<table cellpadding="12" cellspacing="0" style="background:#f9fafb;border-radius:6px;margin-bottom:16px;width:100%">
+  <tr>
+    <td>
+      <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Current</div>
+      <div style="font-size:26px;font-weight:700;color:{severity_color}">{actual:.1}{unit}</div>
+    </td>
+    <td>
+      <div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Threshold</div>
+      <div style="font-size:26px;font-weight:700;color:#374151">{threshold:.1}{unit}</div>
+    </td>
+  </tr>
+</table>"#,
+            severity_color = severity_color,
+            actual = actual,
+            unit = unit,
+            threshold = threshold,
         )
     } else {
         String::new()
@@ -717,21 +729,28 @@ fn build_slack_incident_text(
         prefix, monitor_label, region_label
     )];
 
-    if let (Some(actual), Some(threshold)) = (n.actual, n.threshold) {
-        parts.push(format!(
-            "{:.1}{} current · threshold {:.1}{}",
-            actual, unit, threshold, unit
-        ));
-    } else if let (Some(actual), Some(delta)) = (n.actual, n.delta_pct) {
-        let sign = if delta > 0.0 { "+" } else { "" };
+    if let (Some(actual), Some(delta), Some(reference)) = (n.actual, n.delta_pct, n.threshold) {
         let cmp = n
             .comparator
             .as_deref()
             .map(comparator_display)
             .unwrap_or("reference");
+        if is_cache_hit_trend_drop_alert(&n.alert_type) {
+            parts.push(format!(
+                "{:.1}{} current · {:.1} pp vs {} · ref {:.1}{}",
+                actual, unit, delta, cmp, reference, unit
+            ));
+        } else {
+            let sign = if delta > 0.0 { "+" } else { "" };
+            parts.push(format!(
+                "{:.1}{} current · {}{:.1}% vs {} · ref {:.1}{}",
+                actual, unit, sign, delta.abs(), cmp, reference, unit
+            ));
+        }
+    } else if let (Some(actual), Some(threshold)) = (n.actual, n.threshold) {
         parts.push(format!(
-            "{:.1}{} current · {}{:.1}% vs {}",
-            actual, unit, sign, delta, cmp
+            "{:.1}{} current · threshold {:.1}{}",
+            actual, unit, threshold, unit
         ));
     }
 

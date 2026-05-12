@@ -87,6 +87,14 @@ pub fn is_cache_metric(alert_type: &str) -> bool {
     alert_type.contains("cache_hit")
 }
 
+/// Whether this alert compares cache hit rate **trend** (delta is in percentage points).
+pub fn is_cache_hit_trend_drop_alert(alert_type: &str) -> bool {
+    matches!(
+        alert_type,
+        "cache_hit_trend_drop_region" | "cache_hit_trend_drop_global"
+    )
+}
+
 /// Unit label for the metric (appended to values in notifications).
 pub fn metric_unit(alert_type: &str) -> &'static str {
     if is_cache_metric(alert_type) { "%" } else { "ms" }
@@ -151,6 +159,13 @@ mod tests {
     #[test]
     fn test_unknown_type_fallback() {
         assert_eq!(alert_type_display("some_new_type"), "Unknown Alert");
+    }
+
+    #[test]
+    fn test_is_cache_hit_trend_drop_alert() {
+        assert!(is_cache_hit_trend_drop_alert("cache_hit_trend_drop_region"));
+        assert!(is_cache_hit_trend_drop_alert("cache_hit_trend_drop_global"));
+        assert!(!is_cache_hit_trend_drop_alert("cache_hit_low"));
     }
 
     #[test]

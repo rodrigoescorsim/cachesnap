@@ -66,7 +66,7 @@ pub async fn run_cycle(state: &AppState) -> Result<(), anyhow::Error> {
 struct MonitorTrendConfig {
     id: Uuid,
     alert_cache_hit_trend_enabled: bool,
-    alert_cache_hit_trend_threshold_pct: f64,
+    alert_cache_hit_trend_threshold_pp: f64,
     alert_cache_hit_trend_comparators: Vec<String>,
     alert_ttfb_trend_enabled: bool,
     alert_ttfb_trend_threshold_pct: f64,
@@ -87,7 +87,7 @@ async fn fetch_trend_monitors(state: &AppState) -> Result<Vec<MonitorTrendConfig
     )>(
         r#"
         SELECT id,
-               alert_cache_hit_trend_enabled,  alert_cache_hit_trend_threshold_pct, alert_cache_hit_trend_comparators,
+               alert_cache_hit_trend_enabled,  alert_cache_hit_trend_threshold_pp, alert_cache_hit_trend_comparators,
                alert_ttfb_trend_enabled,        alert_ttfb_trend_threshold_pct,      alert_ttfb_trend_comparators,
                alert_ttfb_trend_direction,
                alert_trend_min_samples,         alert_trend_cooldown_minutes,
@@ -107,7 +107,7 @@ async fn fetch_trend_monitors(state: &AppState) -> Result<Vec<MonitorTrendConfig
     )| MonitorTrendConfig {
         id,
         alert_cache_hit_trend_enabled: cache_en,
-        alert_cache_hit_trend_threshold_pct: cache_thr,
+        alert_cache_hit_trend_threshold_pp: cache_thr,
         alert_cache_hit_trend_comparators: cache_cmp,
         alert_ttfb_trend_enabled: ttfb_en,
         alert_ttfb_trend_threshold_pct: ttfb_thr,
@@ -177,8 +177,26 @@ fn delta_pct(current: f64, reference: f64) -> f64 {
     (current - reference) / reference * 100.0
 }
 
-fn should_fire_cache_hit(delta: f64, threshold: f64) -> bool {
-    delta <= -threshold
+/// Signed change in cache hit rate (percentage points): negative when hit rate dropped.
+fn cache_hit_pp_signed_delta(current: f64, reference: f64) -> f64 {
+    current - reference
+}
+
+/// Relative decrease (0–100+) when reference > 0; for messaging only.
+fn cache_hit_relative_drop_pct(current: f64, reference: f64) -> f64 {
+    if reference <= 0.0 {
+        return 0.0;
+    }
+    (reference - current) / reference * 100.0
+}
+
+/// Fire when hit rate fell by at least `threshold_pp` vs reference (after global factor).
+fn should_fire_cache_hit_pp_drop(current: f64, reference: f64, threshold_pp: f64) -> bool {
+    if reference <= 0.0 {
+        return false;
+    }
+    let pp_drop = reference - current;
+    pp_drop >= threshold_pp
 }
 
 fn should_fire_ttfb(delta: f64, threshold: f64, direction: &str) -> bool {
@@ -234,7 +252,7 @@ async fn check_metric(
     let is_global = scope == "global";
 
     let threshold = if metric == "cache_hit_pct" {
-        m.alert_cache_hit_trend_threshold_pct
+        m.alert_cache_hit_trend_threshold_pp
     } else {
         m.alert_ttfb_trend_threshold_pct
     };
@@ -310,11 +328,10 @@ async fn check_metric(
             }
         };
 
-        let delta = delta_pct(current, reference);
-
         let fires = if metric == "cache_hit_pct" {
-            should_fire_cache_hit(delta, effective_threshold)
+            should_fire_cache_hit_pp_drop(current, reference, effective_threshold)
         } else {
+            let delta = delta_pct(current, reference);
             should_fire_ttfb(delta, effective_threshold, &m.alert_ttfb_trend_direction)
         };
 
@@ -323,7 +340,13 @@ async fn check_metric(
             continue;
         }
 
-        let is_improvement = metric == "ttfb_avg_ms" && delta <= -effective_threshold;
+        let delta_for_incident: f64 = if metric == "cache_hit_pct" {
+            cache_hit_pp_signed_delta(current, reference)
+        } else {
+            delta_pct(current, reference)
+        };
+
+        let is_improvement = metric == "ttfb_avg_ms" && delta_for_incident <= -effective_threshold;
         let alert_type = alert_type_for(metric, scope, is_improvement);
 
         if require_consecutive && !consecutive_confirmed(state, m.id, region, alert_type, comparator).await {
@@ -342,7 +365,15 @@ async fn check_metric(
             other => other,
         };
 
-        let (diagnosis, action) = build_messages(metric, region, scope, comparator_label, current, reference, delta);
+        let (diagnosis, action) = build_messages(
+            metric,
+            region,
+            scope,
+            comparator_label,
+            current,
+            reference,
+            delta_for_incident,
+        );
 
         let affected = vec![region.to_string()];
         if let Err(e) = worker::handle_incident(
@@ -354,7 +385,7 @@ async fn check_metric(
             Some(reference),
             Some(diagnosis),
             Some(action),
-            Some(delta),
+            Some(delta_for_incident),
             Some(comparator.clone()),
             None,
         )
@@ -366,8 +397,13 @@ async fn check_metric(
         }
 
         info!(
-            "trend_detector: monitor={} region={} metric={} comparator={} decision=fired delta={:.1}%",
-            m.id, region, metric, comparator, delta
+            "trend_detector: monitor={} region={} metric={} comparator={} decision=fired delta={:.1}{}",
+            m.id,
+            region,
+            metric,
+            comparator,
+            delta_for_incident,
+            if metric == "cache_hit_pct" { "pp" } else { "%" }
         );
         fired += 1;
     }
@@ -382,26 +418,36 @@ fn build_messages(
     comparator_label: &str,
     current: f64,
     reference: f64,
-    delta: f64,
+    delta_pp_signed: f64,
 ) -> (String, String) {
     let scope_prefix = if scope == "global" { "[Global] " } else { "" };
 
     let (diagnosis, action) = if metric == "cache_hit_pct" {
+        let pp_drop = (-delta_pp_signed).max(0.0);
+        let rel = cache_hit_relative_drop_pct(current, reference);
         let diagnosis = format!(
-            "{}Cache hit dropped {:.1}% vs {} · {} · {:.1}% now vs {:.1}% reference",
-            scope_prefix, delta.abs(), comparator_label,
+            "{}Cache hit fell {:.1} pp vs {} ({:.1}% relative) · {} · {:.1}% now vs {:.1}% reference",
+            scope_prefix,
+            pp_drop,
+            comparator_label,
+            rel,
             if scope == "region" { region } else { "all regions" },
-            current, reference,
+            current,
+            reference,
         );
         let action = "Investigate CDN cache configuration or sudden traffic pattern change. Common causes: short TTL, missing Cache-Control headers, or high dynamic content ratio.".to_string();
         (diagnosis, action)
     } else {
-        let direction = if delta > 0.0 { "increased" } else { "improved" };
+        let direction = if delta_pp_signed > 0.0 { "increased" } else { "improved" };
         let diagnosis = format!(
             "{}TTFB {} {:.1}% vs {} · {} · {:.0}ms now vs {:.0}ms reference",
-            scope_prefix, direction, delta.abs(), comparator_label,
+            scope_prefix,
+            direction,
+            delta_pp_signed.abs(),
+            comparator_label,
             if scope == "region" { region } else { "all regions" },
-            current, reference,
+            current,
+            reference,
         );
         let action = "Check origin server latency, CDN routing changes, or upstream infrastructure. Compare edge vs origin TTFB in the Performance tab.".to_string();
         (diagnosis, action)
@@ -429,11 +475,22 @@ mod tests {
     }
 
     #[test]
-    fn test_cache_hit_fires_on_drop() {
-        assert!(should_fire_cache_hit(-10.0, 10.0));  // exactly at threshold
-        assert!(should_fire_cache_hit(-15.0, 10.0));  // beyond threshold
-        assert!(!should_fire_cache_hit(-9.9, 10.0));  // below threshold
-        assert!(!should_fire_cache_hit(5.0, 10.0));   // improvement — no fire
+    fn test_cache_hit_pp_drop_fires() {
+        assert!(should_fire_cache_hit_pp_drop(5.0, 20.0, 10.0)); // −15 pp
+        assert!(should_fire_cache_hit_pp_drop(10.4, 20.5, 10.0)); // exactly 10.1 pp
+        assert!(!should_fire_cache_hit_pp_drop(11.0, 20.0, 10.0)); // 9 pp drop
+        assert!(!should_fire_cache_hit_pp_drop(25.0, 20.0, 10.0)); // improvement
+        assert!(!should_fire_cache_hit_pp_drop(10.0, 0.0, 5.0)); // invalid ref
+    }
+
+    #[test]
+    fn test_cache_hit_pp_signed_delta() {
+        assert!((cache_hit_pp_signed_delta(5.0, 15.5) - (-10.5)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_cache_hit_relative_drop_pct_message() {
+        assert!((cache_hit_relative_drop_pct(5.0, 10.5) - 52.380952).abs() < 0.01);
     }
 
     #[test]
@@ -468,7 +525,7 @@ mod tests {
         let base = 10.0f64;
         let factor = 1.5f64;
         let effective = base * factor;
-        assert!(!should_fire_cache_hit(-14.9, effective)); // below global threshold
-        assert!(should_fire_cache_hit(-15.0, effective));  // exactly at global threshold
+        assert!(!should_fire_cache_hit_pp_drop(11.0, 25.0, effective)); // 14 pp drop < 15
+        assert!(should_fire_cache_hit_pp_drop(5.0, 25.0, effective)); // 20 pp drop >= 15
     }
 }
