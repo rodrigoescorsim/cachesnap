@@ -43,17 +43,19 @@ export function getTtfbTone(ms: number, type: 'monitor' | 'global' = 'monitor') 
   return 'warning'
 }
 
-export function getTtfbColorClass(ms: number, type: 'monitor' | 'global' = 'monitor') {
+export function getTtfbColorClass(ms: number, type: 'monitor' | 'global' = 'monitor', fastMs?: number, slowMs?: number) {
   const t = type === 'global' ? GLOBAL_TTFB : MONITOR_TTFB
-  if (ms < t.ELITE) return 'text-metric-elite'
-  if (ms < t.FAST) return 'text-metric-ttfb-fast'
-  if (ms > t.SLOW) return 'text-metric-ttfb-slow'
+  const fast = fastMs ?? t.FAST
+  const slow = slowMs ?? t.SLOW
+  if (ms < Math.min(MONITOR_TTFB.ELITE, fast)) return 'text-metric-elite'
+  if (ms < fast) return 'text-metric-ttfb-fast'
+  if (ms > slow) return 'text-metric-ttfb-slow'
   return 'text-metric-ttfb-med'
 }
 
-export function getCacheColor(pct: number | null, type: 'monitor' | 'global' = 'monitor') {
+export function getCacheColor(pct: number | null, type: 'monitor' | 'global' = 'monitor', warnPct?: number, criticalPct?: number) {
   if (pct === null) return 'text-zinc-500'
-  const t = type === 'global' ? GLOBAL_CACHE : { GOOD: MONITOR_CACHE.GOOD, FAIR: MONITOR_CACHE.LOW, PERFECT: GLOBAL_CACHE.PERFECT }
+  const t = type === 'global' ? GLOBAL_CACHE : { GOOD: warnPct ?? MONITOR_CACHE.GOOD, FAIR: criticalPct ?? MONITOR_CACHE.LOW, PERFECT: GLOBAL_CACHE.PERFECT }
   if (pct >= t.PERFECT) return 'text-metric-elite'
   if (pct >= t.GOOD) return 'text-metric-ttfb-fast'
   if (pct >= t.FAIR) return 'text-amber-400'
@@ -66,16 +68,18 @@ export function getHealthColor(score: number) {
   return 'text-rose-500'
 }
 
-export function getTtfbTooltip(ms: number, type: 'monitor' | 'global' = 'monitor'): string {
+export function getTtfbTooltip(ms: number, type: 'monitor' | 'global' = 'monitor', fastMs?: number, slowMs?: number): string {
   const t = type === 'global' ? GLOBAL_TTFB : MONITOR_TTFB
-  if (ms < t.ELITE) return 'Excellent latency: Very fast.'
-  if (ms < t.FAST) return 'Good latency: Fast for most users.'
-  if (ms > t.SLOW) return 'High latency: Above expected range.'
+  const fast = fastMs ?? t.FAST
+  const slow = slowMs ?? t.SLOW
+  if (ms < Math.min(MONITOR_TTFB.ELITE, fast)) return 'Excellent latency: Very fast.'
+  if (ms < fast) return 'Good latency: Fast for most users.'
+  if (ms > slow) return 'High latency: Above expected range.'
   return 'Moderate latency: Within normal range.'
 }
 
-export function getCacheTooltip(pct: number, type: 'monitor' | 'global' = 'monitor'): string {
-  const t = type === 'global' ? GLOBAL_CACHE : { GOOD: MONITOR_CACHE.GOOD, FAIR: MONITOR_CACHE.LOW, PERFECT: GLOBAL_CACHE.PERFECT }
+export function getCacheTooltip(pct: number, type: 'monitor' | 'global' = 'monitor', warnPct?: number, criticalPct?: number): string {
+  const t = type === 'global' ? GLOBAL_CACHE : { GOOD: warnPct ?? MONITOR_CACHE.GOOD, FAIR: criticalPct ?? MONITOR_CACHE.LOW, PERFECT: GLOBAL_CACHE.PERFECT }
   if (pct >= 100) return '100% cache hit: All requests served from CDN.'
   if (pct >= t.PERFECT) return 'Very high cache: Almost all requests use CDN.'
   if (pct >= t.GOOD) return 'Good efficiency: Most requests use CDN.'

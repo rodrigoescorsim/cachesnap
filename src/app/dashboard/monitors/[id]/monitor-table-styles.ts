@@ -45,28 +45,28 @@ export const MONITOR_TABLE = {
 } as const
 
 /** Green — fast, amber — medium, red — slow (aggregate TTFB). Maps to .text-metric-ttfb-* in globals.css. */
-export function ttfbColor(ms: number | null): string {
+export function ttfbColor(ms: number | null, fastMs = MONITOR_TTFB.FAST, slowMs = MONITOR_TTFB.SLOW): string {
   if (ms == null) return 'text-zinc-400'
-  if (ms <= MONITOR_TTFB.FAST) return 'text-metric-ttfb-fast'
-  if (ms <= MONITOR_TTFB.SLOW) return 'text-metric-ttfb-med'
+  if (ms <= fastMs) return 'text-metric-ttfb-fast'
+  if (ms <= slowMs) return 'text-metric-ttfb-med'
   return 'text-metric-ttfb-slow'
 }
 
 /** Real-time & Trends “Avg TTFB” — same tiers as ttfbColor(). */
-export function ttfbMetricCellClass(ms: number | null): string {
+export function ttfbMetricCellClass(ms: number | null, fastMs = MONITOR_TTFB.FAST, slowMs = MONITOR_TTFB.SLOW): string {
   const base = `px-3 py-2.5 text-right font-bold tabular-nums ${TTFB_COL_RAIL}`
   if (ms == null) return `${base} text-zinc-400 ${TTFB_LAYER_NEUTRAL}`
-  if (ms <= MONITOR_TTFB.FAST) return `${base} text-metric-ttfb-fast ${TTFB_LAYER_FAST}`
-  if (ms <= MONITOR_TTFB.SLOW) return `${base} text-metric-ttfb-med ${TTFB_LAYER_MED}`
+  if (ms <= fastMs) return `${base} text-metric-ttfb-fast ${TTFB_LAYER_FAST}`
+  if (ms <= slowMs) return `${base} text-metric-ttfb-med ${TTFB_LAYER_MED}`
   return `${base} text-metric-ttfb-slow ${TTFB_LAYER_SLOW}`
 }
 
 /** Trends Edge/Origin TTFB columns — same tiers as ttfbColor(), semibold weight. */
-export function edgeTtfbMetricCellClass(ms: number | null): string {
+export function edgeTtfbMetricCellClass(ms: number | null, fastMs = MONITOR_TTFB.FAST, slowMs = MONITOR_TTFB.SLOW): string {
   const base = `px-3 py-2.5 text-right font-semibold tabular-nums ${TTFB_COL_RAIL}`
   if (ms == null) return `${base} text-zinc-400 ${TTFB_LAYER_NEUTRAL}`
-  const layer = ms <= MONITOR_TTFB.FAST ? TTFB_LAYER_FAST : ms <= MONITOR_TTFB.SLOW ? TTFB_LAYER_MED : TTFB_LAYER_SLOW
-  return `${base} ${ttfbColor(ms)} ${layer}`
+  const layer = ms <= fastMs ? TTFB_LAYER_FAST : ms <= slowMs ? TTFB_LAYER_MED : TTFB_LAYER_SLOW
+  return `${base} ${ttfbColor(ms, fastMs, slowMs)} ${layer}`
 }
 
 export const originTtfbMetricCellClass = edgeTtfbMetricCellClass

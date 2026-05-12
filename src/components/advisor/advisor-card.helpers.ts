@@ -182,6 +182,10 @@ export type MonitorDetailLiveInput = {
   isDegraded?: boolean
   isOffline?: boolean
   lastErrorMessage?: string | null
+  thresholdMs?: number
+  thresholdHitMs?: number
+  cacheWarnPct?: number
+  cacheCriticalPct?: number
 }
 
 /**
@@ -192,7 +196,9 @@ export type MonitorDetailLiveInput = {
 export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): AdvisorState | null {
   const { monitorId, url, liveAvgTtfb, periodAvgTtfb, liveGlobalHitRate, hasLiveCacheData, liveDominantStatus,
     errorRegionCount, slowRegionCount, slowRegionLabels, slowestVsGlobalRegion, fastestVsGlobalRegion, totalRegionCount,
-    ttfbVsPeriodPct, isDown, isDegraded, isOffline, lastErrorMessage } = input
+    ttfbVsPeriodPct, isDown, isDegraded, isOffline, lastErrorMessage,
+    thresholdMs = MONITOR_TTFB.SLOW, thresholdHitMs = MONITOR_TTFB.FAST,
+    cacheWarnPct = MONITOR_CACHE.GOOD, cacheCriticalPct = MONITOR_CACHE.LOW } = input
 
   const host = hostname(url)
 
@@ -238,8 +244,8 @@ export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): A
   // Partial outage — caller should already show the isDegraded banner; skip here.
   if (errorRegionCount > 0) return null
 
-  // ── Critical: Absolute Low Cache Hit Rate (< 50%) ───────────────────────
-  if (hasLiveCacheData && liveGlobalHitRate < MONITOR_CACHE.LOW) {
+  // ── Critical: Absolute Low Cache Hit Rate ───────────────────────────────
+  if (hasLiveCacheData && liveGlobalHitRate < cacheCriticalPct) {
     const originPct = 100 - liveGlobalHitRate
     let recommendation = "Review your Cache-Control headers to improve performance."
     
@@ -269,7 +275,7 @@ export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): A
   }
 
   // ── Critical: Absolute high latency (Instant feedback) ──────────────────
-  if (liveAvgTtfb > MONITOR_TTFB.SLOW) {
+  if (liveAvgTtfb > thresholdMs) {
     const trendNote = ttfbVsPeriodPct > 0 && periodAvgTtfb > 0
       ? ` Up from ~${periodAvgTtfb}ms period avg (+${ttfbVsPeriodPct}%).`
       : ''
@@ -301,8 +307,8 @@ export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): A
   }
 
   // ── Warning: Moderate Issues (TTFB or Cache) ────────────────────────────
-  const isHighTtfbWarning = liveAvgTtfb > MONITOR_TTFB.FAST
-  const isLowCacheWarning = hasLiveCacheData && liveGlobalHitRate < MONITOR_CACHE.GOOD
+  const isHighTtfbWarning = liveAvgTtfb > thresholdHitMs
+  const isLowCacheWarning = hasLiveCacheData && liveGlobalHitRate < cacheWarnPct
   const isSignificantTrend = ttfbVsPeriodPct > 20
 
   if (isHighTtfbWarning || isLowCacheWarning || isSignificantTrend || slowRegionCount > 0) {
@@ -396,11 +402,17 @@ export type MonitorPerformancePeriodInput = {
   totalRegionCount?: number
   lastErrorMessage?: string | null
   slowRegionLabels?: string[]
+  thresholdMs?: number
+  thresholdHitMs?: number
+  cacheWarnPct?: number
+  cacheCriticalPct?: number
 }
 
 export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformancePeriodInput): AdvisorState | null {
   const { monitorId, url, range, avgTtfb, prevAvgTtfb, globalHitRate, prevGlobalHitRate,
-    hasHistory, isDown, isDegraded, isOffline, errorCount, totalRegionCount, lastErrorMessage, slowRegionLabels } = input
+    hasHistory, isDown, isDegraded, isOffline, errorCount, totalRegionCount, lastErrorMessage, slowRegionLabels,
+    thresholdMs = MONITOR_TTFB.SLOW, thresholdHitMs = MONITOR_TTFB.FAST,
+    cacheWarnPct = MONITOR_CACHE.GOOD, cacheCriticalPct = MONITOR_CACHE.LOW } = input
 
   const host = hostname(url)
 
@@ -442,8 +454,8 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
   const ttfbChangePct = (hasHistory && prevAvgTtfb > 0) ? Math.round(((avgTtfb - prevAvgTtfb) / prevAvgTtfb) * 100) : 0
   const cacheChangePp  = hasHistory ? globalHitRate - prevGlobalHitRate : 0
 
-  // ── Critical: Absolute Low Cache Hit Rate (< 50%) ───────────────────────
-  if (globalHitRate < MONITOR_CACHE.LOW) {
+  // ── Critical: Absolute Low Cache Hit Rate ───────────────────────────────
+  if (globalHitRate < cacheCriticalPct) {
     return {
       severity: 'critical',
       headline: `Critical cache efficiency: ${globalHitRate}%`,
@@ -457,7 +469,7 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
   }
 
   // ── Critical: Absolute high latency (Instant feedback) ──────────────────
-  if (avgTtfb > MONITOR_TTFB.SLOW) {
+  if (avgTtfb > thresholdMs) {
     const trendNote = (hasHistory && ttfbChangePct > 0)
       ? ` Up ${ttfbChangePct}% vs previous ${range}.`
       : ''
@@ -489,8 +501,8 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
   }
 
   // ── Warning: moderate issues ──────────────────────────────────────────────
-  const isLowCacheWarning = globalHitRate < MONITOR_CACHE.GOOD
-  const isHighTtfbWarning = avgTtfb > MONITOR_TTFB.FAST
+  const isLowCacheWarning = globalHitRate < cacheWarnPct
+  const isHighTtfbWarning = avgTtfb > thresholdHitMs
   const isRegressionWarning = ttfbChangePct > 10 || cacheChangePp < -10
 
   if (isLowCacheWarning || isHighTtfbWarning || isRegressionWarning || input.slowRegionCount > 0) {
@@ -629,10 +641,15 @@ export type MonitorPatternsAdvisorInput = {
     cache_hit_pct: number | null
     sample_count: number
   }>
+  thresholdMs?: number
+  thresholdHitMs?: number
+  cacheWarnPct?: number
 }
 
 export function deriveMonitorPatternsAdvisor(input: MonitorPatternsAdvisorInput): AdvisorState | null {
-  const { url, range, monitorId, hourlyPattern } = input
+  const { url, range, monitorId, hourlyPattern,
+    thresholdMs = MONITOR_TTFB.SLOW, thresholdHitMs = MONITOR_TTFB.FAST,
+    cacheWarnPct = MONITOR_CACHE.GOOD } = input
   if (hourlyPattern.length < 3) return null
 
   const host = hostname(url)
@@ -650,7 +667,7 @@ export function deriveMonitorPatternsAdvisor(input: MonitorPatternsAdvisorInput)
   const fmt = (h: number) => `${String(h).padStart(2, '0')}:00`
 
   // ── Critical: Peak hour at or above SLOW threshold ──────────────────────
-  if (worstHour.ttfb_avg >= MONITOR_TTFB.SLOW) {
+  if (worstHour.ttfb_avg >= thresholdMs) {
     return {
       severity: 'critical',
       headline: `Peak hour latency: ${worstHour.ttfb_avg}ms at ${fmt(worstHour.hour_of_day)}`,
@@ -664,8 +681,8 @@ export function deriveMonitorPatternsAdvisor(input: MonitorPatternsAdvisorInput)
   }
 
   // ── Warning: Peak hour above FAST, low cache hit at some hour, or high spread
-  const isPeakWarning = worstHour.ttfb_avg >= MONITOR_TTFB.FAST
-  const isCacheDipWarning = worstCacheHour !== null && (worstCacheHour.cache_hit_pct ?? 100) < MONITOR_CACHE.GOOD
+  const isPeakWarning = worstHour.ttfb_avg >= thresholdHitMs
+  const isCacheDipWarning = worstCacheHour !== null && (worstCacheHour.cache_hit_pct ?? 100) < cacheWarnPct
   const isHighVariance = spread >= 300 && spread > overallAvgTtfb
 
   if (isPeakWarning || isCacheDipWarning || isHighVariance) {
