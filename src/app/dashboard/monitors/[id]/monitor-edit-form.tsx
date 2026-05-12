@@ -31,7 +31,7 @@ export interface MonitorEditFormProps {
   cacheHitCriticalPct: number
   // Trend alerts
   alertCacheHitTrendEnabled: boolean
-  alertCacheHitTrendThresholdPct: number
+  alertCacheHitTrendThresholdPp: number
   alertCacheHitTrendComparators: TrendComparator[]
   alertTtfbTrendEnabled: boolean
   alertTtfbTrendThresholdPct: number
@@ -73,7 +73,7 @@ export function MonitorEditForm({
   alertCacheHitThresholdPct,
   cacheHitCriticalPct,
   alertCacheHitTrendEnabled,
-  alertCacheHitTrendThresholdPct,
+  alertCacheHitTrendThresholdPp,
   alertCacheHitTrendComparators,
   alertTtfbTrendEnabled,
   alertTtfbTrendThresholdPct,
@@ -115,13 +115,13 @@ export function MonitorEditForm({
     alert_cache_hit_threshold_pct: alertCacheHitThresholdPct ?? 80,
     cache_hit_critical_pct: cacheHitCriticalPct ?? 50,
     alert_cache_hit_trend_enabled: alertCacheHitTrendEnabled ?? true,
-    alert_cache_hit_trend_threshold_pct: alertCacheHitTrendThresholdPct || 40,
-    alert_cache_hit_trend_comparators: alertCacheHitTrendComparators ?? ['prev_hour', 'same_hour_prev_day', 'day_avg'],
+    alert_cache_hit_trend_threshold_pp: alertCacheHitTrendThresholdPp ?? 10,
+    alert_cache_hit_trend_comparators: alertCacheHitTrendComparators ?? ['prev_hour', 'day_avg'],
     alert_ttfb_trend_enabled: alertTtfbTrendEnabled ?? true,
-    alert_ttfb_trend_threshold_pct: alertTtfbTrendThresholdPct || 40,
-    alert_ttfb_trend_comparators: alertTtfbTrendComparators ?? ['prev_hour', 'same_hour_prev_day', 'day_avg'],
+    alert_ttfb_trend_threshold_pct: alertTtfbTrendThresholdPct || 50,
+    alert_ttfb_trend_comparators: alertTtfbTrendComparators ?? ['prev_hour', 'day_avg'],
     alert_ttfb_trend_direction: alertTtfbTrendDirection ?? 'worsening',
-    alert_trend_min_samples: alertTrendMinSamples ?? 5,
+    alert_trend_min_samples: alertTrendMinSamples ?? 10,
     alert_trend_cooldown_minutes: alertTrendCooldownMinutes ?? 360,
     alert_trend_require_consecutive: alertTrendRequireConsecutive ?? false,
     alert_trend_global_enabled: alertTrendGlobalEnabled ?? true,
@@ -162,7 +162,11 @@ export function MonitorEditForm({
       const n = Number(value)
       if (isNaN(n) || n < 0 || n > 100) return 'Must be between 0 and 100%'
     }
-    if (field === 'alert_cache_hit_trend_threshold_pct' || field === 'alert_ttfb_trend_threshold_pct') {
+    if (field === 'alert_cache_hit_trend_threshold_pp') {
+      const n = Number(value)
+      if (isNaN(n) || n < 0.5 || n > 100) return 'Must be between 0.5 and 100 pp'
+    }
+    if (field === 'alert_ttfb_trend_threshold_pct') {
       const n = Number(value)
       if (isNaN(n) || n < 1 || n > 100) return 'Must be between 1 and 100%'
     }
@@ -190,7 +194,7 @@ export function MonitorEditForm({
     const cacheAgeHoursErr = validate('alert_cache_age_threshold_hours', current.alert_cache_age_threshold_hours, current)
     const cacheHitErr = validate('alert_cache_hit_threshold_pct', current.alert_cache_hit_threshold_pct, current)
     const cacheHitCriticalErr = validate('cache_hit_critical_pct', current.cache_hit_critical_pct, current)
-    const cacheHitTrendErr = validate('alert_cache_hit_trend_threshold_pct', current.alert_cache_hit_trend_threshold_pct, current)
+    const cacheHitTrendErr = validate('alert_cache_hit_trend_threshold_pp', current.alert_cache_hit_trend_threshold_pp, current)
     const ttfbTrendErr = validate('alert_ttfb_trend_threshold_pct', current.alert_ttfb_trend_threshold_pct, current)
     const minSamplesErr = validate('alert_trend_min_samples', current.alert_trend_min_samples, current)
     const cooldownErr = validate('alert_trend_cooldown_minutes', current.alert_trend_cooldown_minutes, current)
@@ -205,7 +209,7 @@ export function MonitorEditForm({
         alert_cache_age_threshold_hours: cacheAgeHoursErr,
         alert_cache_hit_threshold_pct: cacheHitErr,
         cache_hit_critical_pct: cacheHitCriticalErr,
-        alert_cache_hit_trend_threshold_pct: cacheHitTrendErr,
+        alert_cache_hit_trend_threshold_pp: cacheHitTrendErr,
         alert_ttfb_trend_threshold_pct: ttfbTrendErr,
         alert_trend_min_samples: minSamplesErr,
         alert_trend_cooldown_minutes: cooldownErr,
@@ -269,7 +273,7 @@ export function MonitorEditForm({
       values.alert_cache_age_threshold_hours !== lastSavedValues.current.alert_cache_age_threshold_hours ||
       values.alert_cache_hit_threshold_pct !== lastSavedValues.current.alert_cache_hit_threshold_pct ||
       values.cache_hit_critical_pct !== lastSavedValues.current.cache_hit_critical_pct ||
-      values.alert_cache_hit_trend_threshold_pct !== lastSavedValues.current.alert_cache_hit_trend_threshold_pct ||
+      values.alert_cache_hit_trend_threshold_pp !== lastSavedValues.current.alert_cache_hit_trend_threshold_pp ||
       values.alert_ttfb_trend_threshold_pct !== lastSavedValues.current.alert_ttfb_trend_threshold_pct ||
       values.alert_trend_min_samples !== lastSavedValues.current.alert_trend_min_samples ||
       values.alert_trend_cooldown_minutes !== lastSavedValues.current.alert_trend_cooldown_minutes ||
@@ -696,7 +700,7 @@ export function MonitorEditForm({
                 <label htmlFor={`${p}-alert_cache_hit_trend_enabled`} className="cursor-pointer select-none flex-1">
                   <span className="text-xs font-bold text-zinc-200 block">Cache rate drop</span>
                   <span className="text-xs text-zinc-400 leading-relaxed">
-                    Alert when CDN cache rate falls significantly compared to a reference window — may indicate a misconfiguration or cache purge.
+                    Alert when CDN cache hit rate falls by at least the threshold (in percentage points vs the reference window). May indicate a misconfiguration or cache purge.
                   </span>
                 </label>
               </div>
@@ -706,16 +710,19 @@ export function MonitorEditForm({
                   <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Drop threshold</span>
                   <div className="relative w-24">
                     <input
-                      type="number" min={1} max={100} step={1}
-                      value={values.alert_cache_hit_trend_threshold_pct}
-                      onChange={(e) => handleInputChange('alert_cache_hit_trend_threshold_pct', Number(e.target.value))}
+                      type="number" min={0.5} max={100} step={0.5}
+                      value={values.alert_cache_hit_trend_threshold_pp}
+                      onChange={(e) => handleInputChange('alert_cache_hit_trend_threshold_pp', Number(e.target.value))}
                       disabled={!values.alert_cache_hit_trend_enabled}
-                      className={`h-9 w-full cs-input text-sm pr-8 text-center ${errors.alert_cache_hit_trend_threshold_pct ? 'cs-input-error' : ''}`}
+                      className={`h-9 w-full cs-input text-sm pr-10 text-center ${errors.alert_cache_hit_trend_threshold_pp ? 'cs-input-error' : ''}`}
                     />
-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">%</span>
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-500 pointer-events-none">pp</span>
                   </div>
-                  {errors.alert_cache_hit_trend_threshold_pct && (
-                    <span className="cs-error-msg">{errors.alert_cache_hit_trend_threshold_pct}</span>
+                  <p className="text-[10px] text-zinc-600 leading-snug max-w-xs">
+                    Minimum fall in cache hit rate (percentage points) vs the reference window before we alert. Example: 10 pp means 75% → 65% triggers; 10% → 5% does not.
+                  </p>
+                  {errors.alert_cache_hit_trend_threshold_pp && (
+                    <span className="cs-error-msg">{errors.alert_cache_hit_trend_threshold_pp}</span>
                   )}
                 </div>
 
@@ -724,8 +731,8 @@ export function MonitorEditForm({
                   <div className="flex flex-wrap gap-1.5">
                     {([
                       { value: 'prev_hour' as TrendComparator, label: 'Last hour' },
+                      { value: 'day_avg' as TrendComparator, label: '24h average' },
                       { value: 'same_hour_prev_day' as TrendComparator, label: 'Same time yesterday' },
-                      { value: 'day_avg' as TrendComparator, label: '24 h average' },
                     ]).map(opt => {
                       const active = values.alert_cache_hit_trend_comparators.includes(opt.value)
                       return (
@@ -817,8 +824,8 @@ export function MonitorEditForm({
                   <div className="flex flex-wrap gap-1.5">
                     {([
                       { value: 'prev_hour' as TrendComparator, label: 'Last hour' },
+                      { value: 'day_avg' as TrendComparator, label: '24h average' },
                       { value: 'same_hour_prev_day' as TrendComparator, label: 'Same time yesterday' },
-                      { value: 'day_avg' as TrendComparator, label: '24 h average' },
                     ]).map(opt => {
                       const active = values.alert_ttfb_trend_comparators.includes(opt.value)
                       return (
@@ -864,6 +871,9 @@ export function MonitorEditForm({
                       onChange={(e) => handleInputChange('alert_trend_min_samples', Number(e.target.value))}
                       className={`h-9 w-full cs-input text-sm text-center ${errors.alert_trend_min_samples ? 'cs-input-error' : ''}`}
                     />
+                    <p className="text-[10px] text-zinc-600 leading-snug max-w-xs">
+                      Default 10: we skip trend evaluation unless the current hour and the reference window each have at least this many probes (fewer noisy alerts).
+                    </p>
                     {errors.alert_trend_min_samples && <span className="cs-error-msg">{errors.alert_trend_min_samples}</span>}
                   </div>
                   <div className="space-y-1.5">
@@ -917,7 +927,7 @@ export function MonitorEditForm({
                       />
                       <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">×</span>
                     </div>
-                    <span className="text-xs text-zinc-500">base threshold — higher values mean fewer alerts</span>
+                    <span className="text-xs text-zinc-500">your pp threshold × this factor (TTFB trends still use %)</span>
                     {errors.alert_trend_global_threshold_factor && (
                       <span className="cs-error-msg">{errors.alert_trend_global_threshold_factor}</span>
                     )}

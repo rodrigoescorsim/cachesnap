@@ -85,8 +85,8 @@ describe('formatMetricDelta', () => {
     expect(formatMetricDelta(65.0, 80.0, 'cache_hit_low')).toBe('15.0% below target')
   })
 
-  it('uses target copy for cache_hit_trend types', () => {
-    expect(formatMetricDelta(70.0, 75.0, 'cache_hit_trend_drop_region')).toBe('5.0% below target')
+  it('uses pp vs reference for cache_hit_trend types', () => {
+    expect(formatMetricDelta(70.0, 75.0, 'cache_hit_trend_drop_region')).toBe('5.0 pp below reference')
   })
 
   it('shows above target when cache metric exceeds target', () => {

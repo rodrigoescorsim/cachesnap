@@ -75,6 +75,10 @@ export function formatDuration(ms: number): string {
   return `${Math.max(0, totalMinutes)} minutes`
 }
 
+function isCacheHitTrendDrop(alertType: string): boolean {
+  return alertType === 'cache_hit_trend_drop_region' || alertType === 'cache_hit_trend_drop_global'
+}
+
 function isCacheMetric(alertType: string): boolean {
   return alertType.includes('cache_hit')
 }
@@ -82,6 +86,11 @@ function isCacheMetric(alertType: string): boolean {
 export function formatMetricDelta(actual: number, threshold: number, alertType: string): string {
   const diff = actual - threshold
   const absDiff = Math.abs(diff)
+
+  if (isCacheHitTrendDrop(alertType)) {
+    if (diff < 0) return `${absDiff.toFixed(1)} pp below reference`
+    return `${absDiff.toFixed(1)} pp above reference`
+  }
 
   if (isCacheMetric(alertType)) {
     if (diff < 0) return `${absDiff.toFixed(1)}% below target`
@@ -223,7 +232,8 @@ export function ActiveIncidentsPanel({ monitorId, incidents, regionLabels = {} }
                       <>
                         <span className="text-zinc-600">·</span>
                         <span className="text-zinc-500">
-                          Target: {formatMetricValue(incident.last_threshold, incident.alert_type)}
+                          {isCacheHitTrendDrop(incident.alert_type) ? 'Reference' : 'Target'}:{' '}
+                          {formatMetricValue(incident.last_threshold, incident.alert_type)}
                         </span>
                         <span className={`font-medium ${sev.text}`}>
                           ({formatMetricDelta(incident.last_actual, incident.last_threshold, incident.alert_type)})

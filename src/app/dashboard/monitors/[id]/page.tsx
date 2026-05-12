@@ -559,7 +559,7 @@ export default async function MonitorDetailPage({
     alert_down_enabled: boolean; alert_ttfb_enabled: boolean; alert_ttfb_anomaly_enabled: boolean;
     alert_anycast_enabled: boolean; alert_cache_age_enabled: boolean; alert_cache_age_threshold_hours: number;
     alert_cache_hit_enabled: boolean; alert_cache_hit_threshold_pct: number; cache_hit_critical_pct: number;
-    alert_cache_hit_trend_enabled: boolean; alert_cache_hit_trend_threshold_pct: number; alert_cache_hit_trend_comparators: string[];
+    alert_cache_hit_trend_enabled: boolean; alert_cache_hit_trend_threshold_pp: number; alert_cache_hit_trend_comparators: string[];
     alert_ttfb_trend_enabled: boolean; alert_ttfb_trend_threshold_pct: number; alert_ttfb_trend_comparators: string[];
     alert_ttfb_trend_direction: string; alert_trend_min_samples: number; alert_trend_cooldown_minutes: number;
     alert_trend_require_consecutive: boolean; alert_trend_global_enabled: boolean; alert_trend_global_threshold_factor: number;
@@ -570,7 +570,7 @@ export default async function MonitorDetailPage({
            alert_down_enabled, alert_ttfb_enabled, alert_ttfb_anomaly_enabled,
            alert_anycast_enabled, alert_cache_age_enabled, alert_cache_age_threshold_hours,
            alert_cache_hit_enabled, alert_cache_hit_threshold_pct, cache_hit_critical_pct,
-           alert_cache_hit_trend_enabled, alert_cache_hit_trend_threshold_pct, alert_cache_hit_trend_comparators,
+           alert_cache_hit_trend_enabled, alert_cache_hit_trend_threshold_pp, alert_cache_hit_trend_comparators,
            alert_ttfb_trend_enabled, alert_ttfb_trend_threshold_pct, alert_ttfb_trend_comparators,
            alert_ttfb_trend_direction, alert_trend_min_samples, alert_trend_cooldown_minutes,
            alert_trend_require_consecutive, alert_trend_global_enabled, alert_trend_global_threshold_factor
@@ -2096,11 +2096,11 @@ export default async function MonitorDetailPage({
                     alertCacheHitThresholdPct={monitor.alert_cache_hit_threshold_pct}
                     cacheHitCriticalPct={monitor.cache_hit_critical_pct}
                     alertCacheHitTrendEnabled={monitor.alert_cache_hit_trend_enabled}
-                    alertCacheHitTrendThresholdPct={monitor.alert_cache_hit_trend_threshold_pct}
-                    alertCacheHitTrendComparators={(monitor.alert_cache_hit_trend_comparators ?? ['prev_hour']) as TrendComparator[]}
+                    alertCacheHitTrendThresholdPp={monitor.alert_cache_hit_trend_threshold_pp}
+                    alertCacheHitTrendComparators={(monitor.alert_cache_hit_trend_comparators ?? ['prev_hour', 'day_avg']) as TrendComparator[]}
                     alertTtfbTrendEnabled={monitor.alert_ttfb_trend_enabled}
                     alertTtfbTrendThresholdPct={monitor.alert_ttfb_trend_threshold_pct}
-                    alertTtfbTrendComparators={(monitor.alert_ttfb_trend_comparators ?? ['prev_hour']) as TrendComparator[]}
+                    alertTtfbTrendComparators={(monitor.alert_ttfb_trend_comparators ?? ['prev_hour', 'day_avg']) as TrendComparator[]}
                     alertTtfbTrendDirection={(monitor.alert_ttfb_trend_direction ?? 'worsening') as 'worsening' | 'both'}
                     alertTrendMinSamples={monitor.alert_trend_min_samples}
                     alertTrendCooldownMinutes={monitor.alert_trend_cooldown_minutes}
