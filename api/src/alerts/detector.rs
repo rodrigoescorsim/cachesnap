@@ -111,6 +111,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
             None,
             "Site unreachable or failing.".to_string(),
             "Check server status and regional network connectivity.".to_string(),
+            None,
         )
         .await;
         return;
@@ -142,6 +143,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
                 Some(effective_threshold),
                 summary,
                 "Investigate origin response time and CDN routing.".to_string(),
+                None,
             )
             .await;
         }
@@ -163,7 +165,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
 
             if is_anomalous(actual_ttfb, avg, stddev, sigma_factor) {
                 let summary = format!(
-                    "Significant TTFB deviation detected compared to 7-day baseline ({:.0}ms).",
+                    "Significant TTFB deviation detected compared to this region's 7-day average ({:.0}ms).",
                     avg
                 );
                 dispatch_probe_alert(
@@ -173,6 +175,7 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
                     Some(avg),
                     summary,
                     "Investigate sudden latency spikes or regional routing changes.".to_string(),
+                    Some(sigma_factor),
                 )
                 .await;
             }
@@ -182,6 +185,11 @@ pub async fn check_for_anomalies(state: AppState, payload: ProbeResultPayload) {
 
 /// Aggregates probe results across regions over a 15-second window, then calls
 /// `handle_incident` once with all affected regions consolidated.
+///
+/// For "anomaly" alerts, `sigma_factor` is required: each region is only included
+/// when its own TTFB exceeds its own 7-day baseline threshold, preventing
+/// naturally-slow regions (e.g. far from origin on DYNAMIC sites) from being
+/// pulled into an incident triggered by a different region.
 async fn dispatch_probe_alert(
     state: &AppState,
     payload: ProbeResultPayload,
@@ -189,6 +197,7 @@ async fn dispatch_probe_alert(
     baseline: Option<f64>,
     summary_base: String,
     action: String,
+    sigma_factor: Option<f64>,
 ) {
     // Redis lock prevents multiple concurrent aggregation windows for the same alert
     let lock_key = format!("alert_agg_lock:{}:{}", payload.monitor_id, alert_type);
@@ -211,7 +220,7 @@ async fn dispatch_probe_alert(
         // Wait for other regions to report
         tokio::time::sleep(Duration::from_secs(15)).await;
 
-        let regions = match alert_type {
+        let regions: Option<Vec<String>> = match alert_type {
             "down" => sqlx::query!(
                 "SELECT DISTINCT region FROM probe_results
                  WHERE monitor_id = $1
@@ -222,7 +231,27 @@ async fn dispatch_probe_alert(
             .fetch_all(&state_clone.db)
             .await
             .ok()
-            .map(|rows| rows.into_iter().map(|r| r.region).collect::<Vec<_>>()),
+            .map(|rows| rows.into_iter().map(|r| r.region).collect()),
+
+            "anomaly" => sqlx::query_as::<_, (String,)>(
+                "SELECT DISTINCT pr.region
+                 FROM probe_results pr
+                 JOIN monitor_baselines mb
+                   ON mb.monitor_id = pr.monitor_id AND mb.region = pr.region
+                 WHERE pr.monitor_id = $1
+                   AND pr.time > NOW() - INTERVAL '1 minute'
+                   AND pr.ttfb_ms > GREATEST(
+                       mb.ttfb_avg_ms + ($2::float8 * mb.ttfb_stddev_ms),
+                       mb.ttfb_avg_ms + 500.0
+                   )",
+            )
+            .bind(payload_clone.monitor_id)
+            .bind(sigma_factor.unwrap_or(3.0))
+            .fetch_all(&state_clone.db)
+            .await
+            .ok()
+            .map(|rows| rows.into_iter().map(|(r,)| r).collect()),
+
             _ => sqlx::query!(
                 "SELECT DISTINCT region FROM probe_results
                  WHERE monitor_id = $1 AND ttfb_ms > $2
@@ -233,12 +262,17 @@ async fn dispatch_probe_alert(
             .fetch_all(&state_clone.db)
             .await
             .ok()
-            .map(|rows| rows.into_iter().map(|r| r.region).collect::<Vec<_>>()),
-        }
-        .unwrap_or_else(|| vec![payload_clone.region.clone()]);
+            .map(|rows| rows.into_iter().map(|r| r.region).collect()),
+        };
+        let regions = regions.unwrap_or_else(|| vec![payload_clone.region.clone()]);
 
         let count = regions.len();
-        let diagnosis = if count > 1 {
+        let diagnosis = if count > 1 && alert_type == "anomaly" {
+            format!(
+                "TTFB significantly above each region's 7-day average. Affected regions: {}.",
+                regions.join(", ")
+            )
+        } else if count > 1 {
             format!("{} Affected regions: {}.", summary_base, regions.join(", "))
         } else {
             summary_base.clone()
