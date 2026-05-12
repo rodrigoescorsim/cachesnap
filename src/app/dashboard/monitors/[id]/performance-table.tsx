@@ -5,7 +5,7 @@ import { ChevronDown, ChevronUp, Zap, Gauge, ShieldAlert } from 'lucide-react'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import { extractPop, resolveCdnLabel, popToCity } from '@/lib/edge-helpers'
 import { isCacheHit, getCacheDisplayLabel, isCacheBypass } from '@/lib/cache-utils'
-import { getCacheColor, getCacheTooltip, getTtfbTooltip, getTtfbColorClass, getCacheHitTier } from '@/lib/thresholds'
+import { getCacheColor, getCacheTooltip, getTtfbTooltip, getTtfbColorClass, MONITOR_CACHE } from '@/lib/thresholds'
 import {
   MONITOR_TABLE,
   BRAND_TABLE_SURFACE_GRADIENT,
@@ -54,6 +54,10 @@ interface PerformanceTableProps {
   regionDescriptions: Record<string, string>
   globalAvgTtfb: number
   liveDominantStatus?: string | null
+  thresholdMs?: number
+  thresholdHitMs?: number
+  cacheWarnPct?: number
+  cacheCriticalPct?: number
 }
 
 const TOOLTIP_EDGE_DATA_UNAVAILABLE = 'Data not available yet'
@@ -88,12 +92,16 @@ export function regionRowCdnLabelTrimmed(
   return (resolveCdnLabel(provider, servedBy) ?? '').trim()
 }
 
-export function PerformanceTable({ 
-  stats, 
-  regionLabels, 
-  regionDescriptions, 
+export function PerformanceTable({
+  stats,
+  regionLabels,
+  regionDescriptions,
   globalAvgTtfb,
-  liveDominantStatus 
+  liveDominantStatus,
+  thresholdMs,
+  thresholdHitMs,
+  cacheWarnPct,
+  cacheCriticalPct,
 }: PerformanceTableProps) {
   const [expandedRegions, setExpandedRegions] = useState<Record<string, boolean>>({})
 
@@ -283,11 +291,11 @@ export function PerformanceTable({
                               )
                             }
                             
-                            const tier = getCacheHitTier(s.cache_hit_pct)
-                            const textClass = 
-                              tier === 'high' ? 'text-emerald-400'
-                                : tier === 'mid' ? 'text-amber-400'
-                                  : 'text-metric-bad'
+                            const warnThreshold = cacheWarnPct ?? MONITOR_CACHE.GOOD
+                            const criticalThreshold = cacheCriticalPct ?? MONITOR_CACHE.LOW
+                            const textClass = s.cache_hit_pct >= warnThreshold ? 'text-emerald-400'
+                              : s.cache_hit_pct >= criticalThreshold ? 'text-amber-400'
+                              : 'text-metric-bad'
                             
                             const val = Number(s.cache_hit_pct)
                             return (
@@ -304,7 +312,7 @@ export function PerformanceTable({
 
                     {showSplitTtfb ? (
                       <>
-                         <td className={`${isWafBlock ? '!text-zinc-500 text-center font-bold tabular-nums' : edgeTtfbMetricCellClass(s.edge_hit_avg_ms)} !text-[13px] !py-2`}>
+                         <td className={`${isWafBlock ? '!text-zinc-500 text-center font-bold tabular-nums' : edgeTtfbMetricCellClass(s.edge_hit_avg_ms, thresholdHitMs)} !text-[13px] !py-2`}>
                            <PremiumTooltip content={isWafBlock ? "WAF detected: this latency reflects security filtering, not page load speed." : "Average cache latency"} position="top-right" direction="top">
                              <div className="flex items-center justify-center">
                                <VisualGlow value={isWafBlock ? null : s.edge_hit_avg_ms}>
@@ -313,7 +321,7 @@ export function PerformanceTable({
                              </div>
                            </PremiumTooltip>
                          </td>
-                         <td className={`${isWafBlock ? '!text-zinc-500 text-center font-bold tabular-nums' : originTtfbMetricCellClass(s.origin_miss_avg_ms)} !text-[13px] !py-2`}>
+                         <td className={`${isWafBlock ? '!text-zinc-500 text-center font-bold tabular-nums' : originTtfbMetricCellClass(s.origin_miss_avg_ms, thresholdMs)} !text-[13px] !py-2`}>
                            <PremiumTooltip content={isWafBlock ? "WAF detected: this latency reflects security filtering, not page load speed." : "Average origin latency"} position="top-right" direction="top">
                              <div className="flex items-center justify-center">
                                <VisualGlow value={isWafBlock ? null : s.origin_miss_avg_ms}>
@@ -322,7 +330,7 @@ export function PerformanceTable({
                              </div>
                            </PremiumTooltip>
                          </td>
-                         <td className={`${isWafBlock ? '!text-zinc-500 text-center font-bold tabular-nums' : ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2 border-l border-white/5`}>
+                         <td className={`${isWafBlock ? '!text-zinc-500 text-center font-bold tabular-nums' : ttfbMetricCellClass(s.ttfb_avg_ms, isCacheHit(s.common_cache_status) ? thresholdHitMs : thresholdMs)} !text-[13px] !py-2 border-l border-white/5`}>
                            <PremiumTooltip content={isWafBlock ? "WAF detected: this latency reflects security filtering, not page load speed." : "Average latency for this region"} position="top-right" direction="top">
                              <div className="flex items-center justify-center gap-1.5">
                                {isWafBlock && <ShieldAlert className="w-3.5 h-3.5 text-orange-400" />}
@@ -338,7 +346,7 @@ export function PerformanceTable({
                       </>
                     ) : (
                       <>
-                        <td className={`${isWafBlock ? '!text-zinc-500 text-center font-bold tabular-nums' : ttfbMetricCellClass(s.ttfb_avg_ms)} !text-[13px] !py-2`}>
+                        <td className={`${isWafBlock ? '!text-zinc-500 text-center font-bold tabular-nums' : ttfbMetricCellClass(s.ttfb_avg_ms, isCacheHit(s.common_cache_status) ? thresholdHitMs : thresholdMs)} !text-[13px] !py-2`}>
                           <PremiumTooltip content={isWafBlock ? "WAF detected: this latency reflects security filtering, not page load speed." : "Average latency for this region"} position="top-right" direction="top">
                             <div className="flex items-center justify-center gap-1.5">
                               {isWafBlock && <ShieldAlert className="w-3.5 h-3.5 text-orange-400" />}

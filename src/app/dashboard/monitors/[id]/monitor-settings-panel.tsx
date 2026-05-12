@@ -26,6 +26,7 @@ export function MonitorSettingsPanel(props: {
   alertCacheAgeThresholdHours: number
   alertCacheHitEnabled: boolean
   alertCacheHitThresholdPct: number
+  cacheHitCriticalPct: number
   alertCacheHitTrendEnabled: boolean
   alertCacheHitTrendThresholdPct: number
   alertCacheHitTrendComparators: TrendComparator[]

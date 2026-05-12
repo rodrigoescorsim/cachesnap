@@ -28,6 +28,7 @@ export interface MonitorEditFormProps {
   alertCacheAgeThresholdHours: number
   alertCacheHitEnabled: boolean
   alertCacheHitThresholdPct: number
+  cacheHitCriticalPct: number
   // Trend alerts
   alertCacheHitTrendEnabled: boolean
   alertCacheHitTrendThresholdPct: number
@@ -70,6 +71,7 @@ export function MonitorEditForm({
   alertCacheAgeThresholdHours,
   alertCacheHitEnabled,
   alertCacheHitThresholdPct,
+  cacheHitCriticalPct,
   alertCacheHitTrendEnabled,
   alertCacheHitTrendThresholdPct,
   alertCacheHitTrendComparators,
@@ -110,7 +112,8 @@ export function MonitorEditForm({
     alert_cache_age_enabled: alertCacheAgeEnabled ?? false,
     alert_cache_age_threshold_hours: alertCacheAgeThresholdHours ?? 72,
     alert_cache_hit_enabled: alertCacheHitEnabled ?? true,
-    alert_cache_hit_threshold_pct: alertCacheHitThresholdPct ?? 50,
+    alert_cache_hit_threshold_pct: alertCacheHitThresholdPct ?? 80,
+    cache_hit_critical_pct: cacheHitCriticalPct ?? 50,
     alert_cache_hit_trend_enabled: alertCacheHitTrendEnabled ?? true,
     alert_cache_hit_trend_threshold_pct: alertCacheHitTrendThresholdPct || 40,
     alert_cache_hit_trend_comparators: alertCacheHitTrendComparators ?? ['prev_hour', 'same_hour_prev_day', 'day_avg'],
@@ -155,7 +158,7 @@ export function MonitorEditForm({
       const n = Number(value)
       if (isNaN(n) || n < 1 || n > 8760) return 'Must be between 1 and 8760 h'
     }
-    if (field === 'alert_cache_hit_threshold_pct') {
+    if (field === 'alert_cache_hit_threshold_pct' || field === 'cache_hit_critical_pct') {
       const n = Number(value)
       if (isNaN(n) || n < 0 || n > 100) return 'Must be between 0 and 100%'
     }
@@ -186,12 +189,13 @@ export function MonitorEditForm({
     const thresholdHitErr = validate('alert_threshold_hit_ms', current.alert_threshold_hit_ms, current)
     const cacheAgeHoursErr = validate('alert_cache_age_threshold_hours', current.alert_cache_age_threshold_hours, current)
     const cacheHitErr = validate('alert_cache_hit_threshold_pct', current.alert_cache_hit_threshold_pct, current)
+    const cacheHitCriticalErr = validate('cache_hit_critical_pct', current.cache_hit_critical_pct, current)
     const cacheHitTrendErr = validate('alert_cache_hit_trend_threshold_pct', current.alert_cache_hit_trend_threshold_pct, current)
     const ttfbTrendErr = validate('alert_ttfb_trend_threshold_pct', current.alert_ttfb_trend_threshold_pct, current)
     const minSamplesErr = validate('alert_trend_min_samples', current.alert_trend_min_samples, current)
     const cooldownErr = validate('alert_trend_cooldown_minutes', current.alert_trend_cooldown_minutes, current)
 
-    if (emailErr || slackErr || thresholdErr || cacheAgeHoursErr || cacheHitErr || cacheHitTrendErr || ttfbTrendErr || minSamplesErr || cooldownErr) {
+    if (emailErr || slackErr || thresholdErr || cacheAgeHoursErr || cacheHitErr || cacheHitCriticalErr || cacheHitTrendErr || ttfbTrendErr || minSamplesErr || cooldownErr) {
       setErrors(prev => ({
         ...prev,
         notify_email: emailErr,
@@ -200,6 +204,7 @@ export function MonitorEditForm({
         alert_threshold_hit_ms: thresholdHitErr,
         alert_cache_age_threshold_hours: cacheAgeHoursErr,
         alert_cache_hit_threshold_pct: cacheHitErr,
+        cache_hit_critical_pct: cacheHitCriticalErr,
         alert_cache_hit_trend_threshold_pct: cacheHitTrendErr,
         alert_ttfb_trend_threshold_pct: ttfbTrendErr,
         alert_trend_min_samples: minSamplesErr,
@@ -263,6 +268,7 @@ export function MonitorEditForm({
       values.alert_threshold_hit_ms !== lastSavedValues.current.alert_threshold_hit_ms ||
       values.alert_cache_age_threshold_hours !== lastSavedValues.current.alert_cache_age_threshold_hours ||
       values.alert_cache_hit_threshold_pct !== lastSavedValues.current.alert_cache_hit_threshold_pct ||
+      values.cache_hit_critical_pct !== lastSavedValues.current.cache_hit_critical_pct ||
       values.alert_cache_hit_trend_threshold_pct !== lastSavedValues.current.alert_cache_hit_trend_threshold_pct ||
       values.alert_ttfb_trend_threshold_pct !== lastSavedValues.current.alert_ttfb_trend_threshold_pct ||
       values.alert_trend_min_samples !== lastSavedValues.current.alert_trend_min_samples ||
@@ -412,15 +418,121 @@ export function MonitorEditForm({
         </section>
 
 
+        {/* THRESHOLDS SECTION */}
+        <section className="cs-card cs-card-focus p-6 md:col-span-2">
+          <div className="cs-card-wash" />
+          <h3 className="cs-section-header">Thresholds</h3>
+          <p className="text-xs text-zinc-400 mb-6 relative z-10">
+            Performance limits for this monitor. Applied to slow region detection, advisor warnings, and table coloring. Also used as trigger limits for TTFB and cache hit rate alerts.
+          </p>
+          <div className="grid grid-cols-2 gap-6 relative z-10">
+            {/* MISS / ORIGIN LIMIT */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">TTFB — MISS / Origin</span>
+                {globalMissAvg > 0 && (
+                  <span className="text-[10px] text-zinc-500">avg: <span className="text-zinc-300 font-medium">{globalMissAvg}ms</span></span>
+                )}
+              </div>
+              <div className="relative">
+                <input
+                  id={`${p}-alert-threshold`}
+                  type="number"
+                  min={100}
+                  max={30000}
+                  step={100}
+                  value={values.alert_threshold_ms}
+                  onChange={(e) => handleInputChange('alert_threshold_ms', Number(e.target.value))}
+                  className={`w-full h-10 cs-input pr-10 text-sm ${errors.alert_threshold_ms ? 'cs-input-error' : ''}`}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">ms</span>
+              </div>
+              {errors.alert_threshold_ms && <span className="cs-error-msg">{errors.alert_threshold_ms}</span>}
+              {globalMissAvg > 0 && values.alert_threshold_ms < globalMissAvg * 1.5 && (
+                <p className="text-[10px] text-amber-400/80 leading-snug">
+                  Tip: We recommend at least <span className="font-bold">{Math.round(globalMissAvg * 1.5)}ms</span> (+50% avg) to avoid noise.
+                </p>
+              )}
+            </div>
+
+            {/* HIT / EDGE LIMIT */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">TTFB — HIT / Edge</span>
+                {globalHitAvg > 0 && (
+                  <span className="text-[10px] text-zinc-500">avg: <span className="text-zinc-300 font-medium">{globalHitAvg}ms</span></span>
+                )}
+              </div>
+              <div className="relative">
+                <input
+                  id={`${p}-alert-threshold-hit`}
+                  type="number"
+                  min={50}
+                  max={30000}
+                  step={50}
+                  value={values.alert_threshold_hit_ms}
+                  onChange={(e) => handleInputChange('alert_threshold_hit_ms', Number(e.target.value))}
+                  className={`w-full h-10 cs-input pr-10 text-sm ${errors.alert_threshold_hit_ms ? 'cs-input-error' : ''}`}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">ms</span>
+              </div>
+              {errors.alert_threshold_hit_ms && <span className="cs-error-msg">{errors.alert_threshold_hit_ms}</span>}
+              {globalHitAvg > 0 && values.alert_threshold_hit_ms < globalHitAvg * 1.5 && (
+                <p className="text-[10px] text-amber-400/80 leading-snug">
+                  Tip: We recommend at least <span className="font-bold">{Math.round(globalHitAvg * 1.5)}ms</span> (+50% avg).
+                </p>
+              )}
+            </div>
+
+            {/* CACHE HIT RATE — WARN */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Cache Hit Rate — Warn</span>
+              <div className="relative">
+                <input
+                  id={`${p}-cache-hit-warn`}
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={values.alert_cache_hit_threshold_pct}
+                  onChange={(e) => handleInputChange('alert_cache_hit_threshold_pct', Number(e.target.value))}
+                  className={`w-full h-10 cs-input pr-10 text-sm ${errors.alert_cache_hit_threshold_pct ? 'cs-input-error' : ''}`}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">%</span>
+              </div>
+              {errors.alert_cache_hit_threshold_pct && <span className="cs-error-msg">{errors.alert_cache_hit_threshold_pct}</span>}
+            </div>
+
+            {/* CACHE HIT RATE — CRITICAL */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Cache Hit Rate — Critical</span>
+              <div className="relative">
+                <input
+                  id={`${p}-cache-hit-critical`}
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={values.cache_hit_critical_pct}
+                  onChange={(e) => handleInputChange('cache_hit_critical_pct', Number(e.target.value))}
+                  className={`w-full h-10 cs-input pr-10 text-sm ${errors.cache_hit_critical_pct ? 'cs-input-error' : ''}`}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">%</span>
+              </div>
+              {errors.cache_hit_critical_pct && <span className="cs-error-msg">{errors.cache_hit_critical_pct}</span>}
+            </div>
+          </div>
+        </section>
+
         {/* ALERTS SECTION */}
         <section className="cs-card cs-card-focus p-6 md:col-span-2">
           <div className="cs-card-wash" />
           <h3 className="cs-section-header">Alert triggers</h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
-            {/* LEFT: TTFB THRESHOLD + SPIKE SENSITIVITY (checkbox-gated) */}
+            {/* LEFT: TTFB ALERTS + SPIKE SENSITIVITY */}
             <div className="space-y-4">
-              {/* Response time limit (TTFB) — checkbox-gated */}
+              {/* TTFB Above Limit alert toggle */}
               <div className="flex items-start gap-3">
                 <CsCheckbox
                   id={`${p}-alert_ttfb_enabled`}
@@ -431,70 +543,8 @@ export function MonitorEditForm({
                 <label htmlFor={`${p}-alert_ttfb_enabled`} className="cursor-pointer select-none flex-1">
                   <span className="text-xs font-bold text-zinc-200 block">TTFB Above Limit</span>
                   <span className="text-xs text-zinc-400 leading-relaxed">
-                    Alert when TTFB exceeds your defined limit. Differentiated by cache status (MISS vs HIT).
+                    Alert when TTFB exceeds the limits defined above.
                   </span>
-
-                  <div className={`mt-4 space-y-5 transition-opacity ${values.alert_ttfb_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
-                    {/* MISS / ORIGIN LIMIT */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Cache MISS / Origin</span>
-                        {globalMissAvg > 0 && (
-                          <span className="text-[10px] text-zinc-500">Global avg: <span className="text-zinc-300 font-medium">{globalMissAvg}ms</span></span>
-                        )}
-                      </div>
-                      <div className="relative">
-                        <input
-                          id={`${p}-alert-threshold`}
-                          type="number"
-                          min={100}
-                          max={30000}
-                          step={100}
-                          value={values.alert_threshold_ms}
-                          onChange={(e) => handleInputChange('alert_threshold_ms', Number(e.target.value))}
-                          disabled={!values.alert_ttfb_enabled}
-                          className={`w-full h-10 cs-input pr-10 text-sm ${errors.alert_threshold_ms ? 'cs-input-error' : ''}`}
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">ms</span>
-                      </div>
-                      {errors.alert_threshold_ms && <span className="cs-error-msg">{errors.alert_threshold_ms}</span>}
-                      {globalMissAvg > 0 && values.alert_threshold_ms < globalMissAvg * 1.5 && (
-                        <p className="text-[10px] text-amber-400/80 leading-snug">
-                          Tip: We recommend at least <span className="font-bold">{Math.round(globalMissAvg * 1.5)}ms</span> (+50% avg) to avoid noise.
-                        </p>
-                      )}
-                    </div>
-
-                    {/* HIT / EDGE LIMIT */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Cache HIT / Edge</span>
-                        {globalHitAvg > 0 && (
-                          <span className="text-[10px] text-zinc-500">Global avg: <span className="text-zinc-300 font-medium">{globalHitAvg}ms</span></span>
-                        )}
-                      </div>
-                      <div className="relative">
-                        <input
-                          id={`${p}-alert-threshold-hit`}
-                          type="number"
-                          min={50}
-                          max={30000}
-                          step={50}
-                          value={values.alert_threshold_hit_ms}
-                          onChange={(e) => handleInputChange('alert_threshold_hit_ms', Number(e.target.value))}
-                          disabled={!values.alert_ttfb_enabled}
-                          className={`w-full h-10 cs-input pr-10 text-sm ${errors.alert_threshold_hit_ms ? 'cs-input-error' : ''}`}
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">ms</span>
-                      </div>
-                      {errors.alert_threshold_hit_ms && <span className="cs-error-msg">{errors.alert_threshold_hit_ms}</span>}
-                      {globalHitAvg > 0 && values.alert_threshold_hit_ms < globalHitAvg * 1.5 && (
-                        <p className="text-[10px] text-amber-400/80 leading-snug">
-                          Tip: We recommend at least <span className="font-bold">{Math.round(globalHitAvg * 1.5)}ms</span> (+50% avg).
-                        </p>
-                      )}
-                    </div>
-                  </div>
                 </label>
               </div>
 
@@ -616,27 +666,8 @@ export function MonitorEditForm({
                   <label htmlFor={`${p}-alert_cache_hit_enabled`} className="cursor-pointer select-none flex-1">
                     <span className="text-xs font-bold text-zinc-200 block">Low Cache Hit Rate</span>
                     <span className="text-xs text-zinc-400 leading-relaxed">
-                      Alert when fewer requests than expected hit the CDN cache. Based on a 24 h rolling average.
+                      Alert when cache hit rate drops below the warn threshold defined above. Based on a 24 h rolling average.
                     </span>
-                    <div className={`mt-2 flex items-center gap-2 transition-opacity ${values.alert_cache_hit_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
-                      <span className="text-xs text-zinc-400">Alert if cache rate drops below</span>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          step={5}
-                          value={values.alert_cache_hit_threshold_pct}
-                          onChange={(e) => handleInputChange('alert_cache_hit_threshold_pct', Number(e.target.value))}
-                          disabled={!values.alert_cache_hit_enabled}
-                          className={`h-8 w-20 cs-input text-xs pr-6 text-center ${errors.alert_cache_hit_threshold_pct ? 'cs-input-error' : ''}`}
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-500 pointer-events-none">%</span>
-                      </div>
-                      {errors.alert_cache_hit_threshold_pct && (
-                        <span className="cs-error-msg">{errors.alert_cache_hit_threshold_pct}</span>
-                      )}
-                    </div>
                   </label>
                 </div>
               </div>

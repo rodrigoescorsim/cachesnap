@@ -49,6 +49,8 @@ interface LiveTableProps {
   regionLabels: Record<string, string>
   regionDescriptions: Record<string, string>
   globalAvgTtfb: number
+  thresholdMs?: number
+  thresholdHitMs?: number
 }
 
 function formatCacheAgeShort(seconds: number): React.ReactNode {
@@ -82,7 +84,7 @@ function getSyncStatus(lastProbeAt: Date | null): { colorClass: string; tooltip:
   return { colorClass: 'text-zinc-500', tooltip: `Probe synchronized at ${date.toLocaleString()}`, text: timeText }
 }
 
-export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgTtfb }: LiveTableProps) {
+export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgTtfb, thresholdMs, thresholdHitMs }: LiveTableProps) {
   const isDebug = process.env.NODE_ENV === 'development'
   const [expandedRegions, setExpandedRegions] = useState<Record<string, boolean>>({})
 
@@ -257,10 +259,10 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                         )
                       })()}
                     </td>
-                    <td className={`${isError ? 'cs-table-compact-td' : ttfbMetricCellClass(p.ttfb_ms)} !px-3 !py-2 text-[13px] text-center ${isWafBlock ? '!text-zinc-500' : ''}`}>
+                    <td className={`${isError ? 'cs-table-compact-td' : ttfbMetricCellClass(p.ttfb_ms, isCacheHit(p.common_cache_status) ? thresholdHitMs : thresholdMs)} !px-3 !py-2 text-[13px] text-center ${isWafBlock ? '!text-zinc-500' : ''}`}>
                       <div className="flex items-center justify-center gap-1.5">
                         <PremiumTooltip 
-                          content={isError ? (p.error || 'Connection failed') : isWafBlock ? "WAF detected: this latency reflects security filtering, not page load speed." : (p.ttfb_ms ? getTtfbTooltip(p.ttfb_ms, 'monitor') : 'No data')} 
+                          content={isError ? (p.error || 'Connection failed') : isWafBlock ? "WAF detected: this latency reflects security filtering, not page load speed." : (p.ttfb_ms ? getTtfbTooltip(p.ttfb_ms, 'monitor', isCacheHit(p.common_cache_status) ? thresholdHitMs : thresholdMs, thresholdMs) : 'No data')}
                           position="top-right" 
                           direction="top"
                         >

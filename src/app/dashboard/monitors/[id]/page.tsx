@@ -558,7 +558,7 @@ export default async function MonitorDetailPage({
     alert_threshold_ms: number; alert_threshold_hit_ms: number; alert_sensitivity: number;
     alert_down_enabled: boolean; alert_ttfb_enabled: boolean; alert_ttfb_anomaly_enabled: boolean;
     alert_anycast_enabled: boolean; alert_cache_age_enabled: boolean; alert_cache_age_threshold_hours: number;
-    alert_cache_hit_enabled: boolean; alert_cache_hit_threshold_pct: number;
+    alert_cache_hit_enabled: boolean; alert_cache_hit_threshold_pct: number; cache_hit_critical_pct: number;
     alert_cache_hit_trend_enabled: boolean; alert_cache_hit_trend_threshold_pct: number; alert_cache_hit_trend_comparators: string[];
     alert_ttfb_trend_enabled: boolean; alert_ttfb_trend_threshold_pct: number; alert_ttfb_trend_comparators: string[];
     alert_ttfb_trend_direction: string; alert_trend_min_samples: number; alert_trend_cooldown_minutes: number;
@@ -569,7 +569,7 @@ export default async function MonitorDetailPage({
            alert_threshold_ms, alert_threshold_hit_ms, alert_sensitivity,
            alert_down_enabled, alert_ttfb_enabled, alert_ttfb_anomaly_enabled,
            alert_anycast_enabled, alert_cache_age_enabled, alert_cache_age_threshold_hours,
-           alert_cache_hit_enabled, alert_cache_hit_threshold_pct,
+           alert_cache_hit_enabled, alert_cache_hit_threshold_pct, cache_hit_critical_pct,
            alert_cache_hit_trend_enabled, alert_cache_hit_trend_threshold_pct, alert_cache_hit_trend_comparators,
            alert_ttfb_trend_enabled, alert_ttfb_trend_threshold_pct, alert_ttfb_trend_comparators,
            alert_ttfb_trend_direction, alert_trend_min_samples, alert_trend_cooldown_minutes,
@@ -1192,9 +1192,15 @@ export default async function MonitorDetailPage({
   const cacheDelta = hasHistory ? globalHitRate - prevGlobalHitRate : 0;
 
   // ADVISOR INPUTS
-  const slowLiveRegionCount = validLiveTtfb.filter(p => (p.ttfb_ms ?? 0) > MONITOR_TTFB.FAST).length
+  const slowLiveRegionCount = validLiveTtfb.filter(p => {
+    const limit = isCacheHit(p.common_cache_status) ? monitor.alert_threshold_hit_ms : monitor.alert_threshold_ms
+    return (p.ttfb_ms ?? 0) > limit
+  }).length
   const slowLiveRegionLabels = validLiveTtfb
-    .filter(p => (p.ttfb_ms ?? 0) > MONITOR_TTFB.FAST)
+    .filter(p => {
+      const limit = isCacheHit(p.common_cache_status) ? monitor.alert_threshold_hit_ms : monitor.alert_threshold_ms
+      return (p.ttfb_ms ?? 0) > limit
+    })
     .map(p => regionLabels[p.region] ?? p.region)
   const liveVsGlobalRows = liveAvgTtfb > 0
     ? validLiveTtfb.map((p) => {
@@ -1231,10 +1237,20 @@ export default async function MonitorDetailPage({
     isDegraded,
     isOffline,
     lastErrorMessage: errorLatestProbes[0]?.error,
+    thresholdMs: monitor.alert_threshold_ms,
+    thresholdHitMs: monitor.alert_threshold_hit_ms,
+    cacheWarnPct: monitor.alert_cache_hit_threshold_pct,
+    cacheCriticalPct: monitor.cache_hit_critical_pct,
   })
-  const slowHistoricalRegions = stats.filter(s => (s.ttfb_avg_ms || 0) > MONITOR_TTFB.FAST).length
+  const slowHistoricalRegions = stats.filter(s => {
+    const limit = isCacheHit(s.common_cache_status) ? monitor.alert_threshold_hit_ms : monitor.alert_threshold_ms
+    return (s.ttfb_avg_ms || 0) > limit
+  }).length
   const slowHistoricalRegionLabels = stats
-    .filter(s => (s.ttfb_avg_ms || 0) > MONITOR_TTFB.FAST)
+    .filter(s => {
+      const limit = isCacheHit(s.common_cache_status) ? monitor.alert_threshold_hit_ms : monitor.alert_threshold_ms
+      return (s.ttfb_avg_ms || 0) > limit
+    })
     .map(s => regionLabels[s.region] ?? s.region)
   const performanceAdvisorState = deriveMonitorPerformancePeriodAdvisor({
     monitorId: monitor.id,
@@ -1253,6 +1269,10 @@ export default async function MonitorDetailPage({
     errorCount: errorLatestProbes.length,
     totalRegionCount: latestProbes.length,
     lastErrorMessage: errorLatestProbes[0]?.error,
+    thresholdMs: monitor.alert_threshold_ms,
+    thresholdHitMs: monitor.alert_threshold_hit_ms,
+    cacheWarnPct: monitor.alert_cache_hit_threshold_pct,
+    cacheCriticalPct: monitor.cache_hit_critical_pct,
   })
 
   const trendsAdvisorState = deriveMonitorTrendsAdvisor({
@@ -1270,6 +1290,9 @@ export default async function MonitorDetailPage({
     range,
     monitorId: monitor.id,
     hourlyPattern,
+    thresholdMs: monitor.alert_threshold_ms,
+    thresholdHitMs: monitor.alert_threshold_hit_ms,
+    cacheWarnPct: monitor.alert_cache_hit_threshold_pct,
   })
 
   const _secProfiles = new Map<string, string[]>()
@@ -1628,6 +1651,8 @@ export default async function MonitorDetailPage({
                         regionLabels={regionLabels}
                         regionDescriptions={regionDescriptions}
                         globalAvgTtfb={liveAvgTtfb}
+                        thresholdMs={monitor.alert_threshold_ms}
+                        thresholdHitMs={monitor.alert_threshold_hit_ms}
                       />
                     ) : (
                       <div className="cs-card cs-card-glass min-h-[200px] flex flex-col items-center justify-center p-8 text-center animate-pulse">
@@ -1759,6 +1784,10 @@ export default async function MonitorDetailPage({
                         regionDescriptions={regionDescriptions}
                         globalAvgTtfb={avgTtfb}
                         liveDominantStatus={liveDominantStatus}
+                        thresholdMs={monitor.alert_threshold_ms}
+                        thresholdHitMs={monitor.alert_threshold_hit_ms}
+                        cacheWarnPct={monitor.alert_cache_hit_threshold_pct}
+                        cacheCriticalPct={monitor.cache_hit_critical_pct}
                       />
                     )}
                   </section>
@@ -1966,14 +1995,27 @@ export default async function MonitorDetailPage({
                               </div>
                             }
                           />
-                          <HourlyPatternChart data={hourlyPattern} range={range} />
+                          <HourlyPatternChart
+                            data={hourlyPattern}
+                            range={range}
+                            thresholdMs={monitor.alert_threshold_ms}
+                            thresholdHitMs={monitor.alert_threshold_hit_ms}
+                            cacheWarnPct={monitor.alert_cache_hit_threshold_pct}
+                            cacheCriticalPct={monitor.cache_hit_critical_pct}
+                          />
                         </section>
                       )}
 
                       {heatmapRows.length > 0 && (
                         <section id="weekly-pattern-section" className="space-y-4">
                           <ViewSectionHeader title="Weekly Heatmap" />
-                          <TtfbHeatmap data={heatmapRows} />
+                          <TtfbHeatmap
+                            data={heatmapRows}
+                            thresholdMs={monitor.alert_threshold_ms}
+                            thresholdHitMs={monitor.alert_threshold_hit_ms}
+                            cacheWarnPct={monitor.alert_cache_hit_threshold_pct}
+                            cacheCriticalPct={monitor.cache_hit_critical_pct}
+                          />
                         </section>
                       )}
                     </div>
@@ -2052,6 +2094,7 @@ export default async function MonitorDetailPage({
                     alertCacheAgeThresholdHours={monitor.alert_cache_age_threshold_hours}
                     alertCacheHitEnabled={monitor.alert_cache_hit_enabled}
                     alertCacheHitThresholdPct={monitor.alert_cache_hit_threshold_pct}
+                    cacheHitCriticalPct={monitor.cache_hit_critical_pct}
                     alertCacheHitTrendEnabled={monitor.alert_cache_hit_trend_enabled}
                     alertCacheHitTrendThresholdPct={monitor.alert_cache_hit_trend_threshold_pct}
                     alertCacheHitTrendComparators={(monitor.alert_cache_hit_trend_comparators ?? ['prev_hour']) as TrendComparator[]}

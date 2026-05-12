@@ -29,7 +29,13 @@ interface TooltipState {
   y: number
 }
 
-export function TtfbHeatmap({ data }: { data: HeatmapCell[] }) {
+export function TtfbHeatmap({ data, thresholdMs, thresholdHitMs, cacheWarnPct, cacheCriticalPct }: {
+  data: HeatmapCell[]
+  thresholdMs?: number
+  thresholdHitMs?: number
+  cacheWarnPct?: number
+  cacheCriticalPct?: number
+}) {
   const [mode, setMode] = useState<Mode>('ttfb')
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
 
@@ -149,19 +155,19 @@ export function TtfbHeatmap({ data }: { data: HeatmapCell[] }) {
               <div className="space-y-1 pb-1.5 mb-1.5 border-b border-white/5">
                 <div className="flex justify-between gap-3">
                   <span className="text-[10px] text-zinc-400">TTFB avg</span>
-                  <span className={`text-[11px] font-bold ${getTtfbColorClass(tooltip.cell.ttfb_avg)}`}>
+                  <span className={`text-[11px] font-bold ${getTtfbColorClass(tooltip.cell.ttfb_avg, 'monitor', thresholdHitMs, thresholdMs)}`}>
                     {tooltip.cell.ttfb_avg}ms
                   </span>
                 </div>
                 <p className="text-[9px] text-zinc-500 leading-tight">
-                  {getTtfbTooltip(tooltip.cell.ttfb_avg).split(':')[0]}
+                  {getTtfbTooltip(tooltip.cell.ttfb_avg, 'monitor', thresholdHitMs, thresholdMs).split(':')[0]}
                 </p>
               </div>
             )}
             {tooltip.cell.cache_hit_pct != null && (
               <div className="flex justify-between gap-3 pb-1.5">
                 <span className="text-[10px] text-zinc-400">Cache</span>
-                <span className={`text-[10px] font-medium ${getCacheColor(tooltip.cell.cache_hit_pct)}`}>
+                <span className={`text-[10px] font-medium ${getCacheColor(tooltip.cell.cache_hit_pct, 'monitor', cacheWarnPct, cacheCriticalPct)}`}>
                   {tooltip.cell.cache_hit_pct}%
                 </span>
               </div>

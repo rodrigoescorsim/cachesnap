@@ -26,7 +26,14 @@ interface Tooltip {
   y: number
 }
 
-export function HourlyPatternChart({ data, range }: { data: HourlyPoint[]; range: string }) {
+export function HourlyPatternChart({ data, range, thresholdMs, thresholdHitMs, cacheWarnPct, cacheCriticalPct }: {
+  data: HourlyPoint[]
+  range: string
+  thresholdMs?: number
+  thresholdHitMs?: number
+  cacheWarnPct?: number
+  cacheCriticalPct?: number
+}) {
   const [tooltip, setTooltip] = useState<Tooltip | null>(null)
 
   const normalized = normalizeHourlyData(data)
@@ -158,12 +165,12 @@ export function HourlyPatternChart({ data, range }: { data: HourlyPoint[]; range
             <div className="space-y-1 pb-1.5 mb-1.5 border-b border-white/5">
               <div className="flex justify-between gap-3">
                 <span className="text-[10px] text-zinc-400">avg</span>
-                <span className={`text-[11px] font-bold ${getTtfbColorClass(tooltip.point.ttfb_avg)}`}>
+                <span className={`text-[11px] font-bold ${getTtfbColorClass(tooltip.point.ttfb_avg, 'monitor', thresholdHitMs, thresholdMs)}`}>
                   {tooltip.point.ttfb_avg}ms
                 </span>
               </div>
               <p className="text-[9px] text-zinc-500 leading-tight">
-                {getTtfbTooltip(tooltip.point.ttfb_avg).split(':')[0]}
+                {getTtfbTooltip(tooltip.point.ttfb_avg, 'monitor', thresholdHitMs, thresholdMs).split(':')[0]}
               </p>
             </div>
             {tooltip.point.ttfb_p95 != null && (
@@ -175,7 +182,7 @@ export function HourlyPatternChart({ data, range }: { data: HourlyPoint[]; range
             {tooltip.point.cache_hit_pct != null && (
               <div className="flex justify-between gap-3 pb-1.5">
                 <span className="text-[10px] text-zinc-400">cache</span>
-                <span className={`text-[10px] font-medium ${getCacheColor(tooltip.point.cache_hit_pct)}`}>
+                <span className={`text-[10px] font-medium ${getCacheColor(tooltip.point.cache_hit_pct, 'monitor', cacheWarnPct, cacheCriticalPct)}`}>
                   {tooltip.point.cache_hit_pct}%
                 </span>
               </div>
