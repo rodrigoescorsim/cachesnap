@@ -685,7 +685,7 @@ export function MonitorEditForm({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
             {/* CACHE HIT TREND */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="flex items-start gap-3">
                 <CsCheckbox
                   id={`${p}-alert_cache_hit_trend_enabled`}
@@ -696,66 +696,66 @@ export function MonitorEditForm({
                 <label htmlFor={`${p}-alert_cache_hit_trend_enabled`} className="cursor-pointer select-none flex-1">
                   <span className="text-xs font-bold text-zinc-200 block">Cache rate drop</span>
                   <span className="text-xs text-zinc-400 leading-relaxed">
-                    Alert when your CDN cache rate falls significantly compared to a reference window — may indicate a misconfiguration or cache purge.
+                    Alert when CDN cache rate falls significantly compared to a reference window — may indicate a misconfiguration or cache purge.
                   </span>
-
-                  <div className={`mt-3 space-y-3 transition-opacity ${values.alert_cache_hit_trend_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-400">Alert if cache rate drops more than</span>
-                      <div className="relative">
-                        <input
-                          type="number" min={1} max={100} step={1}
-                          value={values.alert_cache_hit_trend_threshold_pct}
-                          onChange={(e) => handleInputChange('alert_cache_hit_trend_threshold_pct', Number(e.target.value))}
-                          disabled={!values.alert_cache_hit_trend_enabled}
-                          className={`h-8 w-20 cs-input text-xs pr-6 text-center ${errors.alert_cache_hit_trend_threshold_pct ? 'cs-input-error' : ''}`}
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-500 pointer-events-none">%</span>
-                      </div>
-                    </div>
-                    {errors.alert_cache_hit_trend_threshold_pct && (
-                      <span className="cs-error-msg">{errors.alert_cache_hit_trend_threshold_pct}</span>
-                    )}
-
-                    <div>
-                      <span className="text-xs text-zinc-400 block mb-1.5">Compare against</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {([
-                          { value: 'prev_hour' as TrendComparator, label: 'Last hour' },
-                          { value: 'same_hour_prev_day' as TrendComparator, label: 'Same time yesterday' },
-                          { value: 'day_avg' as TrendComparator, label: '24 h average' },
-                        ]).map(opt => {
-                          const active = values.alert_cache_hit_trend_comparators.includes(opt.value)
-                          return (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              disabled={!values.alert_cache_hit_trend_enabled}
-                              onClick={() => {
-                                const current = values.alert_cache_hit_trend_comparators
-                                const next = active
-                                  ? current.filter(c => c !== opt.value)
-                                  : [...current, opt.value]
-                                if (next.length > 0) handleInputChange('alert_cache_hit_trend_comparators', next)
-                              }}
-                              className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all border ${active
-                                ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 text-white'
-                                : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
-                                }`}
-                            >
-                              {opt.label}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  </div>
                 </label>
+              </div>
+
+              <div className={`ml-7 space-y-4 transition-opacity ${values.alert_cache_hit_trend_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
+                <div className="space-y-1.5">
+                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Drop threshold</span>
+                  <div className="relative w-24">
+                    <input
+                      type="number" min={1} max={100} step={1}
+                      value={values.alert_cache_hit_trend_threshold_pct}
+                      onChange={(e) => handleInputChange('alert_cache_hit_trend_threshold_pct', Number(e.target.value))}
+                      disabled={!values.alert_cache_hit_trend_enabled}
+                      className={`h-9 w-full cs-input text-sm pr-8 text-center ${errors.alert_cache_hit_trend_threshold_pct ? 'cs-input-error' : ''}`}
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">%</span>
+                  </div>
+                  {errors.alert_cache_hit_trend_threshold_pct && (
+                    <span className="cs-error-msg">{errors.alert_cache_hit_trend_threshold_pct}</span>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Compare against</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {([
+                      { value: 'prev_hour' as TrendComparator, label: 'Last hour' },
+                      { value: 'same_hour_prev_day' as TrendComparator, label: 'Same time yesterday' },
+                      { value: 'day_avg' as TrendComparator, label: '24 h average' },
+                    ]).map(opt => {
+                      const active = values.alert_cache_hit_trend_comparators.includes(opt.value)
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          disabled={!values.alert_cache_hit_trend_enabled}
+                          onClick={() => {
+                            const current = values.alert_cache_hit_trend_comparators
+                            const next = active
+                              ? current.filter(c => c !== opt.value)
+                              : [...current, opt.value]
+                            if (next.length > 0) handleInputChange('alert_cache_hit_trend_comparators', next)
+                          }}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all border ${active
+                            ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 text-white'
+                            : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
+                            }`}
+                        >
+                          {opt.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* TTFB LATENCY */}
-            <div className="space-y-3">
+            {/* TTFB TREND */}
+            <div className="space-y-4">
               <div className="flex items-start gap-3">
                 <CsCheckbox
                   id={`${p}-alert_ttfb_trend_enabled`}
@@ -768,133 +768,136 @@ export function MonitorEditForm({
                   <span className="text-xs text-zinc-400 leading-relaxed">
                     Alert when TTFB shifts significantly compared to a reference window — useful for catching gradual slowdowns.
                   </span>
-
-                  <div className={`mt-3 space-y-3 transition-opacity ${values.alert_ttfb_trend_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-400">Alert if TTFB changes more than</span>
-                      <div className="relative">
-                        <input
-                          type="number" min={1} max={100} step={1}
-                          value={values.alert_ttfb_trend_threshold_pct}
-                          onChange={(e) => handleInputChange('alert_ttfb_trend_threshold_pct', Number(e.target.value))}
-                          disabled={!values.alert_ttfb_trend_enabled}
-                          className={`h-8 w-20 cs-input text-xs pr-6 text-center ${errors.alert_ttfb_trend_threshold_pct ? 'cs-input-error' : ''}`}
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-500 pointer-events-none">%</span>
-                      </div>
-                    </div>
-                    {errors.alert_ttfb_trend_threshold_pct && (
-                      <span className="cs-error-msg">{errors.alert_ttfb_trend_threshold_pct}</span>
-                    )}
-
-                    <div>
-                      <span className="text-xs text-zinc-400 block mb-1.5">Alert direction</span>
-                      <div className="flex gap-1.5">
-                        {([
-                          { value: 'worsening' as const, label: 'Worsening only' },
-                          { value: 'both' as const, label: 'Any direction' },
-                        ]).map(opt => (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            disabled={!values.alert_ttfb_trend_enabled}
-                            onClick={() => handleInputChange('alert_ttfb_trend_direction', opt.value)}
-                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all border ${values.alert_ttfb_trend_direction === opt.value
-                              ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 text-white'
-                              : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
-                              }`}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <span className="text-xs text-zinc-400 block mb-1.5">Compare against</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {([
-                          { value: 'prev_hour' as TrendComparator, label: 'Last hour' },
-                          { value: 'same_hour_prev_day' as TrendComparator, label: 'Same time yesterday' },
-                          { value: 'day_avg' as TrendComparator, label: '24 h average' },
-                        ]).map(opt => {
-                          const active = values.alert_ttfb_trend_comparators.includes(opt.value)
-                          return (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              disabled={!values.alert_ttfb_trend_enabled}
-                              onClick={() => {
-                                const current = values.alert_ttfb_trend_comparators
-                                const next = active
-                                  ? current.filter(c => c !== opt.value)
-                                  : [...current, opt.value]
-                                if (next.length > 0) handleInputChange('alert_ttfb_trend_comparators', next)
-                              }}
-                              className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all border ${active
-                                ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 text-white'
-                                : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
-                                }`}
-                            >
-                              {opt.label}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  </div>
                 </label>
+              </div>
+
+              <div className={`ml-7 space-y-4 transition-opacity ${values.alert_ttfb_trend_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
+                <div className="space-y-1.5">
+                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Change threshold</span>
+                  <div className="relative w-24">
+                    <input
+                      type="number" min={1} max={100} step={1}
+                      value={values.alert_ttfb_trend_threshold_pct}
+                      onChange={(e) => handleInputChange('alert_ttfb_trend_threshold_pct', Number(e.target.value))}
+                      disabled={!values.alert_ttfb_trend_enabled}
+                      className={`h-9 w-full cs-input text-sm pr-8 text-center ${errors.alert_ttfb_trend_threshold_pct ? 'cs-input-error' : ''}`}
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">%</span>
+                  </div>
+                  {errors.alert_ttfb_trend_threshold_pct && (
+                    <span className="cs-error-msg">{errors.alert_ttfb_trend_threshold_pct}</span>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Alert direction</span>
+                  <div className="flex gap-1.5">
+                    {([
+                      { value: 'worsening' as const, label: 'Worsening only' },
+                      { value: 'both' as const, label: 'Any direction' },
+                    ]).map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        disabled={!values.alert_ttfb_trend_enabled}
+                        onClick={() => handleInputChange('alert_ttfb_trend_direction', opt.value)}
+                        className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all border ${values.alert_ttfb_trend_direction === opt.value
+                          ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 text-white'
+                          : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
+                          }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Compare against</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {([
+                      { value: 'prev_hour' as TrendComparator, label: 'Last hour' },
+                      { value: 'same_hour_prev_day' as TrendComparator, label: 'Same time yesterday' },
+                      { value: 'day_avg' as TrendComparator, label: '24 h average' },
+                    ]).map(opt => {
+                      const active = values.alert_ttfb_trend_comparators.includes(opt.value)
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          disabled={!values.alert_ttfb_trend_enabled}
+                          onClick={() => {
+                            const current = values.alert_ttfb_trend_comparators
+                            const next = active
+                              ? current.filter(c => c !== opt.value)
+                              : [...current, opt.value]
+                            if (next.length > 0) handleInputChange('alert_ttfb_trend_comparators', next)
+                          }}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all border ${active
+                            ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/8 text-white'
+                            : 'border-white/8 bg-white/[0.02] text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
+                            }`}
+                        >
+                          {opt.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* ADVANCED SETTINGS — shared between both metrics */}
+          {/* FINE-TUNING — shared between both metrics */}
           {(values.alert_cache_hit_trend_enabled || values.alert_ttfb_trend_enabled) && (
             <div className="mt-6 pt-5 border-t border-white/6 relative z-10">
-              <p className="cs-label mb-3">Fine-tuning <span className="text-zinc-600 font-normal normal-case tracking-normal">— optional, reduces false positives</span></p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <label htmlFor={`${p}-trend-min-samples`} className="text-xs text-zinc-400 block mb-1">Min data points / hour</label>
-                  <input
-                    id={`${p}-trend-min-samples`}
-                    type="number" min={1} max={60} step={1}
-                    value={values.alert_trend_min_samples}
-                    onChange={(e) => handleInputChange('alert_trend_min_samples', Number(e.target.value))}
-                    className={`h-8 w-full cs-input text-xs text-center ${errors.alert_trend_min_samples ? 'cs-input-error' : ''}`}
-                  />
-                  {errors.alert_trend_min_samples && <span className="cs-error-msg">{errors.alert_trend_min_samples}</span>}
+              <p className="cs-label mb-4">Fine-tuning <span className="text-zinc-600 font-normal normal-case tracking-normal">— optional, reduces false positives</span></p>
+              <div className="flex flex-col sm:flex-row gap-6">
+                {/* Numeric inputs */}
+                <div className="grid grid-cols-2 gap-4 flex-1">
+                  <div className="space-y-1.5">
+                    <label htmlFor={`${p}-trend-min-samples`} className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">Min samples / hour</label>
+                    <input
+                      id={`${p}-trend-min-samples`}
+                      type="number" min={1} max={60} step={1}
+                      value={values.alert_trend_min_samples}
+                      onChange={(e) => handleInputChange('alert_trend_min_samples', Number(e.target.value))}
+                      className={`h-9 w-full cs-input text-sm text-center ${errors.alert_trend_min_samples ? 'cs-input-error' : ''}`}
+                    />
+                    {errors.alert_trend_min_samples && <span className="cs-error-msg">{errors.alert_trend_min_samples}</span>}
+                  </div>
+                  <div className="space-y-1.5">
+                    <label htmlFor={`${p}-trend-cooldown`} className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">Quiet period (min)</label>
+                    <input
+                      id={`${p}-trend-cooldown`}
+                      type="number" min={15} max={1440} step={15}
+                      value={values.alert_trend_cooldown_minutes}
+                      onChange={(e) => handleInputChange('alert_trend_cooldown_minutes', Number(e.target.value))}
+                      className={`h-9 w-full cs-input text-sm text-center ${errors.alert_trend_cooldown_minutes ? 'cs-input-error' : ''}`}
+                    />
+                    {errors.alert_trend_cooldown_minutes && <span className="cs-error-msg">{errors.alert_trend_cooldown_minutes}</span>}
+                  </div>
                 </div>
-                <div>
-                  <label htmlFor={`${p}-trend-cooldown`} className="text-xs text-zinc-400 block mb-1">Quiet period (minutes)</label>
-                  <input
-                    id={`${p}-trend-cooldown`}
-                    type="number" min={15} max={1440} step={15}
-                    value={values.alert_trend_cooldown_minutes}
-                    onChange={(e) => handleInputChange('alert_trend_cooldown_minutes', Number(e.target.value))}
-                    className={`h-8 w-full cs-input text-xs text-center ${errors.alert_trend_cooldown_minutes ? 'cs-input-error' : ''}`}
-                  />
-                  {errors.alert_trend_cooldown_minutes && <span className="cs-error-msg">{errors.alert_trend_cooldown_minutes}</span>}
-                </div>
-                <div className="flex flex-col justify-end">
-                  <div className="flex items-center gap-2 h-8">
+
+                {/* Checkboxes */}
+                <div className="flex flex-col gap-3 justify-center sm:border-l sm:border-white/5 sm:pl-6">
+                  <div className="flex items-center gap-2">
                     <CsCheckbox
                       id={`${p}-trend-require-consecutive`}
                       checked={values.alert_trend_require_consecutive}
                       onChange={(e) => handleInputChange('alert_trend_require_consecutive', e.target.checked)}
                     />
-                    <label htmlFor={`${p}-trend-require-consecutive`} className="text-[11px] text-zinc-400 cursor-pointer select-none leading-tight">
+                    <label htmlFor={`${p}-trend-require-consecutive`} className="text-xs text-zinc-400 cursor-pointer select-none">
                       Confirm over 2 windows
                     </label>
                   </div>
-                </div>
-                <div className="flex flex-col justify-end">
-                  <div className="flex items-center gap-2 h-8">
+                  <div className="flex items-center gap-2">
                     <CsCheckbox
                       id={`${p}-trend-global-enabled`}
                       checked={values.alert_trend_global_enabled}
                       onChange={(e) => handleInputChange('alert_trend_global_enabled', e.target.checked)}
                     />
-                    <label htmlFor={`${p}-trend-global-enabled`} className="text-[11px] text-zinc-400 cursor-pointer select-none leading-tight">
+                    <label htmlFor={`${p}-trend-global-enabled`} className="text-xs text-zinc-400 cursor-pointer select-none">
                       Also alert on fleet-wide trend
                     </label>
                   </div>
@@ -902,18 +905,23 @@ export function MonitorEditForm({
               </div>
 
               {values.alert_trend_global_enabled && (
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="text-xs text-zinc-400">Fleet-wide threshold multiplier</span>
-                  <input
-                    type="number" min={1.0} max={5.0} step={0.1}
-                    value={values.alert_trend_global_threshold_factor}
-                    onChange={(e) => handleInputChange('alert_trend_global_threshold_factor', Number(e.target.value))}
-                    className={`h-8 w-20 cs-input text-xs text-center ${errors.alert_trend_global_threshold_factor ? 'cs-input-error' : ''}`}
-                  />
-                  <span className="text-[11px] text-zinc-400">× base threshold — higher values mean fewer alerts</span>
-                  {errors.alert_trend_global_threshold_factor && (
-                    <span className="cs-error-msg">{errors.alert_trend_global_threshold_factor}</span>
-                  )}
+                <div className="mt-5 pt-4 border-t border-white/5 space-y-1.5">
+                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Fleet-wide multiplier</span>
+                  <div className="flex items-center gap-3">
+                    <div className="relative w-24">
+                      <input
+                        type="number" min={1.0} max={5.0} step={0.1}
+                        value={values.alert_trend_global_threshold_factor}
+                        onChange={(e) => handleInputChange('alert_trend_global_threshold_factor', Number(e.target.value))}
+                        className={`h-9 w-full cs-input text-sm text-center ${errors.alert_trend_global_threshold_factor ? 'cs-input-error' : ''}`}
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">×</span>
+                    </div>
+                    <span className="text-xs text-zinc-500">base threshold — higher values mean fewer alerts</span>
+                    {errors.alert_trend_global_threshold_factor && (
+                      <span className="cs-error-msg">{errors.alert_trend_global_threshold_factor}</span>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
