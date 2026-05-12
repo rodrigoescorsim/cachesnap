@@ -36,6 +36,7 @@ const baseRow = {
   alert_anomaly_enabled: true,
   alert_anycast_enabled: false,
   alert_zombie_cache_enabled: false,
+  alert_cache_age_threshold_hours: 72,
   alert_cache_hit_enabled: false,
   alert_cache_hit_threshold_pct: 80,
   created_at: new Date('2026-01-01T00:00:00.000Z'),
