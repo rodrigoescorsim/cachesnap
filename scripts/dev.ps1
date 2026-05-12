@@ -23,6 +23,12 @@ do {
 
 Write-Host "[+] Infraestrutura pronta!" -ForegroundColor Green
 
+Write-Host "[*] Aplicando migrations pendentes..." -ForegroundColor Yellow
+Push-Location api
+cargo sqlx migrate run --source ../migrations
+Pop-Location
+Write-Host "[+] Migrations aplicadas!" -ForegroundColor Green
+
 Write-Host "[*] Iniciando Backend (Rust API) em uma nova janela..." -ForegroundColor Magenta
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd api; Write-Host '--- Iniciando Rust API ---' -ForegroundColor Magenta; cargo run"
 

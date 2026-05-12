@@ -44,7 +44,7 @@ const PERFORMANCE_VIEW_ICONS: Record<PerformanceView, typeof Activity> = {
 const TAB_LABELS: Record<'security' | 'settings' | 'incidents', string> = {
   security: 'Security',
   settings: 'Settings',
-  incidents: 'Alerts',
+  incidents: 'Incidents',
 }
 
 const TAB_ICONS = {

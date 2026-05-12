@@ -25,6 +25,7 @@ export interface MonitorEditFormProps {
   alertAnomalyEnabled: boolean
   alertAnycastEnabled: boolean
   alertZombieCacheEnabled: boolean
+  alertCacheAgeThresholdHours: number
   alertCacheHitEnabled: boolean
   alertCacheHitThresholdPct: number
   // Trend alerts
@@ -66,6 +67,7 @@ export function MonitorEditForm({
   alertAnomalyEnabled,
   alertAnycastEnabled,
   alertZombieCacheEnabled,
+  alertCacheAgeThresholdHours,
   alertCacheHitEnabled,
   alertCacheHitThresholdPct,
   alertCacheHitTrendEnabled,
@@ -105,7 +107,8 @@ export function MonitorEditForm({
     alert_ttfb_enabled: alertTtfbEnabled ?? true,
     alert_anomaly_enabled: alertAnomalyEnabled ?? true,
     alert_anycast_enabled: alertAnycastEnabled ?? true,
-    alert_zombie_cache_enabled: alertZombieCacheEnabled ?? true,
+    alert_zombie_cache_enabled: alertZombieCacheEnabled ?? false,
+    alert_cache_age_threshold_hours: alertCacheAgeThresholdHours ?? 72,
     alert_cache_hit_enabled: alertCacheHitEnabled ?? true,
     alert_cache_hit_threshold_pct: alertCacheHitThresholdPct ?? 50,
     alert_cache_hit_trend_enabled: alertCacheHitTrendEnabled ?? true,
@@ -148,6 +151,10 @@ export function MonitorEditForm({
     if (field === 'alert_sensitivity') {
       if (![1, 2, 3].includes(Number(value))) return 'Invalid sensitivity'
     }
+    if (field === 'alert_cache_age_threshold_hours') {
+      const n = Number(value)
+      if (isNaN(n) || n < 1 || n > 8760) return 'Must be between 1 and 8760 h'
+    }
     if (field === 'alert_cache_hit_threshold_pct') {
       const n = Number(value)
       if (isNaN(n) || n < 0 || n > 100) return 'Must be between 0 and 100%'
@@ -177,19 +184,21 @@ export function MonitorEditForm({
     const slackErr = validate('notify_slack_webhook', current.notify_slack_webhook, current)
     const thresholdErr = validate('alert_threshold_ms', current.alert_threshold_ms, current)
     const thresholdHitErr = validate('alert_threshold_hit_ms', current.alert_threshold_hit_ms, current)
+    const cacheAgeHoursErr = validate('alert_cache_age_threshold_hours', current.alert_cache_age_threshold_hours, current)
     const cacheHitErr = validate('alert_cache_hit_threshold_pct', current.alert_cache_hit_threshold_pct, current)
     const cacheHitTrendErr = validate('alert_cache_hit_trend_threshold_pct', current.alert_cache_hit_trend_threshold_pct, current)
     const ttfbTrendErr = validate('alert_ttfb_trend_threshold_pct', current.alert_ttfb_trend_threshold_pct, current)
     const minSamplesErr = validate('alert_trend_min_samples', current.alert_trend_min_samples, current)
     const cooldownErr = validate('alert_trend_cooldown_minutes', current.alert_trend_cooldown_minutes, current)
 
-    if (emailErr || slackErr || thresholdErr || cacheHitErr || cacheHitTrendErr || ttfbTrendErr || minSamplesErr || cooldownErr) {
+    if (emailErr || slackErr || thresholdErr || cacheAgeHoursErr || cacheHitErr || cacheHitTrendErr || ttfbTrendErr || minSamplesErr || cooldownErr) {
       setErrors(prev => ({
         ...prev,
         notify_email: emailErr,
         notify_slack_webhook: slackErr,
         alert_threshold_ms: thresholdErr,
         alert_threshold_hit_ms: thresholdHitErr,
+        alert_cache_age_threshold_hours: cacheAgeHoursErr,
         alert_cache_hit_threshold_pct: cacheHitErr,
         alert_cache_hit_trend_threshold_pct: cacheHitTrendErr,
         alert_ttfb_trend_threshold_pct: ttfbTrendErr,
@@ -252,6 +261,7 @@ export function MonitorEditForm({
       values.notify_slack_webhook !== lastSavedValues.current.notify_slack_webhook ||
       values.alert_threshold_ms !== lastSavedValues.current.alert_threshold_ms ||
       values.alert_threshold_hit_ms !== lastSavedValues.current.alert_threshold_hit_ms ||
+      values.alert_cache_age_threshold_hours !== lastSavedValues.current.alert_cache_age_threshold_hours ||
       values.alert_cache_hit_threshold_pct !== lastSavedValues.current.alert_cache_hit_threshold_pct ||
       values.alert_cache_hit_trend_threshold_pct !== lastSavedValues.current.alert_cache_hit_trend_threshold_pct ||
       values.alert_ttfb_trend_threshold_pct !== lastSavedValues.current.alert_ttfb_trend_threshold_pct ||
@@ -548,31 +558,52 @@ export function MonitorEditForm({
                     </span>
                   </label>
                 </div>
-                {([
-                  {
-                    field: 'alert_anycast_enabled' as const,
-                    label: 'Region mismatch',
-                    desc: 'Request routed to an unexpected CDN location — possible misconfiguration.',
-                  },
-                  {
-                    field: 'alert_zombie_cache_enabled' as const,
-                    label: 'Stale content',
-                    desc: 'CDN is serving content older than 24 h without revalidation.',
-                  },
-                ] as const).map(({ field, label, desc }) => (
-                  <div key={field} className="flex items-start gap-3">
-                    <CsCheckbox
-                      id={`${p}-${field}`}
-                      align="start"
-                      checked={values[field]}
-                      onChange={(e) => handleInputChange(field, e.target.checked)}
-                    />
-                    <label htmlFor={`${p}-${field}`} className="cursor-pointer select-none">
-                      <span className="text-xs font-bold text-zinc-200 block">{label}</span>
-                      <span className="text-xs text-zinc-400 leading-relaxed">{desc}</span>
-                    </label>
-                  </div>
-                ))}
+                {/* Region mismatch */}
+                <div className="flex items-start gap-3">
+                  <CsCheckbox
+                    id={`${p}-alert_anycast_enabled`}
+                    align="start"
+                    checked={values.alert_anycast_enabled}
+                    onChange={(e) => handleInputChange('alert_anycast_enabled', e.target.checked)}
+                  />
+                  <label htmlFor={`${p}-alert_anycast_enabled`} className="cursor-pointer select-none">
+                    <span className="text-xs font-bold text-zinc-200 block">Region mismatch</span>
+                    <span className="text-xs text-zinc-400 leading-relaxed">Request routed to an unexpected CDN location — possible misconfiguration.</span>
+                  </label>
+                </div>
+
+                {/* Cache Age Alert — inline threshold */}
+                <div className="flex items-start gap-3">
+                  <CsCheckbox
+                    id={`${p}-alert_zombie_cache_enabled`}
+                    align="start"
+                    checked={values.alert_zombie_cache_enabled}
+                    onChange={(e) => handleInputChange('alert_zombie_cache_enabled', e.target.checked)}
+                  />
+                  <label htmlFor={`${p}-alert_zombie_cache_enabled`} className="cursor-pointer select-none flex-1">
+                    <span className="text-xs font-bold text-zinc-200 block">Cache Age Alert</span>
+                    <span className="text-xs text-zinc-400 leading-relaxed">Alert when cached content stays too old without refresh.</span>
+                    <div className={`mt-2 flex items-center gap-2 transition-opacity ${values.alert_zombie_cache_enabled ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
+                      <span className="text-xs text-zinc-400">Maximum cache age</span>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={1}
+                          max={8760}
+                          step={1}
+                          value={values.alert_cache_age_threshold_hours}
+                          onChange={(e) => handleInputChange('alert_cache_age_threshold_hours', Number(e.target.value))}
+                          disabled={!values.alert_zombie_cache_enabled}
+                          className={`h-8 w-20 cs-input text-xs pr-8 text-center ${errors.alert_cache_age_threshold_hours ? 'cs-input-error' : ''}`}
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-zinc-500 pointer-events-none">h</span>
+                      </div>
+                      {errors.alert_cache_age_threshold_hours && (
+                        <span className="cs-error-msg">{errors.alert_cache_age_threshold_hours}</span>
+                      )}
+                    </div>
+                  </label>
+                </div>
 
                 {/* CACHE HIT RATE — inline threshold */}
                 <div className="flex items-start gap-3">

@@ -51,7 +51,7 @@ export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   ttfb_trend_up_global: 'TTFB ↑ (global)',
   ttfb_trend_down_region: 'TTFB ↓ (region)',
   ttfb_trend_down_global: 'TTFB ↓ (global)',
-  zombie_cache: 'Zombie cache',
+  zombie_cache: 'Cache Age Alert',
   cache_hit_low: 'Cache hit low',
 }
 

@@ -23,6 +23,7 @@ export function MonitorSettingsPanel(props: {
   alertAnomalyEnabled: boolean
   alertAnycastEnabled: boolean
   alertZombieCacheEnabled: boolean
+  alertCacheAgeThresholdHours: number
   alertCacheHitEnabled: boolean
   alertCacheHitThresholdPct: number
   alertCacheHitTrendEnabled: boolean

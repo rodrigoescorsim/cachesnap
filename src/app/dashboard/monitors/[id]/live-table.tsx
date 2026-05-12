@@ -63,9 +63,9 @@ function formatCacheAgeShort(seconds: number): React.ReactNode {
 }
 
 function ageBadgeVisual(ageSeconds: number): { className: string; tierHint: string } {
-  if (ageSeconds <= 3600) return { className: 'cs-badge-muted', tierHint: 'Recently cached (≤1h)' }
-  if (ageSeconds <= 86400) return { className: 'cs-badge-warning', tierHint: 'Elevated cache age (>1h, up to 24h)' }
-  return { className: 'cs-badge-danger', tierHint: 'Zombie cache (>24h) — review invalidation / TTL' }
+  if (ageSeconds <= 3600) return { className: 'cs-badge-muted', tierHint: 'Cache age within expected range.' }
+  if (ageSeconds <= 86400) return { className: 'cs-badge-warning', tierHint: 'Cached content is older than expected.' }
+  return { className: 'cs-badge-danger', tierHint: 'Cached content is older than expected.' }
 }
 
 function getSyncStatus(lastProbeAt: Date | null): { colorClass: string; tooltip: string; text: string } {

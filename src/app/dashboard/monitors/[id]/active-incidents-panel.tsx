@@ -30,7 +30,7 @@ const ALERT_TYPE_DISPLAY: Record<string, string> = {
   anomaly: 'Latency Anomaly',
   cache_hit_low: 'Cache Hit Rate Low',
   ssl_expiry: 'SSL Certificate Expiring',
-  zombie_cache: 'Zombie Cache Detected',
+  zombie_cache: 'Cache Age Alert',
   anycast: 'Anycast Routing Issue',
   cache_hit_trend_drop_region: 'Cache Hit Trend Drop (Region)',
   cache_hit_trend_drop_global: 'Cache Hit Trend Drop (Global)',

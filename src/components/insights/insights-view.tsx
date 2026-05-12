@@ -1172,11 +1172,11 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
           </div>
         </ViewSection>
 
-        {/* ── D. Active Alerts ───────────────────────────────────────────────── */}
-        <ViewSection aria-label="Active Alerts">
+        {/* ── D. Active Incidents ─────────────────────────────────────────────── */}
+        <ViewSection aria-label="Active Incidents">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <ViewSectionHeader title="Active Alerts" showDot={false} />
+              <ViewSectionHeader title="Active Incidents" showDot={false} />
               {!isLoading && alertMonitors.length > 0 && (
                 <span
                   className={`cs-badge ${criticalCount > 0 ? 'cs-badge-error' : 'cs-badge-warning'} !px-2 !py-0.5 !text-[9px]`}
@@ -1193,7 +1193,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
                 href="/monitors?filter=degraded"
                 className="text-[12px] font-semibold text-zinc-500 transition-colors hover:text-zinc-300"
               >
-                View all alerts →
+                View all incidents →
               </Link>
             )}
           </div>

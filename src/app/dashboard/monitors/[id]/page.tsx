@@ -176,7 +176,7 @@ const TAB_LABELS: Record<MonitorTab, string> = {
   resilience: 'Resilience',
   security: 'Security',
   settings: 'Settings',
-  incidents: 'Alerts',
+  incidents: 'Incidents',
 }
 
 const TAB_ICONS: Record<MonitorTab, LucideIcon> = {
@@ -438,26 +438,25 @@ function formatCacheAgeShort(seconds: number): React.ReactNode {
   return <>{days}<span className={unitStyle}>d</span></>
 }
 
-/** `Age` header semantics: seconds in shared cache. Tiers for emphasis (zombie_cache alert: age_s > 86_400). */
-const AGE_RECENT_MAX_S = 3600 // ≤1h — still “fresh” at the edge
-const AGE_ZOMBIE_THRESHOLD_S = 86_400 // same boundary as probe-waterfall zombie detection (strictly older = red)
+const AGE_RECENT_MAX_S = 3600  // ≤1h — still fresh at the edge
+const AGE_WARNING_MAX_S = 86_400 // >1h up to 24h — elevated but not alarming
 
 function ageBadgeVisual(ageSeconds: number): { className: string; tierHint: string } {
   if (ageSeconds <= AGE_RECENT_MAX_S) {
     return {
       className: 'cs-badge-muted',
-      tierHint: 'Recently cached (≤1h)',
+      tierHint: 'Cache age within expected range.',
     }
   }
-  if (ageSeconds <= AGE_ZOMBIE_THRESHOLD_S) {
+  if (ageSeconds <= AGE_WARNING_MAX_S) {
     return {
       className: 'cs-badge-warning',
-      tierHint: 'Elevated cache age (>1h, up to 24h)',
+      tierHint: 'Cached content is older than expected.',
     }
   }
   return {
     className: 'cs-badge-danger',
-    tierHint: 'Zombie cache (>24h) — review invalidation / TTL',
+    tierHint: 'Cached content is older than expected.',
   }
 }
 
@@ -558,7 +557,7 @@ export default async function MonitorDetailPage({
     notify_slack_webhook: string | null; notify_slack_enabled: boolean;
     alert_threshold_ms: number; alert_threshold_hit_ms: number; alert_sensitivity: number;
     alert_down_enabled: boolean; alert_ttfb_enabled: boolean; alert_anomaly_enabled: boolean;
-    alert_anycast_enabled: boolean; alert_zombie_cache_enabled: boolean;
+    alert_anycast_enabled: boolean; alert_zombie_cache_enabled: boolean; alert_cache_age_threshold_hours: number;
     alert_cache_hit_enabled: boolean; alert_cache_hit_threshold_pct: number;
     alert_cache_hit_trend_enabled: boolean; alert_cache_hit_trend_threshold_pct: number; alert_cache_hit_trend_comparators: string[];
     alert_ttfb_trend_enabled: boolean; alert_ttfb_trend_threshold_pct: number; alert_ttfb_trend_comparators: string[];
@@ -569,7 +568,7 @@ export default async function MonitorDetailPage({
            notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
            alert_threshold_ms, alert_threshold_hit_ms, alert_sensitivity,
            alert_down_enabled, alert_ttfb_enabled, alert_anomaly_enabled,
-           alert_anycast_enabled, alert_zombie_cache_enabled,
+           alert_anycast_enabled, alert_zombie_cache_enabled, alert_cache_age_threshold_hours,
            alert_cache_hit_enabled, alert_cache_hit_threshold_pct,
            alert_cache_hit_trend_enabled, alert_cache_hit_trend_threshold_pct, alert_cache_hit_trend_comparators,
            alert_ttfb_trend_enabled, alert_ttfb_trend_threshold_pct, alert_ttfb_trend_comparators,
@@ -2050,6 +2049,7 @@ export default async function MonitorDetailPage({
                     alertAnomalyEnabled={monitor.alert_anomaly_enabled}
                     alertAnycastEnabled={monitor.alert_anycast_enabled}
                     alertZombieCacheEnabled={monitor.alert_zombie_cache_enabled}
+                    alertCacheAgeThresholdHours={monitor.alert_cache_age_threshold_hours}
                     alertCacheHitEnabled={monitor.alert_cache_hit_enabled}
                     alertCacheHitThresholdPct={monitor.alert_cache_hit_threshold_pct}
                     alertCacheHitTrendEnabled={monitor.alert_cache_hit_trend_enabled}
@@ -2440,7 +2440,7 @@ export default async function MonitorDetailPage({
 
           {activeTab === 'incidents' && (
             <section className="space-y-4">
-              <ViewSectionHeader title="Active Incidents & Alerts" showDot={true} dotColorClass="bg-amber-500" />
+              <ViewSectionHeader title="Active Incidents" showDot={true} dotColorClass="bg-amber-500" />
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
