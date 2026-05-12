@@ -213,6 +213,17 @@ pub async fn handler(
                 crate::alerts::detector::check_for_anomalies(state_clone, payload_clone).await;
             });
 
+            // Probe-triggered incident resolution: eagerly closes zombie_cache / anycast /
+            // ssl_expiry incidents without waiting for the next worker cycle.
+            if natural_inserted {
+                let state_pr = state.clone();
+                let monitor_id = payload.monitor_id;
+                tokio::spawn(async move {
+                    crate::alerts::worker::try_resolve_per_probe_incidents(&state_pr, monitor_id)
+                        .await;
+                });
+            }
+
             // Bootstrap trigger: se monitor nunca foi avaliado e todas as regiões já responderam,
             // dispara avaliação de readiness imediatamente (fora do tick de 15min)
             if natural_inserted {

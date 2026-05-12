@@ -9,10 +9,172 @@ use crate::{
     AppState,
 };
 use chrono::Utc;
+use serde_json::Value as JsonValue;
 use std::time::Duration;
 use tokio::time::interval;
 use tracing::{error, info};
 use uuid::Uuid;
+
+// Non-macro row types — no compile-time DB connection required.
+#[derive(sqlx::FromRow)]
+struct LatestProbeRow {
+    region: String,
+    ttfb_ms: Option<f64>,
+    cache_status: Option<String>,
+    age_s: Option<i32>,
+    security_headers: Option<JsonValue>,
+    served_by: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct PerProbeAlertConfig {
+    alert_zombie_cache_enabled: bool,
+    alert_cache_age_threshold_hours: i32,
+    alert_anycast_enabled: bool,
+}
+
+/// Called from the ingest path after every successful probe insert.
+/// Re-runs the per-probe detection logic for zombie_cache, anycast, and ssl_expiry;
+/// if none of the probes across all regions still trigger the condition, resolves the
+/// open incident immediately — without waiting for the next worker cycle.
+///
+/// cache_hit_low is intentionally excluded: it requires a time-windowed aggregate,
+/// not a single probe value, so it stays worker-managed.
+pub async fn try_resolve_per_probe_incidents(state: &AppState, monitor_id: Uuid) {
+    // Fast path: skip if there are no open per-probe-resolvable incidents.
+    let has_open: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+             SELECT 1 FROM alert_incidents
+             WHERE monitor_id = $1 AND resolved_at IS NULL
+             AND alert_type IN ('zombie_cache', 'anycast', 'ssl_expiry')
+         )",
+    )
+    .bind(monitor_id)
+    .fetch_one(&state.db)
+    .await
+    .unwrap_or(false);
+
+    if !has_open {
+        return;
+    }
+
+    // Latest probe per region (same window as the audit worker).
+    let latest_probes: Vec<LatestProbeRow> = sqlx::query_as(
+        "SELECT DISTINCT ON (region) region, ttfb_ms, cache_status, age_s, security_headers, served_by
+         FROM probe_results
+         WHERE monitor_id = $1 AND time > NOW() - INTERVAL '24 hours'
+         ORDER BY region, time DESC",
+    )
+    .bind(monitor_id)
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+
+    if latest_probes.is_empty() {
+        return;
+    }
+
+    let config: Option<PerProbeAlertConfig> = sqlx::query_as(
+        "SELECT alert_zombie_cache_enabled, alert_cache_age_threshold_hours, alert_anycast_enabled
+         FROM monitors WHERE id = $1 LIMIT 1",
+    )
+    .bind(monitor_id)
+    .fetch_optional(&state.db)
+    .await
+    .unwrap_or(None);
+
+    let Some(config) = config else { return };
+
+    // Re-run detection across all regions' latest probes.
+    let mut zombie_firing = false;
+    let mut anycast_firing = false;
+    let mut ssl_firing = false;
+
+    for probe in &latest_probes {
+        if config.alert_zombie_cache_enabled
+            && check_zombie_cache(
+                &probe.region,
+                probe.ttfb_ms.unwrap_or(0.0),
+                &probe.cache_status,
+                probe.age_s,
+                config.alert_cache_age_threshold_hours,
+            )
+            .is_some()
+        {
+            zombie_firing = true;
+        }
+
+        if config.alert_anycast_enabled {
+            if let Some(ttfb) = probe.ttfb_ms {
+                if check_anycast(
+                    &probe.region,
+                    ttfb,
+                    &probe.cache_status,
+                    probe.served_by.clone(),
+                    probe.age_s,
+                )
+                .is_some()
+                {
+                    anycast_firing = true;
+                }
+            }
+        }
+
+        if let Some(sec) = &probe.security_headers {
+            if check_ssl_expiry(&probe.region, sec).is_some() {
+                ssl_firing = true;
+            }
+        }
+    }
+
+    // Resolve any type that was open but is no longer detected.
+    if config.alert_zombie_cache_enabled && !zombie_firing {
+        resolve_worker_incident_now(state, monitor_id, "zombie_cache").await;
+    }
+    if config.alert_anycast_enabled && !anycast_firing {
+        resolve_worker_incident_now(state, monitor_id, "anycast").await;
+    }
+    if !ssl_firing {
+        resolve_worker_incident_now(state, monitor_id, "ssl_expiry").await;
+    }
+}
+
+async fn resolve_worker_incident_now(state: &AppState, monitor_id: Uuid, alert_type: &str) {
+    let resolved: Option<ResolvedIncident> = sqlx::query_as(
+        "UPDATE alert_incidents
+         SET resolved_at = NOW()
+         WHERE monitor_id = $1 AND alert_type = $2 AND resolved_at IS NULL
+         RETURNING id, monitor_id, alert_type, severity, notification_count,
+                   opened_at, resolved_at, affected_regions",
+    )
+    .bind(monitor_id)
+    .bind(alert_type)
+    .fetch_optional(&state.db)
+    .await
+    .unwrap_or(None);
+
+    if let Some(r) = resolved {
+        let duration = r.resolved_at - r.opened_at;
+        info!(
+            "worker: probe-triggered resolution alert_type={} monitor={}",
+            alert_type, monitor_id
+        );
+        if r.notification_count > 0 {
+            tokio::spawn(notifier::notify_recovery(
+                state.clone(),
+                RecoveryNotification {
+                    monitor_id,
+                    alert_type: r.alert_type,
+                    affected_regions: r.affected_regions,
+                    duration,
+                    notification_count: r.notification_count,
+                    actual: None,
+                    threshold: None,
+                },
+            ));
+        }
+    }
+}
 
 pub async fn run(state: AppState) {
     let interval_secs = state.config.alerts_worker_interval_secs;
@@ -65,6 +227,7 @@ pub struct MonitorAlertConfig {
     pub alert_cache_hit_threshold_pct: f64,
     pub alert_anycast_enabled: bool,
     pub alert_zombie_cache_enabled: bool,
+    pub alert_cache_age_threshold_hours: i32,
 }
 
 async fn fetch_active_monitors(state: &AppState) -> Result<Vec<MonitorAlertConfig>, sqlx::Error> {
@@ -72,7 +235,8 @@ async fn fetch_active_monitors(state: &AppState) -> Result<Vec<MonitorAlertConfi
         MonitorAlertConfig,
         r#"
         SELECT id, alert_cache_hit_enabled, alert_cache_hit_threshold_pct,
-               alert_anycast_enabled, alert_zombie_cache_enabled
+               alert_anycast_enabled, alert_zombie_cache_enabled,
+               alert_cache_age_threshold_hours
         FROM monitors
         WHERE is_active = true
         "#
@@ -121,7 +285,18 @@ pub async fn audit_monitor_alerts(
         let region = &probe.region;
 
         if monitor.alert_cache_hit_enabled {
-            match check_cache_hit(state, monitor, region).await? {
+            let is_intentionally_uncached = probe
+                .cache_status
+                .as_deref()
+                .map_or(false, |s| matches!(s, "DYNAMIC" | "BYPASS"));
+
+            let result = if is_intentionally_uncached {
+                CacheHitResult::Cleared
+            } else {
+                check_cache_hit(state, monitor, region).await?
+            };
+
+            match result {
                 CacheHitResult::Firing(d) => {
                     detections.push(d);
                     cache_hit_any_firing = true;
@@ -150,7 +325,7 @@ pub async fn audit_monitor_alerts(
         }
         if monitor.alert_zombie_cache_enabled {
             if let Some(ttfb) = probe.ttfb_ms {
-                if let Some(d) = check_zombie_cache(region, ttfb, &probe.cache_status, probe.age_s) {
+                if let Some(d) = check_zombie_cache(region, ttfb, &probe.cache_status, probe.age_s, monitor.alert_cache_age_threshold_hours) {
                     detections.push(d);
                 }
             }
@@ -301,9 +476,11 @@ fn check_zombie_cache(
     ttfb_ms: f64,
     cache_status: &Option<String>,
     age_s: Option<i32>,
+    threshold_hours: i32,
 ) -> Option<Detection> {
     let age = age_s?;
-    if age <= 86_400 {
+    let threshold_s = threshold_hours.max(1) * 3600;
+    if age <= threshold_s {
         return None;
     }
     let diag = engine::diagnose(&DiagnosisInput {
@@ -553,8 +730,10 @@ async fn resolve_cleared_worker_incidents(
                 format_duration(&duration)
             );
 
-            let sev = alert_severity(&r.alert_type);
-            if sev.sends_recovery() && r.notification_count > 0 {
+            // Send recovery whenever the incident had at least one notification sent —
+            // regardless of severity tier. If we told the user about the problem, we
+            // should tell them when it's fixed.
+            if r.notification_count > 0 {
                 tokio::spawn(notifier::notify_recovery(
                     state.clone(),
                     RecoveryNotification {
@@ -647,6 +826,24 @@ mod tests {
     use crate::alerts::severity::alert_severity;
 
     #[test]
+    fn test_intentionally_uncached_statuses_skip_hit_rate_check() {
+        // DYNAMIC and BYPASS are intentional — must not trigger cache hit rate alerts.
+        for status in ["DYNAMIC", "BYPASS"] {
+            assert!(
+                matches!(status, "DYNAMIC" | "BYPASS"),
+                "{status} must be treated as intentionally uncached"
+            );
+        }
+        // These are cache-eligible misses — should still be evaluated normally.
+        for status in ["MISS", "EXPIRED", "HIT", "STALE", "REVALIDATED"] {
+            assert!(
+                !matches!(status, "DYNAMIC" | "BYPASS"),
+                "{status} must NOT be treated as intentionally uncached"
+            );
+        }
+    }
+
+    #[test]
     fn test_cache_hit_pct_formula() {
         let hits = 75.0_f64;
         let total = 100.0_f64;
@@ -670,9 +867,12 @@ mod tests {
 
     #[test]
     fn test_zombie_cache_threshold() {
-        let max_age_s = 86_400i32;
-        assert!(86_401 > max_age_s);
-        assert!(!(86_400 > max_age_s));
+        // Default threshold: 72 h = 259 200 s
+        let threshold_hours = 72i32;
+        let threshold_s = threshold_hours * 3600;
+        assert_eq!(threshold_s, 259_200);
+        assert!(259_201 > threshold_s);
+        assert!(!(259_200 > threshold_s));
     }
 
     #[test]

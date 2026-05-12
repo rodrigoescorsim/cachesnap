@@ -70,7 +70,7 @@ pub fn alert_type_display(alert_type: &str) -> &'static str {
         "anomaly" => "Latency Anomaly",
         "cache_hit_low" => "Cache Hit Rate Low",
         "ssl_expiry" => "SSL Certificate Expiring",
-        "zombie_cache" => "Zombie Cache Detected",
+        "zombie_cache" => "Cache Age Alert",
         "anycast" => "Anycast Routing Issue",
         "cache_hit_trend_drop_region" => "Cache Hit Trend Drop (Region)",
         "cache_hit_trend_drop_global" => "Cache Hit Trend Drop (Global)",
@@ -135,13 +135,13 @@ mod tests {
 
     #[test]
     fn test_all_known_types_have_display_names() {
-        let types = [
+        let known_types = [
             "down", "ttfb_threshold", "anomaly", "cache_hit_low", "ssl_expiry",
             "zombie_cache", "anycast", "cache_hit_trend_drop_region",
             "cache_hit_trend_drop_global", "ttfb_trend_up_region",
             "ttfb_trend_up_global", "ttfb_trend_down_region", "ttfb_trend_down_global",
         ];
-        for t in types {
+        for t in known_types {
             let name = alert_type_display(t);
             assert!(!name.is_empty(), "empty display for {t}");
             assert!(!name.contains('_'), "snake_case in display for {t}: {name}");

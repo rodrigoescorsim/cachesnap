@@ -217,6 +217,7 @@ async fn test_worker_cache_hit_aggregation() {
         alert_cache_hit_threshold_pct: 90.0,
         alert_anycast_enabled: false,
         alert_zombie_cache_enabled: false,
+        alert_cache_age_threshold_hours: 72,
     };
 
     audit_monitor_alerts(&state, &cfg).await.unwrap();
@@ -368,6 +369,7 @@ async fn test_incident_resolves_no_recovery_medium() {
         alert_cache_hit_threshold_pct: 50.0,
         alert_anycast_enabled: false,
         alert_zombie_cache_enabled: false,
+        alert_cache_age_threshold_hours: 72,
     };
 
     audit_monitor_alerts(&state, &cfg).await.unwrap();
@@ -431,6 +433,7 @@ async fn test_insufficient_data_preserves_open_incident() {
         alert_cache_hit_threshold_pct: 50.0,
         alert_anycast_enabled: false,
         alert_zombie_cache_enabled: false,
+        alert_cache_age_threshold_hours: 72,
     };
 
     audit_monitor_alerts(&state, &cfg).await.unwrap();
