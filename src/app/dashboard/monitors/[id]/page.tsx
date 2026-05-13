@@ -1677,6 +1677,8 @@ export default async function MonitorDetailPage({
                         globalAvgTtfb={liveAvgTtfb}
                         thresholdMs={monitor.alert_threshold_ms}
                         thresholdHitMs={monitor.alert_threshold_hit_ms}
+                        alertCacheAgeEnabled={monitor.alert_cache_age_enabled}
+                        alertCacheAgeThresholdHours={monitor.alert_cache_age_threshold_hours}
                       />
                     ) : (
                       <div className="cs-card cs-card-glass min-h-[200px] flex flex-col items-center justify-center p-8 text-center animate-pulse">

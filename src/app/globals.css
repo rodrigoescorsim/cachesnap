@@ -665,4 +665,25 @@ body {
   .cs-badge-cache-dash {
     @apply inline-flex items-center justify-center gap-1 rounded-md min-h-[22px] min-w-[60px] px-2 py-0.5 text-[10px] font-bold tracking-wide ring-1 ring-inset bg-white/5 text-zinc-500 ring-white/10;
   }
+
+  /**
+   * Live monitor table — Age column: secondary to Cache/Status, slightly stepped up for legibility.
+   */
+  .cs-badge-live-age {
+    @apply inline-flex items-center justify-center gap-0.5 rounded-md min-h-[22px] px-2.5 py-1 text-[10px] font-black tabular-nums tracking-wide ring-1 ring-inset transition-all;
+  }
+
+  .cs-badge-live-age-muted {
+    @apply bg-white/[0.04] text-zinc-400 ring-white/[0.08];
+  }
+
+  .cs-badge-live-age-success {
+    color: rgba(var(--brand-primary-rgb), 0.82);
+    background-color: rgba(var(--brand-primary-rgb), 0.048);
+    --tw-ring-color: rgba(var(--brand-primary-rgb), 0.11);
+  }
+
+  .cs-badge-live-age-danger {
+    @apply bg-red-500/[0.07] text-red-400/78 ring-red-500/16;
+  }
 }

@@ -51,6 +51,9 @@ interface LiveTableProps {
   globalAvgTtfb: number
   thresholdMs?: number
   thresholdHitMs?: number
+  /** When false, Age column stays neutral gray; tooltips describe duration only. */
+  alertCacheAgeEnabled?: boolean
+  alertCacheAgeThresholdHours?: number
 }
 
 function formatCacheAgeShort(seconds: number): React.ReactNode {
@@ -64,10 +67,45 @@ function formatCacheAgeShort(seconds: number): React.ReactNode {
   return <>{days}<span className={unitStyle}>d</span></>
 }
 
-function ageBadgeVisual(ageSeconds: number): { className: string; tierHint: string } {
-  if (ageSeconds <= 3600) return { className: 'cs-badge-muted', tierHint: 'Cache age within expected range.' }
-  if (ageSeconds <= 86400) return { className: 'cs-badge-warning', tierHint: 'Cached content is older than expected.' }
-  return { className: 'cs-badge-danger', tierHint: 'Cached content is older than expected.' }
+/** Full-word duration for tooltips (no s/m/h/d abbreviations). */
+function formatCacheAgeVerbose(seconds: number): string {
+  const s = Math.floor(Math.max(0, seconds))
+  let rem = s
+  const days = Math.floor(rem / 86400)
+  rem %= 86400
+  const hours = Math.floor(rem / 3600)
+  rem %= 3600
+  const minutes = Math.floor(rem / 60)
+  const secs = rem % 60
+  const parts: string[] = []
+  if (days) parts.push(`${days} day${days === 1 ? '' : 's'}`)
+  if (hours) parts.push(`${hours} hour${hours === 1 ? '' : 's'}`)
+  if (minutes) parts.push(`${minutes} minute${minutes === 1 ? '' : 's'}`)
+  if (secs || parts.length === 0) parts.push(`${secs} second${secs === 1 ? '' : 's'}`)
+  return parts.join(', ')
+}
+
+function cacheAgeColumnVisual(
+  ageSeconds: number,
+  alertEnabled: boolean,
+  thresholdHours: number
+): { className: string; tooltip: string } {
+  const verbose = formatCacheAgeVerbose(ageSeconds)
+  if (!alertEnabled) {
+    return {
+      className: 'cs-badge-live-age cs-badge-live-age-muted',
+      tooltip: `Edge-reported cache age: ${verbose}.`,
+    }
+  }
+  const limitSeconds = Math.max(1, Math.floor(thresholdHours)) * 3600
+  const limitVerbose = formatCacheAgeVerbose(limitSeconds)
+  const within = ageSeconds <= limitSeconds
+  return {
+    className: `cs-badge-live-age ${within ? 'cs-badge-live-age-success' : 'cs-badge-live-age-danger'}`,
+    tooltip: within
+      ? `${verbose}. Within the Cache Age Alert limit (${limitVerbose}).`
+      : `${verbose}. Above the Cache Age Alert limit (${limitVerbose}).`,
+  }
 }
 
 function getSyncStatus(lastProbeAt: Date | null): { colorClass: string; tooltip: string; text: string } {
@@ -84,7 +122,16 @@ function getSyncStatus(lastProbeAt: Date | null): { colorClass: string; tooltip:
   return { colorClass: 'text-zinc-500', tooltip: `Probe synchronized at ${date.toLocaleString()}`, text: timeText }
 }
 
-export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgTtfb, thresholdMs, thresholdHitMs }: LiveTableProps) {
+export function LiveTable({
+  probes,
+  regionLabels,
+  regionDescriptions,
+  globalAvgTtfb,
+  thresholdMs,
+  thresholdHitMs,
+  alertCacheAgeEnabled = false,
+  alertCacheAgeThresholdHours = 72,
+}: LiveTableProps) {
   const isDebug = process.env.NODE_ENV === 'development'
   const [expandedRegions, setExpandedRegions] = useState<Record<string, boolean>>({})
 
@@ -154,7 +201,13 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                 <PremiumTooltip content="Performance compared to the live global average" position="top-center" direction="top">vs Global</PremiumTooltip>
               </th>
               <th className="cs-table-compact-th !text-center">
-                <PremiumTooltip content="Cache age (seconds)" position="top-center" direction="top">Age</PremiumTooltip>
+                <PremiumTooltip
+                  content="HTTP Age: time this object has been served from edge cache."
+                  position="top-center"
+                  direction="top"
+                >
+                  Age
+                </PremiumTooltip>
               </th>
               <th className="cs-table-compact-th !text-center">
                 <PremiumTooltip content="HTTP response code" position="top-center" direction="top">Status</PremiumTooltip>
@@ -180,7 +233,7 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
 
               const isError = !!p.error
               const age = Number(p.max_age_s ?? 0)
-              const ageVisual = age > 0 ? ageBadgeVisual(age) : null
+              const ageVisual = age > 0 ? cacheAgeColumnVisual(age, alertCacheAgeEnabled, alertCacheAgeThresholdHours) : null
               const sync = getSyncStatus(p.last_probe_at)
               const hops = Number(p.redirect_count ?? 0)
               const isStatusErr = isError || (p.status_code != null && p.status_code >= 400)
@@ -295,11 +348,13 @@ export function LiveTable({ probes, regionLabels, regionDescriptions, globalAvgT
                     </td>
                     <td className="cs-table-compact-td text-right">
                       {age > 0 && ageVisual ? (
-                        <PremiumTooltip content={ageVisual.tierHint} position="top-right" direction="top">
-                          <span className={ageVisual.className}>
-                            {formatCacheAgeShort(age)}
-                          </span>
-                        </PremiumTooltip>
+                        <div className="flex justify-end">
+                          <PremiumTooltip content={ageVisual.tooltip} position="top-right" direction="top">
+                            <span className={ageVisual.className}>
+                              {formatCacheAgeShort(age)}
+                            </span>
+                          </PremiumTooltip>
+                        </div>
                       ) : (
                         <span className="cs-pop-tag">—</span>
                       )}
