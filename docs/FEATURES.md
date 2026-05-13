@@ -139,19 +139,22 @@ Open incidents are deduplicated in **`alert_incidents`** (one open row per monit
 | Kind | When |
 | :--- | :--- |
 | **FirstFire** | Immediately when a new incident opens. |
-| **Digest** | While the incident stays open and the **severity digest cooldown** has elapsed since `last_notified_at` (not on every probe tick). |
+| **Digest** | While the incident stays open and the **digest wait** has elapsed since `last_notified_at` (not on every probe tick). Wait **doubles after each digest** (exponential backoff), **capped at 72 hours** between digests. |
 | **Recovery** | When the incident is resolved; **email recovery** is sent for **critical** and **high** only, if at least one notification was already delivered. |
 
-**Digest repeat cadence** (minutes between digests for an open incident; source of truth: `api/src/alerts/severity.rs` → `repeat_cooldown_minutes`):
+**Digest timing** (source of truth: `api/src/alerts/severity.rs` → `digest_interval_minutes`):
 
-| Severity | Repeat | Auto-close if no notification refresh\* |
+- **First digest** after FirstFire uses the tier **base** interval (`repeat_cooldown_minutes`).
+- **Each further digest** waits `min(base × 2^(notifications_sent − 1), 72 h)` (capped mode).
+
+| Severity | Base (1st digest wait) | Example sequence (caps at 72h) |
 | :--- | :--- | :--- |
-| **critical** | 30 min | 1 h |
-| **high** | 2 h | 4 h |
-| **medium** | 6 h | 12 h |
-| **low** | 18 h | 36 h |
+| **critical** | 30 min | 30m → 1h → 2h → 4h → … → **72h** |
+| **high** | 2 h | 2h → 4h → 8h → … → **72h** |
+| **medium** | 6 h | 6h → 12h → 24h → … → **72h** |
+| **low** | 18 h | 18h → 36h → **72h** |
 
-\*Probe- and trend-driven types call `resolve_stale_probe_incidents`, which closes when `last_notified_at` is older than **2×** the digest cooldown. Worker-managed types that clear on a healthy measurement may close sooner; see `docs/WORKERS.md`.
+**Stale auto-close** (`resolve_stale_probe_incidents`): if `last_notified_at` is older than **2×** the digest interval that would apply for the **next** digest (`stale_silence_minutes`), the open incident is closed (and recovery email rules apply as today). After digests have reached the **72h** cap, silence **144h** triggers stale close. Worker-managed types that clear on a healthy measurement may close sooner; see `docs/WORKERS.md`.
 
 ### 1. Downtime / error (`down`)
 

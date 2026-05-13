@@ -1,4 +1,4 @@
-// Shared helpers for the Incidents tab (Active Incidents panel + Alert History).
+// Shared helpers for the Incidents tab (Active Incidents) and Alert History tab.
 // Mirrors the copy produced by the backend notifier (api/src/alerts/notifier.rs +
 // api/src/alerts/severity.rs) so the dashboard and the email tell the same story.
 

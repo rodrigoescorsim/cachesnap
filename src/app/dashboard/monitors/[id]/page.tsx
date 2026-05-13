@@ -688,10 +688,10 @@ export default async function MonitorDetailPage({
     ORDER BY region, time DESC
   `
 
-  const loadIncidentSummary = activeTab === 'incidents'
+  const loadAlertActivity = activeTab === 'alert-history'
   const loadAlerts = activeTab === 'incidents' || activeTab === 'alert-history'
 
-  const incidentTrends = loadIncidentSummary
+  const alertActivityTrends = loadAlertActivity
     ? await sql<{ bucket: Date; count: number }[]>`
     SELECT time_bucket('1h', created_at) AS bucket, COUNT(*)::int
     FROM alerts
@@ -2505,7 +2505,23 @@ export default async function MonitorDetailPage({
 
           {activeTab === 'incidents' && (
             <section className="space-y-4">
-              <ViewSectionHeader title="Incident overview" showDot={true} dotColorClass="bg-amber-500" />
+              <ActiveIncidentsPanel monitorId={monitor.id} incidents={activeIncidents} regionLabels={regionLabels} />
+
+              <div className="flex justify-end pt-1">
+                <Link
+                  href={buildMonitorHref('alert-history', range, null, null, '', monitor.id)}
+                  scroll={false}
+                  className="text-[11px] font-semibold text-zinc-500 hover:text-[var(--brand-primary)] transition-colors"
+                >
+                  View alert history →
+                </Link>
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'alert-history' && (
+            <section id="alert-history" className="space-y-4 scroll-mt-24">
+              <ViewSectionHeader title="Alert activity" showDot={true} dotColorClass="bg-amber-500" />
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
@@ -2516,7 +2532,7 @@ export default async function MonitorDetailPage({
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-                      {incidentTrends.reduce((sum, t) => sum + t.count, 0)}
+                      {alertActivityTrends.reduce((sum, t) => sum + t.count, 0)}
                     </span>
                     <span className="text-xs text-zinc-400">alert events</span>
                   </div>
@@ -2548,7 +2564,7 @@ export default async function MonitorDetailPage({
                 </div>
               </div>
 
-              {incidentTrends.length > 0 && (
+              {alertActivityTrends.length > 0 && (
                 <div className="rounded-xl border border-border bg-surface/50 p-4">
                   <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                     <TrendingUp className="w-3 h-3" />
@@ -2556,13 +2572,13 @@ export default async function MonitorDetailPage({
                   </h3>
                   <div className="h-24 w-full flex items-end gap-[2px] px-1">
                     {(() => {
-                      const maxCount = Math.max(...incidentTrends.map(t => Number(t.count)), 1)
+                      const maxCount = Math.max(...alertActivityTrends.map(t => Number(t.count)), 1)
                       const now = new Date()
                       const last24h = Array.from({ length: 24 }, (_, i) => {
                         const d = new Date(now)
                         d.setHours(d.getHours() - (23 - i), 0, 0, 0)
 
-                        const match = incidentTrends.find(t => {
+                        const match = alertActivityTrends.find(t => {
                           const bucketDate = new Date(t.bucket);
                           return bucketDate.getHours() === d.getHours() && bucketDate.getDate() === d.getDate();
                         });
@@ -2581,7 +2597,7 @@ export default async function MonitorDetailPage({
                           >
                             {t.count > 0 && (
                               <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 text-white text-[10px] px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap z-10">
-                                {t.count} incident{t.count > 1 ? 's' : ''} @ {t.label.toString().padStart(2, '0')}:00
+                                {t.count} alert{t.count > 1 ? 's' : ''} @ {t.label.toString().padStart(2, '0')}:00
                               </div>
                             )}
                           </div>
@@ -2596,24 +2612,6 @@ export default async function MonitorDetailPage({
                 </div>
               )}
 
-              <div className="pt-2">
-                <ActiveIncidentsPanel monitorId={monitor.id} incidents={activeIncidents} regionLabels={regionLabels} />
-              </div>
-
-              <div className="flex justify-end pt-1">
-                <Link
-                  href={buildMonitorHref('alert-history', range, null, null, '', monitor.id)}
-                  scroll={false}
-                  className="text-[11px] font-semibold text-zinc-500 hover:text-[var(--brand-primary)] transition-colors"
-                >
-                  View alert history →
-                </Link>
-              </div>
-            </section>
-          )}
-
-          {activeTab === 'alert-history' && (
-            <section id="alert-history" className="space-y-4 scroll-mt-24">
               <ViewSectionHeader title="Alert History" showDot={true} dotColorClass="bg-amber-500" />
 
               <div className="flex flex-wrap gap-1 bg-surface border border-border p-1.5 rounded-lg">
