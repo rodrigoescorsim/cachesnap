@@ -137,6 +137,48 @@ fn replace_region_ids(text: &str, labels: &HashMap<String, String>) -> String {
         .fold(text.to_string(), |acc, (id, label)| acc.replace(id, label))
 }
 
+/// Same rules as dashboard `normalizeLegacyTrendDiagnosisCopy` — older `alerts.diagnosis` rows
+/// used `· all regions ·` in the middle of global trend lines before `trend/detector.rs` copy refresh.
+fn normalize_legacy_trend_diagnosis_copy(diagnosis: &str) -> String {
+    let needs_scan = diagnosis.contains("all regions")
+        || diagnosis.contains("All regions")
+        || diagnosis.contains("__global__");
+    if !needs_scan {
+        return diagnosis.to_string();
+    }
+
+    let mut s = diagnosis.to_string();
+    let mut replaced = false;
+    for pat in [
+        " · all regions · ",
+        " · All regions · ",
+        " · __global__ · ",
+    ] {
+        if s.contains(pat) {
+            s = s.replace(pat, " — ");
+            replaced = true;
+        }
+    }
+    if !replaced {
+        return diagnosis.to_string();
+    }
+
+    if s.starts_with("TTFB ") && !s.starts_with("Global aggregate TTFB ") {
+        s = format!("Global aggregate {}", s);
+    } else if s.starts_with("Cache hit fell") && !s.starts_with("Global cache hit rate fell") {
+        s = s.replacen("Cache hit fell", "Global cache hit rate fell", 1);
+    }
+
+    s
+}
+
+fn replace_region_ids_and_normalize_legacy_trend(
+    text: &str,
+    labels: &HashMap<String, String>,
+) -> String {
+    normalize_legacy_trend_diagnosis_copy(&replace_region_ids(text, labels))
+}
+
 fn severity_context(alert_type: &str) -> (&'static str, &'static str) {
     match alert_severity(alert_type) {
         crate::alerts::severity::AlertSeverity::Critical => {
@@ -483,12 +525,12 @@ fn build_incident_email_html(
     let diagnosis = n
         .diagnosis
         .as_deref()
-        .map(|text| replace_region_ids(text, region_labels))
+        .map(|text| replace_region_ids_and_normalize_legacy_trend(text, region_labels))
         .unwrap_or_default();
     let action = n
         .action
         .as_deref()
-        .map(|text| replace_region_ids(text, region_labels))
+        .map(|text| replace_region_ids_and_normalize_legacy_trend(text, region_labels))
         .unwrap_or_default();
     let dashboard_url = format!("{}/dashboard", app_url);
 
@@ -755,7 +797,7 @@ fn build_slack_incident_text(
     }
 
     if let Some(d) = &n.diagnosis {
-        parts.push(replace_region_ids(d, region_labels));
+        parts.push(replace_region_ids_and_normalize_legacy_trend(d, region_labels));
     }
 
     parts.join("\n")
@@ -1127,6 +1169,38 @@ mod tests {
         assert!(html.contains("CDN congestion detected"));
         assert!(html.contains("Check origin latency"));
         assert!(html.contains("Action:"));
+    }
+
+    #[test]
+    fn test_email_html_rewrites_legacy_global_ttfb_trend_diagnosis() {
+        let mut n = make_incident(NotificationType::Digest, "ttfb_trend_up_global");
+        n.diagnosis = Some(
+            "TTFB increased 31.6% vs previous hour · all regions · 359ms now vs 273ms reference"
+                .to_string(),
+        );
+        let html = build_incident_email_html(
+            &n,
+            "mon",
+            "https://example.com",
+            "aggregate",
+            &region_labels(),
+            "https://snooze",
+            "https://app",
+        );
+        assert!(html.contains("Global aggregate TTFB increased"));
+        assert!(!html.contains("· all regions ·"));
+    }
+
+    #[test]
+    fn test_slack_rewrites_legacy_global_cache_trend_diagnosis() {
+        let mut n = make_incident(NotificationType::Digest, "cache_hit_trend_drop_global");
+        n.diagnosis = Some(
+            "Cache hit fell 11.1 pp vs previous hour (14.2% relative) · all regions · 67.2% now vs 78.3% reference"
+                .to_string(),
+        );
+        let text = build_slack_incident_text(&n, "mon", "aggregate", &region_labels());
+        assert!(text.contains("Global cache hit rate fell"));
+        assert!(!text.contains("· all regions ·"));
     }
 
     #[test]

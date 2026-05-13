@@ -481,27 +481,35 @@ fn build_messages(
     reference: f64,
     delta_pp_signed: f64,
 ) -> (String, String) {
-    let scope_prefix = if scope == "global" { "[Global] " } else { "" };
-
     let (diagnosis, action) = if metric == "cache_hit_pct" {
         let pp_drop = (-delta_pp_signed).max(0.0);
         let rel = cache_hit_relative_drop_pct(current, reference);
-        let diagnosis = format!(
-            "{}Cache hit fell {:.1} pp vs {} ({:.1}% relative) · {} · {:.1}% now vs {:.1}% reference",
-            scope_prefix, pp_drop, comparator_label, rel,
-            if scope == "region" { region } else { "all regions" },
-            current, reference,
-        );
+        let diagnosis = if scope == "region" {
+            format!(
+                "Cache hit rate in {} fell {:.1} pp vs {} ({:.1}% relative) — {:.1}% now vs {:.1}% reference",
+                region, pp_drop, comparator_label, rel, current, reference,
+            )
+        } else {
+            format!(
+                "Global cache hit rate fell {:.1} pp vs {} ({:.1}% relative) — {:.1}% now vs {:.1}% reference",
+                pp_drop, comparator_label, rel, current, reference,
+            )
+        };
         let action = "Investigate CDN cache configuration or sudden traffic pattern change. Common causes: short TTL, missing Cache-Control headers, or high dynamic content ratio.".to_string();
         (diagnosis, action)
     } else {
         let direction = if delta_pp_signed > 0.0 { "increased" } else { "improved" };
-        let diagnosis = format!(
-            "{}TTFB {} {:.1}% vs {} · {} · {:.0}ms now vs {:.0}ms reference",
-            scope_prefix, direction, delta_pp_signed.abs(), comparator_label,
-            if scope == "region" { region } else { "all regions" },
-            current, reference,
-        );
+        let diagnosis = if scope == "region" {
+            format!(
+                "TTFB in {} {} {:.1}% vs {} — {:.0} ms now vs {:.0} ms reference",
+                region, direction, delta_pp_signed.abs(), comparator_label, current, reference,
+            )
+        } else {
+            format!(
+                "Global aggregate TTFB {} {:.1}% vs {} — {:.0} ms now vs {:.0} ms reference",
+                direction, delta_pp_signed.abs(), comparator_label, current, reference,
+            )
+        };
         let action = "Check origin server latency, CDN routing changes, or upstream infrastructure. Compare edge vs origin TTFB in the Performance tab.".to_string();
         (diagnosis, action)
     };
@@ -570,6 +578,52 @@ mod tests {
         assert_eq!(alert_type_for("ttfb_avg_ms",   "global", false), "ttfb_trend_up_global");
         assert_eq!(alert_type_for("ttfb_avg_ms",   "region", true),  "ttfb_trend_down_region");
         assert_eq!(alert_type_for("ttfb_avg_ms",   "global", true),  "ttfb_trend_down_global");
+    }
+
+    #[test]
+    fn test_build_messages_global_ttfb_no_all_regions_mid_sentence() {
+        let (d, _) = build_messages(
+            "ttfb_avg_ms",
+            "__global__",
+            "global",
+            "previous hour",
+            359.0,
+            273.0,
+            31.5,
+        );
+        assert!(d.starts_with("Global aggregate TTFB increased"));
+        assert!(!d.contains("all regions"));
+        assert!(d.contains("31.5% vs previous hour"));
+    }
+
+    #[test]
+    fn test_build_messages_global_cache_hit() {
+        let (d, _) = build_messages(
+            "cache_hit_pct",
+            "__global__",
+            "global",
+            "previous hour",
+            67.2,
+            78.3,
+            -11.1,
+        );
+        assert!(d.starts_with("Global cache hit rate fell"));
+        assert!(!d.contains("all regions"));
+    }
+
+    #[test]
+    fn test_build_messages_regional_ttfb_names_region() {
+        let (d, _) = build_messages(
+            "ttfb_avg_ms",
+            "eu-west",
+            "region",
+            "previous hour",
+            200.0,
+            100.0,
+            100.0,
+        );
+        assert!(d.contains("TTFB in eu-west"));
+        assert!(!d.contains("all regions"));
     }
 
     #[test]
