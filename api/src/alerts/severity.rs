@@ -17,13 +17,14 @@ impl AlertSeverity {
         }
     }
 
-    /// Minutes between repeat digest notifications while the incident stays open.
+    /// Base tier interval (minutes) before the **first** digest after FirstFire.
+    /// Further digests use exponential backoff — see [`digest_interval_minutes`].
     pub fn repeat_cooldown_minutes(&self) -> i64 {
         match self {
-            AlertSeverity::Critical => 30,    // 30 min (stale auto-close: 1 h)
-            AlertSeverity::High => 120,       // 2 h (stale: 4 h)
-            AlertSeverity::Medium => 360,     // 6 h (stale: 12 h)
-            AlertSeverity::Low => 1080,       // 18 h (stale: 36 h)
+            AlertSeverity::Critical => 30,
+            AlertSeverity::High => 120,
+            AlertSeverity::Medium => 360,
+            AlertSeverity::Low => 1080,
         }
     }
 
@@ -47,6 +48,29 @@ impl std::fmt::Display for AlertSeverity {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.as_str())
     }
+}
+
+/// Maximum minutes between digest ("Still ongoing") emails while an incident stays open.
+pub const DIGEST_INTERVAL_CAP_MINUTES: i64 = 4320; // 72h — cap between digests
+
+/// Minutes to wait after the last notification before the next digest may be sent.
+///
+/// `notification_count` is the number of notifications **already delivered** (DB column
+/// before incrementing for the next send). After FirstFire it is `1`, so the first digest
+/// waits the tier **base** interval (`repeat_cooldown_minutes`). Each subsequent digest
+/// doubles the wait (`base × 2^(n−1)`) until capped at [`DIGEST_INTERVAL_CAP_MINUTES`].
+pub fn digest_interval_minutes(severity: AlertSeverity, notification_count: i32) -> i64 {
+    let base = severity.repeat_cooldown_minutes();
+    let n = notification_count.max(1);
+    let exp = ((n - 1) as i64).clamp(0, 20) as u32;
+    let raw = base.saturating_mul(2_i64.saturating_pow(exp));
+    raw.min(DIGEST_INTERVAL_CAP_MINUTES)
+}
+
+/// Silence after `last_notified_at` before `resolve_stale_probe_incidents` auto-closes
+/// the incident (2× the digest interval that would apply for the next notification).
+pub fn stale_silence_minutes(severity: AlertSeverity, notification_count: i32) -> i64 {
+    digest_interval_minutes(severity, notification_count.max(1)).saturating_mul(2)
 }
 
 /// Map alert_type slug → severity tier.
@@ -189,18 +213,30 @@ mod tests {
         assert_eq!(AlertSeverity::Low.repeat_cooldown_minutes(), 1080);
     }
 
-    /// `resolve_stale_probe_incidents` uses `repeat_cooldown_minutes() * 2` as the staleness window.
     #[test]
-    fn test_stale_window_is_twice_digest_cooldown() {
-        let cases = [
-            (AlertSeverity::Critical, 30_i64, 60_i64),
-            (AlertSeverity::High, 120, 240),
-            (AlertSeverity::Medium, 360, 720),
-            (AlertSeverity::Low, 1080, 2160),
-        ];
-        for (sev, digest_min, stale_min) in cases {
-            assert_eq!(sev.repeat_cooldown_minutes(), digest_min);
-            assert_eq!(sev.repeat_cooldown_minutes() * 2, stale_min);
+    fn test_digest_interval_exponentially_backoff_then_caps() {
+        let c = AlertSeverity::Critical;
+        assert_eq!(digest_interval_minutes(c, 1), 30);
+        assert_eq!(digest_interval_minutes(c, 2), 60);
+        assert_eq!(digest_interval_minutes(c, 3), 120);
+        assert_eq!(digest_interval_minutes(c, 4), 240);
+        assert_eq!(digest_interval_minutes(c, 5), 480);
+        assert_eq!(digest_interval_minutes(c, 6), 960);
+        assert_eq!(digest_interval_minutes(c, 8), 3840);
+        assert_eq!(digest_interval_minutes(c, 9), 4320);
+        assert_eq!(digest_interval_minutes(c, 99), 4320);
+    }
+
+    #[test]
+    fn test_stale_silence_matches_twice_next_digest_interval() {
+        for (sev, base) in [
+            (AlertSeverity::Critical, 30_i64),
+            (AlertSeverity::High, 120),
+            (AlertSeverity::Medium, 360),
+            (AlertSeverity::Low, 1080),
+        ] {
+            assert_eq!(digest_interval_minutes(sev, 1), base);
+            assert_eq!(stale_silence_minutes(sev, 1), base * 2);
         }
     }
 

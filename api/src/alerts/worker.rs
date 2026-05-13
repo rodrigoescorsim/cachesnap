@@ -1,7 +1,7 @@
 use crate::{
     alerts::{
         notifier::{self, IncidentNotification, NotificationType, RecoveryNotification},
-        severity::{alert_severity, format_duration, is_cache_metric},
+        severity::{alert_severity, digest_interval_minutes, format_duration, is_cache_metric, stale_silence_minutes},
     },
     diagnosis::engine::{self, DiagnosisInput},
     models::alert_incident::ResolvedIncident,
@@ -530,7 +530,6 @@ pub async fn handle_incident(
     deviation_factor: Option<f64>,
 ) -> Result<(), anyhow::Error> {
     let severity = alert_severity(alert_type);
-    let cooldown_minutes = severity.repeat_cooldown_minutes();
 
     #[derive(sqlx::FromRow)]
     struct UpsertResult {
@@ -588,7 +587,10 @@ pub async fn handle_incident(
             .map(|t| (Utc::now() - t).num_minutes())
             .unwrap_or(i64::MAX);
 
-        if elapsed_minutes >= cooldown_minutes {
+        let required_digest_wait =
+            digest_interval_minutes(severity, row.notification_count.max(1));
+
+        if elapsed_minutes >= required_digest_wait {
             NotificationType::Digest
         } else {
             info!(
@@ -602,8 +604,8 @@ pub async fn handle_incident(
                     .map(|t| t.to_rfc3339())
                     .unwrap_or_else(|| "none".to_string()),
                 elapsed_minutes,
-                cooldown_minutes,
-                cooldown_minutes.saturating_sub(elapsed_minutes),
+                required_digest_wait,
+                required_digest_wait.saturating_sub(elapsed_minutes),
             );
             return Ok(());
         }
@@ -762,67 +764,84 @@ async fn resolve_cleared_worker_incidents(
 }
 
 /// Auto-close probe/trend incidents with no recent activity.
-/// Uses 2× the repeat cooldown as the staleness window.
+/// Silence threshold is `2 ×` the digest interval that would apply for the next notification
+/// (exponential digest backoff capped at `DIGEST_INTERVAL_CAP_MINUTES` — see `digest_interval_minutes`).
 pub(crate) async fn resolve_stale_probe_incidents(state: &AppState) -> Result<(), anyhow::Error> {
-    const PROBE_TYPES: &[&str] = &[
-        "down",
-        "ttfb_limit",
-        "ttfb_anomaly",
-        "ttfb_trend_up_region",
-        "ttfb_trend_up_global",
-        "ttfb_trend_down_region",
-        "ttfb_trend_down_global",
-        "cache_hit_trend_drop_region",
-        "cache_hit_trend_drop_global",
-    ];
+    #[derive(sqlx::FromRow)]
+    struct StaleCandidate {
+        id: Uuid,
+        alert_type: String,
+        notification_count: i32,
+        last_notified_at: Option<chrono::DateTime<Utc>>,
+        opened_at: chrono::DateTime<Utc>,
+    }
 
-    for &pt in PROBE_TYPES {
-        let sev = alert_severity(pt);
-        let stale_minutes = (sev.repeat_cooldown_minutes() * 2) as i32;
+    let candidates = sqlx::query_as::<_, StaleCandidate>(
+        r#"
+        SELECT id, alert_type, notification_count, last_notified_at, opened_at
+        FROM alert_incidents
+        WHERE resolved_at IS NULL
+          AND alert_type IN (
+            'down', 'ttfb_limit', 'ttfb_anomaly',
+            'ttfb_trend_up_region', 'ttfb_trend_up_global',
+            'ttfb_trend_down_region', 'ttfb_trend_down_global',
+            'cache_hit_trend_drop_region', 'cache_hit_trend_drop_global'
+          )
+        "#,
+    )
+    .fetch_all(&state.db)
+    .await?;
 
-        let resolved_rows = sqlx::query_as::<_, ResolvedIncident>(
+    for row in candidates {
+        let sev = alert_severity(&row.alert_type);
+        let should_close = if let Some(last) = row.last_notified_at {
+            let silence = stale_silence_minutes(sev, row.notification_count.max(1));
+            last < Utc::now() - chrono::Duration::minutes(silence)
+        } else {
+            row.opened_at < Utc::now() - chrono::Duration::minutes(30)
+        };
+
+        if !should_close {
+            continue;
+        }
+
+        let resolved: Option<ResolvedIncident> = sqlx::query_as::<_, ResolvedIncident>(
             r#"
             UPDATE alert_incidents
             SET resolved_at = NOW()
-            WHERE alert_type = $1
-              AND resolved_at IS NULL
-              AND (
-                  last_notified_at < NOW() - ($2::int * INTERVAL '1 minute')
-                  OR (last_notified_at IS NULL AND opened_at < NOW() - INTERVAL '30 minutes')
-              )
+            WHERE id = $1 AND resolved_at IS NULL
             RETURNING id, monitor_id, alert_type, severity, notification_count,
                       opened_at, resolved_at, affected_regions
             "#,
         )
-        .bind(pt)
-        .bind(stale_minutes)
-        .fetch_all(&state.db)
+        .bind(row.id)
+        .fetch_optional(&state.db)
         .await?;
 
-        for r in resolved_rows {
-            let duration = r.resolved_at - r.opened_at;
-            info!(
-                "worker: auto-resolved stale {} incident {} after {}",
-                pt,
-                r.id,
-                format_duration(&duration)
-            );
+        let Some(r) = resolved else { continue };
 
-            let severity = alert_severity(&r.alert_type);
-            if severity.sends_recovery() && r.notification_count > 0 {
-                tokio::spawn(notifier::notify_recovery(
-                    state.clone(),
-                    RecoveryNotification {
-                        monitor_id: r.monitor_id,
-                        alert_type: r.alert_type.clone(),
-                        affected_regions: r.affected_regions.clone(),
-                        duration,
-                        notification_count: r.notification_count,
-                        actual: None,
-                        threshold: None,
-                    },
-                ));
-            }
+        let duration = r.resolved_at - r.opened_at;
+        info!(
+            "worker: auto-resolved stale {} incident {} after {}",
+            r.alert_type,
+            r.id,
+            format_duration(&duration)
+        );
+
+        let severity = alert_severity(&r.alert_type);
+        if severity.sends_recovery() && r.notification_count > 0 {
+            tokio::spawn(notifier::notify_recovery(
+                state.clone(),
+                RecoveryNotification {
+                    monitor_id: r.monitor_id,
+                    alert_type: r.alert_type.clone(),
+                    affected_regions: r.affected_regions.clone(),
+                    duration,
+                    notification_count: r.notification_count,
+                    actual: None,
+                    threshold: None,
+                },
+            ));
         }
     }
 
@@ -831,7 +850,7 @@ pub(crate) async fn resolve_stale_probe_incidents(state: &AppState) -> Result<()
 
 #[cfg(test)]
 mod tests {
-    use crate::alerts::severity::alert_severity;
+    use crate::alerts::severity::{alert_severity, digest_interval_minutes, stale_silence_minutes};
 
     #[test]
     fn test_intentionally_uncached_statuses_skip_hit_rate_check() {
@@ -885,22 +904,21 @@ mod tests {
 
     #[test]
     fn test_digest_cooldown_gate() {
-        // Simulate: elapsed >= cooldown → notify
-        let cooldown_minutes = alert_severity("cache_hit_low").repeat_cooldown_minutes();
-        assert_eq!(cooldown_minutes, 360);
+        // First digest after FirstFire: wait base tier interval (notification_count == 1).
+        let sev = alert_severity("cache_hit_low");
+        let wait = digest_interval_minutes(sev, 1);
+        assert_eq!(wait, 360);
         let elapsed_over = 400i64;
         let elapsed_under = 300i64;
-        assert!(elapsed_over >= cooldown_minutes);
-        assert!(!(elapsed_under >= cooldown_minutes));
+        assert!(elapsed_over >= wait);
+        assert!(!(elapsed_under >= wait));
     }
 
     #[test]
     fn test_probe_stale_minutes() {
-        // critical: 30 × 2 = 60 min stale window
         let sev = alert_severity("down");
-        assert_eq!(sev.repeat_cooldown_minutes() * 2, 60);
-        // medium: 360 × 2 = 720 min
+        assert_eq!(stale_silence_minutes(sev, 1), 60);
         let sev_m = alert_severity("cache_hit_trend_drop_region");
-        assert_eq!(sev_m.repeat_cooldown_minutes() * 2, 720);
+        assert_eq!(stale_silence_minutes(sev_m, 1), 720);
     }
 }
