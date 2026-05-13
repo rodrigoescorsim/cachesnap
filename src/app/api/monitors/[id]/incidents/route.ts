@@ -26,6 +26,7 @@ export async function GET(
       alert_incidents.opened_at,
       alert_incidents.last_notified_at,
       alert_incidents.notification_count,
+      COUNT(a.id)::int AS alert_events_count,
       COUNT(a.id) FILTER (WHERE a.notified_email OR a.notified_slack)::int AS delivered_notification_count,
       COUNT(a.id) FILTER (WHERE NOT a.notified_email AND NOT a.notified_slack)::int AS failed_notification_count,
       alert_incidents.snoozed_until,

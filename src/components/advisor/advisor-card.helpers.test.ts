@@ -406,6 +406,8 @@ describe('deriveMonitorPerformancePeriodAdvisor', () => {
       prevAvgTtfb: 200,
       globalHitRate: 90,
       prevGlobalHitRate: 90,
+      periodCacheCdnSamples: 1000,
+      prevPeriodCacheCdnSamples: 1000,
       hasHistory: true,
       worstRegion: null,
       slowRegionCount: 0,
@@ -472,6 +474,16 @@ describe('deriveMonitorPerformancePeriodAdvisor', () => {
     expect(result?.severity).toBe('good')
     expect(result?.body).toContain('160ms')
     expect(result?.body).toContain('200ms')
+  })
+
+  it('ignores cache hit rate when there are no CDN-classifiable probes (e.g. all DYNAMIC)', () => {
+    const result = deriveMonitorPerformancePeriodAdvisor(makePerf({
+      globalHitRate: 0,
+      periodCacheCdnSamples: 0,
+      prevPeriodCacheCdnSamples: 0,
+    }))
+    expect(result?.severity).toBe('good')
+    expect(result?.headline).toBe('Performance stable')
   })
 
   it('good actions are empty', () => {

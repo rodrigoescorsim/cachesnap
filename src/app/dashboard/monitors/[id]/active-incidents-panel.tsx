@@ -1,4 +1,4 @@
-import { Clock, MapPin, CheckCircle2, AlertCircle, Lightbulb, Bell } from 'lucide-react'
+import { MapPin, CheckCircle2, AlertCircle, Lightbulb, Bell } from 'lucide-react'
 import { LiveDot } from '@/components/dashboard/dashboard-ui'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import {
@@ -26,6 +26,8 @@ export interface ActiveIncident {
   opened_at: Date | string
   last_notified_at: Date | string | null
   notification_count: number
+  /** Rows in `alerts` tied to this incident (each fire / digest can add one). */
+  alert_events_count?: number
   delivered_notification_count?: number
   failed_notification_count?: number
   snoozed_until: Date | string | null
@@ -117,6 +119,7 @@ export function ActiveIncidentsPanel({
             0,
             incident.notification_count - deliveredCount - failedCount,
           )
+          const alertEventsCount = incident.alert_events_count ?? 0
           const status = incidentStatus(
             incident.notification_count,
             incident.snoozed_until,
@@ -267,51 +270,58 @@ export function ActiveIncidentsPanel({
                 )}
 
                 {/* ── Footer: timestamps + delivery ── */}
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 border-t border-border text-[11px] text-zinc-500">
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="h-3 w-3 shrink-0" aria-hidden />
-                    Active for{' '}
-                    <span className="text-zinc-300 font-medium">{duration}</span>
-                  </span>
-                  <span>
-                    Opened{' '}
-                    <span
-                      className="text-zinc-300 font-medium"
-                      title={new Date(incident.opened_at).toISOString()}
-                    >
-                      {formatTimestamp(incident.opened_at)}
-                    </span>
-                  </span>
-                  {incident.last_notified_at && (
+                <div className="border-t border-border pt-3">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-zinc-500">
                     <span>
-                      Last notified{' '}
-                      <span
-                        className="text-zinc-300 font-medium"
-                        title={new Date(
-                          incident.last_notified_at,
-                        ).toISOString()}
-                      >
-                        {formatTimestamp(incident.last_notified_at)}
-                      </span>
+                      Open for{' '}
+                      <span className="font-medium text-zinc-300">{duration}</span>
                     </span>
-                  )}
-                  {deliveredCount > 0 && (
-                    <span className="text-zinc-500">
-                      {deliveredCount} delivered
-                    </span>
-                  )}
-                  {failedCount > 0 && (
-                    <span className="text-red-400">
-                      {failedCount} delivery failed
-                    </span>
-                  )}
-                  {pendingCount > 0 &&
-                    deliveredCount === 0 &&
-                    failedCount === 0 && (
-                      <span className="text-zinc-500">
-                        {pendingCount} delivery pending
+                    {alertEventsCount > 0 && (
+                      <span>
+                        <span className="text-zinc-500">Events logged</span>{' '}
+                        <span className="font-medium text-zinc-300">{alertEventsCount}</span>
                       </span>
                     )}
+                    <span>
+                      Opened{' '}
+                      <span
+                        className="text-zinc-300 font-medium"
+                        title={new Date(incident.opened_at).toISOString()}
+                      >
+                        {formatTimestamp(incident.opened_at)}
+                      </span>
+                    </span>
+                    {incident.last_notified_at && (
+                      <span>
+                        Last notified{' '}
+                        <span
+                          className="text-zinc-300 font-medium"
+                          title={new Date(
+                            incident.last_notified_at,
+                          ).toISOString()}
+                        >
+                          {formatTimestamp(incident.last_notified_at)}
+                        </span>
+                      </span>
+                    )}
+                    {deliveredCount > 0 && (
+                      <span className="text-zinc-500">
+                        {deliveredCount} delivered
+                      </span>
+                    )}
+                    {failedCount > 0 && (
+                      <span className="text-red-400">
+                        {failedCount} delivery failed
+                      </span>
+                    )}
+                    {pendingCount > 0 &&
+                      deliveredCount === 0 &&
+                      failedCount === 0 && (
+                        <span className="text-zinc-500">
+                          {pendingCount} delivery pending
+                        </span>
+                      )}
+                  </div>
                 </div>
               </div>
             </article>

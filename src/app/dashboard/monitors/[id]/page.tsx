@@ -3,7 +3,16 @@ import { PremiumTooltip } from '@/components/premium-tooltip'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import { isCacheHit, getCacheDisplayLabel, CACHE_HIT_STATUSES, CACHE_MISS_STATUSES } from '@/lib/cache-utils'
+import {
+  isCacheHit,
+  getCacheDisplayLabel,
+  CACHE_HIT_STATUSES,
+  CACHE_MISS_STATUSES,
+  PG_CACHE_CDN_HIT_FILTER,
+  pgCacheCdnSamplesSqlExpr,
+  pgCacheEdgeHitSamplesSqlExpr,
+  pgCacheHitPctSqlExpr,
+} from '@/lib/cache-utils'
 import sql from '@/lib/db'
 import { AutoRefresh } from './auto-refresh'
 import { TtfbChart, type ChartPoint } from './ttfb-chart'
@@ -594,7 +603,7 @@ export default async function MonitorDetailPage({
       region,
       COUNT(*)::int                              AS probe_count,
       ROUND(AVG(ttfb_ms)::numeric, 0)::int            AS ttfb_avg_ms,
-      ROUND(AVG(ttfb_ms) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT'))::numeric, 0)::int AS edge_hit_avg_ms,
+      ROUND(AVG(ttfb_ms) FILTER (WHERE ${sql.unsafe(PG_CACHE_CDN_HIT_FILTER)})::numeric, 0)::int AS edge_hit_avg_ms,
       ROUND(AVG(ttfb_ms) FILTER (WHERE (cache_status ILIKE '%MISS%' OR cache_status = 'DYNAMIC' OR cache_status = 'BYPASS' OR cache_status = 'EXPIRED' OR cache_status = 'PASS' OR cache_status = 'NONE' OR cache_status = 'ERROR' OR cache_status = 'UNCALCULABLE') AND cache_status != 'HIDDEN')::numeric, 0)::int AS origin_miss_avg_ms,
       (
         SELECT ROUND(AVG(origin_ttfb_ms)::numeric, 0)::int 
@@ -621,13 +630,12 @@ export default async function MonitorDetailPage({
       MODE() WITHIN GROUP (ORDER BY cache_status) AS common_cache_status,
       MODE() WITHIN GROUP (ORDER BY status_code) AS common_status_code,
       COUNT(*) FILTER (WHERE error IS NOT NULL)::int AS error_count,
+      ${sql.unsafe(pgCacheEdgeHitSamplesSqlExpr())} AS cache_edge_hit_samples,
+      ${sql.unsafe(pgCacheCdnSamplesSqlExpr())} AS cache_cdn_samples,
+      ${sql.unsafe(pgCacheHitPctSqlExpr({ decimals: 1 }))} AS cache_hit_pct,
       ROUND(
-        100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT')) 
-               / NULLIF(COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'MISS', 'STALE', 'REVALIDATED', 'UPDATING', 'EXPIRED', 'REVALIDATE', 'REFRESH_HIT', 'REFRESH_MISS')), 0), 1
-      )                                          AS cache_hit_pct,
-      ROUND(
-        100.0 * COUNT(*) FILTER (WHERE error IS NULL AND status_code < 500)
-               / NULLIF(COUNT(*), 0), 1
+        (100.0 * COUNT(*) FILTER (WHERE error IS NULL AND status_code < 500)
+               / NULLIF(COUNT(*), 0))::numeric, 1
       )                                          AS uptime_pct,
       MAX(age_s)::int                            AS max_age_s,
       MAX(time)                                  AS last_probe_at
@@ -637,11 +645,15 @@ export default async function MonitorDetailPage({
     GROUP BY region ORDER BY region
   `
 
-  const prevStats = await sql<{ ttfb_avg_ms: number; cache_hit_pct: number; uptime_pct: number }[]>`
+  const prevStats = await sql<{ ttfb_avg_ms: number; cache_hit_pct: number | null; cache_cdn_samples: number; uptime_pct: number }[]>`
     SELECT
       ROUND(AVG(ttfb_ms)::numeric, 0)::int            AS ttfb_avg_ms,
-      ROUND(100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT')) / NULLIF(COUNT(*) FILTER (WHERE cache_status IS NOT NULL AND cache_status != 'HIDDEN'), 0), 1)::float AS cache_hit_pct,
-      ROUND(100.0 * COUNT(*) FILTER (WHERE error IS NULL AND status_code < 500) / NULLIF(COUNT(*), 0), 1)::float AS uptime_pct,
+      ${sql.unsafe(pgCacheCdnSamplesSqlExpr())} AS cache_cdn_samples,
+      ${sql.unsafe(pgCacheHitPctSqlExpr({ decimals: 1, cast: 'float' }))} AS cache_hit_pct,
+      ROUND(
+        (100.0 * COUNT(*) FILTER (WHERE error IS NULL AND status_code < 500) / NULLIF(COUNT(*), 0))::numeric,
+        1
+      )::float AS uptime_pct,
       MODE() WITHIN GROUP (ORDER BY status_code) AS common_status_code
     FROM probe_results
     WHERE monitor_id = ${id}
@@ -763,23 +775,7 @@ export default async function MonitorDetailPage({
       ROUND(AVG(dns_ms)::numeric, 0)                                           AS dns_avg,
       ROUND(AVG(tcp_ms)::numeric, 0)                                           AS tcp_avg,
       ROUND(AVG(tls_ms)::numeric, 0)                                           AS tls_avg,
-      CASE
-        WHEN COUNT(*) FILTER (
-          WHERE cache_status IS NOT NULL
-            AND cache_status <> 'HIDDEN'
-        ) = 0 THEN NULL
-        ELSE ROUND(
-          100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT'))
-                 / NULLIF(
-                   COUNT(*) FILTER (
-                     WHERE cache_status IS NOT NULL
-                       AND cache_status <> 'HIDDEN'
-                   ),
-                   0
-                 ),
-          0
-        )
-      END                                                                       AS cache_hit_pct
+      ${sql.unsafe(pgCacheHitPctSqlExpr({ decimals: 0 }))}                      AS cache_hit_pct
     FROM probe_results
     WHERE monitor_id = ${id}
       AND time > NOW() - CAST(${dbInterval} AS interval)
@@ -926,11 +922,7 @@ export default async function MonitorDetailPage({
           ROUND(
             PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ttfb_ms)::numeric, 0
           )::int                                                                  AS ttfb_p95,
-          ROUND(
-            100.0 * COUNT(*) FILTER (WHERE cache_status IN
-              ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT'))
-            / NULLIF(COUNT(*) FILTER (WHERE cache_status IS NOT NULL AND cache_status != 'HIDDEN'), 0), 0
-          )::int                                                                  AS cache_hit_pct,
+          ${sql.unsafe(pgCacheHitPctSqlExpr({ decimals: 0, cast: 'int' }))}        AS cache_hit_pct,
           COUNT(*)::int                                                           AS sample_count
         FROM probe_results
         WHERE monitor_id = ${id}
@@ -944,11 +936,7 @@ export default async function MonitorDetailPage({
           EXTRACT(DOW FROM time)::int                                            AS dow,
           EXTRACT(HOUR FROM time)::int                                           AS hour_of_day,
           ROUND(AVG(ttfb_ms)::numeric, 0)::int                                   AS ttfb_avg,
-          ROUND(
-            100.0 * COUNT(*) FILTER (WHERE cache_status IN
-              ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT'))
-            / NULLIF(COUNT(*) FILTER (WHERE cache_status IS NOT NULL AND cache_status != 'HIDDEN'), 0), 0
-          )::int                                                                  AS cache_hit_pct,
+          ${sql.unsafe(pgCacheHitPctSqlExpr({ decimals: 0, cast: 'int' }))}        AS cache_hit_pct,
           COUNT(*)::int                                                           AS sample_count
         FROM probe_results
         WHERE monitor_id = ${id}
@@ -1004,6 +992,7 @@ export default async function MonitorDetailPage({
       alert_incidents.opened_at,
       alert_incidents.last_notified_at,
       alert_incidents.notification_count,
+      COUNT(a.id)::int AS alert_events_count,
       COUNT(a.id) FILTER (WHERE a.notified_email OR a.notified_slack)::int AS delivered_notification_count,
       COUNT(a.id) FILTER (WHERE NOT a.notified_email AND NOT a.notified_slack)::int AS failed_notification_count,
       alert_incidents.snoozed_until,
@@ -1133,9 +1122,10 @@ export default async function MonitorDetailPage({
     ? Math.round(stats.reduce((acc, s) => acc + Number(s.ttfb_avg_ms || 0), 0) / stats.length)
     : 0;
 
-  const totalHitProbes = stats.reduce((acc, s) => acc + Math.round(Number(s.cache_hit_pct || 0) * Number(s.probe_count || 0) / 100), 0);
-  const totalProbesCount = stats.reduce((acc, s) => acc + Number(s.probe_count || 0), 0);
-  const globalHitRate = totalProbesCount > 0 ? Math.round((totalHitProbes / totalProbesCount) * 100) : 0;
+  const periodCacheHitSum = stats.reduce((acc, s) => acc + Number(s.cache_edge_hit_samples ?? 0), 0)
+  const periodCacheCdnSum = stats.reduce((acc, s) => acc + Number(s.cache_cdn_samples ?? 0), 0)
+  const globalHitRate =
+    periodCacheCdnSum > 0 ? Math.round((periodCacheHitSum / periodCacheCdnSum) * 100) : 0
 
   const isHistoricalView = activeTab === 'performance' && activeView !== 'real-time';
   const currentGlobalTtfb = isHistoricalView ? avgTtfb : liveAvgTtfb;
@@ -1150,7 +1140,9 @@ export default async function MonitorDetailPage({
   const hasLiveWaf = wafLiveCount >= Math.min(2, latestProbes.length);
   const isCurrentlyWafBlocked = hasHistoricalWaf || hasLiveWaf;
 
-  const isGlobalDynamic = globalHitRate === 0 && (stats.length > 0 || latestProbes.length > 0)
+  const isGlobalDynamic = isHistoricalView
+    ? (periodCacheCdnSum === 0 && stats.some(s => Number(s.probe_count) > 0))
+    : isLiveGlobalDynamic
 
   // Find current dominant status from Live data to help label historical 0%
   const liveDominantStatus = (() => {
@@ -1191,7 +1183,7 @@ export default async function MonitorDetailPage({
   if (avgTtfb >= MONITOR_TTFB.FAST) {
     computedHealth -= Math.min(55, Math.round((avgTtfb - MONITOR_TTFB.FAST) * 0.4))
   }
-  if (globalHitRate <= MONITOR_CACHE.GOOD) {
+  if (periodCacheCdnSum > 0 && globalHitRate <= MONITOR_CACHE.GOOD) {
     computedHealth -= Math.round((MONITOR_CACHE.GOOD - globalHitRate) * 1.2)
   }
   const healthScore = Math.max(0, Math.min(100, Math.round(computedHealth)));
@@ -1201,20 +1193,25 @@ export default async function MonitorDetailPage({
   const prevData = hasHistory ? prevStats[0] : null;
 
   const prevAvgTtfb = prevData ? Number(prevData.ttfb_avg_ms || 0) : 0;
-  const prevGlobalHitRate = prevData ? Math.round(Number(prevData.cache_hit_pct || 0)) : 0;
+  const prevPeriodCacheCdnSum = prevData ? Number(prevData.cache_cdn_samples ?? 0) : 0
+  const prevGlobalHitRate =
+    prevData && prevData.cache_hit_pct != null ? Math.round(Number(prevData.cache_hit_pct)) : 0
   const prevGlobalUptime = prevData ? Number(prevData.uptime_pct || 100) : 100;
   let prevComputedHealth = prevGlobalUptime
   if (prevAvgTtfb >= MONITOR_TTFB.FAST) {
     prevComputedHealth -= Math.min(55, Math.round((prevAvgTtfb - MONITOR_TTFB.FAST) * 0.4))
   }
-  if (prevGlobalHitRate <= MONITOR_CACHE.GOOD) {
+  if (prevPeriodCacheCdnSum > 0 && prevGlobalHitRate <= MONITOR_CACHE.GOOD) {
     prevComputedHealth -= Math.round((MONITOR_CACHE.GOOD - prevGlobalHitRate) * 1.2)
   }
   const prevHealthScore = Math.max(0, Math.min(100, Math.round(prevComputedHealth)));
 
   const healthDelta = hasHistory ? healthScore - prevHealthScore : 0;
   const ttfbDelta = hasHistory ? avgTtfb - prevAvgTtfb : 0;
-  const cacheDelta = hasHistory ? globalHitRate - prevGlobalHitRate : 0;
+  const cacheDelta =
+    hasHistory && prevData?.cache_hit_pct != null && periodCacheCdnSum > 0 && prevPeriodCacheCdnSum > 0
+      ? globalHitRate - prevGlobalHitRate
+      : 0;
 
   // ADVISOR INPUTS
   const slowLiveRegionCount = validLiveTtfb.filter(p => {
@@ -1285,6 +1282,8 @@ export default async function MonitorDetailPage({
     prevAvgTtfb,
     globalHitRate,
     prevGlobalHitRate,
+    periodCacheCdnSamples: periodCacheCdnSum,
+    prevPeriodCacheCdnSamples: prevPeriodCacheCdnSum,
     hasHistory,
     slowRegionCount: slowHistoricalRegions,
     slowRegionLabels: slowHistoricalRegionLabels,

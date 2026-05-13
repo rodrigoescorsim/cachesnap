@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { unauthorized } from '@/lib/api-auth'
 import sql from '@/lib/db'
+import {
+  pgCacheCdnSamplesSqlExpr,
+  pgCacheEdgeHitSamplesSqlExpr,
+  pgCacheHitPctSqlExpr,
+} from '@/lib/cache-utils'
 
 export async function GET(
   request: NextRequest,
@@ -31,10 +36,9 @@ export async function GET(
         ROUND(MAX(ttfb_ms)::numeric, 1)       AS ttfb_max_ms,
         ROUND(AVG(total_ms)::numeric, 1)      AS total_avg_ms,
         COUNT(*) FILTER (WHERE error IS NOT NULL)::int AS error_count,
-        ROUND(
-          100.0 * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT')) / NULLIF(COUNT(*), 0),
-          1
-        )                                     AS cache_hit_pct,
+        ${sql.unsafe(pgCacheEdgeHitSamplesSqlExpr())} AS cache_edge_hit_samples,
+        ${sql.unsafe(pgCacheCdnSamplesSqlExpr())} AS cache_cdn_samples,
+        ${sql.unsafe(pgCacheHitPctSqlExpr({ decimals: 1 }))} AS cache_hit_pct,
         MAX(time)                             AS last_probe_at
       FROM probe_results
       WHERE monitor_id = ${id}

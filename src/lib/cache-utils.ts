@@ -7,6 +7,67 @@ export const CACHE_MISS_STATUSES = ['MISS', 'EXPIRED', 'ERROR'];
 export const CACHE_BYPASS_STATUSES = ['BYPASS', 'DYNAMIC', 'NONE', 'PASS', 'NO-CACHE', 'UNCALCULABLE', 'UNCACHEABLE', 'IGNORED', 'NO HEADER', 'LAMBDAGENERATED'];
 
 /**
+ * Same classification as Timescale `probe_results_hourly.cdn_count` / alert worker:
+ * only these literal `cache_status` values count toward CDN hit-rate denominator.
+ * BYPASS / DYNAMIC / compound vendor strings are excluded (not comparable edge-cache rows).
+ */
+export const PG_CACHE_CDN_HIT_FILTER =
+  "cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT')"
+
+export const PG_CACHE_CDN_CLASSIFIABLE_FILTER =
+  "cache_status IN ('HIT', 'MISS', 'STALE', 'REVALIDATED', 'UPDATING', 'EXPIRED', 'REVALIDATE', 'REFRESH_HIT', 'REFRESH_MISS')"
+
+/**
+ * SQL fragment options shared by the cache-hit helpers below.
+ * - `extraFilter`: AND-appended to the inner `cache_status IN (...)` predicate
+ *   (used by callers that need `AND error IS NULL`).
+ */
+type CacheSqlOpts = { extraFilter?: string }
+
+function withExtra(base: string, extra?: string): string {
+  return extra ? `${base} AND ${extra}` : base
+}
+
+/** SQL fragment counting edge cache hits (numerator). Returns `::int`. */
+export function pgCacheEdgeHitSamplesSqlExpr(opts: CacheSqlOpts = {}): string {
+  return `COUNT(*) FILTER (WHERE ${withExtra(PG_CACHE_CDN_HIT_FILTER, opts.extraFilter)})::int`
+}
+
+/** SQL fragment counting CDN-classifiable probes (denominator). Returns `::int`. */
+export function pgCacheCdnSamplesSqlExpr(opts: CacheSqlOpts = {}): string {
+  return `COUNT(*) FILTER (WHERE ${withExtra(PG_CACHE_CDN_CLASSIFIABLE_FILTER, opts.extraFilter)})::int`
+}
+
+/**
+ * SQL fragment for `cache_hit_pct = ROUND(100 * HIT / NULLIF(CDN, 0), decimals)`.
+ * Returns `NULL` when there are no CDN-classifiable probes — same definition as
+ * Timescale `probe_results_hourly.cdn_count`.
+ *
+ * Options:
+ * - `decimals`: rounding precision (default 1).
+ * - `extraFilter`: AND-appended to both inner predicates (e.g. `'error IS NULL'`).
+ * - `cast`: optional Postgres cast appended to the outer ROUND (e.g. `'int'` or `'float'`).
+ */
+export function pgCacheHitPctSqlExpr(
+  opts: { decimals?: number; extraFilter?: string; cast?: string } = {}
+): string {
+  const decimals = opts.decimals ?? 1
+  const hit = withExtra(PG_CACHE_CDN_HIT_FILTER, opts.extraFilter)
+  const cdn = withExtra(PG_CACHE_CDN_CLASSIFIABLE_FILTER, opts.extraFilter)
+  const expr = `ROUND(
+    (
+      CASE
+        WHEN COUNT(*) FILTER (WHERE ${cdn}) = 0 THEN NULL
+        ELSE (100.0 * COUNT(*) FILTER (WHERE ${hit})
+          / NULLIF(COUNT(*) FILTER (WHERE ${cdn}), 0))::numeric
+      END
+    ),
+    ${decimals}
+  )`
+  return opts.cast ? `${expr}::${opts.cast}` : expr
+}
+
+/**
  * SQL fragment to be used in raw queries (Postgres/Neon).
  */
 export const IS_HIT_SQL = `cache_status IN ('${CACHE_HIT_STATUSES.join("', '")}')`;

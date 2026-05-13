@@ -41,6 +41,10 @@ export interface RegionStat {
   common_http_version: string | null
   common_cache_status: string | null
   error_count: number
+  /** Count of probes in the CDN-comparable bucket (same as `probe_results_hourly.cdn_count`). */
+  cache_cdn_samples: number
+  /** Count of edge-cache hits within `cache_cdn_samples`. */
+  cache_edge_hit_samples: number
   cache_hit_pct: number | null
   uptime_pct: number | null
   max_age_s: number | null

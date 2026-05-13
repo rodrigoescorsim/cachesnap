@@ -393,6 +393,9 @@ export type MonitorPerformancePeriodInput = {
   prevAvgTtfb: number
   globalHitRate: number
   prevGlobalHitRate: number
+  /** Probes in CDN HIT/MISS bucket — same idea as Timescale `cdn_count`. When 0, skip cache warnings. */
+  periodCacheCdnSamples?: number
+  prevPeriodCacheCdnSamples?: number
   hasHistory: boolean
   slowRegionCount: number
   isDown?: boolean
@@ -413,6 +416,9 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
     hasHistory, isDown, isDegraded, isOffline, errorCount, totalRegionCount, lastErrorMessage, slowRegionLabels,
     thresholdMs = MONITOR_TTFB.SLOW, thresholdHitMs = MONITOR_TTFB.FAST,
     cacheWarnPct = MONITOR_CACHE.GOOD, cacheCriticalPct = MONITOR_CACHE.LOW } = input
+
+  const cacheMetricApplicable = (input.periodCacheCdnSamples ?? 0) > 0
+  const prevCacheMetricApplicable = (input.prevPeriodCacheCdnSamples ?? 0) > 0
 
   const host = hostname(url)
 
@@ -452,10 +458,13 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
     }
   }
   const ttfbChangePct = (hasHistory && prevAvgTtfb > 0) ? Math.round(((avgTtfb - prevAvgTtfb) / prevAvgTtfb) * 100) : 0
-  const cacheChangePp  = hasHistory ? globalHitRate - prevGlobalHitRate : 0
+  const cacheChangePp =
+    hasHistory && cacheMetricApplicable && prevCacheMetricApplicable
+      ? globalHitRate - prevGlobalHitRate
+      : 0
 
   // ── Critical: Absolute Low Cache Hit Rate ───────────────────────────────
-  if (globalHitRate < cacheCriticalPct) {
+  if (cacheMetricApplicable && globalHitRate < cacheCriticalPct) {
     return {
       severity: 'critical',
       headline: `Critical cache efficiency: ${globalHitRate}%`,
@@ -501,9 +510,9 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
   }
 
   // ── Warning: moderate issues ──────────────────────────────────────────────
-  const isLowCacheWarning = globalHitRate < cacheWarnPct
+  const isLowCacheWarning = cacheMetricApplicable && globalHitRate < cacheWarnPct
   const isHighTtfbWarning = avgTtfb > thresholdHitMs
-  const isRegressionWarning = ttfbChangePct > 10 || cacheChangePp < -10
+  const isRegressionWarning = ttfbChangePct > 10 || (cacheMetricApplicable && prevCacheMetricApplicable && cacheChangePp < -10)
 
   if (isLowCacheWarning || isHighTtfbWarning || isRegressionWarning || input.slowRegionCount > 0) {
     const parts: string[] = []

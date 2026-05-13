@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { unauthorized } from '@/lib/api-auth'
 import sql from '@/lib/db'
+import { PG_CACHE_CDN_HIT_FILTER, pgCacheHitPctSqlExpr } from '@/lib/cache-utils'
 
 // Static flag map — region IDs are stable, no need to store in DB
 const FLAG_MAP: Record<string, string> = {
@@ -45,12 +46,7 @@ export async function GET() {
       SELECT
         monitor_id,
         ROUND(AVG(ttfb_ms) FILTER (WHERE ttfb_ms IS NOT NULL AND error IS NULL))::int  AS ttfb_avg_24h,
-        ROUND(
-          100.0
-          * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT') AND error IS NULL)
-          / NULLIF(COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'MISS', 'STALE', 'REVALIDATED', 'UPDATING', 'EXPIRED', 'REVALIDATE', 'REFRESH_HIT', 'REFRESH_MISS') AND error IS NULL), 0),
-          1
-        )                                                                               AS cache_hit_avg_24h
+        ${sql.unsafe(pgCacheHitPctSqlExpr({ decimals: 1, extraFilter: 'error IS NULL' }))} AS cache_hit_avg_24h
         ,
         ROUND(
           100.0
@@ -68,12 +64,7 @@ export async function GET() {
       SELECT
         monitor_id,
         ROUND(AVG(ttfb_ms) FILTER (WHERE ttfb_ms IS NOT NULL AND error IS NULL))::int  AS ttfb_avg_1h,
-        ROUND(
-          100.0
-          * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT') AND error IS NULL)
-          / NULLIF(COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'MISS', 'STALE', 'REVALIDATED', 'UPDATING', 'EXPIRED', 'REVALIDATE', 'REFRESH_HIT', 'REFRESH_MISS') AND error IS NULL), 0),
-          1
-        )                                                                               AS cache_hit_avg_1h
+        ${sql.unsafe(pgCacheHitPctSqlExpr({ decimals: 1, extraFilter: 'error IS NULL' }))} AS cache_hit_avg_1h
       FROM probe_results
       WHERE time > NOW() - INTERVAL '1 hour'
       GROUP BY monitor_id
@@ -84,12 +75,7 @@ export async function GET() {
       SELECT
         monitor_id,
         ROUND(AVG(ttfb_ms) FILTER (WHERE ttfb_ms IS NOT NULL AND error IS NULL))::int   AS ttfb_current,
-        ROUND(
-          100.0
-          * COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT') AND error IS NULL)
-          / NULLIF(COUNT(*) FILTER (WHERE cache_status IN ('HIT', 'MISS', 'STALE', 'REVALIDATED', 'UPDATING', 'EXPIRED', 'REVALIDATE', 'REFRESH_HIT', 'REFRESH_MISS') AND error IS NULL), 0),
-          1
-        )                                                                                AS cache_hit_current,
+        ${sql.unsafe(pgCacheHitPctSqlExpr({ decimals: 1, extraFilter: 'error IS NULL' }))} AS cache_hit_current,
         MODE() WITHIN GROUP (ORDER BY COALESCE(cache_status, 'NO HEADER')) FILTER (WHERE error IS NULL) AS dominant_cache_status,
         MAX(probe_time)                                                                  AS last_checked_at,
         COUNT(*)::int                                                                    AS total_region_count,
@@ -108,7 +94,7 @@ export async function GET() {
         COUNT(*) FILTER (
           WHERE l.ttfb_ms IS NOT NULL AND l.error IS NULL AND (
             CASE
-              WHEN l.cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT')
+              WHEN ${sql.unsafe(PG_CACHE_CDN_HIT_FILTER)}
                 THEN l.ttfb_ms > m.alert_threshold_hit_ms
               ELSE l.ttfb_ms > m.alert_threshold_ms
             END
@@ -128,7 +114,7 @@ export async function GET() {
             'code',    l.region,
             'label',   COALESCE(r.label, l.region),
             'isSlow',  (l.error IS NULL AND l.ttfb_ms IS NOT NULL AND CASE
-              WHEN l.cache_status IN ('HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT')
+              WHEN ${sql.unsafe(PG_CACHE_CDN_HIT_FILTER)}
                 THEN l.ttfb_ms > m.alert_threshold_hit_ms
               ELSE l.ttfb_ms > m.alert_threshold_ms
             END),
