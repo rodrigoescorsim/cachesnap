@@ -58,26 +58,14 @@ function SummaryMiniCard({
 }
 
 function alertSeverityPresentation(alert: Alert) {
-  const actual = alert.actual_ms ?? 0
-  const baseline = alert.baseline_ms ?? 0
-  const ratio = baseline > 0 ? actual / baseline : 1
+  /** Same tier as `severityContext` / Active Incidents — mirrors `alertTypeSeverity` + notifier copy. */
+  const severityKey = alertTypeSeverity(alert.alert_type)
+  const sev = SEVERITY_STYLES[severityKey] ?? SEVERITY_STYLES.low
 
-  let severity = 'INFO'
-  if (alert.alert_type === 'down') {
-    severity = 'CRITICAL'
-  } else if (alert.deviation_factor != null) {
-    const df = alert.deviation_factor
-    severity = df > 4 ? 'CRITICAL' : df > 2 ? 'WARNING' : 'INFO'
-  } else if (alert.alert_type === 'ttfb_limit') {
-    severity = ratio > 2.0 ? 'CRITICAL' : ratio > 1.25 ? 'WARNING' : 'INFO'
-  }
-
-  const severityColor =
-    severity === 'CRITICAL'
-      ? 'bg-red-500/10 text-red-400 border border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.1)]'
-      : severity === 'WARNING'
-        ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-        : 'bg-white/[0.025] text-zinc-500 border border-border'
+  const chipText =
+    alert.deviation_factor != null
+      ? `${severityKey} ${alert.deviation_factor.toFixed(1)}×`
+      : severityKey
 
   const alertTypeIcon =
     alert.alert_type === 'down' ? (
@@ -85,13 +73,13 @@ function alertSeverityPresentation(alert: Alert) {
         <div className="absolute inset-0 animate-pulse rounded-full bg-red-500 opacity-20 blur-sm" />
         <AlertTriangle className="relative z-10 h-3 w-3 shrink-0 text-red-500" />
       </div>
-    ) : alert.alert_type === 'anomaly' ? (
+    ) : alert.alert_type === 'ttfb_anomaly' ? (
       <Zap className="h-3 w-3 shrink-0 text-amber-500" />
     ) : (
-      <AlertCircle className={`h-3 w-3 shrink-0 ${severity === 'CRITICAL' ? 'text-red-400' : 'text-zinc-400'}`} />
+      <AlertCircle className={`h-3 w-3 shrink-0 ${severityKey === 'critical' ? 'text-red-400' : 'text-zinc-400'}`} />
     )
 
-  return { severity, severityColor, alertTypeIcon }
+  return { severityKey, sev, chipText, alertTypeIcon }
 }
 
 function AlertSummaryFields({
@@ -109,7 +97,7 @@ function AlertSummaryFields({
   isExpanded?: boolean
   onToggle?: () => void
 }) {
-  const { severity, severityColor, alertTypeIcon } = alertSeverityPresentation(alert)
+  const { sev, chipText, alertTypeIcon } = alertSeverityPresentation(alert)
   const isMultiple = alert.region === 'Multiple'
   const muted = isChild ? 'opacity-95' : ''
 
@@ -194,9 +182,9 @@ function AlertSummaryFields({
         <SummaryMiniCard label="Severity" align="end" className="min-w-0 basis-0 grow">
           <div className="flex w-full min-w-0 items-center justify-end gap-2">
             <span
-              className={`inline-flex min-w-0 items-center rounded px-1.5 py-0.5 text-[9px] font-black tracking-tighter ${severityColor}`}
+              className={`inline-flex min-w-0 max-w-full items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${sev.badge}`}
             >
-              {alert.deviation_factor != null ? `${alert.deviation_factor.toFixed(1)}×` : severity}
+              <span className="truncate">{chipText}</span>
             </span>
             {hasChildren && onToggle && (
               <button
