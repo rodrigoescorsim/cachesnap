@@ -998,11 +998,23 @@ export default async function MonitorDetailPage({
       alert_incidents.snoozed_until,
       alert_incidents.last_actual,
       alert_incidents.last_threshold,
-      EXTRACT(EPOCH FROM (NOW() - alert_incidents.opened_at))::float * 1000 AS duration_ms
+      EXTRACT(EPOCH FROM (NOW() - alert_incidents.opened_at))::float * 1000 AS duration_ms,
+      latest.diagnosis,
+      latest.action,
+      latest.delta_pct,
+      latest.comparator,
+      latest.deviation_factor
     FROM alert_incidents
     LEFT JOIN alerts a ON a.incident_id = alert_incidents.id
+    LEFT JOIN LATERAL (
+      SELECT diagnosis, action, delta_pct, comparator, deviation_factor
+      FROM alerts
+      WHERE alerts.incident_id = alert_incidents.id
+      ORDER BY alerts.created_at DESC
+      LIMIT 1
+    ) latest ON TRUE
     WHERE alert_incidents.monitor_id = ${id} AND alert_incidents.resolved_at IS NULL
-    GROUP BY alert_incidents.id
+    GROUP BY alert_incidents.id, latest.diagnosis, latest.action, latest.delta_pct, latest.comparator, latest.deviation_factor
     ORDER BY alert_incidents.opened_at DESC
   `
 

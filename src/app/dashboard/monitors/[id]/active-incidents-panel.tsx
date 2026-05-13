@@ -1,6 +1,20 @@
-import Link from 'next/link'
-import { Clock, MapPin, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { Clock, MapPin, CheckCircle2, AlertCircle, Lightbulb, Bell } from 'lucide-react'
 import { LiveDot } from '@/components/dashboard/dashboard-ui'
+import {
+  SEVERITY_STYLES,
+  alertTypeDisplay,
+  alertTypeSeverity,
+  comparatorDisplay,
+  formatDuration,
+  formatMetricDelta,
+  formatMetricValue,
+  formatTimestamp,
+  incidentStatus,
+  isCacheHitTrendDrop,
+  isCacheMetric,
+  metricUnit,
+  severityContext,
+} from './incident-display'
 
 export interface ActiveIncident {
   id: string
@@ -16,109 +30,56 @@ export interface ActiveIncident {
   last_actual: number | null
   last_threshold: number | null
   duration_ms: number
+  /** Latest diagnosis text from the most recent alert tied to this incident. */
+  diagnosis?: string | null
+  /** Latest recommended action text from the most recent alert tied to this incident. */
+  action?: string | null
+  /** Percentage delta (trend metrics) — drives the 3-column metric block. */
+  delta_pct?: number | null
+  /** Comparator slug for trend metrics (e.g. prev_hour, same_hour_prev_day, day_avg). */
+  comparator?: string | null
+  /** How many times the observed metric deviates from the baseline (anomaly alerts). */
+  deviation_factor?: number | null
 }
 
 interface ActiveIncidentsPanelProps {
-  monitorId: string
+  /** Kept for API compatibility with parent pages; the panel no longer links out. */
+  monitorId?: string
   incidents: ActiveIncident[]
   regionLabels?: Record<string, string>
 }
 
-const ALERT_TYPE_DISPLAY: Record<string, string> = {
-  down: 'Monitor Down',
-  ttfb_limit: 'TTFB Above Limit',
-  ttfb_anomaly: 'TTFB Anomaly',
-  cache_hit_low: 'Low Cache Hit Rate',
-  ssl_expiry: 'SSL Expiry Alert',
-  cache_age_alert: 'Cache Age Alert',
-  anycast: 'Anycast Issue',
-  cache_hit_trend_drop_region: 'Cache Hit Drop (Region)',
-  cache_hit_trend_drop_global: 'Cache Hit Drop (Global)',
-  ttfb_trend_up_region: 'TTFB Worsening (Region)',
-  ttfb_trend_up_global: 'TTFB Worsening (Global)',
-  ttfb_trend_down_region: 'TTFB Improving (Region)',
-  ttfb_trend_down_global: 'TTFB Improving (Global)',
+// Re-exported for backwards compatibility with existing imports and tests.
+export { alertTypeDisplay, formatDuration, formatMetricDelta }
+
+/**
+ * Cap region pills displayed inline to mirror `format_region_summary` in
+ * api/src/alerts/notifier.rs (email uses "N regions: A, B, C +X more").
+ */
+const REGION_PILL_VISIBLE_LIMIT = 4
+
+function replaceRegionIds(
+  text: string,
+  regionLabels: Record<string, string>,
+): string {
+  return Object.entries(regionLabels).reduce(
+    (acc, [id, label]) => acc.split(id).join(label),
+    text,
+  )
 }
 
-const SEVERITY_STYLES: Record<string, { badge: string; text: string }> = {
-  critical: {
-    badge: 'bg-red-500/10 text-red-400 border border-red-500/20',
-    text: 'text-red-400',
-  },
-  high: {
-    badge: 'bg-orange-500/10 text-orange-400 border border-orange-500/20',
-    text: 'text-orange-400',
-  },
-  medium: {
-    badge: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
-    text: 'text-amber-400',
-  },
-  low: {
-    badge: 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20',
-    text: 'text-zinc-400',
-  },
-}
-
-export function alertTypeDisplay(alertType: string): string {
-  return ALERT_TYPE_DISPLAY[alertType] ?? 'Unknown Alert'
-}
-
-export function formatDuration(ms: number): string {
-  const totalMinutes = Math.floor(ms / 60000)
-  const totalHours = Math.floor(ms / 3600000)
-  const totalDays = Math.floor(ms / 86400000)
-  if (totalDays >= 2) return `${totalDays} days`
-  if (totalDays === 1) return '1 day'
-  if (totalHours >= 2) return `${totalHours} hours`
-  if (totalHours === 1) return '1 hour'
-  if (totalMinutes === 1) return '1 minute'
-  return `${Math.max(0, totalMinutes)} minutes`
-}
-
-function isCacheHitTrendDrop(alertType: string): boolean {
-  return alertType === 'cache_hit_trend_drop_region' || alertType === 'cache_hit_trend_drop_global'
-}
-
-function isCacheMetric(alertType: string): boolean {
-  return alertType.includes('cache_hit')
-}
-
-export function formatMetricDelta(actual: number, threshold: number, alertType: string): string {
-  const diff = actual - threshold
-  const absDiff = Math.abs(diff)
-
-  if (isCacheHitTrendDrop(alertType)) {
-    if (diff < 0) return `${absDiff.toFixed(1)} pp below reference`
-    return `${absDiff.toFixed(1)} pp above reference`
-  }
-
-  if (isCacheMetric(alertType)) {
-    if (diff < 0) return `${absDiff.toFixed(1)}% below target`
-    return `${absDiff.toFixed(1)}% above target`
-  }
-
-  if (diff > 0) return `${Math.round(absDiff)}ms above limit`
-  return `${Math.round(absDiff)}ms below limit`
-}
-
-function formatMetricValue(value: number, alertType: string): string {
-  if (isCacheMetric(alertType)) return `${value.toFixed(1)}%`
-  return `${Math.round(value)}ms`
-}
-
-function getActionTab(alertType: string): string {
-  if (alertType === 'down' || alertType === 'offline') return 'live'
-  if (alertType.includes('cache_hit')) return 'trends'
-  if (alertType === 'ttfb_anomaly' || alertType === 'cache_age_alert' || alertType === 'anycast') return 'patterns'
-  return 'performance'
-}
-
-export function ActiveIncidentsPanel({ monitorId, incidents, regionLabels = {} }: ActiveIncidentsPanelProps) {
+export function ActiveIncidentsPanel({
+  incidents,
+  regionLabels = {},
+}: ActiveIncidentsPanelProps) {
   if (incidents.length === 0) {
     return (
       <section aria-labelledby="active-incidents-heading" className="space-y-3">
         <div className="flex items-center gap-2 mb-4 px-1">
-          <h2 id="active-incidents-heading" className="cs-view-section-title flex items-center gap-2">
+          <h2
+            id="active-incidents-heading"
+            className="cs-view-section-title flex items-center gap-2"
+          >
             <LiveDot colorClass="bg-emerald-500" />
             Active Incidents
           </h2>
@@ -134,7 +95,10 @@ export function ActiveIncidentsPanel({ monitorId, incidents, regionLabels = {} }
   return (
     <section aria-labelledby="active-incidents-heading" className="space-y-3">
       <div className="flex items-center gap-2 mb-4 px-1">
-        <h2 id="active-incidents-heading" className="cs-view-section-title flex items-center gap-2">
+        <h2
+          id="active-incidents-heading"
+          className="cs-view-section-title flex items-center gap-2"
+        >
           <LiveDot colorClass="bg-amber-500" />
           Active Incidents
         </h2>
@@ -145,116 +109,372 @@ export function ActiveIncidentsPanel({ monitorId, incidents, regionLabels = {} }
 
       <div className="space-y-3">
         {incidents.map(incident => {
-          const sev = SEVERITY_STYLES[incident.severity] ?? SEVERITY_STYLES.low
+          // Prefer severity tier derived from alert_type so the panel matches
+          // the email even if alert_incidents.severity drifts.
+          const severityKey = alertTypeSeverity(incident.alert_type)
+          const sev = SEVERITY_STYLES[severityKey] ?? SEVERITY_STYLES.low
           const display = alertTypeDisplay(incident.alert_type)
           const duration = formatDuration(incident.duration_ms)
           const deliveredCount = incident.delivered_notification_count ?? 0
           const failedCount = incident.failed_notification_count ?? 0
-          const pendingCount = Math.max(0, incident.notification_count - deliveredCount - failedCount)
-          const isSnoozed =
-            incident.snoozed_until != null &&
-            new Date(incident.snoozed_until) > new Date()
+          const pendingCount = Math.max(
+            0,
+            incident.notification_count - deliveredCount - failedCount,
+          )
+          const status = incidentStatus(
+            incident.notification_count,
+            incident.snoozed_until,
+          )
+          const impact = severityContext(incident.alert_type)
+          const diagnosis = incident.diagnosis
+            ? replaceRegionIds(incident.diagnosis, regionLabels).trim()
+            : ''
+          const action = incident.action
+            ? replaceRegionIds(incident.action, regionLabels).trim()
+            : ''
+
+          const visibleRegions = incident.affected_regions.slice(
+            0,
+            REGION_PILL_VISIBLE_LIMIT,
+          )
+          const hiddenRegionCount = Math.max(
+            0,
+            incident.affected_regions.length - visibleRegions.length,
+          )
+          const hiddenRegionLabels = incident.affected_regions
+            .slice(visibleRegions.length)
+            .map(r => regionLabels[r] ?? r)
+            .join(', ')
+
+          const strip = statusStripStyle(status.kind, severityKey)
 
           return (
             <article
               key={incident.id}
-              className="rounded-xl bg-surface border border-border p-4 space-y-3 shadow-sm"
+              className="rounded-xl bg-surface border border-border overflow-hidden shadow-sm"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${sev.badge}`}
-                    aria-label={`Severity: ${incident.severity}`}
-                  >
-                    {incident.severity}
+              {/* ── Status strip (mirrors the email "New Alert / Still Ongoing" header) ── */}
+              <div
+                className={`flex items-center justify-between gap-3 px-4 py-2 ${strip.bg} ${strip.border}`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-black uppercase tracking-[0.18em] ${strip.text}`}>
+                    {status.label}
                   </span>
-                  <span className="text-sm font-semibold text-zinc-200 truncate">{display}</span>
+                  {incident.notification_count > 0 && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-zinc-400">
+                      <Bell className="h-3 w-3 opacity-80" aria-hidden />
+                      {incident.notification_count} notification
+                      {incident.notification_count === 1 ? '' : 's'} sent
+                    </span>
+                  )}
                 </div>
+                <span
+                  className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${sev.badge}`}
+                  aria-label={`Severity: ${severityKey}`}
+                >
+                  {severityKey}
+                </span>
+              </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+              <div className="p-4 space-y-4">
+                {/* ── Headline ── */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 space-y-1">
+                    <h3 className="text-base font-bold text-zinc-100 truncate">
+                      {display}
+                    </h3>
+                    <p className="text-xs text-zinc-400">
+                      <span className={`font-semibold ${sev.text}`}>
+                        {impact.label}
+                      </span>
+                      <span className="text-zinc-500"> — {impact.note}</span>
+                    </p>
+                  </div>
+
                   {incident.affected_regions.length > 0 && (
-                    <div className="flex items-center gap-1.5">
-                      <MapPin className="h-3 w-3 text-zinc-500 shrink-0" aria-hidden />
-                      {incident.affected_regions.map(r => (
+                    <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0 max-w-[55%]">
+                      <MapPin
+                        className="h-3 w-3 text-zinc-500 shrink-0"
+                        aria-hidden
+                      />
+                      {visibleRegions.map(r => (
                         <span
                           key={r}
-                          className="inline-flex items-center rounded-md bg-white/5 px-2 py-0.5 text-[10px] font-medium text-zinc-300"
+                          className="inline-flex items-center rounded-md bg-white/[0.025] px-1.5 py-0.5 text-[10px] font-medium text-zinc-400"
                         >
                           {regionLabels[r] ?? r}
                         </span>
                       ))}
+                      {hiddenRegionCount > 0 && (
+                        <span
+                          className="inline-flex items-center rounded-md bg-white/[0.025] px-1.5 py-0.5 text-[10px] font-medium text-zinc-500"
+                          title={hiddenRegionLabels}
+                        >
+                          +{hiddenRegionCount} more
+                        </span>
+                      )}
                     </div>
                   )}
-                  {isSnoozed && (
-                    <span className="shrink-0 inline-flex items-center rounded-full bg-zinc-500/10 px-2 py-0.5 text-[9px] font-bold text-zinc-400 border border-zinc-500/20 uppercase tracking-widest">
-                      Snoozed
-                    </span>
-                  )}
                 </div>
-              </div>
 
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-zinc-400">
-                <span className="flex items-center gap-1.5">
-                  <Clock className="h-3 w-3 shrink-0" aria-hidden />
-                  Active for {duration}
-                </span>
+                {/* ── Metrics block (mirrors the email 3-column layout when delta is present) ── */}
+                <MetricsBlock incident={incident} severityKey={severityKey} />
 
-                {deliveredCount > 0 && (
-                  <span className="text-zinc-500">
-                    {deliveredCount} delivered
-                  </span>
+                {/* ── Diagnosis (Cause) ── */}
+                {diagnosis && (
+                  <div className="rounded-lg bg-white/[0.015] border border-border p-3 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-3.5 w-3.5 text-zinc-400" aria-hidden />
+                      <span className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-400">
+                        Cause
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-line">
+                      {diagnosis}
+                    </p>
+                  </div>
                 )}
 
-                {failedCount > 0 && (
-                  <span className="text-red-400">
-                    {failedCount} delivery failed
-                  </span>
+                {/* ── Recommended action ── */}
+                {action && (
+                  <div
+                    className="rounded-lg p-3 space-y-1.5 border"
+                    style={{
+                      backgroundColor: 'rgba(var(--brand-primary-rgb), 0.06)',
+                      borderColor: 'rgba(var(--brand-primary-rgb), 0.22)',
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Lightbulb
+                        className="h-3.5 w-3.5 text-[var(--brand-primary)]"
+                        aria-hidden
+                      />
+                      <span className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--brand-primary)]">
+                        Recommendation
+                      </span>
+                    </div>
+                    <p className="text-xs text-[var(--brand-primary)]/90 leading-relaxed font-medium whitespace-pre-line">
+                      {action}
+                    </p>
+                  </div>
                 )}
 
-                {pendingCount > 0 && deliveredCount === 0 && failedCount === 0 && (
-                  <span className="text-zinc-500">
-                    {pendingCount} delivery pending
+                {/* ── Footer: timestamps + delivery ── */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-3 border-t border-border text-[11px] text-zinc-500">
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="h-3 w-3 shrink-0" aria-hidden />
+                    Active for{' '}
+                    <span className="text-zinc-300 font-medium">{duration}</span>
                   </span>
-                )}
-              </div>
-
-
-              <div className="flex items-center justify-between gap-4 mt-2">
-                {incident.last_actual != null ? (
-                  <div className="flex flex-wrap items-center gap-3 text-xs">
-                    <span className="text-zinc-400">
-                      Observed:{' '}
-                      <span className={`font-semibold ${sev.text}`}>
-                        {formatMetricValue(incident.last_actual, incident.alert_type)}
+                  <span>
+                    Opened{' '}
+                    <span
+                      className="text-zinc-300 font-medium"
+                      title={new Date(incident.opened_at).toISOString()}
+                    >
+                      {formatTimestamp(incident.opened_at)}
+                    </span>
+                  </span>
+                  {incident.last_notified_at && (
+                    <span>
+                      Last notified{' '}
+                      <span
+                        className="text-zinc-300 font-medium"
+                        title={new Date(
+                          incident.last_notified_at,
+                        ).toISOString()}
+                      >
+                        {formatTimestamp(incident.last_notified_at)}
                       </span>
                     </span>
-                    {incident.last_threshold != null && (
-                      <>
-                        <span className="text-zinc-600">·</span>
-                        <span className="text-zinc-500">
-                          {isCacheHitTrendDrop(incident.alert_type) ? 'Reference' : 'Target'}:{' '}
-                          {formatMetricValue(incident.last_threshold, incident.alert_type)}
-                        </span>
-                        <span className={`font-medium ${sev.text}`}>
-                          ({formatMetricDelta(incident.last_actual, incident.last_threshold, incident.alert_type)})
-                        </span>
-                      </>
+                  )}
+                  {deliveredCount > 0 && (
+                    <span className="text-zinc-500">
+                      {deliveredCount} delivered
+                    </span>
+                  )}
+                  {failedCount > 0 && (
+                    <span className="text-red-400">
+                      {failedCount} delivery failed
+                    </span>
+                  )}
+                  {pendingCount > 0 &&
+                    deliveredCount === 0 &&
+                    failedCount === 0 && (
+                      <span className="text-zinc-500">
+                        {pendingCount} delivery pending
+                      </span>
                     )}
-                  </div>
-                ) : <div />}
-
-                <Link
-                  href={`/dashboard/monitors/${monitorId}?tab=${getActionTab(incident.alert_type)}`}
-                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-md bg-white/5 border border-white/10 text-zinc-300 hover:bg-white/10 hover:text-white transition-colors"
-                >
-                  Analyze
-                  <ArrowRight className="w-3 h-3" />
-                </Link>
+                </div>
               </div>
             </article>
           )
         })}
       </div>
     </section>
+  )
+}
+
+/**
+ * Status strip styling — translucent tints aligned with the cs-badge palette
+ * (globals.css) so the strip reads as a "soft band" instead of a saturated
+ * banner.  Severity colours are used for fresh "New Alert" fires; ongoing /
+ * snoozed states fall back to the neutral surface so they don't compete with
+ * the body content.
+ */
+function statusStripStyle(
+  kind: ReturnType<typeof incidentStatus>['kind'],
+  severityKey: ReturnType<typeof alertTypeSeverity>,
+): { bg: string; border: string; text: string } {
+  if (kind === 'snoozed' || kind === 'ongoing') {
+    return {
+      bg: 'bg-white/[0.02]',
+      border: 'border-b border-border',
+      text: 'text-zinc-300',
+    }
+  }
+  switch (severityKey) {
+    case 'critical':
+      return {
+        bg: 'bg-red-500/[0.08]',
+        border: 'border-b border-red-500/20',
+        text: 'text-red-300',
+      }
+    case 'high':
+      return {
+        bg: 'bg-orange-500/[0.08]',
+        border: 'border-b border-orange-500/20',
+        text: 'text-orange-300',
+      }
+    case 'medium':
+      return {
+        bg: 'bg-amber-500/[0.08]',
+        border: 'border-b border-amber-500/20',
+        text: 'text-amber-300',
+      }
+    default:
+      return {
+        bg: 'bg-white/[0.02]',
+        border: 'border-b border-border',
+        text: 'text-zinc-300',
+      }
+  }
+}
+
+/**
+ * Mirrors the metrics table built by api/src/alerts/notifier.rs::build_metrics_html.
+ *
+ * Renders three layouts in this order of preference:
+ *   1. 3-column: Current · vs comparator (delta) · Reference   — when delta_pct + actual + threshold
+ *   2. 2-column: Current · Threshold                            — when actual + threshold only
+ *   3. Single value or hidden when no metric data is available
+ */
+function MetricsBlock({
+  incident,
+  severityKey,
+}: {
+  incident: ActiveIncident
+  severityKey: ReturnType<typeof alertTypeSeverity>
+}) {
+  const { last_actual, last_threshold, delta_pct, comparator, alert_type } = incident
+  const sev = SEVERITY_STYLES[severityKey] ?? SEVERITY_STYLES.low
+  const unit = metricUnit(alert_type)
+
+  if (last_actual == null && last_threshold == null) return null
+
+  // 3-column trend layout
+  if (last_actual != null && last_threshold != null && delta_pct != null) {
+    const cmp = comparatorDisplay(comparator)
+    const cacheBased = isCacheMetric(alert_type)
+    // For cache metrics: a negative delta means worse; for latency: a positive delta means worse.
+    const isWorse = cacheBased ? delta_pct < 0 : delta_pct > 0
+    const deltaColor = isWorse ? 'text-red-400' : 'text-emerald-400'
+
+    const trendDrop = isCacheHitTrendDrop(alert_type)
+    const deltaText = trendDrop
+      ? `${delta_pct.toFixed(1)} pp`
+      : `${delta_pct > 0 ? '+' : ''}${delta_pct.toFixed(1)}%`
+
+    const referenceLabel = trendDrop ? 'Reference' : cacheBased ? 'Target' : 'Reference'
+
+    return (
+      <div className="grid grid-cols-3 gap-3 rounded-lg bg-white/[0.015] border border-border p-3">
+        <MetricCell
+          label="Current"
+          value={formatMetricValue(last_actual, alert_type)}
+          valueClass={`${sev.text} font-bold`}
+        />
+        <MetricCell
+          label={`vs ${cmp}`}
+          value={deltaText}
+          valueClass={`${deltaColor} font-bold`}
+        />
+        <MetricCell
+          label={referenceLabel}
+          value={`${last_threshold.toFixed(1)}${unit}`}
+          valueClass="text-zinc-300 font-bold"
+        />
+      </div>
+    )
+  }
+
+  // 2-column current/threshold layout
+  if (last_actual != null && last_threshold != null) {
+    return (
+      <div className="grid grid-cols-2 gap-3 rounded-lg bg-white/[0.015] border border-border p-3">
+        <MetricCell
+          label="Current"
+          value={formatMetricValue(last_actual, alert_type)}
+          valueClass={`${sev.text} font-bold`}
+          subtle={formatMetricDelta(last_actual, last_threshold, alert_type)}
+        />
+        <MetricCell
+          label="Threshold"
+          value={formatMetricValue(last_threshold, alert_type)}
+          valueClass="text-zinc-300 font-bold"
+        />
+      </div>
+    )
+  }
+
+  // Single metric
+  if (last_actual != null) {
+    return (
+      <div className="rounded-lg bg-white/[0.015] border border-border p-3">
+        <MetricCell
+          label="Current"
+          value={formatMetricValue(last_actual, alert_type)}
+          valueClass={`${sev.text} font-bold`}
+        />
+      </div>
+    )
+  }
+  return null
+}
+
+function MetricCell({
+  label,
+  value,
+  valueClass,
+  subtle,
+}: {
+  label: string
+  value: string
+  valueClass?: string
+  subtle?: string
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-zinc-500 mb-1">
+        {label}
+      </div>
+      <div className={`text-xl tabular-nums ${valueClass ?? 'text-zinc-200'}`}>
+        {value}
+      </div>
+      {subtle && (
+        <div className="text-[10px] text-zinc-500 mt-0.5">{subtle}</div>
+      )}
+    </div>
   )
 }
