@@ -112,7 +112,7 @@ export const handler = async (event) => {
       const bypassUrl = appendBypassParam(url);
       const bypassMetrics = await measureUrl(bypassUrl, true);
 
-      // Store Origin Measurements (Auditoria)
+      // Store origin-side measurements for Edge vs Origin comparison
       result.bypass_ttfb_ms = bypassMetrics.ttfb_ms;
       result.bypass_total_ms = bypassMetrics.total_ms;
       result.bypass_dns_ms = bypassMetrics.dns_ms;

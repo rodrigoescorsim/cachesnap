@@ -17,7 +17,7 @@ pub struct Monitor {
     pub notify_email_enabled: bool,
     pub notify_slack_webhook: Option<String>,
     pub notify_slack_enabled: bool,
-    // Audit readiness engine (migration 026)
+    // Edge vs Origin readiness (DB columns `audit_readiness_*`, migration 026)
     pub audit_readiness_state: String,
     pub audit_readiness_updated_at: Option<DateTime<Utc>>,
     pub audit_readiness_consecutive_hits: i32,

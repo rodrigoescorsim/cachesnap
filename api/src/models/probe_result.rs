@@ -46,7 +46,7 @@ pub struct ProbeResultPayload {
     #[serde(default)]
     pub scheduled_at: Option<DateTime<Utc>>,
 
-    // ---- Métricas de Auditoria (Bypass / Origem) ----
+    // ---- Edge vs Origin comparison (bypass / origin path) ----
     #[serde(default)]
     pub bypass_ttfb_ms: Option<f64>,
     #[serde(default)]

@@ -100,7 +100,7 @@ CREATE TABLE monitors (
     alert_ttfb_trend_global_enabled             BOOLEAN NOT NULL DEFAULT TRUE,
     alert_ttfb_trend_global_threshold_pct       FLOAT   NOT NULL DEFAULT 30.0,
 
-    -- Audit readiness
+    -- Edge vs Origin readiness (persisted as audit_readiness_*)
     audit_readiness_state               TEXT  NOT NULL DEFAULT 'disabled',
     audit_readiness_updated_at          TIMESTAMPTZ,
     audit_readiness_consecutive_hits    INT   NOT NULL DEFAULT 0,

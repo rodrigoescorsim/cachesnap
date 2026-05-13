@@ -40,7 +40,7 @@ pub async fn handler(
 
     let mut final_result = Ok(());
 
-    // 1. Rota de Auditoria (Bypass / Infraestrutura)
+    // 1. Edge vs Origin path (bypass / dual fetch → audit_results)
     if payload.bypass_ttfb_ms.is_some() {
         let audit_res = sqlx::query(
             r#"
@@ -293,7 +293,7 @@ async fn maybe_bootstrap_evaluate(state: AppState, monitor_id: uuid::Uuid) {
     tracing::info!("ingest: bootstrap trigger for monitor {monitor_id} ({responded_regions}/{total_regions} regions)");
     let needs_dispatch = crate::scheduler::readiness::evaluate_and_persist(&state, monitor_id).await;
 
-    // 4. Se readiness habilitou/warmup no bootstrap: disparo imediato de bypass probe
+    // 4. Se readiness habilitou/warmup no bootstrap: disparo imediato de probe Edge vs Origin (bypass)
     if needs_dispatch {
         let monitor: Option<crate::models::monitor::Monitor> = sqlx::query_as(
             r#"SELECT id, user_id, url, name,
