@@ -1,4 +1,4 @@
-// Motor de readiness do Edge Audit.
+// Readiness engine for Edge vs Origin (compares edge cache evidence before enabling dedicated probes).
 // Avalia evidência de cache efetivo e determina se o audit deve ser
 // habilitado, mantido em warmup, ou desabilitado.
 // Roda a cada 15 min via scheduler e event-driven no path de ingest (bootstrap).
@@ -303,9 +303,9 @@ fn generate_reason(
     match state {
         AuditState::Disabled => {
             if is_dynamic {
-                "Target URL is consistently dynamic (BYPASS). Infrastructure auditing is only applicable to cacheable content.".into()
+                "Target URL is consistently dynamic (BYPASS). Edge vs Origin is only applicable to cacheable content.".into()
             } else if insufficient {
-                "Not enough comparable probes yet: we need visible cache or CDN signals (HIT/MISS, Age, CDN cache headers) to pair edge hits with origin misses. Sites that strip or hide those headers may never enable Edge Audit.".into()
+                "Not enough comparable probes yet: we need visible cache or CDN signals (HIT/MISS, Age, CDN cache headers) to pair edge hits with origin misses. Sites that strip or hide those headers may never enable Edge vs Origin.".into()
             } else {
                 "No verified edge cache hits yet. Waiting for effective cache before enabling audit.".into()
             }

@@ -16,7 +16,7 @@ Este documento define a inteligência do CacheSnap, separando diagnósticos de u
 ## 🎯 Estratégia de Entrega (Modelo Híbrido)
 
 Os diagnósticos seguem dois fluxos principais:
-1. **Contextual (Reativo)**: Exibido nas abas técnicas (Live, Edge Audit, etc.) quando um problema é detectado na visualização atual.
+1. **Contextual (Reativo)**: Exibido nas abas técnicas (Live, Edge vs Origin, etc.) quando um problema é detectado na visualização atual.
 2. **Consolidado (Estratégico)**: Uma lista priorizada na aba **Insights**, servindo como um "Executive Summary".
 
 ---
@@ -38,7 +38,7 @@ Os diagnósticos seguem dois fluxos principais:
 | :--- | :--- | :--- |
 | **Live** | Saúde imediata e protocolos | AD01, AD02, AD04, AD08, AD14 |
 | **Performance** | Benchmarking e eficiência | AD05, AD06, AD09, AD19, AD20, AD21 |
-| **Edge Audit** | Topologia e custos de CDN | AD03, AD10, AD20 |
+| **Edge vs Origin** | Topologia e custos de CDN | AD03, AD10, AD20 |
 | **Trends** | Padrões e consistência | AD07, AD11, AD15, AD16, AD17, AD22, AD23, AD24 |
 | **Security** | Proteção e conformidade | AD07, AD12, AD13, AD25 |
 | **Insights** | Consolidação e priorização | *Agregador de todos os itens (incl. AD19, AD22-24)* |
@@ -92,7 +92,7 @@ Os diagnósticos seguem dois fluxos principais:
 ### AD03: Otimizar Terminação TLS na Borda (Edge)
 - **Tipo**: Alerta (Warning)
 - **Gatilho**: Handshake TLS transoceânico (ex: Handshake de 400ms em regiões remotas).
-- **Contexto**: Aba Edge Audit e Performance.
+- **Contexto**: Aba Edge vs Origin e Performance.
 - **Insight**: "Seu SSL está sendo resolvido muito longe do usuário. Verifique a cobertura da sua CDN."
 
 ### AD09: Benchmark "Vs Global" Negativo
@@ -116,7 +116,7 @@ Os diagnósticos seguem dois fluxos principais:
 ### AD20: Latência em HIT (Edge Delivery Slow)
 - **Tipo**: Alerta (Warning)
 - **Gatilho**: Hit Rate > 80% combinada com TTFB > 250ms (Default Configurável).
-- **Contexto**: Aba Performance, Edge Audit e Insights.
+- **Contexto**: Aba Performance, Edge vs Origin e Insights.
 - **Insight**: "Seu cache está funcionando bem (Hit Rate alto), mas a latência de entrega está acima do esperado ({ttfb}ms). Verifique processamento pesado no Edge ou latência de storage da CDN."
 
 ### AD21: Cache Thrashing (Invalidação Frenética)
@@ -156,7 +156,7 @@ Os diagnósticos seguem dois fluxos principais:
 ### AD10: Ajuste de Price Class (CDN)
 - **Tipo**: Conselho (Info)
 - **Gatilho**: Bypass retorna HIT consistentemente em regiões de alto custo (Ásia/África).
-- **Contexto**: Aba Edge Audit.
+- **Contexto**: Aba Edge vs Origin.
 - **Insight**: "Sua CDN pode estar ignorando POPs caros por configuração de custo. Verifique seu Price Class."
 
 ### AD07: Forçar HSTS (Strict-Transport-Security)
