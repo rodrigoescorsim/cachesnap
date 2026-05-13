@@ -233,13 +233,13 @@ async fn upsert_regional_baselines(
     let yday = fetch_hourly(state, monitor_id, region, bucket_hour - chrono::Duration::hours(24)).await?;
     let day_avg = fetch_day_avg(state, monitor_id, region, bucket_hour).await?;
 
-    // cache_hit_pct row
+    // cache_hit_pct row — sample counts use cdn_count (comparable CDN cache rows), not total_count.
     upsert_baseline_row(
         state, monitor_id, region, bucket_hour, "cache_hit_pct",
-        cache_hit_pct(&current), current.total_count,
-        prev.as_ref().and_then(cache_hit_pct), prev.as_ref().map(|d| d.total_count).unwrap_or(0),
-        yday.as_ref().and_then(cache_hit_pct), yday.as_ref().map(|d| d.total_count).unwrap_or(0),
-        day_avg.as_ref().and_then(cache_hit_pct), day_avg.as_ref().map(|d| d.total_count).unwrap_or(0),
+        cache_hit_pct(&current), current.cdn_count,
+        prev.as_ref().and_then(cache_hit_pct), prev.as_ref().map(|d| d.cdn_count).unwrap_or(0),
+        yday.as_ref().and_then(cache_hit_pct), yday.as_ref().map(|d| d.cdn_count).unwrap_or(0),
+        day_avg.as_ref().and_then(cache_hit_pct), day_avg.as_ref().map(|d| d.cdn_count).unwrap_or(0),
     ).await?;
 
     // ttfb_avg_ms row
@@ -329,10 +329,10 @@ async fn upsert_global_baselines(
 
     upsert_baseline_row(
         state, monitor_id, "__global__", bucket_hour, "cache_hit_pct",
-        cache_hit_pct(&current), current.total_count,
-        prev.as_ref().and_then(cache_hit_pct), prev.as_ref().map(|d| d.total_count).unwrap_or(0),
-        yday.as_ref().and_then(cache_hit_pct), yday.as_ref().map(|d| d.total_count).unwrap_or(0),
-        day_avg.as_ref().and_then(cache_hit_pct), day_avg.as_ref().map(|d| d.total_count).unwrap_or(0),
+        cache_hit_pct(&current), current.cdn_count,
+        prev.as_ref().and_then(cache_hit_pct), prev.as_ref().map(|d| d.cdn_count).unwrap_or(0),
+        yday.as_ref().and_then(cache_hit_pct), yday.as_ref().map(|d| d.cdn_count).unwrap_or(0),
+        day_avg.as_ref().and_then(cache_hit_pct), day_avg.as_ref().map(|d| d.cdn_count).unwrap_or(0),
     ).await?;
 
     upsert_baseline_row(

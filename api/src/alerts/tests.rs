@@ -263,6 +263,89 @@ async fn test_worker_cache_hit_aggregation() {
     sqlx::query("DELETE FROM probe_results_hourly WHERE monitor_id = $1").bind(monitor_id).execute(&state.db).await.ok();
 }
 
+/// All probes DYNAMIC (or compound BYPASS+DYNAMIC): cdn_count in hourly MV is zero — must not open cache_hit_low.
+#[tokio::test]
+async fn test_worker_cache_hit_skips_intentional_dynamic() {
+    use crate::alerts::worker::{audit_monitor_alerts, MonitorAlertConfig};
+
+    let state = get_test_state().await;
+    let monitor_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(format!("dyn-{}@test.com", user_id))
+        .bind("hash")
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO monitors (id, user_id, url, name, is_active, alert_cache_hit_enabled, alert_cache_hit_threshold_pct)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    )
+    .bind(monitor_id)
+    .bind(user_id)
+    .bind("http://dynamic-cache-test.com")
+    .bind("Dynamic Cache Test")
+    .bind(true)
+    .bind(true)
+    .bind(50.0)
+    .execute(&state.db)
+    .await
+    .unwrap();
+
+    for status in ["DYNAMIC", "BYPASS:Cloudflare DYNAMIC"] {
+        for _ in 0..5 {
+            sqlx::query(
+                "INSERT INTO probe_results (time, monitor_id, region, ttfb_ms, cache_status, status_code)
+                 VALUES (NOW() - INTERVAL '5 minutes', $1, 'eu-west', 100.0, $2, 200)",
+            )
+            .bind(monitor_id)
+            .bind(status)
+            .execute(&state.db)
+            .await
+            .unwrap();
+        }
+    }
+
+    sqlx::query("CALL refresh_continuous_aggregate('probe_results_hourly', NULL, NULL)")
+        .execute(&state.db)
+        .await
+        .ok();
+
+    let cfg = MonitorAlertConfig {
+        id: monitor_id,
+        alert_cache_hit_enabled: true,
+        alert_cache_hit_threshold_pct: 50.0,
+        alert_anycast_enabled: false,
+        alert_cache_age_enabled: false,
+        alert_cache_age_threshold_hours: 72,
+    };
+
+    audit_monitor_alerts(&state, &cfg).await.unwrap();
+
+    let incident_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'cache_hit_low' AND resolved_at IS NULL",
+    )
+    .bind(monitor_id)
+    .fetch_one(&state.db)
+    .await
+    .unwrap();
+
+    assert_eq!(
+        incident_count, 0,
+        "DYNAMIC-only traffic must not create a low cache-hit incident (denominator is CDN-classified probes only)"
+    );
+
+    cleanup(&state, monitor_id, user_id).await;
+    sqlx::query("DELETE FROM probe_results_hourly WHERE monitor_id = $1")
+        .bind(monitor_id)
+        .execute(&state.db)
+        .await
+        .ok();
+}
+
 // ── Scenario 3: Digest is sent after the repeat cooldown window elapses ──────
 
 #[tokio::test]

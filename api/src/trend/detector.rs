@@ -125,7 +125,13 @@ async fn fetch_trend_monitors(state: &AppState) -> Result<Vec<MonitorTrendConfig
 }
 
 /// Fetches the 4h rolling aggregate for a single region from probe_results_hourly.
-/// Returns (cache_hit_pct, ttfb_avg_ms, total_count, sample_count).
+/// Returns (cache_hit_pct, ttfb_avg_ms, cdn_count, sample_count).
+///
+/// `cdn_count` (CDN-classifiable probes) is the right sample size for the cache_hit_pct
+/// metric — it matches the denominator used to compute the ratio and aligns with
+/// `trend_baselines.current_samples` (see `baseline_computer.rs`). Using `total_count`
+/// here would let trend alerts pass the min-samples gate while having almost zero
+/// comparable CDN probes (e.g. DYNAMIC-heavy sites).
 async fn fetch_regional_rolling(
     state: &AppState,
     monitor_id: Uuid,
@@ -142,7 +148,7 @@ async fn fetch_regional_rolling(
             CASE WHEN SUM(sample_count) > 0
                  THEN SUM(ttfb_sum_ms) / SUM(sample_count)
                  ELSE NULL END,
-            SUM(total_count)::bigint,
+            SUM(cdn_count)::bigint,
             SUM(sample_count)::bigint
         FROM probe_results_hourly
         WHERE monitor_id = $1
@@ -158,8 +164,8 @@ async fn fetch_regional_rolling(
     .fetch_optional(&state.db)
     .await?;
 
-    Ok(row.map(|(hit_pct, ttfb, total, samples)| {
-        (hit_pct, ttfb, total.unwrap_or(0) as i32, samples.unwrap_or(0) as i32)
+    Ok(row.map(|(hit_pct, ttfb, cdn, samples)| {
+        (hit_pct, ttfb, cdn.unwrap_or(0) as i32, samples.unwrap_or(0) as i32)
     }))
 }
 
@@ -284,7 +290,7 @@ async fn check_regional(
     };
 
     let (current, current_samples) = if metric == "cache_hit_pct" {
-        (rolling.0, rolling.2)  // cache_hit_pct, total_count
+        (rolling.0, rolling.2)  // cache_hit_pct, cdn_count (CDN-classifiable probes only)
     } else {
         (rolling.1, rolling.3)  // ttfb_avg_ms, sample_count
     };

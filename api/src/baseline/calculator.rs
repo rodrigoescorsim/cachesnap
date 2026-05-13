@@ -34,8 +34,10 @@ pub async fn run(state: AppState) {
         info!("Starting baseline recalculation cycle...");
 
         // Agregados dos últimos 7 dias + baselines estratificados (HIT vs MISS explícito).
-        // "hit" alinha com `probe_is_cache_hit` no detector de anomalias.
-        let results = sqlx::query_as::<_, BaselineAggRow>(
+        // `cache_hit_rate` usa o mesmo denominador de `probe_results_hourly.cdn_count`
+        // para evitar contar BYPASS/DYNAMIC como "miss" — alinha com `probe_is_cache_hit`
+        // no detector de anomalias.
+        let sql = format!(
             r#"
             SELECT
                 monitor_id,
@@ -43,9 +45,8 @@ pub async fn run(state: AppState) {
                 AVG(ttfb_ms) AS ttfb_avg_ms,
                 STDDEV(ttfb_ms) AS ttfb_stddev_ms,
                 COUNT(*) AS sample_count,
-                (COUNT(*) FILTER (WHERE cache_status IN (
-                    'HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT'
-                )))::FLOAT / NULLIF(COUNT(*), 0) AS cache_hit_rate,
+                (COUNT(*) FILTER (WHERE {hit}))::FLOAT
+                    / NULLIF(COUNT(*) FILTER (WHERE {cdn}), 0) AS cache_hit_rate,
                 AVG(ttfb_ms) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED'))
                     AS ttfb_hit_avg_ms,
                 STDDEV(ttfb_ms) FILTER (WHERE cache_status IN ('HIT', 'STALE', 'REVALIDATED'))
@@ -67,7 +68,10 @@ pub async fn run(state: AppState) {
               AND ttfb_ms IS NOT NULL
             GROUP BY monitor_id, region
             "#,
-        )
+            hit = crate::cache_status::CACHE_HIT_FILTER,
+            cdn = crate::cache_status::CACHE_CDN_CLASSIFIABLE_FILTER,
+        );
+        let results = sqlx::query_as::<_, BaselineAggRow>(&sql)
         .fetch_all(&state.db)
         .await;
 

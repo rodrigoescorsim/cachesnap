@@ -1,5 +1,6 @@
 mod alerts;
 mod baseline;
+mod cache_status;
 mod config;
 mod db;
 mod diagnosis;

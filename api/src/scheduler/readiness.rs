@@ -210,13 +210,15 @@ async fn calculate_metrics(db: &PgPool, monitor_id: Uuid) -> Option<ReadinessMet
         bypass_ratio: Option<f64>,
     }
 
-    let hit_row = sqlx::query_as::<_, HitRow>(
+    // Denominator for `hit_ratio` uses CDN-classifiable rows only (same as
+    // `probe_results_hourly.cdn_count`) so intentional `DYNAMIC` / `BYPASS` traffic
+    // doesn't artificially drag the ratio to 0.
+    let hit_sql = format!(
         r#"
         SELECT
             COUNT(*)::bigint AS sample_count,
-            (COUNT(*) FILTER (WHERE cache_status IN (
-                'HIT','STALE','REVALIDATED','UPDATING','REVALIDATE','REFRESH_HIT'
-            ))::float / NULLIF(COUNT(*), 0)::float) AS hit_ratio,
+            (COUNT(*) FILTER (WHERE {hit})::float
+                / NULLIF(COUNT(*) FILTER (WHERE {cdn}), 0)::float) AS hit_ratio,
             (COUNT(*) FILTER (WHERE cache_status IN (
                 'BYPASS','DYNAMIC','NONE','PASS','NO-CACHE',
                 'UNCALCULABLE','UNCACHEABLE','IGNORED'
@@ -226,7 +228,10 @@ async fn calculate_metrics(db: &PgPool, monitor_id: Uuid) -> Option<ReadinessMet
           AND time > NOW() - INTERVAL '1 hour'
           AND cache_status IS NOT NULL
         "#,
-    )
+        hit = crate::cache_status::CACHE_HIT_FILTER,
+        cdn = crate::cache_status::CACHE_CDN_CLASSIFIABLE_FILTER,
+    );
+    let hit_row = sqlx::query_as::<_, HitRow>(&hit_sql)
     .bind(monitor_id)
     .fetch_optional(db)
     .await

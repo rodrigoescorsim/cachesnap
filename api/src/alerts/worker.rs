@@ -285,11 +285,16 @@ pub async fn audit_monitor_alerts(
         let region = &probe.region;
 
         if monitor.alert_cache_hit_enabled {
-            let is_intentionally_uncached = probe
-                .cache_status
-                .as_deref()
-                .map_or(false, |s| matches!(s, "DYNAMIC" | "BYPASS"));
-
+            // Align with `probe_results_hourly`: only HIT/MISS/STALE/… count toward CDN cache ratio.
+            // Compound headers (e.g. "BYPASS:Cloudflare DYNAMIC") must not fall through to hourly 0/total.
+            let is_intentionally_uncached = probe.cache_status.as_deref().map_or(false, |s| {
+                let u = s.to_uppercase();
+                matches!(s, "DYNAMIC" | "BYPASS")
+                    || u.contains("DYNAMIC")
+                    || u.contains("LAMBDAGENERATED")
+                    || u.contains("UNCACHEABLE")
+                    || u.contains("UNCALCULABLE")
+            });
             let result = if is_intentionally_uncached {
                 CacheHitResult::Cleared
             } else {
@@ -387,9 +392,11 @@ async fn check_cache_hit(
     monitor: &MonitorAlertConfig,
     region: &str,
 ) -> Result<CacheHitResult, anyhow::Error> {
-    let hit_data = sqlx::query_as::<_, (Option<f64>, Option<i64>)>(
-        "SELECT (SUM(hit_count)::float / NULLIF(SUM(total_count), 0)) * 100,
-                SUM(total_count)::bigint
+    // Use SUM(cdn_count) as denominator — same definition as `probe_results_hourly` (excludes
+    // DYNAMIC/BYPASS/NONE-style rows). Using total_count wrongly treated intentional misses as 0% hit rate.
+    let hit_data = sqlx::query_as::<_, (f64, i64)>(
+        "SELECT COALESCE((SUM(hit_count)::float / NULLIF(SUM(cdn_count), 0)) * 100, 0),
+                COALESCE(SUM(cdn_count), 0)::bigint
          FROM probe_results_hourly
          WHERE monitor_id = $1 AND region = $2 AND bucket > NOW() - INTERVAL '24 hours'",
     )
@@ -399,7 +406,8 @@ async fn check_cache_hit(
     .await?;
 
     match hit_data {
-        (Some(hit_pct), Some(sample_count)) if sample_count >= 5 => {
+        (_, comparable) if comparable <= 0 => Ok(CacheHitResult::Cleared),
+        (hit_pct, comparable) if comparable >= 5 => {
             if hit_pct < monitor.alert_cache_hit_threshold_pct {
                 Ok(CacheHitResult::Firing(Detection {
                     region: region.to_string(),
