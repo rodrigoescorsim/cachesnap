@@ -3,10 +3,10 @@
  * Extracted here so they can be unit-tested without mounting React.
  */
 
-export type AuditStateValue = 'disabled' | 'warmup' | 'enabled'
+export type EdgeVsOriginState = 'disabled' | 'warmup' | 'enabled'
 
-export interface AuditReadiness {
-  state: AuditStateValue
+export interface EdgeVsOriginReadiness {
+  state: EdgeVsOriginState
   reason: string | null
   comparable_pairs: number
   comparable_regions: number
@@ -20,11 +20,11 @@ export const COMPARABLE_REGIONS_GATE = 4
 // ── State resolution ──────────────────────────────────────────────────────────
 
 /**
- * Resolves the canonical audit state from a readiness payload.
+ * Resolves the canonical readiness state from the Edge vs Origin payload.
  * Returns 'enabled' when readiness is absent (backward-compat for monitors
  * that pre-date the readiness engine).
  */
-export function resolveReadinessState(readiness: AuditReadiness | null | undefined): AuditStateValue {
+export function resolveReadinessState(readiness: EdgeVsOriginReadiness | null | undefined): EdgeVsOriginState {
   if (!readiness) return 'enabled'
   const s = readiness.state
   if (s === 'warmup' || s === 'enabled' || s === 'disabled') return s
@@ -35,14 +35,14 @@ export function resolveReadinessState(readiness: AuditReadiness | null | undefin
  * Returns the reason text provided by the backend.
  * Falls back to a generic message when absent.
  */
-export function resolveReason(readiness: AuditReadiness | null | undefined): string {
+export function resolveReason(readiness: EdgeVsOriginReadiness | null | undefined): string {
   return readiness?.reason ?? ''
 }
 
 /**
  * Banner body when Edge vs Origin is disabled. BYPASS/dynamic monitors keep the backend reason verbatim.
  */
-export function edgeVsOriginDisabledBannerBody(readiness: AuditReadiness): string {
+export function edgeVsOriginDisabledBannerBody(readiness: EdgeVsOriginReadiness): string {
   const r = (readiness.reason ?? '').trim()
   if (/dynamic|BYPASS|cacheable content/i.test(r)) {
     return r
@@ -53,14 +53,14 @@ export function edgeVsOriginDisabledBannerBody(readiness: AuditReadiness): strin
 // ── Banner visibility ─────────────────────────────────────────────────────────
 
 /** Banner (reason card) should appear whenever comparison is not fully enabled. */
-export function shouldShowBanner(readiness: AuditReadiness | null | undefined): boolean {
+export function shouldShowBanner(readiness: EdgeVsOriginReadiness | null | undefined): boolean {
   const state = resolveReadinessState(readiness)
   return state !== 'enabled'
 }
 
 // ── Badge ─────────────────────────────────────────────────────────────────────
 
-export interface AuditBadge {
+export interface EdgeVsOriginBadge {
   label: string
   cssClass: string
 }
@@ -69,7 +69,7 @@ export interface AuditBadge {
  * Returns the badge label and CSS class for the current readiness state.
  * Uses the design-system badge classes: cs-badge-success / warning / muted.
  */
-export function formatAuditBadge(readiness: AuditReadiness | null | undefined): AuditBadge {
+export function formatEdgeVsOriginBadge(readiness: EdgeVsOriginReadiness | null | undefined): EdgeVsOriginBadge {
   const state = resolveReadinessState(readiness)
   switch (state) {
     case 'enabled':
@@ -85,7 +85,7 @@ export function formatAuditBadge(readiness: AuditReadiness | null | undefined): 
 // ── CTA ───────────────────────────────────────────────────────────────────────
 
 /** Manual refresh should only be emphasized when the system is fully active. */
-export function isAuditButtonEnabled(readiness: AuditReadiness | null | undefined): boolean {
+export function isEdgeVsOriginDispatchEnabled(readiness: EdgeVsOriginReadiness | null | undefined): boolean {
   return resolveReadinessState(readiness) === 'enabled'
 }
 
@@ -95,7 +95,7 @@ export function isAuditButtonEnabled(readiness: AuditReadiness | null | undefine
  * Progress toward the comparable_pairs gate (0–100).
  * Returns 0 when readiness is absent or state is not warmup.
  */
-export function warmupProgressPercent(readiness: AuditReadiness | null | undefined): number {
+export function warmupProgressPercent(readiness: EdgeVsOriginReadiness | null | undefined): number {
   if (!readiness || readiness.state !== 'warmup') return 0
   return Math.min(Math.round((readiness.comparable_pairs / COMPARABLE_PAIRS_GATE) * 100), 100)
 }
@@ -103,7 +103,7 @@ export function warmupProgressPercent(readiness: AuditReadiness | null | undefin
 /**
  * How many comparable pairs are still needed to reach the gate.
  */
-export function remainingPairsNeeded(readiness: AuditReadiness | null | undefined): number {
+export function remainingPairsNeeded(readiness: EdgeVsOriginReadiness | null | undefined): number {
   if (!readiness) return COMPARABLE_PAIRS_GATE
   return Math.max(COMPARABLE_PAIRS_GATE - readiness.comparable_pairs, 0)
 }
@@ -113,7 +113,7 @@ export function remainingPairsNeeded(readiness: AuditReadiness | null | undefine
 export interface SnapshotReadiness {
   comparableRegions: number
   confidence: 'low' | 'medium' | 'high'
-  state: AuditStateValue
+  state: EdgeVsOriginState
 }
 
 /**
@@ -121,7 +121,7 @@ export interface SnapshotReadiness {
  * In v1 the readiness is global (not per-snapshot), so we forward the live state.
  */
 export function formatSnapshotReadiness(
-  readiness: AuditReadiness | null | undefined,
+  readiness: EdgeVsOriginReadiness | null | undefined,
 ): SnapshotReadiness {
   const state = resolveReadinessState(readiness)
   const pairs = readiness?.comparable_pairs ?? 0
@@ -140,7 +140,7 @@ export function formatSnapshotReadiness(
 // ── Copy helpers ───────────────────────────────────────────────────────────────
 
 export function globalImpactEmptyStateCopy(
-  state: AuditStateValue,
+  state: EdgeVsOriginState,
   period: string,
 ): { title: string; subtitle: string } {
   if (state === 'warmup') {

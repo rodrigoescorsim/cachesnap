@@ -10,15 +10,15 @@ import {
 } from './monitor-table-styles'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import {
-  type AuditReadiness,
+  type EdgeVsOriginReadiness,
   resolveReadinessState,
   shouldShowBanner,
   edgeVsOriginDisabledBannerBody,
-  formatAuditBadge,
+  formatEdgeVsOriginBadge,
   globalImpactEmptyStateCopy,
 } from './edge-vs-origin.helpers'
 
-export type { AuditReadiness }
+export type { EdgeVsOriginReadiness }
 
 interface ComparisonBucket {
   hour: Date
@@ -35,14 +35,14 @@ interface ComparisonBucket {
 interface EdgeVsOriginProps {
   data: ComparisonBucket[]
   regionLabels: Record<string, string>
-  readiness: AuditReadiness
+  readiness: EdgeVsOriginReadiness
   isDown?: boolean
 }
 
 const COMPARABLE_PAIRS_GATE = 8
 const COMPARABLE_REGIONS_GATE = 4
 
-function ReadinessBanner({ readiness, isOffline }: { readiness: AuditReadiness; isOffline: boolean }) {
+function ReadinessBanner({ readiness, isOffline }: { readiness: EdgeVsOriginReadiness; isOffline: boolean }) {
   const state = readiness.state
   if (state === 'enabled' || state === 'warmup') return null
 
@@ -67,7 +67,7 @@ function ReadinessBanner({ readiness, isOffline }: { readiness: AuditReadiness; 
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function EdgeVsOrigin({ data, regionLabels, readiness, isDown }: EdgeVsOriginProps) {
-  const badge = formatAuditBadge(readiness)
+  const badge = formatEdgeVsOriginBadge(readiness)
   const readinessState = resolveReadinessState(readiness)
 
   const [period, setPeriod] = useState<'1H' | '4H' | '24H' | '7D' | '30D' | '90D'>('24H')

@@ -3,18 +3,18 @@ import {
   resolveReadinessState,
   resolveReason,
   shouldShowBanner,
-  formatAuditBadge,
-  isAuditButtonEnabled,
+  formatEdgeVsOriginBadge,
+  isEdgeVsOriginDispatchEnabled,
   warmupProgressPercent,
   remainingPairsNeeded,
   formatSnapshotReadiness,
   globalImpactEmptyStateCopy,
   regionalBenefitPendingLabel,
   edgeVsOriginDisabledBannerBody,
-  type AuditReadiness,
+  type EdgeVsOriginReadiness,
 } from './edge-vs-origin.helpers'
 
-function makeReadiness(overrides: Partial<AuditReadiness> = {}): AuditReadiness {
+function makeReadiness(overrides: Partial<EdgeVsOriginReadiness> = {}): EdgeVsOriginReadiness {
   return {
     state: 'disabled',
     reason: null,
@@ -101,50 +101,50 @@ describe('shouldShowBanner', () => {
   })
 })
 
-// ── formatAuditBadge ──────────────────────────────────────────────────────────
+// ── formatEdgeVsOriginBadge ────────────────────────────────────────────────────
 
-describe('formatAuditBadge', () => {
+describe('formatEdgeVsOriginBadge', () => {
   it('returns success badge for enabled state', () => {
-    const badge = formatAuditBadge(makeReadiness({ state: 'enabled' }))
+    const badge = formatEdgeVsOriginBadge(makeReadiness({ state: 'enabled' }))
     expect(badge.label).toBe('Active')
     expect(badge.cssClass).toContain('cs-badge-success')
   })
 
   it('returns warning badge for warmup state', () => {
-    const badge = formatAuditBadge(makeReadiness({ state: 'warmup' }))
+    const badge = formatEdgeVsOriginBadge(makeReadiness({ state: 'warmup' }))
     expect(badge.label).toBe('Warming Up')
     expect(badge.cssClass).toContain('cs-badge-warning')
   })
 
   it('returns muted badge for disabled state', () => {
-    const badge = formatAuditBadge(makeReadiness({ state: 'disabled' }))
+    const badge = formatEdgeVsOriginBadge(makeReadiness({ state: 'disabled' }))
     expect(badge.label).toBe('Unavailable')
     expect(badge.cssClass).toContain('cs-badge-muted')
   })
 
   it('returns success badge when readiness is null (backward compat)', () => {
-    const badge = formatAuditBadge(null)
+    const badge = formatEdgeVsOriginBadge(null)
     expect(badge.cssClass).toContain('cs-badge-success')
   })
 })
 
-// ── isAuditButtonEnabled ──────────────────────────────────────────────────────
+// ── isEdgeVsOriginDispatchEnabled ─────────────────────────────────────────────
 
-describe('isAuditButtonEnabled', () => {
+describe('isEdgeVsOriginDispatchEnabled', () => {
   it('returns false for disabled state', () => {
-    expect(isAuditButtonEnabled(makeReadiness({ state: 'disabled' }))).toBe(false)
+    expect(isEdgeVsOriginDispatchEnabled(makeReadiness({ state: 'disabled' }))).toBe(false)
   })
 
   it('returns false for warmup state', () => {
-    expect(isAuditButtonEnabled(makeReadiness({ state: 'warmup' }))).toBe(false)
+    expect(isEdgeVsOriginDispatchEnabled(makeReadiness({ state: 'warmup' }))).toBe(false)
   })
 
   it('returns true for enabled state', () => {
-    expect(isAuditButtonEnabled(makeReadiness({ state: 'enabled' }))).toBe(true)
+    expect(isEdgeVsOriginDispatchEnabled(makeReadiness({ state: 'enabled' }))).toBe(true)
   })
 
   it('returns true when readiness is null (backward compat)', () => {
-    expect(isAuditButtonEnabled(null)).toBe(true)
+    expect(isEdgeVsOriginDispatchEnabled(null)).toBe(true)
   })
 })
 
