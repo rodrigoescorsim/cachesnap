@@ -2,6 +2,7 @@
 
 import { useState, Fragment } from 'react'
 import { AlertCircle, AlertTriangle, Zap, ChevronDown, ChevronUp, ShieldAlert, Lightbulb } from 'lucide-react'
+import { PremiumTooltip } from '@/components/premium-tooltip'
 import { MONITOR_TABLE } from './monitor-table-styles'
 import { ALERT_TYPE_LABELS, type AlertType } from './monitor-href'
 import { type Alert } from '@/types/monitor'
@@ -184,12 +185,20 @@ export function AlertHistoryTable({ alerts, regionLabels }: AlertHistoryTablePro
                                                   </span>
                                                 ))}
                                                 {hidden.length > 0 && (
-                                                  <span
-                                                    className="inline-flex items-center rounded-md bg-white/[0.025] px-1.5 py-0.5 text-[10px] font-medium text-zinc-500"
-                                                    title={hiddenTitle}
+                                                  <PremiumTooltip
+                                                    content={
+                                                      <span className="text-zinc-300">
+                                                        Also includes:{' '}
+                                                        <span className="font-medium text-zinc-100">{hiddenTitle}</span>
+                                                      </span>
+                                                    }
+                                                    position="top-right"
+                                                    panelSizing="hug"
                                                   >
-                                                    +{hidden.length} more
-                                                  </span>
+                                                    <span className="inline-flex cursor-default items-center rounded-md bg-white/[0.025] px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
+                                                      +{hidden.length} more
+                                                    </span>
+                                                  </PremiumTooltip>
                                                 )}
                                               </div>
                                             </div>

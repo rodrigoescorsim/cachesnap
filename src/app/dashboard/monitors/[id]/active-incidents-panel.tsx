@@ -1,5 +1,6 @@
 import { Clock, MapPin, CheckCircle2, AlertCircle, Lightbulb, Bell } from 'lucide-react'
 import { LiveDot } from '@/components/dashboard/dashboard-ui'
+import { PremiumTooltip } from '@/components/premium-tooltip'
 import {
   SEVERITY_STYLES,
   alertTypeDisplay,
@@ -204,12 +205,20 @@ export function ActiveIncidentsPanel({
                         </span>
                       ))}
                       {hiddenRegionCount > 0 && (
-                        <span
-                          className="inline-flex items-center rounded-md bg-white/[0.025] px-1.5 py-0.5 text-[10px] font-medium text-zinc-500"
-                          title={hiddenRegionLabels}
+                        <PremiumTooltip
+                          content={
+                            <span className="text-zinc-300">
+                              Also includes:{' '}
+                              <span className="font-medium text-zinc-100">{hiddenRegionLabels}</span>
+                            </span>
+                          }
+                          position="top-right"
+                          panelSizing="hug"
                         >
-                          +{hiddenRegionCount} more
-                        </span>
+                          <span className="inline-flex cursor-default items-center rounded-md bg-white/[0.025] px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
+                            +{hiddenRegionCount} more
+                          </span>
+                        </PremiumTooltip>
                       )}
                     </div>
                   )}
