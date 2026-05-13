@@ -2506,8 +2506,8 @@ export default async function MonitorDetailPage({
 
           {activeTab === 'incidents' && (
             <section className="space-y-4">
-              <ViewSectionHeader title="Active Incidents" showDot={true} dotColorClass="bg-amber-500" />
-              <div className="grid gap-4 md:grid-cols-3">
+              <ViewSectionHeader title="Incident overview" showDot={true} dotColorClass="bg-amber-500" />
+              <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
                     <History className="w-4 h-4 text-zinc-400" />
@@ -2545,29 +2545,6 @@ export default async function MonitorDetailPage({
                         return ALERT_TYPE_LABELS[mainType as AlertType] ?? mainType.replace('_', ' ');
                       })()}
                     </span>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-border bg-surface p-4 shadow-sm relative group">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-zinc-400" />
-                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-tight">Peak Deviation</span>
-                    </div>
-                    <PremiumTooltip content="How severe the worst latency spike was compared to the normal baseline (e.g. 2.5x slower)." position="top-right">
-                      <Info className="h-3.5 w-3.5 text-zinc-400/50 hover:text-zinc-300 transition-colors" />
-                    </PremiumTooltip>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    {(() => {
-                      const validDeviations = alerts.map(a => Number(a.deviation_factor)).filter(n => !isNaN(n) && n > 0);
-                      const maxDev = validDeviations.length > 0 ? Math.max(...validDeviations) : 0;
-                      return (
-                        <span className={`text-2xl font-bold ${maxDev > 3 ? 'text-red-500' : 'text-zinc-900 dark:text-zinc-100'}`}>
-                          {maxDev > 0 ? `${maxDev.toFixed(1)}x` : '-'}
-                        </span>
-                      );
-                    })()}
                   </div>
                 </div>
               </div>

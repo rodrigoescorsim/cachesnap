@@ -70,15 +70,15 @@ export function ActiveIncidentsPanel({
 }: ActiveIncidentsPanelProps) {
   if (incidents.length === 0) {
     return (
-      <section aria-labelledby="active-incidents-heading" className="space-y-3">
+      <section aria-labelledby="active-incidents-list-heading" className="space-y-3">
         <div className="flex items-center gap-2 mb-4 px-1">
-          <h2
-            id="active-incidents-heading"
+          <h3
+            id="active-incidents-list-heading"
             className="cs-view-section-title flex items-center gap-2"
           >
             <LiveDot colorClass="bg-emerald-500" />
             Active Incidents
-          </h2>
+          </h3>
         </div>
         <div className="rounded-xl bg-surface border border-border p-6 flex items-center gap-3 text-zinc-400">
           <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
@@ -89,15 +89,15 @@ export function ActiveIncidentsPanel({
   }
 
   return (
-    <section aria-labelledby="active-incidents-heading" className="space-y-3">
+    <section aria-labelledby="active-incidents-list-heading" className="space-y-3">
       <div className="flex items-center gap-2 mb-4 px-1">
-        <h2
-          id="active-incidents-heading"
+        <h3
+          id="active-incidents-list-heading"
           className="cs-view-section-title flex items-center gap-2"
         >
           <LiveDot colorClass="bg-amber-500" />
           Active Incidents
-        </h2>
+        </h3>
         <span className="inline-flex h-5 items-center rounded-full bg-amber-500/10 px-2 text-[10px] font-bold text-amber-400 border border-amber-500/20">
           {incidents.length}
         </span>
