@@ -132,21 +132,21 @@ Alerts are processed through two paths in the Rust service: **Real-time Detectio
 
 If no channel is configured or the API key is missing, alerts are still **stored** and visible in the dashboard; only outbound delivery is skipped.
 
-### 1. Downtime / error (` down `)
+### 1. Downtime / error (`down`)
 
 - **When:** The probe reports an **error** (e.g. timeout), HTTP **status >= 500**, or TTFB exceeds the monitor's configured **`alert_threshold_ms`** (default 1 000 ms).
 - **Metric:** `uptime` (stored `actual_ms` reflects total time where applicable).
 - **Copy:** Diagnosis and action come from the diagnosis engine based on the failure context.
 - **Configurable:** `alert_down_enabled` toggle + `alert_threshold_ms` (100-30 000 ms) per monitor.
 
-### 2. TTFB statistical anomaly (` nomaly `)
+### 2. TTFB statistical anomaly (`anomaly`)
 
 - **When:** Monitor is up, a regional **baseline** exists, and current TTFB exceeds **max(mean + sigma_factor x stddev, mean + 500 ms)** (the +500 ms floor reduces noise on very fast sites).
 - **Metric:** `ttfb_ms`; includes **baseline**, **actual**, and **deviation_factor** (multiple of normal).
 - **Copy:** Engine-generated diagnosis and recommended action.
-- **Configurable:** `alert_anomaly_enabled` toggle + `alert_sensitivity` per monitor: `1` = Low (5-sigma), `2` = Medium (3-sigma, default), `3` = High (2-sigma).
+- **Configurable:** `alert_ttfb_anomaly_enabled` toggle + `alert_sensitivity` per monitor (default `2` = Medium): **Low** (`1`) uses 5-sigma for anomalies and requires **5** recent probes over the TTFB limit before a limit alert; **Medium** (`2`) uses 3-sigma and **3** probes; **High** (`3`) uses 2-sigma and **instant** limit alerts on the current probe.
 
-### 3. Anycast / routing mismatch (` nycast `)
+### 3. Anycast / routing mismatch (`anycast`)
 
 - **When:** Heuristics detect a **routing / POP mismatch** vs the probe region (via `served_by` and related signals).
 - **Metric:** `routing`.

@@ -152,7 +152,7 @@ export function MonitorEditForm({
       if (isNaN(n) || n < min || n > 30000) return `Must be between ${min} and 30 000 ms`
     }
     if (field === 'alert_sensitivity') {
-      if (![1, 2, 3].includes(Number(value))) return 'Invalid sensitivity'
+      if (![1, 2, 3].includes(Number(value))) return 'Invalid anomaly sensitivity'
     }
     if (field === 'alert_cache_age_threshold_hours') {
       const n = Number(value)
@@ -521,7 +521,7 @@ export function MonitorEditForm({
           <h3 className="cs-section-header">Alert triggers</h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
-            {/* LEFT: TTFB ALERTS + SPIKE SENSITIVITY */}
+            {/* LEFT: TTFB alerts + anomaly sensitivity */}
             <div className="space-y-4">
               {/* TTFB Above Limit alert toggle */}
               <div className="flex items-start gap-3">
@@ -539,7 +539,7 @@ export function MonitorEditForm({
                 </label>
               </div>
 
-              {/* Spike sensitivity — checkbox-gated */}
+              {/* TTFB Anomaly toggle */}
               <div className="flex items-start gap-3 pb-4">
                 <CsCheckbox
                   id={`${p}-alert_ttfb_anomaly_enabled`}
@@ -555,13 +555,18 @@ export function MonitorEditForm({
                 </label>
               </div>
 
-              {/* Global Sensitivity Selector — always enabled */}
+              {/* Anomaly alert sensitivity — applies to TTFB above-limit streaks and anomaly sigma */}
               <div className="pt-4 border-t border-white/5">
-                <p className="text-xs font-bold text-zinc-300 mb-2">Alert Sensitivity</p>
+                <p className="text-xs font-bold text-zinc-300 mb-1">Anomaly alert sensitivity</p>
+                <p className="text-[11px] text-zinc-500 mb-2 leading-relaxed">
+                  Controls how fast we alert on slow responses and unusual spikes vs your 7-day average.{' '}
+                  <span className="text-zinc-400">Low</span> sends fewer alerts;{' '}
+                  <span className="text-zinc-400">High</span> reacts sooner with more alerts.
+                </p>
                 <div className="grid grid-cols-3 gap-2">
                   {([
-                    { value: 1, label: 'Low', sub: '3 probes' },
-                    { value: 2, label: 'Medium', sub: '2 probes' },
+                    { value: 1, label: 'Low', sub: '5 probes' },
+                    { value: 2, label: 'Medium', sub: '3 probes' },
                     { value: 3, label: 'High', sub: 'Instant' },
                   ] as const).map(opt => (
                     <button
