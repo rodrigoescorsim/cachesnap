@@ -13,6 +13,7 @@ import {
   Radio,
   Settings,
   Zap,
+  ScrollText,
 } from 'lucide-react'
 import {
   buildMonitorHref,
@@ -40,19 +41,21 @@ const PERFORMANCE_VIEW_ICONS: Record<PerformanceView, typeof Activity> = {
   infrastructure: Layers,
 }
 
-const TAB_LABELS: Record<'security' | 'settings' | 'incidents', string> = {
+const TAB_LABELS: Record<'security' | 'settings' | 'incidents' | 'alert-history', string> = {
   security: 'Security',
   settings: 'Settings',
   incidents: 'Incidents',
+  'alert-history': 'Alert History',
 }
 
 const TAB_ICONS = {
   security: Lock,
   settings: Settings,
   incidents: AlertCircle,
+  'alert-history': ScrollText,
 } as const
 
-const CONFIG_TABS = ['settings', 'incidents'] as const
+const CONFIG_TABS = ['settings', 'incidents', 'alert-history'] as const
 
 export interface MonitorSidebarRailProps {
   monitorId: string
@@ -160,7 +163,14 @@ export function MonitorSidebarRail({
                     return (
                       <li key={tab}>
                         <Link
-                          href={buildMonitorHref(tab, range, tab === 'incidents' ? filteredAlertType : null, null, '', monitorId)}
+                          href={buildMonitorHref(
+                            tab,
+                            range,
+                            tab === 'alert-history' ? filteredAlertType : null,
+                            null,
+                            '',
+                            monitorId,
+                          )}
                           className={`group ${itemBaseClass} ${linkLayoutClass} ${itemStateClass(isActive)}`}
                         >
                           <Icon

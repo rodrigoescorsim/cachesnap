@@ -54,4 +54,12 @@ describe('buildMonitorHref', () => {
     expect(buildMonitorHref('performance', '1h')).toContain('range=1h')
     expect(buildMonitorHref('performance', '4h')).toContain('range=4h')
   })
+
+  it('adds alert_type and alerts_limit only on alert-history tab', () => {
+    expect(buildMonitorHref('incidents', '24h', 'down')).not.toContain('alert_type')
+    const href = buildMonitorHref('alert-history', '24h', 'down', 200, '', 'mon-1')
+    expect(href).toContain('tab=alert-history')
+    expect(href).toContain('alert_type=down')
+    expect(href).toContain('alerts_limit=200')
+  })
 })

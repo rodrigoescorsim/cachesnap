@@ -16,6 +16,7 @@ export type MonitorTab =
   | 'security'
   | 'settings'
   | 'incidents'
+  | 'alert-history'
 
 export type PerformanceView = 'real-time' | 'performance' | 'trends' | 'patterns' | 'infrastructure'
 
@@ -66,8 +67,10 @@ export function buildMonitorHref(
   const params = new URLSearchParams()
   params.set('tab', tab)
   if (range && range !== '24h') params.set('range', range)
-  if (tab === 'incidents' && alertType) params.set('alert_type', alertType)
-  if (tab === 'incidents' && alertsLimit && alertsLimit > 100) params.set('alerts_limit', String(alertsLimit))
+  if (tab === 'alert-history' && alertType) params.set('alert_type', alertType)
+  if (tab === 'alert-history' && alertsLimit && alertsLimit > 100) {
+    params.set('alerts_limit', String(alertsLimit))
+  }
   const query = params.toString()
   const base = query ? `?${query}` : ''
   const path = monitorId ? `/dashboard/monitors/${monitorId}` : ''

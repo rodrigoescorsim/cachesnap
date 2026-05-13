@@ -53,6 +53,7 @@ import {
   Settings,
   BarChart3,
   ShieldAlert,
+  ScrollText,
   Info,
   type LucideIcon,
 } from 'lucide-react'
@@ -168,7 +169,7 @@ function formatFingerprintDisplay(fp: string | undefined | null): { short: strin
   return { short: `${hex.slice(0, 6)}…${hex.slice(-6)}`, full }
 }
 
-const VALID_TABS = ['performance', 'on-demand', 'resilience', 'security', 'settings', 'incidents'] as const satisfies readonly MonitorTab[]
+const VALID_TABS = ['performance', 'on-demand', 'resilience', 'security', 'settings', 'incidents', 'alert-history'] as const satisfies readonly MonitorTab[]
 
 const TAB_LABELS: Record<MonitorTab, string> = {
   performance: 'Performance',
@@ -177,6 +178,7 @@ const TAB_LABELS: Record<MonitorTab, string> = {
   security: 'Security',
   settings: 'Settings',
   incidents: 'Incidents',
+  'alert-history': 'Alert History',
 }
 
 const TAB_ICONS: Record<MonitorTab, LucideIcon> = {
@@ -186,6 +188,7 @@ const TAB_ICONS: Record<MonitorTab, LucideIcon> = {
   security: Lock,
   settings: Settings,
   incidents: AlertCircle,
+  'alert-history': ScrollText,
 }
 
 const VALID_PERFORMANCE_VIEWS = ['real-time', 'performance', 'trends', 'patterns', 'infrastructure'] as const satisfies readonly PerformanceView[]
@@ -548,8 +551,9 @@ export default async function MonitorDetailPage({
           : range === '90d' ? '3 days'
             : '30 minutes'
   const activeTab = normalizeTab(tabValue)
-  const filteredAlertType = normalizeAlertType(alertTypeValue)
   const activeView: PerformanceView = activeTab === 'performance' ? normalizeView(viewValue) : 'real-time'
+  const filteredAlertType =
+    activeTab === 'alert-history' ? normalizeAlertType(alertTypeValue) : null
 
   const [monitor] = await sql<{
     id: string; url: string; name: string | null; is_active: boolean; check_interval_seconds: number; audit_interval_seconds: number;
@@ -672,17 +676,23 @@ export default async function MonitorDetailPage({
     ORDER BY region, time DESC
   `
 
-  const incidentTrends = await sql<{ bucket: Date; count: number }[]>`
+  const loadIncidentSummary = activeTab === 'incidents'
+  const loadAlerts = activeTab === 'incidents' || activeTab === 'alert-history'
+
+  const incidentTrends = loadIncidentSummary
+    ? await sql<{ bucket: Date; count: number }[]>`
     SELECT time_bucket('1h', created_at) AS bucket, COUNT(*)::int
     FROM alerts
     WHERE monitor_id = ${id} AND created_at > NOW() - CAST(${dbInterval} AS interval)
     GROUP BY bucket ORDER BY bucket ASC
   `
+    : []
 
   const alertsLimit = Math.min(Math.max(Number(readFirst(rawSearchParams.alerts_limit) || 100), 100), 1000)
 
-  const alerts = filteredAlertType
-    ? await sql<Alert[]>`
+  const alerts = loadAlerts
+    ? filteredAlertType
+      ? await sql<Alert[]>`
         SELECT id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, diagnosis, action,
                delta_pct, comparator, scope, created_at
         FROM alerts
@@ -690,7 +700,7 @@ export default async function MonitorDetailPage({
         ORDER BY created_at DESC
         LIMIT ${alertsLimit}
       `
-    : await sql<Alert[]>`
+      : await sql<Alert[]>`
         SELECT id, region, alert_type, metric, baseline_ms, actual_ms, deviation_factor, diagnosis, action,
                delta_pct, comparator, scope, created_at
         FROM alerts
@@ -698,8 +708,9 @@ export default async function MonitorDetailPage({
         ORDER BY created_at DESC
         LIMIT ${alertsLimit}
       `
+    : []
 
-  const hasNextAlertsPage = alerts.length >= alertsLimit
+  const hasNextAlertsPage = loadAlerts && alerts.length >= alertsLimit
 
   const weekTrend = await sql<WeekTrend[]>`
     WITH current_week AS (
@@ -2613,62 +2624,74 @@ export default async function MonitorDetailPage({
                 <ActiveIncidentsPanel monitorId={monitor.id} incidents={activeIncidents} regionLabels={regionLabels} />
               </div>
 
-              <div id="alert-history" className="space-y-4 scroll-mt-24 pt-4">
-                <ViewSectionHeader title="Alert History" showDot={true} dotColorClass="bg-amber-500" />
+              <div className="flex justify-end pt-1">
+                <Link
+                  href={buildMonitorHref('alert-history', range, null, null, '', monitor.id)}
+                  scroll={false}
+                  className="text-[11px] font-semibold text-zinc-500 hover:text-[var(--brand-primary)] transition-colors"
+                >
+                  View alert history →
+                </Link>
+              </div>
+            </section>
+          )}
 
-                <div className="flex flex-wrap gap-1 bg-surface border border-border p-1.5 rounded-lg">
+          {activeTab === 'alert-history' && (
+            <section id="alert-history" className="space-y-4 scroll-mt-24">
+              <ViewSectionHeader title="Alert History" showDot={true} dotColorClass="bg-amber-500" />
+
+              <div className="flex flex-wrap gap-1 bg-surface border border-border p-1.5 rounded-lg">
+                <Link
+                  href={buildMonitorHref('alert-history', range, null, null, '', monitor.id)}
+                  scroll={false}
+                  className={`px-2.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all ${filteredAlertType == null
+                    ? 'bg-zinc-900 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-900 shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-white/5'
+                    }`}
+                >
+                  All
+                </Link>
+                {VALID_ALERT_TYPES.map(type => (
                   <Link
-                    href={buildMonitorHref('incidents', range, null)}
+                    key={type}
+                    href={buildMonitorHref('alert-history', range, type, null, '', monitor.id)}
                     scroll={false}
-                    className={`px-2.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all ${filteredAlertType == null
+                    className={`px-2.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all ${filteredAlertType === type
                       ? 'bg-zinc-900 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-900 shadow-sm'
                       : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-white/5'
                       }`}
                   >
-                    All
+                    {ALERT_TYPE_LABELS[type]}
                   </Link>
-                  {VALID_ALERT_TYPES.map(type => (
-                    <Link
-                      key={type}
-                      href={buildMonitorHref('incidents', range, type)}
-                      scroll={false}
-                      className={`px-2.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all ${filteredAlertType === type
-                        ? 'bg-zinc-900 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-900 shadow-sm'
-                        : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-white/5'
-                        }`}
-                    >
-                      {ALERT_TYPE_LABELS[type]}
-                    </Link>
-                  ))}
-                </div>
-
-                {alerts.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-border bg-surface/30 p-12 flex flex-col items-center justify-center min-h-[400px] text-center">
-                    <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-950/20 flex items-center justify-center mx-auto mb-4">
-                      <ShieldCheck className="w-6 h-6 text-emerald-500" />
-                    </div>
-                    <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">No alerts detected</h3>
-                    <p className="text-xs text-zinc-500 mt-1 max-w-[240px] mx-auto">This monitor is currently healthy and performing within expected baselines.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <AlertHistoryTable alerts={alerts} regionLabels={regionLabels} />
-
-                    {hasNextAlertsPage && (
-                      <div className="flex justify-center pb-4">
-                        <Link
-                          href={buildMonitorHref('incidents', range, filteredAlertType, alertsLimit + 100)}
-                          className="cs-btn cs-btn-secondary !text-[10px] !px-6 !py-2.5 font-black uppercase tracking-widest flex items-center gap-2 group/load"
-                          scroll={false}
-                        >
-                          <History className="w-3.5 h-3.5 group-hover/load:rotate-[-45deg] transition-transform" />
-                          Load more history
-                        </Link>
-                      </div>
-                    )}
-                  </div>
-                )}
+                ))}
               </div>
+
+              {alerts.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border bg-surface/30 p-12 flex flex-col items-center justify-center min-h-[400px] text-center">
+                  <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-950/20 flex items-center justify-center mx-auto mb-4">
+                    <ShieldCheck className="w-6 h-6 text-emerald-500" />
+                  </div>
+                  <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">No alerts detected</h3>
+                  <p className="text-xs text-zinc-500 mt-1 max-w-[240px] mx-auto">This monitor is currently healthy and performing within expected baselines.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <AlertHistoryTable alerts={alerts} regionLabels={regionLabels} />
+
+                  {hasNextAlertsPage && (
+                    <div className="flex justify-center pb-4">
+                      <Link
+                        href={buildMonitorHref('alert-history', range, filteredAlertType, alertsLimit + 100, '', monitor.id)}
+                        className="cs-btn cs-btn-secondary !text-[10px] !px-6 !py-2.5 font-black uppercase tracking-widest flex items-center gap-2 group/load"
+                        scroll={false}
+                      >
+                        <History className="w-3.5 h-3.5 group-hover/load:rotate-[-45deg] transition-transform" />
+                        Load more history
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
           )}
         </div>
