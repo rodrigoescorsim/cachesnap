@@ -276,12 +276,6 @@ export function ActiveIncidentsPanel({
                       Open for{' '}
                       <span className="font-medium text-zinc-300">{duration}</span>
                     </span>
-                    {alertEventsCount > 0 && (
-                      <span>
-                        <span className="text-zinc-500">Events logged</span>{' '}
-                        <span className="font-medium text-zinc-300">{alertEventsCount}</span>
-                      </span>
-                    )}
                     <span>
                       Opened{' '}
                       <span
@@ -304,9 +298,12 @@ export function ActiveIncidentsPanel({
                         </span>
                       </span>
                     )}
-                    {deliveredCount > 0 && (
-                      <span className="text-zinc-500">
-                        {deliveredCount} delivered
+                    {(alertEventsCount > 0 || deliveredCount > 0) && (
+                      <span className="inline-flex flex-nowrap items-center gap-x-4">
+                        {alertEventsCount > 0 && (
+                          <span>{alertEventsCount} events logged</span>
+                        )}
+                        {deliveredCount > 0 && <span>{deliveredCount} delivered</span>}
                       </span>
                     )}
                     {failedCount > 0 && (
@@ -317,7 +314,7 @@ export function ActiveIncidentsPanel({
                     {pendingCount > 0 &&
                       deliveredCount === 0 &&
                       failedCount === 0 && (
-                        <span className="text-zinc-500">
+                        <span>
                           {pendingCount} delivery pending
                         </span>
                       )}
