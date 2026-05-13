@@ -132,6 +132,27 @@ Alerts are processed through two paths in the Rust service: **Real-time Detectio
 
 If no channel is configured or the API key is missing, alerts are still **stored** and visible in the dashboard; only outbound delivery is skipped.
 
+### Incident lifecycle: FirstFire, Digest, Recovery
+
+Open incidents are deduplicated in **`alert_incidents`** (one open row per monitor + `alert_type`). Notifications follow:
+
+| Kind | When |
+| :--- | :--- |
+| **FirstFire** | Immediately when a new incident opens. |
+| **Digest** | While the incident stays open and the **severity digest cooldown** has elapsed since `last_notified_at` (not on every probe tick). |
+| **Recovery** | When the incident is resolved; **email recovery** is sent for **critical** and **high** only, if at least one notification was already delivered. |
+
+**Digest repeat cadence** (minutes between digests for an open incident; source of truth: `api/src/alerts/severity.rs` → `repeat_cooldown_minutes`):
+
+| Severity | Repeat | Auto-close if no notification refresh\* |
+| :--- | :--- | :--- |
+| **critical** | 30 min | 1 h |
+| **high** | 2 h | 4 h |
+| **medium** | 6 h | 12 h |
+| **low** | 18 h | 36 h |
+
+\*Probe- and trend-driven types call `resolve_stale_probe_incidents`, which closes when `last_notified_at` is older than **2×** the digest cooldown. Worker-managed types that clear on a healthy measurement may close sooner; see `docs/WORKERS.md`.
+
 ### 1. Downtime / error (`down`)
 
 - **When:** The probe reports an **error** (e.g. timeout), HTTP **status >= 500**, or TTFB exceeds the monitor's configured **`alert_threshold_ms`** (default 1 000 ms).
