@@ -22,8 +22,7 @@ import {
   type PerformanceView,
 } from './monitor-href'
 
-const MONITORING_VIEWS = ['real-time', 'performance', 'trends', 'patterns'] as const
-const INFRASTRUCTURE_VIEW = 'infrastructure' as const
+const MONITORING_VIEWS = ['real-time', 'performance', 'trends', 'patterns', 'infrastructure'] as const
 
 const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   'real-time': 'Live',
@@ -107,7 +106,7 @@ export function MonitorSidebarRail({
                 </ul>
               </section>
 
-              <section aria-label="Monitoring navigation" className={sectionClass}>
+              <section aria-label="Performance views, edge audit, and security" className={sectionClass}>
                 <div>
                   <p className={sectionLabelClass}>Monitoring</p>
                 </div>
@@ -132,29 +131,6 @@ export function MonitorSidebarRail({
                       </li>
                     )
                   })}
-                </ul>
-              </section>
-
-              <section aria-label="Infrastructure navigation" className={sectionClass}>
-                <div>
-                  <p className={sectionLabelClass}>Infrastructure</p>
-                </div>
-                <ul className={itemListClass}>
-                  <li key={INFRASTRUCTURE_VIEW}>
-                    <Link
-                      href={buildViewHref(INFRASTRUCTURE_VIEW, range, monitorId)}
-                      className={`group ${itemBaseClass} ${linkLayoutClass} ${itemStateClass(activeTab === 'performance' && activeView === INFRASTRUCTURE_VIEW)}`}
-                    >
-                      <Layers
-                        className={`${iconClass} shrink-0 transition-colors duration-300 ${activeTab === 'performance' && activeView === INFRASTRUCTURE_VIEW
-                            ? 'text-metric-ttfb-fast'
-                            : 'text-zinc-500 group-hover:text-zinc-300'
-                          }`}
-                        aria-hidden
-                      />
-                      <span className="min-w-0 truncate">{PERFORMANCE_VIEW_LABELS[INFRASTRUCTURE_VIEW]}</span>
-                    </Link>
-                  </li>
 
                   <li key="security">
                     <Link
