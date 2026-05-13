@@ -222,15 +222,12 @@ export function EdgeVsOrigin({ data, regionLabels, readiness, isDown }: EdgeVsOr
     <div className="space-y-6 min-h-[200px]">
       <ViewSectionHeader
         title={
-          <div className="flex flex-col gap-0.5">
-            <div className="flex items-center gap-2">
-              <span>Edge vs Origin</span>
-              <span className="text-zinc-600 font-bold uppercase tracking-widest text-[11px] opacity-60">·</span>
-              <span className="text-zinc-500 font-black uppercase tracking-widest text-[11px]">
-                {period}
-              </span>
-            </div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">Edge cache vs origin fetch</span>
+          <div className="flex items-center gap-2">
+            <span>Edge cache vs origin fetch</span>
+            <span className="text-zinc-600 font-bold uppercase tracking-widest text-[11px] opacity-60">·</span>
+            <span className="text-zinc-500 font-black uppercase tracking-widest text-[11px]">
+              {period}
+            </span>
           </div>
         }
         showDot={true}
