@@ -1,11 +1,16 @@
 'use client'
 
 import { useState, Fragment } from 'react'
-import { AlertCircle, AlertTriangle, Zap, ChevronDown, ChevronUp, ShieldAlert } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Zap, ChevronDown, ChevronUp, ShieldAlert, Lightbulb } from 'lucide-react'
 import { MONITOR_TABLE } from './monitor-table-styles'
 import { ALERT_TYPE_LABELS, type AlertType } from './monitor-href'
 import { type Alert } from '@/types/monitor'
-import { severityContext, alertTypeSeverity, SEVERITY_STYLES } from './incident-display'
+import {
+  severityContext,
+  alertTypeSeverity,
+  SEVERITY_STYLES,
+  REGION_SUMMARY_PILL_LIMIT,
+} from './incident-display'
 
 
 interface AlertHistoryTableProps {
@@ -107,7 +112,7 @@ export function AlertHistoryTable({ alerts, regionLabels }: AlertHistoryTablePro
                 </div>
               )}
 
-              <div className="cs-card cs-card-glass group relative overflow-hidden transition-all duration-300 hover:border-zinc-700/80 hover:bg-white/[0.03]">
+              <div className="cs-card group relative overflow-hidden">
                 <div className="cs-card-wash" />
 
                 <div className={MONITOR_TABLE.innerScroll}>
@@ -126,18 +131,18 @@ export function AlertHistoryTable({ alerts, regionLabels }: AlertHistoryTablePro
                       {/* Diagnosis Block for Parent — always rendered so the impact line
                           (mirrors the severity context paragraph in the email) is visible
                           even when diagnosis/action are empty. */}
-                      <tr className="border-t border-white/5">
+                      <tr className="border-t border-border">
                         <td colSpan={7} className="px-4 pb-3 pt-2">
                           {(() => {
                             const impact = severityContext(parent.alert_type)
                             const severityKey = alertTypeSeverity(parent.alert_type)
                             const sev = SEVERITY_STYLES[severityKey] ?? SEVERITY_STYLES.low
                             return (
-                              <div className="rounded-xl bg-white/[0.015] border border-white/5 p-5 space-y-5 shadow-2xl relative overflow-hidden">
+                              <div className="rounded-lg border border-border bg-white/[0.015] p-4 space-y-4 relative overflow-hidden">
                                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-[var(--brand-primary)]/10" />
 
                                 {/* Impact line — mirrors notifier.rs::severity_context */}
-                                <div className="flex items-start gap-2.5">
+                                <div className="flex items-start gap-2.5 pl-1">
                                   <ShieldAlert className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${sev.text}`} aria-hidden />
                                   <p className="text-[11px] leading-relaxed">
                                     <span className={`font-black uppercase tracking-[0.12em] ${sev.text}`}>
@@ -148,29 +153,44 @@ export function AlertHistoryTable({ alerts, regionLabels }: AlertHistoryTablePro
                                 </div>
 
                                 {parent.diagnosis?.trim() && (
-                                  <div className="space-y-2.5">
-                                    <div className="flex items-center gap-3">
-                                      <span className="text-zinc-400 font-black uppercase tracking-[0.15em] text-[9px] whitespace-nowrap">Cause</span>
-                                      <div className="h-px w-8 bg-white/10" />
+                                  <div className="rounded-lg border border-border bg-white/[0.015] p-3 space-y-2.5">
+                                    <div className="flex items-center gap-2">
+                                      <AlertCircle className="h-3.5 w-3.5 text-zinc-400 shrink-0" aria-hidden />
+                                      <span className="text-[10px] font-black uppercase tracking-[0.15em] text-zinc-400">
+                                        Cause
+                                      </span>
                                     </div>
-                                    <div className="text-[11px] text-zinc-300 leading-relaxed pl-1">
+                                    <div className="text-[11px] text-zinc-300 leading-relaxed pl-0.5">
                                       {(() => {
                                         const marker = "Affected regions: ";
                                         const parts = parent.diagnosis!.split(marker);
                                         if (parts.length > 1) {
                                           const regions = parts[1].replace(/\.$/, '').split(',').map(r => r.trim());
+                                          const visible = regions.slice(0, REGION_SUMMARY_PILL_LIMIT)
+                                          const hidden = regions.slice(REGION_SUMMARY_PILL_LIMIT)
+                                          const hiddenTitle = hidden
+                                            .map(r => regionLabels[r as keyof typeof regionLabels] || r)
+                                            .join(', ')
                                           return (
                                             <div className="space-y-3">
                                               <p className="font-medium">{parts[0]}</p>
-                                              <div className="flex flex-wrap gap-2 pt-1">
-                                                {regions.map(r => (
+                                              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                                {visible.map(r => (
                                                   <span
                                                     key={r}
-                                                    className="px-2.5 py-0.5 rounded-md bg-white/5 border border-white/10 text-[9px] text-zinc-400 font-bold hover:bg-white/10 hover:border-white/20 transition-all cursor-default"
+                                                    className="inline-flex items-center rounded-md bg-white/[0.025] px-1.5 py-0.5 text-[10px] font-medium text-zinc-400"
                                                   >
                                                     {regionLabels[r as keyof typeof regionLabels] || r}
                                                   </span>
                                                 ))}
+                                                {hidden.length > 0 && (
+                                                  <span
+                                                    className="inline-flex items-center rounded-md bg-white/[0.025] px-1.5 py-0.5 text-[10px] font-medium text-zinc-500"
+                                                    title={hiddenTitle}
+                                                  >
+                                                    +{hidden.length} more
+                                                  </span>
+                                                )}
                                               </div>
                                             </div>
                                           );
@@ -182,12 +202,23 @@ export function AlertHistoryTable({ alerts, regionLabels }: AlertHistoryTablePro
                                 )}
 
                                 {parent.action?.trim() && (
-                                  <div className="space-y-2.5">
-                                    <div className="flex items-center gap-3">
-                                      <span className="text-[var(--brand-primary)] font-black uppercase tracking-[0.15em] text-[9px] whitespace-nowrap">Recommendation</span>
-                                      <div className="h-px w-8 bg-[var(--brand-primary)]/20" />
+                                  <div
+                                    className="rounded-lg p-3 space-y-2 border"
+                                    style={{
+                                      backgroundColor: 'rgba(var(--brand-primary-rgb), 0.06)',
+                                      borderColor: 'rgba(var(--brand-primary-rgb), 0.22)',
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Lightbulb
+                                        className="h-3.5 w-3.5 text-[var(--brand-primary)] shrink-0"
+                                        aria-hidden
+                                      />
+                                      <span className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--brand-primary)]">
+                                        Recommendation
+                                      </span>
                                     </div>
-                                    <p className="text-[11px] text-[var(--brand-primary)]/90 leading-relaxed font-bold pl-1">
+                                    <p className="text-[11px] text-[var(--brand-primary)]/90 leading-relaxed font-medium pl-0.5">
                                       {parent.action}
                                     </p>
                                   </div>
@@ -210,7 +241,7 @@ export function AlertHistoryTable({ alerts, regionLabels }: AlertHistoryTablePro
 
                       {/* Expand/Collapse Button Row */}
                       {children.length > 0 && !isExpanded && (
-                        <tr className="border-t border-white/5 bg-white/[0.01]">
+                        <tr className="border-t border-border bg-white/[0.01]">
                           <td colSpan={7} className="px-4 py-1 text-center">
                             <button
                               onClick={() => toggleGroup(parent.id)}
@@ -224,7 +255,7 @@ export function AlertHistoryTable({ alerts, regionLabels }: AlertHistoryTablePro
                       )}
 
                       {children.length > 0 && isExpanded && (
-                        <tr className="border-t border-white/5 bg-white/[0.01]">
+                        <tr className="border-t border-border bg-white/[0.01]">
                           <td colSpan={7} className="px-4 py-1.5 text-center">
                             <button
                               onClick={() => toggleGroup(parent.id)}
@@ -283,7 +314,7 @@ function AlertRow({
     ? 'bg-red-500/10 text-red-400 border border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.1)]'
     : severity === 'WARNING'
       ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-      : 'bg-white/5 text-zinc-500 border border-white/10'
+      : 'bg-white/[0.025] text-zinc-500 border border-border'
 
   const alertTypeIcon = alert.alert_type === 'down'
     ? <div className="relative">

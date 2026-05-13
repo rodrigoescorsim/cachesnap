@@ -12,7 +12,14 @@ import {
   isCacheMetric,
   metricUnit,
   severityContext,
+  REGION_SUMMARY_PILL_LIMIT,
 } from './incident-display'
+
+describe('REGION_SUMMARY_PILL_LIMIT', () => {
+  it('matches notifier.rs format_region_summary cap (4 visible names)', () => {
+    expect(REGION_SUMMARY_PILL_LIMIT).toBe(4)
+  })
+})
 
 describe('alertTypeSeverity (mirrors notifier severity tiers)', () => {
   it('maps down to critical', () => {

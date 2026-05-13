@@ -4,6 +4,9 @@
 
 export type IncidentStatus = 'new' | 'ongoing' | 'snoozed'
 
+/** Inline region chips before "+N more" — mirrors `format_region_summary` in notifier.rs. */
+export const REGION_SUMMARY_PILL_LIMIT = 4
+
 export const ALERT_TYPE_DISPLAY: Record<string, string> = {
   down: 'Monitor Down',
   ttfb_limit: 'TTFB Above Limit',

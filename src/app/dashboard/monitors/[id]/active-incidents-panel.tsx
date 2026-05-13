@@ -14,6 +14,7 @@ import {
   isCacheMetric,
   metricUnit,
   severityContext,
+  REGION_SUMMARY_PILL_LIMIT,
 } from './incident-display'
 
 export interface ActiveIncident {
@@ -51,12 +52,6 @@ interface ActiveIncidentsPanelProps {
 
 // Re-exported for backwards compatibility with existing imports and tests.
 export { alertTypeDisplay, formatDuration, formatMetricDelta }
-
-/**
- * Cap region pills displayed inline to mirror `format_region_summary` in
- * api/src/alerts/notifier.rs (email uses "N regions: A, B, C +X more").
- */
-const REGION_PILL_VISIBLE_LIMIT = 4
 
 function replaceRegionIds(
   text: string,
@@ -135,7 +130,7 @@ export function ActiveIncidentsPanel({
 
           const visibleRegions = incident.affected_regions.slice(
             0,
-            REGION_PILL_VISIBLE_LIMIT,
+            REGION_SUMMARY_PILL_LIMIT,
           )
           const hiddenRegionCount = Math.max(
             0,
@@ -151,11 +146,13 @@ export function ActiveIncidentsPanel({
           return (
             <article
               key={incident.id}
-              className="rounded-xl bg-surface border border-border overflow-hidden shadow-sm"
+              className="cs-card group relative overflow-hidden"
             >
+              <div className="cs-card-wash" aria-hidden />
+
               {/* ── Status strip (mirrors the email "New Alert / Still Ongoing" header) ── */}
               <div
-                className={`flex items-center justify-between gap-3 px-4 py-2 ${strip.bg} ${strip.border}`}
+                className={`relative z-10 flex items-center justify-between gap-3 px-4 py-2 ${strip.bg} ${strip.border}`}
               >
                 <div className="flex items-center gap-2">
                   <span className={`text-[10px] font-black uppercase tracking-[0.18em] ${strip.text}`}>
@@ -177,7 +174,7 @@ export function ActiveIncidentsPanel({
                 </span>
               </div>
 
-              <div className="p-4 space-y-4">
+              <div className="relative z-10 p-4 space-y-4">
                 {/* ── Headline ── */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 space-y-1">
