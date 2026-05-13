@@ -20,10 +20,10 @@ impl AlertSeverity {
     /// Minutes between repeat digest notifications while the incident stays open.
     pub fn repeat_cooldown_minutes(&self) -> i64 {
         match self {
-            AlertSeverity::Critical => 60,   // 1 hour
-            AlertSeverity::High => 240,       // 4 hours
-            AlertSeverity::Medium => 480,     // 8 hours
-            AlertSeverity::Low => 1440,       // 24 hours
+            AlertSeverity::Critical => 30,    // 30 min (stale auto-close: 1 h)
+            AlertSeverity::High => 120,       // 2 h (stale: 4 h)
+            AlertSeverity::Medium => 360,     // 6 h (stale: 12 h)
+            AlertSeverity::Low => 1080,       // 18 h (stale: 36 h)
         }
     }
 
@@ -183,10 +183,25 @@ mod tests {
 
     #[test]
     fn test_repeat_cooldowns() {
-        assert_eq!(AlertSeverity::Critical.repeat_cooldown_minutes(), 60);
-        assert_eq!(AlertSeverity::High.repeat_cooldown_minutes(), 240);
-        assert_eq!(AlertSeverity::Medium.repeat_cooldown_minutes(), 480);
-        assert_eq!(AlertSeverity::Low.repeat_cooldown_minutes(), 1440);
+        assert_eq!(AlertSeverity::Critical.repeat_cooldown_minutes(), 30);
+        assert_eq!(AlertSeverity::High.repeat_cooldown_minutes(), 120);
+        assert_eq!(AlertSeverity::Medium.repeat_cooldown_minutes(), 360);
+        assert_eq!(AlertSeverity::Low.repeat_cooldown_minutes(), 1080);
+    }
+
+    /// `resolve_stale_probe_incidents` uses `repeat_cooldown_minutes() * 2` as the staleness window.
+    #[test]
+    fn test_stale_window_is_twice_digest_cooldown() {
+        let cases = [
+            (AlertSeverity::Critical, 30_i64, 60_i64),
+            (AlertSeverity::High, 120, 240),
+            (AlertSeverity::Medium, 360, 720),
+            (AlertSeverity::Low, 1080, 2160),
+        ];
+        for (sev, digest_min, stale_min) in cases {
+            assert_eq!(sev.repeat_cooldown_minutes(), digest_min);
+            assert_eq!(sev.repeat_cooldown_minutes() * 2, stale_min);
+        }
     }
 
     #[test]

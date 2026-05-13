@@ -378,9 +378,9 @@ async fn test_digest_after_cooldown_elapsed() {
     ).bind(monitor_id).fetch_one(&state.db).await.unwrap();
     assert_eq!(notif_count_first, 1, "FirstFire should increment notification_count to 1");
 
-    // Simulate 9 hours elapsed (past the 8h MEDIUM cooldown)
+    // Simulate 7 hours elapsed (past the 6h MEDIUM cooldown)
     sqlx::query(
-        "UPDATE alert_incidents SET last_notified_at = NOW() - INTERVAL '9 hours'
+        "UPDATE alert_incidents SET last_notified_at = NOW() - INTERVAL '7 hours'
          WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
     ).bind(monitor_id).execute(&state.db).await.unwrap();
 
@@ -570,9 +570,9 @@ async fn test_critical_incident_recovery_eligible() {
     assert_eq!(severity, "critical");
     assert_eq!(notif_count, 1, "FirstFire must set notification_count = 1");
 
-    // Backdate last_notified_at past the stale window (2× 60min cooldown = 120min)
+    // Backdate last_notified_at past the stale window (2× 30min cooldown = 60min)
     sqlx::query(
-        "UPDATE alert_incidents SET last_notified_at = NOW() - INTERVAL '125 minutes'
+        "UPDATE alert_incidents SET last_notified_at = NOW() - INTERVAL '65 minutes'
          WHERE monitor_id = $1 AND alert_type = 'down'"
     ).bind(monitor_id).execute(&state.db).await.unwrap();
 
@@ -624,7 +624,7 @@ async fn test_snooze_blocks_notification() {
     // Backdate last_notified_at past cooldown AND apply snooze
     sqlx::query(
         "UPDATE alert_incidents
-         SET last_notified_at = NOW() - INTERVAL '9 hours',
+         SET last_notified_at = NOW() - INTERVAL '7 hours',
              snoozed_until     = NOW() + INTERVAL '24 hours'
          WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
     ).bind(monitor_id).execute(&state.db).await.unwrap();
@@ -671,7 +671,7 @@ async fn test_expired_snooze_allows_notification() {
     // Backdate last_notified_at past cooldown AND set an EXPIRED snooze
     sqlx::query(
         "UPDATE alert_incidents
-         SET last_notified_at = NOW() - INTERVAL '9 hours',
+         SET last_notified_at = NOW() - INTERVAL '7 hours',
              snoozed_until     = NOW() - INTERVAL '1 hour'
          WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
     ).bind(monitor_id).execute(&state.db).await.unwrap();
@@ -732,9 +732,9 @@ async fn test_independent_incidents_same_monitor() {
     assert_eq!(cache_count, 1);
     assert_eq!(ssl_count, 1);
 
-    // Advance only cache_hit_low past cooldown (8h) and fire again
+    // Advance only cache_hit_low past cooldown (6h) and fire again
     sqlx::query(
-        "UPDATE alert_incidents SET last_notified_at = NOW() - INTERVAL '9 hours'
+        "UPDATE alert_incidents SET last_notified_at = NOW() - INTERVAL '7 hours'
          WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'"
     ).bind(monitor_id).execute(&state.db).await.unwrap();
 

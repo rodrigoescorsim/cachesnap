@@ -887,20 +887,20 @@ mod tests {
     fn test_digest_cooldown_gate() {
         // Simulate: elapsed >= cooldown → notify
         let cooldown_minutes = alert_severity("cache_hit_low").repeat_cooldown_minutes();
-        assert_eq!(cooldown_minutes, 480);
-        let elapsed_over = 500i64;
-        let elapsed_under = 400i64;
+        assert_eq!(cooldown_minutes, 360);
+        let elapsed_over = 400i64;
+        let elapsed_under = 300i64;
         assert!(elapsed_over >= cooldown_minutes);
         assert!(!(elapsed_under >= cooldown_minutes));
     }
 
     #[test]
     fn test_probe_stale_minutes() {
-        // critical: 60 × 2 = 120 min stale window
+        // critical: 30 × 2 = 60 min stale window
         let sev = alert_severity("down");
-        assert_eq!(sev.repeat_cooldown_minutes() * 2, 120);
-        // medium: 480 × 2 = 960 min
+        assert_eq!(sev.repeat_cooldown_minutes() * 2, 60);
+        // medium: 360 × 2 = 720 min
         let sev_m = alert_severity("cache_hit_trend_drop_region");
-        assert_eq!(sev_m.repeat_cooldown_minutes() * 2, 960);
+        assert_eq!(sev_m.repeat_cooldown_minutes() * 2, 720);
     }
 }
