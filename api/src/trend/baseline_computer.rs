@@ -75,7 +75,6 @@ async fn compute_cycle(state: &AppState) -> Result<(), anyhow::Error> {
 struct HourlyData {
     hit_count: i64,
     cdn_count: i64,
-    total_count: i64,
     ttfb_sum_ms: Option<f64>,
     sample_count: i64,
 }
@@ -86,9 +85,9 @@ async fn fetch_hourly(
     region: &str,
     bucket: chrono::DateTime<chrono::Utc>,
 ) -> Result<Option<HourlyData>, sqlx::Error> {
-    let row = sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<i64>, Option<f64>, Option<i64>)>(
+    let row = sqlx::query_as::<_, (Option<i64>, Option<i64>, Option<f64>, Option<i64>)>(
         r#"
-        SELECT hit_count::BIGINT, cdn_count::BIGINT, total_count::BIGINT, ttfb_sum_ms, sample_count::BIGINT
+        SELECT hit_count::BIGINT, cdn_count::BIGINT, ttfb_sum_ms, sample_count::BIGINT
         FROM probe_results_hourly
         WHERE monitor_id = $1 AND region = $2 AND bucket = $3
         LIMIT 1
@@ -100,10 +99,9 @@ async fn fetch_hourly(
     .fetch_optional(&state.db)
     .await?;
 
-    Ok(row.map(|(h, c, t, s, sc)| HourlyData {
+    Ok(row.map(|(h, c, s, sc)| HourlyData {
         hit_count: h.unwrap_or(0),
         cdn_count: c.unwrap_or(0),
-        total_count: t.unwrap_or(0),
         ttfb_sum_ms: s,
         sample_count: sc.unwrap_or(0),
     }))
@@ -141,7 +139,6 @@ async fn fetch_day_avg(
         Some(HourlyData {
             hit_count: h.unwrap_or(0),
             cdn_count: c.unwrap_or(0),
-            total_count: t.unwrap_or(0),
             ttfb_sum_ms: s,
             sample_count: sc.unwrap_or(0),
         })
@@ -233,7 +230,7 @@ async fn upsert_regional_baselines(
     let yday = fetch_hourly(state, monitor_id, region, bucket_hour - chrono::Duration::hours(24)).await?;
     let day_avg = fetch_day_avg(state, monitor_id, region, bucket_hour).await?;
 
-    // cache_hit_pct row — sample counts use cdn_count (comparable CDN cache rows), not total_count.
+    // cache_hit_pct row — sample counts use cdn_count (comparable CDN cache rows).
     upsert_baseline_row(
         state, monitor_id, region, bucket_hour, "cache_hit_pct",
         cache_hit_pct(&current), current.cdn_count,
@@ -269,7 +266,7 @@ async fn upsert_global_baselines(
             samples += sc.unwrap_or(0);
         }
         if total == 0 { None } else {
-            Some(HourlyData { hit_count: hit, cdn_count: cdn, total_count: total, ttfb_sum_ms: Some(ttfb_sum), sample_count: samples })
+            Some(HourlyData { hit_count: hit, cdn_count: cdn, ttfb_sum_ms: Some(ttfb_sum), sample_count: samples })
         }
     };
 
@@ -320,7 +317,6 @@ async fn upsert_global_baselines(
             Some(HourlyData {
                 hit_count: h.unwrap_or(0),
                 cdn_count: c.unwrap_or(0),
-                total_count: t.unwrap_or(0),
                 ttfb_sum_ms: s,
                 sample_count: sc.unwrap_or(0),
             })
@@ -350,55 +346,65 @@ async fn upsert_global_baselines(
 mod tests {
     use super::*;
 
-    fn make_data(hit: i64, cdn: i64, total: i64, ttfb_sum: f64, samples: i64) -> HourlyData {
-        HourlyData { hit_count: hit, cdn_count: cdn, total_count: total, ttfb_sum_ms: Some(ttfb_sum), sample_count: samples }
+    fn make_data(hit: i64, cdn: i64, ttfb_sum: f64, samples: i64) -> HourlyData {
+        HourlyData {
+            hit_count: hit,
+            cdn_count: cdn,
+            ttfb_sum_ms: Some(ttfb_sum),
+            sample_count: samples,
+        }
     }
 
     #[test]
     fn test_cache_hit_pct_normal() {
-        let d = make_data(75, 100, 100, 0.0, 0);
+        let d = make_data(75, 100, 0.0, 0);
         assert!((cache_hit_pct(&d).unwrap() - 75.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_cache_hit_pct_full_hit() {
-        let d = make_data(100, 100, 100, 0.0, 0);
+        let d = make_data(100, 100, 0.0, 0);
         assert!((cache_hit_pct(&d).unwrap() - 100.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_cache_hit_pct_zero_hits() {
-        let d = make_data(0, 100, 100, 0.0, 0);
+        let d = make_data(0, 100, 0.0, 0);
         assert!((cache_hit_pct(&d).unwrap() - 0.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_cache_hit_pct_zero_total_returns_none() {
-        let d = make_data(0, 0, 0, 0.0, 0);
+        let d = make_data(0, 0, 0.0, 0);
         assert!(cache_hit_pct(&d).is_none());
     }
 
     #[test]
     fn test_ttfb_avg_ms_normal() {
-        let d = make_data(0, 0, 0, 1500.0, 10);
+        let d = make_data(0, 0, 1500.0, 10);
         assert!((ttfb_avg_ms(&d).unwrap() - 150.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_ttfb_avg_ms_single_sample() {
-        let d = make_data(0, 0, 0, 200.0, 1);
+        let d = make_data(0, 0, 200.0, 1);
         assert!((ttfb_avg_ms(&d).unwrap() - 200.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_ttfb_avg_ms_zero_samples_returns_none() {
-        let d = make_data(0, 0, 0, 500.0, 0);
+        let d = make_data(0, 0, 500.0, 0);
         assert!(ttfb_avg_ms(&d).is_none());
     }
 
     #[test]
     fn test_ttfb_avg_ms_none_sum_returns_none() {
-        let d = HourlyData { hit_count: 0, cdn_count: 0, total_count: 0, ttfb_sum_ms: None, sample_count: 10 };
+        let d = HourlyData {
+            hit_count: 0,
+            cdn_count: 0,
+            ttfb_sum_ms: None,
+            sample_count: 10,
+        };
         assert!(ttfb_avg_ms(&d).is_none());
     }
 
@@ -408,8 +414,13 @@ mod tests {
         // Weighted global: 100/200 = 50%. NOT (90+10)/2 = 50% (coincidence).
         // Edge case: Region A: 90/100, Region B: 1/10 → weighted = 91/110 ≈ 82.7%
         let total_hits = 90i64 + 1;
-        let total_count = 100i64 + 10;
-        let d = HourlyData { hit_count: total_hits, cdn_count: total_count, total_count, ttfb_sum_ms: None, sample_count: 0 };
+        let cdn_rows = 100i64 + 10;
+        let d = HourlyData {
+            hit_count: total_hits,
+            cdn_count: cdn_rows,
+            ttfb_sum_ms: None,
+            sample_count: 0,
+        };
         let expected = 91.0 / 110.0 * 100.0;
         assert!((cache_hit_pct(&d).unwrap() - expected).abs() < 1e-9);
     }
@@ -418,7 +429,7 @@ mod tests {
     fn test_global_ttfb_avg_weighted() {
         // Region A: 10 samples, sum 1000ms → avg 100ms. Region B: 1 sample, sum 900ms → avg 900ms.
         // Weighted: 1900/11 ≈ 172.7ms. NOT (100+900)/2 = 500ms.
-        let d = make_data(0, 0, 0, 1900.0, 11);
+        let d = make_data(0, 0, 1900.0, 11);
         let expected = 1900.0 / 11.0;
         assert!((ttfb_avg_ms(&d).unwrap() - expected).abs() < 1e-9);
     }
