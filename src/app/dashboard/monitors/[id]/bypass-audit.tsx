@@ -167,20 +167,22 @@ export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded 
 
   // Global Impact: Compare average of Edge Hits vs Origin Misses in comparable regions
   const comparableRegions = aggregatedData.filter(r => r.edge_hits > 0 && r.origin_misses > 0)
+
+  /** Buckets (e.g. hour × region) that have both edge HIT samples and origin MISS samples — required for a real audit signal. */
+  const comparableRowsInPeriod = useMemo(
+    () =>
+      filteredData.filter(
+        item =>
+          Number(item.edge_hit_count || 0) > 0 && Number(item.origin_miss_count || 0) > 0,
+      ).length,
+    [filteredData],
+  )
+
   const totalEdgeTtfb = comparableRegions.reduce((sum, r) => sum + r.edge_ttfb, 0)
   const totalOriginTtfb = comparableRegions.reduce((sum, r) => sum + r.origin_ttfb, 0)
 
   const avgSavingMs = comparableRegions.length > 0 ? (totalOriginTtfb - totalEdgeTtfb) / comparableRegions.length : 0
   const avgSavingPct = totalOriginTtfb > 0 ? ((totalOriginTtfb - totalEdgeTtfb) / totalOriginTtfb) * 100 : 0
-
-  // Confidence indicators based on total unfiltered data
-  const totalAggregatedData = useMemo(() => {
-    const counts: Record<string, number> = {}
-    data.forEach(item => {
-      counts[item.region] = (counts[item.region] || 0) + 1
-    })
-    return Object.keys(counts).length
-  }, [data])
 
   const totalSamples = useMemo(() => {
     return filteredData.reduce((sum, r) => sum + (Number(r.sample_count) || 1), 0)
@@ -213,9 +215,22 @@ export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded 
   const hasData = filteredData.length > 0
   const hasAnyData = data.length > 0
 
-  const isLiveActive = data.length >= COMPARABLE_PAIRS_GATE && totalAggregatedData >= COMPARABLE_REGIONS_GATE
-  const statusLabel = isLiveActive ? 'Active' : badge.label
-  const statusColor = isLiveActive ? 'text-emerald-400' : badge.cssClass.replace('cs-badge', '')
+  // "Active" must reflect measurable edge HIT vs origin MISS — not merely enough audit rows with MISS-only data.
+  const isLiveActive =
+    comparableRowsInPeriod >= COMPARABLE_PAIRS_GATE &&
+    comparableRegions.length >= COMPARABLE_REGIONS_GATE
+
+  const readinessResolved = resolveReadinessState(readiness)
+  const statusLabel = isLiveActive
+    ? 'Active'
+    : readinessResolved === 'enabled'
+      ? 'Awaiting comparison'
+      : badge.label
+  const statusColor = isLiveActive
+    ? 'text-emerald-400'
+    : readinessResolved === 'enabled'
+      ? 'text-amber-400/90'
+      : badge.cssClass.replace('cs-badge', '')
 
   return (
     <div className="space-y-6 min-h-[200px]">
