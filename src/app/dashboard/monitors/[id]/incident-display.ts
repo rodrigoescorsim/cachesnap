@@ -64,6 +64,29 @@ export function alertTypeSeverity(alertType: string): 'critical' | 'high' | 'med
   return 'low'
 }
 
+/**
+ * Older trend rows stored diagnosis like
+ * `TTFB increased … · all regions · 359ms now…` (see legacy `build_messages` in api/src/trend/detector.rs).
+ * New fires omit that segment and open with "Global aggregate TTFB …" / "Global cache hit rate fell …".
+ * This rewrites stored copy on read so open incidents and history match the new wording
+ * (same rules as `normalize_legacy_trend_diagnosis_copy` in `api/src/alerts/notifier.rs` for email/Slack).
+ */
+export function normalizeLegacyTrendDiagnosisCopy(diagnosis: string): string {
+  const legacyMarker =
+    /\s*·\s*(?:all regions|All regions|__global__)\s*·\s*/gi
+  if (!/\s*·\s*(?:all regions|All regions|__global__)\s*·\s*/i.test(diagnosis)) return diagnosis
+
+  let s = diagnosis.replace(legacyMarker, ' — ')
+
+  if (/^TTFB\s/i.test(s) && !/^Global aggregate TTFB/i.test(s)) {
+    s = s.replace(/^TTFB\s/i, 'Global aggregate TTFB ')
+  } else if (/^Cache hit fell/i.test(s) && !/^Global cache hit rate fell/i.test(s)) {
+    s = s.replace(/^Cache hit fell/, 'Global cache hit rate fell')
+  }
+
+  return s
+}
+
 /** Human-friendly impact label + sentence — mirrors notifier.rs::severity_context. */
 export function severityContext(
   alertType: string,

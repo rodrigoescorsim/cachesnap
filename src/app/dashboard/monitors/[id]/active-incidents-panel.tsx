@@ -16,6 +16,7 @@ import {
   metricUnit,
   severityContext,
   REGION_SUMMARY_PILL_LIMIT,
+  normalizeLegacyTrendDiagnosisCopy,
 } from './incident-display'
 
 export interface ActiveIncident {
@@ -56,6 +57,24 @@ interface ActiveIncidentsPanelProps {
 // Re-exported for backwards compatibility with existing imports and tests.
 export { alertTypeDisplay, formatDuration, formatMetricDelta }
 
+/** Sentinel region id for cross-region aggregates (matches `trend_baselines` / API). */
+const GLOBAL_AGG_REGION_ID = '__global__'
+
+function mergeRegionLabelsForDisplay(
+  regionLabels: Record<string, string>,
+): Record<string, string> {
+  return {
+    ...regionLabels,
+    [GLOBAL_AGG_REGION_ID]:
+      regionLabels[GLOBAL_AGG_REGION_ID] ?? 'All regions',
+  }
+}
+
+/** Older trend diagnoses prefixed with "[Global] " — redundant with global wording in diagnosis lines. */
+function stripLegacyGlobalPrefix(text: string): string {
+  return text.replace(/^\[Global\]\s+/i, '').trimStart()
+}
+
 function replaceRegionIds(
   text: string,
   regionLabels: Record<string, string>,
@@ -89,6 +108,8 @@ export function ActiveIncidentsPanel({
       </section>
     )
   }
+
+  const labelsMerged = mergeRegionLabelsForDisplay(regionLabels)
 
   return (
     <section aria-labelledby="active-incidents-list-heading" className="space-y-3">
@@ -126,10 +147,14 @@ export function ActiveIncidentsPanel({
           )
           const impact = severityContext(incident.alert_type)
           const diagnosis = incident.diagnosis
-            ? replaceRegionIds(incident.diagnosis, regionLabels).trim()
+            ? normalizeLegacyTrendDiagnosisCopy(
+                stripLegacyGlobalPrefix(
+                  replaceRegionIds(incident.diagnosis, labelsMerged).trim(),
+                ),
+              )
             : ''
           const action = incident.action
-            ? replaceRegionIds(incident.action, regionLabels).trim()
+            ? replaceRegionIds(incident.action, labelsMerged).trim()
             : ''
 
           const visibleRegions = incident.affected_regions.slice(
@@ -142,8 +167,12 @@ export function ActiveIncidentsPanel({
           )
           const hiddenRegionLabels = incident.affected_regions
             .slice(visibleRegions.length)
-            .map(r => regionLabels[r] ?? r)
+            .map(r => labelsMerged[r] ?? r)
             .join(', ')
+
+          const isGlobalAggregateOnly =
+            incident.affected_regions.length > 0 &&
+            incident.affected_regions.every(r => r === GLOBAL_AGG_REGION_ID)
 
           const strip = statusStripStyle(status.kind, severityKey)
 
@@ -170,12 +199,45 @@ export function ActiveIncidentsPanel({
                     </span>
                   )}
                 </div>
-                <span
-                  className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${sev.badge}`}
-                  aria-label={`Severity: ${severityKey}`}
-                >
-                  {severityKey}
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {isGlobalAggregateOnly && (
+                    <PremiumTooltip
+                      content={
+                        <span className="text-zinc-300">
+                          Aggregated across{' '}
+                          <span className="font-medium text-zinc-100">all probe regions</span> (global
+                          scope), not a single region.
+                        </span>
+                      }
+                      position="bottom-right"
+                      panelSizing="hug"
+                    >
+                      <span
+                        className="inline-flex cursor-default items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-widest bg-cyan-400/10 text-cyan-300 border border-cyan-400/20"
+                        aria-label="Global scope"
+                      >
+                        GLOBAL
+                      </span>
+                    </PremiumTooltip>
+                  )}
+                  <PremiumTooltip
+                    content={
+                      <span className="text-zinc-300">
+                        <span className={`font-semibold ${sev.text}`}>{impact.label}</span>
+                        <span className="text-zinc-500"> — {impact.note}</span>
+                      </span>
+                    }
+                    position="bottom-right"
+                    panelSizing="hug"
+                  >
+                    <span
+                      className={`inline-flex cursor-default items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${sev.badge}`}
+                      aria-label={`Severity: ${severityKey}`}
+                    >
+                      {severityKey}
+                    </span>
+                  </PremiumTooltip>
+                </div>
               </div>
 
               <div className="relative z-10 p-4 space-y-4">
@@ -193,19 +255,28 @@ export function ActiveIncidentsPanel({
                     </p>
                   </div>
 
-                  {incident.affected_regions.length > 0 && (
+                  {incident.affected_regions.length > 0 && !isGlobalAggregateOnly && (
                     <div className="flex flex-wrap items-center justify-end gap-1.5 shrink-0 max-w-[55%]">
                       <MapPin
                         className="h-3 w-3 text-zinc-500 shrink-0"
                         aria-hidden
                       />
                       {visibleRegions.map(r => (
-                        <span
+                        <PremiumTooltip
                           key={r}
-                          className="inline-flex items-center rounded-md bg-white/[0.025] px-1.5 py-0.5 text-[10px] font-medium text-zinc-400"
+                          content={
+                            <span className="text-zinc-300">
+                              Affected region:{' '}
+                              <span className="font-medium text-zinc-100">{labelsMerged[r] ?? r}</span>
+                            </span>
+                          }
+                          position="top-right"
+                          panelSizing="hug"
                         >
-                          {regionLabels[r] ?? r}
-                        </span>
+                          <span className="inline-flex cursor-default items-center rounded-md bg-white/[0.025] px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">
+                            {labelsMerged[r] ?? r}
+                          </span>
+                        </PremiumTooltip>
                       ))}
                       {hiddenRegionCount > 0 && (
                         <PremiumTooltip

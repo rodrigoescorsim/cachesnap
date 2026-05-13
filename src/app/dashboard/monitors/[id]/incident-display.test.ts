@@ -13,7 +13,54 @@ import {
   metricUnit,
   severityContext,
   REGION_SUMMARY_PILL_LIMIT,
+  normalizeLegacyTrendDiagnosisCopy,
 } from './incident-display'
+
+describe('normalizeLegacyTrendDiagnosisCopy (legacy DB diagnosis rows)', () => {
+  it('rewrites global TTFB trend copy to match current API wording', () => {
+    const legacy =
+      'TTFB increased 31.6% vs previous hour · all regions · 359ms now vs 273ms reference'
+    const out = normalizeLegacyTrendDiagnosisCopy(legacy)
+    expect(out).toBe(
+      'Global aggregate TTFB increased 31.6% vs previous hour — 359ms now vs 273ms reference',
+    )
+    expect(out).not.toContain('all regions')
+  })
+
+  it('rewrites global cache hit trend copy', () => {
+    const legacy =
+      'Cache hit fell 11.1 pp vs previous hour (14.2% relative) · all regions · 67.2% now vs 78.3% reference'
+    expect(normalizeLegacyTrendDiagnosisCopy(legacy)).toBe(
+      'Global cache hit rate fell 11.1 pp vs previous hour (14.2% relative) — 67.2% now vs 78.3% reference',
+    )
+  })
+
+  it('handles All regions label after region id substitution', () => {
+    const legacy =
+      'TTFB increased 10.0% vs previous hour · All regions · 400ms now vs 360ms reference'
+    expect(normalizeLegacyTrendDiagnosisCopy(legacy)).toContain('Global aggregate TTFB')
+    expect(normalizeLegacyTrendDiagnosisCopy(legacy)).not.toContain('All regions')
+  })
+
+  it('rewrites legacy __global__ segment in the middle', () => {
+    const legacy =
+      'TTFB increased 2.0% vs previous hour · __global__ · 100ms now vs 98ms reference'
+    const out = normalizeLegacyTrendDiagnosisCopy(legacy)
+    expect(out).toContain('Global aggregate TTFB')
+    expect(out).not.toContain('__global__')
+  })
+
+  it('is a no-op for regional trend copy', () => {
+    const regional =
+      'TTFB increased 5.0% vs previous hour · eu-west · 200ms now vs 190ms reference'
+    expect(normalizeLegacyTrendDiagnosisCopy(regional)).toBe(regional)
+  })
+
+  it('is a no-op for unrelated diagnosis text', () => {
+    const other = 'TTFB significantly above each region baseline.'
+    expect(normalizeLegacyTrendDiagnosisCopy(other)).toBe(other)
+  })
+})
 
 describe('REGION_SUMMARY_PILL_LIMIT', () => {
   it('matches notifier.rs format_region_summary cap (4 visible names)', () => {

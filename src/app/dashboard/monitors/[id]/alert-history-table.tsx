@@ -11,6 +11,7 @@ import {
   alertTypeSeverity,
   SEVERITY_STYLES,
   REGION_SUMMARY_PILL_LIMIT,
+  normalizeLegacyTrendDiagnosisCopy,
 } from './incident-display'
 
 interface AlertHistoryTableProps {
@@ -309,7 +310,10 @@ export function AlertHistoryTable({ alerts, regionLabels }: AlertHistoryTablePro
                               <div className="pl-0.5 text-[11px] leading-relaxed text-zinc-300">
                                 {(() => {
                                   const marker = 'Affected regions: '
-                                  const parts = parent.diagnosis!.split(marker)
+                                  const normalizedDiagnosis = normalizeLegacyTrendDiagnosisCopy(
+                                    parent.diagnosis!.trim(),
+                                  )
+                                  const parts = normalizedDiagnosis.split(marker)
                                   if (parts.length > 1) {
                                     const regions = parts[1]
                                       .replace(/\.$/, '')
@@ -352,7 +356,7 @@ export function AlertHistoryTable({ alerts, regionLabels }: AlertHistoryTablePro
                                       </div>
                                     )
                                   }
-                                  return parent.diagnosis
+                                  return normalizedDiagnosis
                                 })()}
                               </div>
                             </div>
