@@ -1,5 +1,5 @@
 /**
- * Pure helpers for the Edge Audit / bypass-audit component.
+ * Pure helpers for the Edge vs Origin view (`edge-vs-origin.tsx`).
  * Extracted here so they can be unit-tested without mounting React.
  */
 
@@ -40,19 +40,19 @@ export function resolveReason(readiness: AuditReadiness | null | undefined): str
 }
 
 /**
- * Banner body when Edge Audit is disabled. BYPASS/dynamic monitors keep the backend reason verbatim.
+ * Banner body when Edge vs Origin is disabled. BYPASS/dynamic monitors keep the backend reason verbatim.
  */
-export function edgeAuditDisabledBannerBody(readiness: AuditReadiness): string {
+export function edgeVsOriginDisabledBannerBody(readiness: AuditReadiness): string {
   const r = (readiness.reason ?? '').trim()
   if (/dynamic|BYPASS|cacheable content/i.test(r)) {
     return r
   }
-  return 'Edge Audit compares edge cache hits with origin misses. We need probe responses that expose cache or CDN signals (such as HIT/MISS, Age, or CDN-specific cache headers) across enough regions. Until that signal is visible, comparison stays off. Sites that strip or hide cache headers may never unlock this audit.'
+  return 'Edge vs Origin compares edge cache hits with origin misses. We need probe responses that expose cache or CDN signals (such as HIT/MISS, Age, or CDN-specific cache headers) across enough regions. Until that signal is visible, comparison stays off. Sites that strip or hide cache headers may never unlock Edge vs Origin.'
 }
 
 // ── Banner visibility ─────────────────────────────────────────────────────────
 
-/** Banner (reason card) should appear whenever audit is not fully enabled. */
+/** Banner (reason card) should appear whenever comparison is not fully enabled. */
 export function shouldShowBanner(readiness: AuditReadiness | null | undefined): boolean {
   const state = resolveReadinessState(readiness)
   return state !== 'enabled'
@@ -84,7 +84,7 @@ export function formatAuditBadge(readiness: AuditReadiness | null | undefined): 
 
 // ── CTA ───────────────────────────────────────────────────────────────────────
 
-/** Audit button should only be enabled when the system is fully active. */
+/** Manual refresh should only be emphasized when the system is fully active. */
 export function isAuditButtonEnabled(readiness: AuditReadiness | null | undefined): boolean {
   return resolveReadinessState(readiness) === 'enabled'
 }

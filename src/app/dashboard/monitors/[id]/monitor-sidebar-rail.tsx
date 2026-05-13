@@ -29,7 +29,7 @@ const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   performance: 'Performance',
   trends: 'Trends',
   patterns: 'Patterns',
-  infrastructure: 'Edge Audit',
+  infrastructure: 'Edge vs Origin',
 }
 
 const PERFORMANCE_VIEW_ICONS: Record<PerformanceView, typeof Activity> = {
@@ -69,9 +69,9 @@ export function MonitorSidebarRail({
   activeView,
   filteredAlertType,
 }: MonitorSidebarRailProps) {
-  const railWidth = 'w-full max-w-[150px] lg:w-[154px]'
-  const linkLayoutClass = 'justify-start gap-2.5'
-  const itemBaseClass = 'relative flex items-center rounded-xl px-2.5 py-2.5 text-xs font-bold leading-none transition-all duration-200 ease-out'
+  const railWidth = 'w-full max-w-[220px] sm:max-w-[220px] lg:w-[208px]'
+  const linkLayoutClass = 'justify-start items-start gap-2.5'
+  const itemBaseClass = 'relative flex rounded-xl px-2.5 py-2.5 text-xs font-bold leading-snug transition-all duration-200 ease-out'
   const itemListClass = 'space-y-1.5'
   const sectionClass = 'space-y-2.5'
   const iconClass = 'h-3.5 w-3.5'
@@ -97,7 +97,7 @@ export function MonitorSidebarRail({
                       className={`group ${itemBaseClass} ${linkLayoutClass} ${itemStateClass(false)}`}
                     >
                       <ChevronLeft
-                        className={`${iconClass} shrink-0 text-zinc-500 transition-colors duration-300 group-hover:text-zinc-300`}
+                        className={`${iconClass} mt-0.5 shrink-0 text-zinc-500 transition-colors duration-300 group-hover:text-zinc-300`}
                         aria-hidden
                       />
                       <span className="min-w-0 truncate">Monitors</span>
@@ -106,7 +106,7 @@ export function MonitorSidebarRail({
                 </ul>
               </section>
 
-              <section aria-label="Performance views, edge audit, and security" className={sectionClass}>
+              <section aria-label="Performance views, Edge vs Origin, and security" className={sectionClass}>
                 <div>
                   <p className={sectionLabelClass}>Monitoring</p>
                 </div>
@@ -122,11 +122,11 @@ export function MonitorSidebarRail({
                           className={`group ${itemBaseClass} ${linkLayoutClass} ${itemStateClass(isActive)}`}
                         >
                           <Icon
-                            className={`${iconClass} shrink-0 transition-colors duration-300 ${isActive ? 'text-metric-ttfb-fast' : 'text-zinc-500 group-hover:text-zinc-300'
+                            className={`${iconClass} mt-0.5 shrink-0 transition-colors duration-300 ${isActive ? 'text-metric-ttfb-fast' : 'text-zinc-500 group-hover:text-zinc-300'
                               }`}
                             aria-hidden
                           />
-                          <span className="min-w-0 truncate">{label}</span>
+                          <span className="min-w-0 flex-1 break-words text-left [overflow-wrap:anywhere]">{label}</span>
                         </Link>
                       </li>
                     )
@@ -138,11 +138,11 @@ export function MonitorSidebarRail({
                       className={`group ${itemBaseClass} ${linkLayoutClass} ${itemStateClass(activeTab === 'security')}`}
                     >
                       <Lock
-                        className={`${iconClass} shrink-0 transition-colors duration-300 ${activeTab === 'security' ? 'text-metric-ttfb-fast' : 'text-zinc-400 group-hover:text-zinc-300'
+                        className={`${iconClass} mt-0.5 shrink-0 transition-colors duration-300 ${activeTab === 'security' ? 'text-metric-ttfb-fast' : 'text-zinc-400 group-hover:text-zinc-300'
                           }`}
                         aria-hidden
                       />
-                      <span className="min-w-0 truncate">{TAB_LABELS.security}</span>
+                      <span className="min-w-0 flex-1 break-words text-left [overflow-wrap:anywhere]">{TAB_LABELS.security}</span>
                     </Link>
                   </li>
                 </ul>
@@ -164,11 +164,11 @@ export function MonitorSidebarRail({
                           className={`group ${itemBaseClass} ${linkLayoutClass} ${itemStateClass(isActive)}`}
                         >
                           <Icon
-                            className={`${iconClass} shrink-0 transition-colors duration-300 ${isActive ? 'text-metric-ttfb-fast' : 'text-zinc-400 group-hover:text-zinc-300'
+                            className={`${iconClass} mt-0.5 shrink-0 transition-colors duration-300 ${isActive ? 'text-metric-ttfb-fast' : 'text-zinc-400 group-hover:text-zinc-300'
                               }`}
                             aria-hidden
                           />
-                          <span className="min-w-0 truncate">{label}</span>
+                          <span className="min-w-0 flex-1 break-words text-left [overflow-wrap:anywhere]">{label}</span>
                         </Link>
                       </li>
                     )

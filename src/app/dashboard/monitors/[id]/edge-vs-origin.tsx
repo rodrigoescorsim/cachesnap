@@ -1,9 +1,7 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
-import { Clock, Zap, AlertTriangle, ChevronDown, ChevronUp, Gauge, ShieldAlert, Activity } from 'lucide-react'
-import { useParams } from 'next/navigation'
-import { MonitorDispatchButtons } from './monitor-dispatch-buttons'
+import { useState, useMemo } from 'react'
+import { Zap, AlertTriangle, ShieldAlert, Activity } from 'lucide-react'
 import { ViewSectionHeader } from '@/components/dashboard/dashboard-ui'
 import {
   BRAND_CARD_SURFACE_GRADIENT,
@@ -15,16 +13,14 @@ import {
   type AuditReadiness,
   resolveReadinessState,
   shouldShowBanner,
-  edgeAuditDisabledBannerBody,
+  edgeVsOriginDisabledBannerBody,
   formatAuditBadge,
   globalImpactEmptyStateCopy,
-  regionalBenefitPendingLabel,
-} from './bypass-audit.helpers'
-import { isCacheHit, isCacheMiss } from '@/lib/cache-utils'
+} from './edge-vs-origin.helpers'
 
 export type { AuditReadiness }
 
-interface BypassPoint {
+interface ComparisonBucket {
   hour: Date
   region: string
   edge_ttfb: number
@@ -36,12 +32,11 @@ interface BypassPoint {
   origin_cache_status: string
 }
 
-interface BypassAuditProps {
-  data: BypassPoint[]
+interface EdgeVsOriginProps {
+  data: ComparisonBucket[]
   regionLabels: Record<string, string>
   readiness: AuditReadiness
   isDown?: boolean
-  isDegraded?: boolean
 }
 
 const COMPARABLE_PAIRS_GATE = 8
@@ -57,30 +52,21 @@ function ReadinessBanner({ readiness, isOffline }: { readiness: AuditReadiness; 
       <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
       <div className="relative z-10 space-y-1 flex-1">
         <h3 className="text-[10px] font-black uppercase tracking-widest text-amber-400">
-          {isOffline ? 'Audit Paused — Site Offline' : 'Edge Audit Unavailable'}
+          {isOffline ? 'Comparison paused — site offline' : 'Edge vs Origin unavailable'}
         </h3>
         <p className="text-xs leading-relaxed font-medium text-amber-200/60">
-          {isOffline 
-            ? "Site is currently unreachable from probed regions. Edge Audit requires successful responses to compare cache performance. Check Diagnostics to troubleshoot connection issues."
-            : edgeAuditDisabledBannerBody(readiness)
-          }
+          {isOffline
+            ? 'Site is currently unreachable from probed regions. Edge vs Origin needs successful responses to compare edge and origin performance. Check Diagnostics to troubleshoot connection issues.'
+            : edgeVsOriginDisabledBannerBody(readiness)}
         </p>
       </div>
     </div>
   )
 }
 
-function AuditCTA({ readiness, monitorId }: { readiness: AuditReadiness; monitorId: string }) {
-  if (readiness.state !== 'enabled') return null
-  return <MonitorDispatchButtons monitorId={monitorId} variant="compact" />
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded }: BypassAuditProps) {
-  const { id } = useParams()
-  const monitorId = id as string
-
+export function EdgeVsOrigin({ data, regionLabels, readiness, isDown }: EdgeVsOriginProps) {
   const badge = formatAuditBadge(readiness)
   const readinessState = resolveReadinessState(readiness)
 
@@ -168,7 +154,7 @@ export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded 
   // Global Impact: Compare average of Edge Hits vs Origin Misses in comparable regions
   const comparableRegions = aggregatedData.filter(r => r.edge_hits > 0 && r.origin_misses > 0)
 
-  /** Buckets (e.g. hour × region) that have both edge HIT samples and origin MISS samples — required for a real audit signal. */
+  /** Buckets (e.g. hour × region) that have both edge HIT samples and origin MISS samples — required for a real comparison signal. */
   const comparableRowsInPeriod = useMemo(
     () =>
       filteredData.filter(
@@ -215,7 +201,7 @@ export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded 
   const hasData = filteredData.length > 0
   const hasAnyData = data.length > 0
 
-  // "Active" must reflect measurable edge HIT vs origin MISS — not merely enough audit rows with MISS-only data.
+  // "Active" must reflect measurable edge HIT vs origin MISS — not merely enough rows with MISS-only data.
   const isLiveActive =
     comparableRowsInPeriod >= COMPARABLE_PAIRS_GATE &&
     comparableRegions.length >= COMPARABLE_REGIONS_GATE
@@ -238,13 +224,13 @@ export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded 
         title={
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-2">
-              <span>How much your Edge is actually delivering</span>
+              <span>Edge vs Origin</span>
               <span className="text-zinc-600 font-bold uppercase tracking-widest text-[11px] opacity-60">·</span>
               <span className="text-zinc-500 font-black uppercase tracking-widest text-[11px]">
                 {period}
               </span>
             </div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">Edge Audit Baseline</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">Edge cache vs origin fetch</span>
           </div>
         }
         showDot={true}
@@ -276,7 +262,7 @@ export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded 
             <div className="space-y-2">
               <div className="flex items-center gap-3">
                 <div className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">
-                  Edge Benefit (HIT vs Origin)
+                  Latency (edge HIT vs origin MISS)
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="h-1 w-1 rounded-full bg-zinc-700" />
@@ -338,34 +324,34 @@ export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded 
             <div className="flex flex-col sm:items-end gap-1.5 px-6 sm:border-l border-white/5">
               <div className="flex items-center gap-2 font-black text-zinc-400 text-[10px] uppercase tracking-widest">
                 <span className={`h-2 w-2 rounded-full ${comparableRegions.length > 0 ? 'bg-[var(--brand-primary)] animate-pulse' : 'bg-zinc-700'}`} />
-                Real Delivery Analysis
+                Comparison signal
               </div>
               <p className="text-[11px] text-zinc-500 max-w-[280px] sm:text-right leading-relaxed font-medium">
                 {comparableRegions.length > 0
-                  ? `Analyzing average performance across ${comparableRegions.length} regions with ${totalSamples} audit samples in the last ${period}.`
-                  : `Waiting for infrastructure telemetry to establish a performance baseline.`}
+                  ? `Analyzing average performance across ${comparableRegions.length} regions with ${totalSamples} comparison samples in the last ${period}.`
+                  : 'Waiting for enough paired edge and origin samples to establish a baseline.'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Edge Advisor Card */}
+        {/* Regional highlights */}
         {comparableRegions.length > 0 && (
           <div className="cs-card px-6 py-4 border-t-0 bg-white/[0.02]">
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="space-y-1">
                 <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
                   <Activity className="w-3 h-3 text-[var(--brand-primary)]" />
-                  Edge Advisor Summary
+                  Regional summary
                 </h4>
                 <p className="text-xs text-zinc-500 font-medium leading-relaxed">
-                  Leveraging edge effectively across most regions. 
-                  {bestRegion && ` Max benefit: ${regionLabels[bestRegion.region] ?? bestRegion.region} (+${Math.round(((bestRegion.origin_ttfb - bestRegion.edge_ttfb) / bestRegion.origin_ttfb) * 100)}% faster).`}
+                  Leveraging edge effectively across most regions.
+                  {bestRegion && ` Strongest gain: ${regionLabels[bestRegion.region] ?? bestRegion.region} (+${Math.round(((bestRegion.origin_ttfb - bestRegion.edge_ttfb) / bestRegion.origin_ttfb) * 100)}% faster vs origin).`}
                 </p>
               </div>
               <div className="flex items-center gap-4 border-l border-white/5 pl-6">
                 <div className="space-y-0.5">
-                  <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest block">Next Target</span>
+                  <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest block">Next target</span>
                   <p className="text-[11px] text-zinc-400 font-bold">
                     {worstRegion && worstRegion !== bestRegion ? (() => {
                       const saving = Math.round(((worstRegion.origin_ttfb - worstRegion.edge_ttfb) / worstRegion.origin_ttfb) * 100);
@@ -389,9 +375,9 @@ export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded 
             <div className="cs-card-wash opacity-40" />
             <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5" />
             <div className="relative z-10 space-y-1">
-              <h3 className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Partial Signal Optimization</h3>
+              <h3 className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Partial signal</h3>
               <p className="text-xs leading-relaxed text-amber-200/60 font-medium">
-                Could not obtain Origin metrics in some regions due to infrastructure optimizations (Forced Hits).
+                Could not obtain Origin metrics in some regions due to infrastructure optimizations (forced CDN hits).
               </p>
             </div>
           </div>
@@ -413,7 +399,7 @@ export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded 
                     </th>
                     <th className="px-4 py-3 text-right">
                       <PremiumTooltip content="Average TTFB when the CDN must fetch content directly from your origin server.">
-                        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest cursor-help border-b border-zinc-800 hover:border-zinc-600 transition-colors">Origin (Direct)</span>
+                        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest cursor-help border-b border-zinc-800 hover:border-zinc-600 transition-colors">Origin (direct)</span>
                       </PremiumTooltip>
                     </th>
                     <th className="px-4 py-3 text-right">
@@ -453,8 +439,8 @@ export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded 
                         <td className="px-4 py-4">
                           <div className="flex items-center gap-2">
                             <span className="text-zinc-200 font-bold">{regionLabels[row.region] ?? row.region}</span>
-                            {isBest && <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest border border-emerald-500/30 px-1.5 py-0.5 rounded leading-none">Max Edge Benefit</span>}
-                            {isWorst && <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest border border-amber-500/20 px-1.5 py-0.5 rounded leading-none">Low Edge Benefit</span>}
+                            {isBest && <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest border border-emerald-500/30 px-1.5 py-0.5 rounded leading-none">Top edge gain</span>}
+                            {isWorst && <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest border border-amber-500/20 px-1.5 py-0.5 rounded leading-none">Lowest edge gain</span>}
                           </div>
                         </td>
 
@@ -483,7 +469,7 @@ export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded 
                           </div>
                         </td>
 
-                        {/* Origin (Direct) Column */}
+                        {/* Origin (direct) Column */}
                         <td className="px-4 py-4 text-right">
                           <div className="flex items-center justify-end gap-2.5">
                             {hasOriginMisses ? (
@@ -541,7 +527,7 @@ export function BypassAudit({ data, regionLabels, readiness, isDown, isDegraded 
           </div>
         ) : hasAnyData ? (
           <div className="cs-card cs-card-glass p-12 text-center border-dashed border-white/5 bg-white/[0.01]">
-            <p className="text-sm text-zinc-400 italic">No audit samples detected in the last {period}.</p>
+            <p className="text-sm text-zinc-400 italic">No comparison samples detected in the last {period}.</p>
             <p className="text-[10px] text-zinc-500 mt-2 uppercase tracking-widest font-bold">Try selecting a broader timeframe.</p>
           </div>
         ) : null}

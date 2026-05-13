@@ -10,9 +10,9 @@ import {
   formatSnapshotReadiness,
   globalImpactEmptyStateCopy,
   regionalBenefitPendingLabel,
-  edgeAuditDisabledBannerBody,
+  edgeVsOriginDisabledBannerBody,
   type AuditReadiness,
-} from './bypass-audit.helpers'
+} from './edge-vs-origin.helpers'
 
 function makeReadiness(overrides: Partial<AuditReadiness> = {}): AuditReadiness {
   return {
@@ -63,20 +63,21 @@ describe('resolveReason', () => {
   })
 })
 
-// ── edgeAuditDisabledBannerBody ────────────────────────────────────────────────
+// ── edgeVsOriginDisabledBannerBody ─────────────────────────────────────────────
 
-describe('edgeAuditDisabledBannerBody', () => {
+describe('edgeVsOriginDisabledBannerBody', () => {
   it('returns backend reason for dynamic / BYPASS monitors', () => {
     const msg = 'Target URL is consistently dynamic (BYPASS).'
-    expect(edgeAuditDisabledBannerBody(makeReadiness({ reason: msg }))).toBe(msg)
+    expect(edgeVsOriginDisabledBannerBody(makeReadiness({ reason: msg }))).toBe(msg)
   })
 
   it('returns canonical cache-signal copy for generic disabled reasons', () => {
-    const body = edgeAuditDisabledBannerBody(
+    const body = edgeVsOriginDisabledBannerBody(
       makeReadiness({ reason: 'Insufficient data — waiting for probes from all regions.' }),
     )
     expect(body).toContain('HIT/MISS')
     expect(body).toContain('strip or hide')
+    expect(body).toContain('Edge vs Origin')
   })
 })
 

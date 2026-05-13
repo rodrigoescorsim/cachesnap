@@ -259,7 +259,7 @@ export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): A
     }
 
     const actions: AdvisorAction[] = []
-    actions.push({ label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', '24h', monitorId) })
+    actions.push({ label: `Edge vs Origin — ${host}`, href: buildViewHref('infrastructure', '24h', monitorId) })
     actions.push({ label: `Analyze ${host} Performance`, href: buildViewHref('performance', '24h', monitorId) })
 
     // If cache hit is critically low (<50%), it's a critical issue unless explicitly bypassed/dynamic (which might be intended)
@@ -294,7 +294,7 @@ export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): A
 
     const actions: AdvisorAction[] = []
     if (hasLiveCacheData) {
-      actions.push({ label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', '24h', monitorId) })
+      actions.push({ label: `Edge vs Origin — ${host}`, href: buildViewHref('infrastructure', '24h', monitorId) })
     }
 
     return {
@@ -362,7 +362,7 @@ export function deriveMonitorDetailLiveAdvisor(input: MonitorDetailLiveInput): A
   if (slowRegionCount > 0) {
     const actions: AdvisorAction[] = []
     if (hasLiveCacheData) {
-      actions.push({ label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', '24h', monitorId) })
+      actions.push({ label: `Edge vs Origin — ${host}`, href: buildViewHref('infrastructure', '24h', monitorId) })
     }
 
     return {
@@ -462,7 +462,7 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
       body: `Most requests are hitting the origin server directly, causing significant load and latency issues.`,
       recommendation: "Review Cache-Control headers and edge rules to improve CDN hit rate.",
       actions: [
-        { label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', range, monitorId) },
+        { label: `Edge vs Origin — ${host}`, href: buildViewHref('infrastructure', range, monitorId) },
         { label: `Analyze ${host} Performance`, href: buildViewHref('performance', range, monitorId) },
       ],
     }
@@ -481,7 +481,7 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
       recommendation: "Investigate origin server response times or geographic distribution issues.",
       actions: [
         { label: `Analyze ${host} Trends`, href: buildViewHref('trends', range, monitorId) },
-        { label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', range, monitorId) },
+        { label: `Edge vs Origin — ${host}`, href: buildViewHref('infrastructure', range, monitorId) },
       ],
     }
   }
@@ -495,7 +495,7 @@ export function deriveMonitorPerformancePeriodAdvisor(input: MonitorPerformanceP
       recommendation: "Investigate recent origin infrastructure changes or network route changes.",
       actions: [
         { label: `Analyze ${host} Trends`, href: buildViewHref('trends', range, monitorId) },
-        { label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', range, monitorId) },
+        { label: `Edge vs Origin — ${host}`, href: buildViewHref('infrastructure', range, monitorId) },
       ],
     }
   }
@@ -675,7 +675,7 @@ export function deriveMonitorPatternsAdvisor(input: MonitorPatternsAdvisorInput)
       recommendation: "Pre-warm the CDN cache before peak hours or scale origin capacity to handle demand.",
       actions: [
         { label: `Analyze ${host} Performance`, href: buildViewHref('performance', range, monitorId) },
-        { label: `Audit ${host} Edge`, href: buildViewHref('infrastructure', range, monitorId) },
+        { label: `Edge vs Origin — ${host}`, href: buildViewHref('infrastructure', range, monitorId) },
       ],
     }
   }

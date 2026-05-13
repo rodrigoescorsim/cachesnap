@@ -151,7 +151,7 @@ export function deriveInsights(monitors: Monitor[]): Insight[] {
         title:       'High cache miss rate',
         description: `${safeHostname(worstCache.url)} has only ${hit}% cache hits (1h rolling average). Add Cache-Control: public, s-maxage=300 to origin responses to improve CDN efficiency.`,
         metric:      `${hit}% hit`,
-        actionLabel: 'Check Edge Audit',
+        actionLabel: 'Open Edge vs Origin',
         actionHref:  buildViewHref('infrastructure', '24h', worstCache.id),
       })
     }

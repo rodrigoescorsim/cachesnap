@@ -195,7 +195,7 @@ const PERFORMANCE_VIEW_LABELS: Record<PerformanceView, string> = {
   performance: 'Performance',
   trends: 'Trends',
   patterns: 'Patterns',
-  infrastructure: 'Edge Audit',
+  infrastructure: 'Edge vs Origin',
 }
 
 /** Monitor title card — subtle top wash + glass (Vercel-style). Densidade ~tool (menos padding vertical). */
@@ -507,7 +507,7 @@ function formatMs(value: number | null): string {
   return `${Math.round(value)}ms`
 }
 
-import { BypassAudit } from './bypass-audit'
+import { EdgeVsOrigin } from './edge-vs-origin'
 import { AdvisorCard } from '@/components/advisor/advisor-card'
 import { deriveMonitorDetailLiveAdvisor, deriveMonitorPerformancePeriodAdvisor, deriveMonitorTrendsAdvisor, deriveMonitorPatternsAdvisor, deriveMonitorSecurityAdvisor } from '@/components/advisor/advisor-card.helpers'
 
@@ -854,7 +854,7 @@ export default async function MonitorDetailPage({
       `
     : []
 
-  // Readiness state para o motor de Edge Audit (migration 026)
+  // Readiness state for Edge vs Origin (migration 026)
   type ReadinessRow = {
     state: string; reason: string | null;
     comparable_pairs: number; comparable_regions: number;
@@ -2042,7 +2042,7 @@ export default async function MonitorDetailPage({
 
               {activeView === 'infrastructure' && (
                 <div className="space-y-8">
-                  <BypassAudit
+                  <EdgeVsOrigin
                     data={hourlyBypass.map(d => ({
                       ...d,
                       edge_cache_status: d.edge_cache_status || 'UNKNOWN',
@@ -2050,7 +2050,6 @@ export default async function MonitorDetailPage({
                     }))}
                     regionLabels={regionLabels}
                     isDown={isDown}
-                    isDegraded={isDegraded}
                     readiness={auditReadiness ? {
                       state: auditReadiness.state as 'disabled' | 'warmup' | 'enabled',
                       reason: auditReadiness.reason,

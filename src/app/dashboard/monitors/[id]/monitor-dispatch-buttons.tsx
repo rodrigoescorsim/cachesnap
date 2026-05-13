@@ -72,7 +72,7 @@ export function MonitorDispatchButtons({
           setCooldown(cooldownPeriod)
           router.refresh()
         } else {
-          setError('Failed to launch full audit')
+          setError('Failed to launch Edge vs Origin probes')
         }
       } catch {
         setError('Connection failure')
@@ -131,9 +131,9 @@ export function MonitorDispatchButtons({
               {cooldown > 0
                 ? `Cooldown ${cooldown}s`
                 : isPending
-                  ? 'Auditing Now...'
+                  ? 'Comparing...'
                   : isAudit
-                    ? 'Audit Now'
+                    ? 'Compare now'
                     : isCompact
                       ? 'Refresh Now'
                       : 'Refresh'

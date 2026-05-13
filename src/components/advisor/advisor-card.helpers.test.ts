@@ -319,9 +319,9 @@ describe('deriveMonitorDetailLiveAdvisor', () => {
     expect(result?.body).toContain('+50%')
   })
 
-  it('critical actions use "Audit example.com Edge"', () => {
+  it('critical actions use "Edge vs Origin — example.com"', () => {
     const result = deriveMonitorDetailLiveAdvisor(makeLiveInput({ liveAvgTtfb: 1200 }))
-    expect(result?.actions.map(a => a.label)).toContain('Audit example.com Edge')
+    expect(result?.actions.map(a => a.label)).toContain('Edge vs Origin — example.com')
     expect(result?.actions).toHaveLength(1)
   })
 
@@ -479,10 +479,10 @@ describe('deriveMonitorPerformancePeriodAdvisor', () => {
     expect(result?.actions).toHaveLength(0)
   })
 
-  it('critical actions use "Analyze example.com Trends" and "Audit example.com Edge"', () => {
+  it('critical actions use "Analyze example.com Trends" and "Edge vs Origin — example.com"', () => {
     const result = deriveMonitorPerformancePeriodAdvisor(makePerf({ avgTtfb: 300, prevAvgTtfb: 200 }))
     expect(result?.actions.map(a => a.label)).toContain('Analyze example.com Trends')
-    expect(result?.actions.map(a => a.label)).toContain('Audit example.com Edge')
+    expect(result?.actions.map(a => a.label)).toContain('Edge vs Origin — example.com')
   })
 })
 
