@@ -166,7 +166,7 @@ async fn test_ttfb_threshold_aggregation() {
     .bind(monitor_id)
     .fetch_one(&state.db).await.unwrap();
 
-    // May be 0 if sensitivity=3 requires consecutive breaches not yet present; still tests no panic
+    // High sensitivity (3): instant limit alert; incident count may vary with timing; still tests no panic
     let _ = incident_count;
 
     cleanup(&state, monitor_id, user_id).await;

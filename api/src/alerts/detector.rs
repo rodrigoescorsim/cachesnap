@@ -151,9 +151,9 @@ pub async fn check_probe_alerts(state: AppState, payload: ProbeResultPayload) {
 
     if ttfb_over_threshold && cfg.alert_ttfb_enabled {
         let consecutive_limit = match cfg.alert_sensitivity {
-            1 => 3,
-            2 => 2,
-            _ => 1,
+            1 => 5, // Low — require 5 recent probes over the TTFB limit
+            2 => 3, // Medium — require 3 recent probes
+            _ => 1, // High — instant (see count_consecutive_breaches when limit <= 1)
         };
         let breach_count = count_consecutive_breaches(
             &state,
