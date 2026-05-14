@@ -22,6 +22,7 @@ export type PerformanceView = 'real-time' | 'performance' | 'trends' | 'patterns
 
 export type AlertType =
   | 'down'
+  | 'slow_timeout'
   | 'ttfb_limit'
   | 'ttfb_anomaly'
   | 'anycast'
@@ -35,7 +36,7 @@ export type AlertType =
   | 'ttfb_trend_down_global'
 
 export const VALID_ALERT_TYPES = [
-  'down', 'ttfb_limit', 'ttfb_anomaly', 'anycast', 'cache_age_alert', 'cache_hit_low',
+  'down', 'slow_timeout', 'ttfb_limit', 'ttfb_anomaly', 'anycast', 'cache_age_alert', 'cache_hit_low',
   'cache_hit_trend_drop_region', 'cache_hit_trend_drop_global',
   'ttfb_trend_up_region', 'ttfb_trend_up_global',
   'ttfb_trend_down_region', 'ttfb_trend_down_global',
@@ -43,6 +44,7 @@ export const VALID_ALERT_TYPES = [
 
 export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   down: 'Monitor Down',
+  slow_timeout: 'Slow Response (Probe Timeout)',
   ttfb_limit: 'TTFB Above Limit',
   ttfb_anomaly: 'TTFB Anomaly',
   anycast: 'Anycast Issue',

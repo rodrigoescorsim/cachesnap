@@ -73,6 +73,10 @@ describe('alertTypeSeverity (mirrors notifier severity tiers)', () => {
     expect(alertTypeSeverity('down')).toBe('critical')
   })
 
+  it('maps slow_timeout to high (not critical — probe failure, not site failure)', () => {
+    expect(alertTypeSeverity('slow_timeout')).toBe('high')
+  })
+
   it('maps ttfb_limit and ttfb_anomaly to high', () => {
     expect(alertTypeSeverity('ttfb_limit')).toBe('high')
     expect(alertTypeSeverity('ttfb_anomaly')).toBe('high')
@@ -235,6 +239,7 @@ describe('alertTypeDisplay', () => {
   it('renders all known slugs with no snake_case', () => {
     const slugs = [
       'down',
+      'slow_timeout',
       'ttfb_limit',
       'ttfb_anomaly',
       'cache_hit_low',
@@ -258,5 +263,10 @@ describe('alertTypeDisplay', () => {
   it('falls back to "Unknown Alert" for unrecognised slugs', () => {
     expect(alertTypeDisplay('xpto')).toBe('Unknown Alert')
     expect(alertTypeDisplay('')).toBe('Unknown Alert')
+  })
+
+  it('renders slow_timeout with the explicit "Probe Timeout" label', () => {
+    // Mirrors api/src/alerts/severity.rs::alert_type_display("slow_timeout")
+    expect(alertTypeDisplay('slow_timeout')).toBe('Slow Response (Probe Timeout)')
   })
 })

@@ -9,6 +9,10 @@ export const REGION_SUMMARY_PILL_LIMIT = 4
 
 export const ALERT_TYPE_DISPLAY: Record<string, string> = {
   down: 'Monitor Down',
+  // Probe timed out before the site responded. Separate from `down` so that
+  // slow-but-alive sites do not raise a CRITICAL incident. See
+  // api/src/alerts/severity.rs::alert_type_display.
+  slow_timeout: 'Slow Response (Probe Timeout)',
   ttfb_limit: 'TTFB Above Limit',
   ttfb_anomaly: 'TTFB Anomaly',
   cache_hit_low: 'Low Cache Hit Rate',
@@ -53,7 +57,13 @@ export const SEVERITY_STYLES: Record<string, { badge: string; text: string; ring
 /** Maps alert_type slug to severity tier — mirrors api/src/alerts/severity.rs::alert_severity. */
 export function alertTypeSeverity(alertType: string): 'critical' | 'high' | 'medium' | 'low' {
   if (alertType === 'down') return 'critical'
-  if (alertType === 'ttfb_limit' || alertType === 'ttfb_anomaly') return 'high'
+  if (
+    alertType === 'ttfb_limit' ||
+    alertType === 'ttfb_anomaly' ||
+    alertType === 'slow_timeout'
+  ) {
+    return 'high'
+  }
   if (
     alertType === 'cache_hit_low' ||
     alertType === 'cache_hit_trend_drop_region' ||

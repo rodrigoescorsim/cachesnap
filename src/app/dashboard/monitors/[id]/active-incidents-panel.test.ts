@@ -43,6 +43,7 @@ describe('formatDuration', () => {
 describe('alertTypeDisplay', () => {
   const knownTypes = [
     ['down', 'Monitor Down'],
+    ['slow_timeout', 'Slow Response (Probe Timeout)'],
     ['ttfb_limit', 'TTFB Above Limit'],
     ['ttfb_anomaly', 'TTFB Anomaly'],
     ['cache_hit_low', 'Low Cache Hit Rate'],
