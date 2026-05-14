@@ -518,6 +518,32 @@ describe('deriveMonitorTrendsAdvisor', () => {
     expect(result?.headline).toBe('3 latency spikes')
   })
 
+  it('suppresses spike warning on fresh monitors with too few buckets', () => {
+    const result = deriveMonitorTrendsAdvisor({
+      url: 'x.com', range: '1h', spikeCount: 1, totalBuckets: 2, hasHistory: false, worstRegion: null,
+    })
+    expect(result?.severity).toBe('good')
+    expect(result?.headline).toBe('No spikes detected')
+  })
+
+  it('attributes spikes to specific regions when provided (single region)', () => {
+    const result = deriveMonitorTrendsAdvisor({
+      url: 'x.com', range: '1h', spikeCount: 1, totalBuckets: 4,
+      spikeRegions: ['São Paulo'], hasHistory: true, worstRegion: null,
+    })
+    expect(result?.severity).toBe('warning')
+    expect(result?.body).toContain('São Paulo')
+    expect(result?.recommendation).toContain('São Paulo')
+  })
+
+  it('attributes spikes to multiple regions when provided', () => {
+    const result = deriveMonitorTrendsAdvisor({
+      url: 'x.com', range: '1h', spikeCount: 4, totalBuckets: 4,
+      spikeRegions: ['São Paulo', 'Tokyo', 'Mumbai'], hasHistory: true, worstRegion: null,
+    })
+    expect(result?.body).toContain('São Paulo, Tokyo and 1 more')
+  })
+
   it('returns warning for significant regional regression', () => {
     const result = deriveMonitorTrendsAdvisor({ url: 'x.com', range: '24h', spikeCount: 0, hasHistory: true, worstRegion: { label: 'Tokyo', changePct: 25 } })
     expect(result?.severity).toBe('warning')

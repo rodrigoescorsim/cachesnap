@@ -578,8 +578,30 @@ export type MonitorTrendsAdvisorInput = {
   url: string
   range: string
   spikeCount: number
+  /** Unique region labels where spikes occurred (for attribution in the body). */
+  spikeRegions?: string[]
+  /** Total distinct time buckets currently rendered in the Trends chart. */
+  totalBuckets?: number
   hasHistory: boolean
   worstRegion: { label: string; changePct: number } | null
+}
+
+/**
+ * Minimum number of time buckets required before showing a spike warning.
+ * Below this, a single noisy reading on a fresh monitor would generate a false positive
+ * (the LAG() comparison only needs 2 buckets per region to flag a spike).
+ */
+const MIN_BUCKETS_FOR_SPIKE_WARNING = 4
+
+/**
+ * Format a list of region labels for inline display.
+ * 1 region → "São Paulo"; 2 → "São Paulo and Tokyo"; ≥3 → "São Paulo, Tokyo and 2 more".
+ */
+function formatRegionList(regions: string[]): string {
+  if (regions.length === 0) return ''
+  if (regions.length === 1) return regions[0]
+  if (regions.length === 2) return `${regions[0]} and ${regions[1]}`
+  return `${regions[0]}, ${regions[1]} and ${regions.length - 2} more`
 }
 
 /**
@@ -588,7 +610,8 @@ export type MonitorTrendsAdvisorInput = {
  */
 export function deriveMonitorTrendsAdvisor(input: MonitorTrendsAdvisorInput): AdvisorState | null {
   const host = hostname(input.url)
-  const hasSpikes = input.spikeCount > 0
+  const enoughBuckets = (input.totalBuckets ?? Infinity) >= MIN_BUCKETS_FOR_SPIKE_WARNING
+  const hasSpikes = enoughBuckets && input.spikeCount > 0
   const significantRegression = input.worstRegion && input.worstRegion.changePct > 20
 
   if (!input.hasHistory && !hasSpikes) {
@@ -604,8 +627,17 @@ export function deriveMonitorTrendsAdvisor(input: MonitorTrendsAdvisorInput): Ad
     if (hasSpikes) parts.push(`${input.spikeCount} latency spike${input.spikeCount > 1 ? 's' : ''}`)
     if (significantRegression) parts.push(`Regional regression`)
 
+    const regionList = formatRegionList(input.spikeRegions ?? [])
+
     const bodyParts: string[] = []
-    if (hasSpikes) bodyParts.push(`${input.spikeCount} significant latency spike${input.spikeCount > 1 ? 's were' : ' was'} detected for ${host} in the last ${input.range}.`)
+    if (hasSpikes) {
+      const subject = `${input.spikeCount} significant latency spike${input.spikeCount > 1 ? 's were' : ' was'} detected`
+      bodyParts.push(
+        regionList
+          ? `${subject} in ${regionList} for ${host} in the last ${input.range}.`
+          : `${subject} for ${host} in the last ${input.range}.`,
+      )
+    }
     if (significantRegression) bodyParts.push(`${input.worstRegion!.label} performance degraded by ${input.worstRegion!.changePct}% week-over-week.`)
 
     const causes: string[] = []
@@ -624,7 +656,9 @@ export function deriveMonitorTrendsAdvisor(input: MonitorTrendsAdvisorInput): Ad
       causes,
       recommendation: significantRegression
         ? `Investigate edge cache hits and routing in ${input.worstRegion!.label}. Verify recent deployments.`
-        : "Investigate backend logs or external dependencies during spike periods.",
+        : hasSpikes && regionList
+          ? `Investigate backend logs or external dependencies serving ${regionList} during the spike windows.`
+          : "Investigate backend logs or external dependencies during spike periods.",
       actions: [],
     }
   }
