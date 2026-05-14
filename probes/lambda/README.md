@@ -23,7 +23,7 @@ Replaces the Cloudflare Worker probes with region-pinned infrastructure.
 4. Set environment variables:
    - `PROBE_SECRET`: your shared secret (same as `.env`)
    - `REGION`: one of `sa-east`, `us-east`, `eu-west`, `ap-east`, `oc`
-5. Set timeout to **35 seconds** (Configuration → General). The internal HTTP budgets (25s main request + 10s redirect chain + 10s ingest report — see `index.mjs` constants) must always fit inside the runtime timeout with headroom.
+5. Set timeout to **35 seconds** (Configuration → General). The probe enforces an internal soft deadline of **27s** for all measurement phases (`PROBE_DEADLINE_MS` in `index.mjs`), leaving ~8s reserved for the ingest POST. This guarantees the Lambda can always report a classified `timeout:` error to CacheSnap instead of being killed mid-flight by AWS.
 6. Enable **Function URL** with Auth type: NONE
 7. Repeat for each region
 

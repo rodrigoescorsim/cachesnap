@@ -738,6 +738,24 @@ mod tests {
             classify_probe_failure(Some("timeout: ..."), Some(200)),
             ProbeFailureClass::SlowTimeout
         );
+
+        // Internal deadline errors emitted by the Lambda when PROBE_DEADLINE_MS
+        // is crossed before a measurement phase even starts. The handler always
+        // tags these with the `timeout:` prefix so the classifier picks them up
+        // exactly like a regular socket timeout.
+        for variant in [
+            "timeout: Probe exceeded internal deadline (27s) before redirect check",
+            "timeout: Probe exceeded internal deadline (27s) before bypass measurement",
+            "timeout: Probe exceeded internal deadline (27s) before normal measurement",
+            "timeout: Probe exceeded internal deadline (27s)",
+        ] {
+            assert_eq!(
+                classify_probe_failure(Some(variant), None),
+                ProbeFailureClass::SlowTimeout,
+                "deadline variant `{}` must classify as SlowTimeout",
+                variant,
+            );
+        }
     }
 
     #[test]
