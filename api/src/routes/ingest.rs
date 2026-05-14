@@ -19,7 +19,7 @@ pub async fn handler(
 
     // Trava de Segurança: Rejeitar probes antigos (ex: Cloudflare Workers fantasmas)
     let version = payload.probe_version.as_deref().unwrap_or("old");
-    if version != "1.28" {
+    if version != "1.29" {
         tracing::warn!("Ingest: rejected stale probe version '{}' from region {}", version, payload.region);
         // Contar rejeição por versão como falha de ingest (visível no SLO de Ingest Success Rate)
         let region = payload.region.clone();
