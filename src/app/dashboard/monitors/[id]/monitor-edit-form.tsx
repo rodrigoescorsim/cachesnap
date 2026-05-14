@@ -152,7 +152,7 @@ export function MonitorEditForm({
       if (isNaN(n) || n < min || n > 30000) return `Must be between ${min} and 30 000 ms`
     }
     if (field === 'alert_sensitivity') {
-      if (![1, 2, 3].includes(Number(value))) return 'Invalid anomaly sensitivity'
+      if (![1, 2, 3].includes(Number(value))) return 'Invalid TTFB alert sensitivity'
     }
     if (field === 'alert_cache_age_threshold_hours') {
       const n = Number(value)
@@ -521,7 +521,7 @@ export function MonitorEditForm({
           <h3 className="cs-section-header">Alert triggers</h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
-            {/* LEFT: TTFB alerts + anomaly sensitivity */}
+            {/* LEFT: TTFB alerts + shared TTFB alert sensitivity */}
             <div className="space-y-4">
               {/* TTFB Above Limit alert toggle */}
               <div className="flex items-start gap-3">
@@ -555,13 +555,13 @@ export function MonitorEditForm({
                 </label>
               </div>
 
-              {/* Anomaly alert sensitivity — applies to TTFB above-limit streaks and anomaly sigma */}
+              {/* TTFB alert sensitivity: consecutive breaches (Above Limit) + sigma vs baseline (Anomaly) */}
               <div className="pt-4 border-t border-white/5">
-                <p className="text-xs font-bold text-zinc-300 mb-1">Anomaly alert sensitivity</p>
+                <p className="text-xs font-bold text-zinc-300 mb-1">TTFB Alert Sensitivity</p>
                 <p className="text-[11px] text-zinc-500 mb-2 leading-relaxed">
-                  Controls how fast we alert on slow responses and unusual spikes vs your 7-day average.{' '}
-                  <span className="text-zinc-400">Low</span> sends fewer alerts;{' '}
-                  <span className="text-zinc-400">High</span> reacts sooner with more alerts.
+                  One setting for <span className="text-zinc-400">TTFB Above Limit</span> and{' '}
+                  <span className="text-zinc-400">TTFB Anomaly</span>: <span className="text-zinc-400">Low</span> sends fewer alerts,{' '}
+                  <span className="text-zinc-400">High</span> reacts sooner.
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   {([
