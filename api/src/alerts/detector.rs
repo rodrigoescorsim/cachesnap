@@ -5,7 +5,95 @@ use crate::{
     AppState,
 };
 use std::time::Duration;
-use tracing::error;
+use tracing::{error, info};
+
+// ─── Probe Failure Classification ─────────────────────────────────────────────
+//
+// A probe row can fail in fundamentally different ways and we must not collapse
+// them into one bucket. Before this classifier, ANY `error` or `status_code >=
+// 500` triggered a CRITICAL "Monitor Down" — which created ~90% false positives
+// because the lambda's internal timeout treats slow sites as failures.
+//
+// Buckets:
+//   - Application5xx   : Origin/CDN returned ≥500. Real application failure.
+//                        → routes to `down` (with corroboration).
+//   - SlowTimeout      : The probe gave up waiting (main HTTP or redirect chain).
+//                        → routes to `slow_timeout` (HIGH severity, not CRITICAL).
+//   - TransientNetwork : ECONNRESET / aborted / socket hang up.
+//                        → routes to `down` only when corroborated (≥2 regions
+//                          or ≥2 consecutive probes), otherwise dropped.
+//   - UnclassifiedError: Anything else (DNS errors, unknown). Conservative path:
+//                        route to `down` with corroboration required.
+//   - Healthy          : `status_code` < 500 and `error` is None.
+//
+// The classifier reads the `error` text prefix tags produced by the Lambda
+// probe (probes/lambda/index.mjs). It is also robust to legacy strings like
+// `Timeout (15s)` and `Redirect check timeout` emitted by older deployments.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProbeFailureClass {
+    Healthy,
+    Application5xx,
+    SlowTimeout,
+    TransientNetwork,
+    UnclassifiedError,
+}
+
+impl ProbeFailureClass {
+    /// Final `alert_type` slug this class routes to (or `None` when healthy).
+    /// Corroboration (≥2 regions OR ≥2 consecutive probes) is applied in
+    /// `dispatch_probe_alert` after the 15s aggregation window — it is not a
+    /// property of the class itself.
+    pub fn alert_type(self) -> Option<&'static str> {
+        match self {
+            ProbeFailureClass::Healthy => None,
+            ProbeFailureClass::SlowTimeout => Some("slow_timeout"),
+            ProbeFailureClass::Application5xx
+            | ProbeFailureClass::TransientNetwork
+            | ProbeFailureClass::UnclassifiedError => Some("down"),
+        }
+    }
+}
+
+pub fn classify_probe_failure(error: Option<&str>, status_code: Option<i32>) -> ProbeFailureClass {
+    // A 5xx is always an application failure, regardless of whether `error` was
+    // also set — the response did come back, just with a failing status.
+    if let Some(code) = status_code {
+        if code >= 500 {
+            return ProbeFailureClass::Application5xx;
+        }
+    }
+
+    let Some(raw) = error else {
+        return ProbeFailureClass::Healthy;
+    };
+    let lower = raw.to_lowercase();
+
+    // New prefix tags from probes/lambda/index.mjs.
+    if lower.starts_with("timeout:") || lower.starts_with("timeout_redirect:") {
+        return ProbeFailureClass::SlowTimeout;
+    }
+    if lower.starts_with("connection_reset:")
+        || lower.starts_with("connection_reset_redirect:")
+        || lower.starts_with("socket_aborted:")
+        || lower.starts_with("socket_aborted_redirect:")
+    {
+        return ProbeFailureClass::TransientNetwork;
+    }
+
+    // Legacy strings produced by older lambdas still in the fleet — keep
+    // classifying them correctly until everything is redeployed.
+    if lower.contains("timeout") || lower.contains("redirect check timeout") {
+        return ProbeFailureClass::SlowTimeout;
+    }
+    if lower.contains("econnreset")
+        || lower.contains("aborted")
+        || lower.contains("socket hang up")
+    {
+        return ProbeFailureClass::TransientNetwork;
+    }
+
+    ProbeFailureClass::UnclassifiedError
+}
 
 pub fn is_ttfb_anomalous(actual_ttfb: f64, avg: f64, stddev: f64, sigma_factor: f64) -> bool {
     // TTFB > avg + (sigma × stddev), with a +500ms floor to prevent noise on ultra-fast sites.
@@ -132,17 +220,46 @@ pub async fn check_probe_alerts(state: AppState, payload: ProbeResultPayload) {
         cfg.alert_threshold_ms as f64
     };
     let ttfb_over_threshold = payload.ttfb_ms.map(|t| t > effective_threshold).unwrap_or(false);
-    let is_down = payload.error.is_some()
-        || payload.status_code.map(|s| s >= 500).unwrap_or(false);
 
-    if is_down && cfg.alert_down_enabled {
+    // Classify the probe failure (if any). A single timeout or socket reset
+    // must not open a Monitor Down incident — see `ProbeFailureClass`.
+    let failure_class =
+        classify_probe_failure(payload.error.as_deref(), payload.status_code);
+
+    if let Some(alert_type) = failure_class.alert_type() {
+        // Honor the per-monitor toggle: `alert_down_enabled` gates BOTH `down`
+        // and `slow_timeout` (they are both probe-failure-class alerts).
+        if !cfg.alert_down_enabled {
+            return;
+        }
+
+        let (summary, action) = match failure_class {
+            ProbeFailureClass::Application5xx => (
+                "Origin or CDN is returning 5xx errors.".to_string(),
+                "Check server status and recent deploys.".to_string(),
+            ),
+            ProbeFailureClass::SlowTimeout => (
+                "Probes are timing out before the site responds.".to_string(),
+                "Investigate origin response time, CDN routing, or rate limiting on this route.".to_string(),
+            ),
+            ProbeFailureClass::TransientNetwork => (
+                "Connection dropped before the response completed.".to_string(),
+                "Check origin keep-alive timeouts, idle connection limits, and firewall resets.".to_string(),
+            ),
+            ProbeFailureClass::UnclassifiedError => (
+                "Site unreachable or failing.".to_string(),
+                "Check server status and regional network connectivity.".to_string(),
+            ),
+            ProbeFailureClass::Healthy => unreachable!(),
+        };
+
         dispatch_probe_alert(
             &state,
             payload.clone(),
-            "down",
+            alert_type,
             None,
-            "Site unreachable or failing.".to_string(),
-            "Check server status and regional network connectivity.".to_string(),
+            summary,
+            action,
             None,
         )
         .await;
@@ -232,6 +349,13 @@ pub async fn check_probe_alerts(state: AppState, payload: ProbeResultPayload) {
 /// when its own TTFB exceeds its own 7-day baseline threshold, preventing
 /// naturally-slow regions (e.g. far from origin on DYNAMIC sites) from being
 /// pulled into an incident triggered by a different region.
+///
+/// For "down" / "slow_timeout" alerts, an extra **corroboration gate** runs after the
+/// aggregation window: the incident only opens when there are ≥2 distinct affected
+/// regions in the last 5 minutes OR ≥2 consecutive failed probes of the same class
+/// in the triggering region (last 10 minutes). This prevents a single regional
+/// timeout — by far the dominant noise source in production — from opening a
+/// CRITICAL incident on its own.
 async fn dispatch_probe_alert(
     state: &AppState,
     payload: ProbeResultPayload,
@@ -263,17 +387,21 @@ async fn dispatch_probe_alert(
         tokio::time::sleep(Duration::from_secs(15)).await;
 
         let regions: Option<Vec<String>> = match alert_type {
-            "down" => sqlx::query!(
-                "SELECT DISTINCT region FROM probe_results
-                 WHERE monitor_id = $1
-                   AND (error IS NOT NULL OR status_code >= 500)
-                   AND time > NOW() - INTERVAL '1 minute'",
-                payload_clone.monitor_id
-            )
-            .fetch_all(&state_clone.db)
-            .await
-            .ok()
-            .map(|rows| rows.into_iter().map(|r| r.region).collect()),
+            // Probe-failure-class alerts: collect regions whose recent rows
+            // classify into the same bucket as the triggering payload, then
+            // require corroboration before opening the incident.
+            "down" | "slow_timeout" => {
+                match collect_failure_regions(
+                    &state_clone,
+                    payload_clone.monitor_id,
+                    alert_type,
+                )
+                .await
+                {
+                    Some(regs) if !regs.is_empty() => Some(regs),
+                    _ => Some(vec![payload_clone.region.clone()]),
+                }
+            }
 
             "ttfb_anomaly" => sqlx::query_as::<_, (String,)>(
                 r#"SELECT DISTINCT pr.region
@@ -330,6 +458,34 @@ async fn dispatch_probe_alert(
         };
         let regions = regions.unwrap_or_else(|| vec![payload_clone.region.clone()]);
 
+        // Corroboration gate (down / slow_timeout only). See doc above.
+        if matches!(alert_type, "down" | "slow_timeout") {
+            let multi_region = regions.len() >= 2;
+            let consecutive_in_region = if multi_region {
+                0
+            } else {
+                count_consecutive_failures_in_region(
+                    &state_clone,
+                    payload_clone.monitor_id,
+                    &payload_clone.region,
+                    alert_type,
+                )
+                .await
+            };
+
+            if !multi_region && consecutive_in_region < 2 {
+                info!(
+                    monitor_id = %payload_clone.monitor_id,
+                    alert_type = alert_type,
+                    region = %payload_clone.region,
+                    regions_in_window = regions.len(),
+                    consecutive_in_region = consecutive_in_region,
+                    "detector: probe failure suppressed — needs ≥2 regions in 5min or ≥2 consecutive probes"
+                );
+                return;
+            }
+        }
+
         let count = regions.len();
         let diagnosis = if count > 1 && alert_type == "ttfb_anomaly" {
             format!(
@@ -360,6 +516,74 @@ async fn dispatch_probe_alert(
             error!("detector: handle_incident failed for {}: {}", alert_type, e);
         }
     });
+}
+
+/// Returns the distinct regions whose most-recent failures (last 5 minutes)
+/// classify into the same `alert_type` bucket (`down` or `slow_timeout`).
+async fn collect_failure_regions(
+    state: &AppState,
+    monitor_id: uuid::Uuid,
+    target_alert_type: &str,
+) -> Option<Vec<String>> {
+    let rows = sqlx::query!(
+        r#"SELECT region, error, status_code
+           FROM probe_results
+           WHERE monitor_id = $1
+             AND (error IS NOT NULL OR status_code >= 500)
+             AND time > NOW() - INTERVAL '5 minutes'"#,
+        monitor_id
+    )
+    .fetch_all(&state.db)
+    .await
+    .ok()?;
+
+    use std::collections::BTreeSet;
+    let mut set: BTreeSet<String> = BTreeSet::new();
+    for row in rows {
+        let class = classify_probe_failure(row.error.as_deref(), row.status_code);
+        if class.alert_type() == Some(target_alert_type) {
+            set.insert(row.region);
+        }
+    }
+    Some(set.into_iter().collect())
+}
+
+/// Counts the most-recent consecutive probes in a region that all match the same
+/// failure-class bucket. Walks from the newest probe backward; stops at the first
+/// row whose class diverges. Used to require ≥2 consecutive failures before
+/// opening a Monitor Down incident on a single region.
+async fn count_consecutive_failures_in_region(
+    state: &AppState,
+    monitor_id: uuid::Uuid,
+    region: &str,
+    target_alert_type: &str,
+) -> i32 {
+    let rows = sqlx::query!(
+        r#"SELECT error, status_code
+           FROM probe_results
+           WHERE monitor_id = $1 AND region = $2
+             AND time > NOW() - INTERVAL '10 minutes'
+           ORDER BY time DESC
+           LIMIT 5"#,
+        monitor_id,
+        region
+    )
+    .fetch_all(&state.db)
+    .await
+    .ok();
+
+    let Some(rows) = rows else { return 0 };
+
+    let mut count = 0;
+    for row in rows {
+        let class = classify_probe_failure(row.error.as_deref(), row.status_code);
+        if class.alert_type() == Some(target_alert_type) {
+            count += 1;
+        } else {
+            break;
+        }
+    }
+    count
 }
 
 #[cfg(test)]
@@ -449,6 +673,130 @@ mod tests {
         assert_eq!(avg, 90.0);
         let (avg2, _) = effective_baseline_for_anomaly(Some("MISS"), &mb);
         assert_eq!(avg2, 90.0);
+    }
+
+    #[test]
+    fn classify_5xx_is_application_failure() {
+        // Status >= 500 is always a real application failure, even when the
+        // probe also reported an error string alongside it.
+        assert_eq!(
+            classify_probe_failure(None, Some(500)),
+            ProbeFailureClass::Application5xx
+        );
+        assert_eq!(
+            classify_probe_failure(None, Some(502)),
+            ProbeFailureClass::Application5xx
+        );
+        assert_eq!(
+            classify_probe_failure(Some("any text"), Some(503)),
+            ProbeFailureClass::Application5xx
+        );
+        // Non-5xx status with no error → healthy.
+        assert_eq!(
+            classify_probe_failure(None, Some(200)),
+            ProbeFailureClass::Healthy
+        );
+        assert_eq!(
+            classify_probe_failure(None, Some(404)),
+            ProbeFailureClass::Healthy
+        );
+        assert_eq!(classify_probe_failure(None, None), ProbeFailureClass::Healthy);
+    }
+
+    #[test]
+    fn classify_timeout_errors_route_to_slow_timeout_not_down() {
+        // New prefix-tagged messages from the lambda.
+        assert_eq!(
+            classify_probe_failure(
+                Some("timeout: Request did not complete within 25s"),
+                None
+            ),
+            ProbeFailureClass::SlowTimeout
+        );
+        assert_eq!(
+            classify_probe_failure(
+                Some("timeout_redirect: Redirect chain did not complete within 10s"),
+                None
+            ),
+            ProbeFailureClass::SlowTimeout
+        );
+
+        // Legacy strings from older lambdas still in the fleet must keep
+        // classifying as SlowTimeout — never as application down.
+        assert_eq!(
+            classify_probe_failure(Some("Timeout (15s)"), None),
+            ProbeFailureClass::SlowTimeout
+        );
+        assert_eq!(
+            classify_probe_failure(Some("Redirect check timeout"), None),
+            ProbeFailureClass::SlowTimeout
+        );
+
+        // Paradoxical case observed in production: status 200 + timeout error
+        // (body finished arriving past the deadline). Still slow_timeout, not down.
+        assert_eq!(
+            classify_probe_failure(Some("timeout: ..."), Some(200)),
+            ProbeFailureClass::SlowTimeout
+        );
+    }
+
+    #[test]
+    fn classify_transient_network_errors() {
+        assert_eq!(
+            classify_probe_failure(Some("connection_reset: read ECONNRESET"), None),
+            ProbeFailureClass::TransientNetwork
+        );
+        assert_eq!(
+            classify_probe_failure(Some("socket_aborted: aborted"), None),
+            ProbeFailureClass::TransientNetwork
+        );
+        // Legacy raw Node error strings.
+        assert_eq!(
+            classify_probe_failure(Some("read ECONNRESET"), None),
+            ProbeFailureClass::TransientNetwork
+        );
+        assert_eq!(
+            classify_probe_failure(Some("aborted"), None),
+            ProbeFailureClass::TransientNetwork
+        );
+        assert_eq!(
+            classify_probe_failure(Some("socket hang up"), None),
+            ProbeFailureClass::TransientNetwork
+        );
+    }
+
+    #[test]
+    fn classify_unknown_errors_are_unclassified() {
+        // DNS / TLS / unknown — conservative: route to `down` (with corroboration).
+        assert_eq!(
+            classify_probe_failure(Some("getaddrinfo ENOTFOUND example.test"), None),
+            ProbeFailureClass::UnclassifiedError
+        );
+        assert_eq!(
+            classify_probe_failure(Some("SSL handshake failed"), None),
+            ProbeFailureClass::UnclassifiedError
+        );
+    }
+
+    #[test]
+    fn class_alert_type_routing() {
+        assert_eq!(
+            ProbeFailureClass::Application5xx.alert_type(),
+            Some("down")
+        );
+        assert_eq!(
+            ProbeFailureClass::TransientNetwork.alert_type(),
+            Some("down")
+        );
+        assert_eq!(
+            ProbeFailureClass::UnclassifiedError.alert_type(),
+            Some("down")
+        );
+        assert_eq!(
+            ProbeFailureClass::SlowTimeout.alert_type(),
+            Some("slow_timeout")
+        );
+        assert_eq!(ProbeFailureClass::Healthy.alert_type(), None);
     }
 
     #[test]

@@ -77,7 +77,9 @@ pub fn stale_silence_minutes(severity: AlertSeverity, notification_count: i32) -
 pub fn alert_severity(alert_type: &str) -> AlertSeverity {
     match alert_type {
         "down" => AlertSeverity::Critical,
-        "ttfb_limit" | "ttfb_anomaly" => AlertSeverity::High,
+        // `slow_timeout` is a measurement failure (probe timed out before the site
+        // responded). Treated as a High-impact latency event, NOT as Monitor Down.
+        "ttfb_limit" | "ttfb_anomaly" | "slow_timeout" => AlertSeverity::High,
         "cache_hit_low"
         | "cache_hit_trend_drop_region"
         | "cache_hit_trend_drop_global" => AlertSeverity::Medium,
@@ -90,6 +92,7 @@ pub fn alert_severity(alert_type: &str) -> AlertSeverity {
 pub fn alert_type_display(alert_type: &str) -> &'static str {
     match alert_type {
         "down" => "Monitor Down",
+        "slow_timeout" => "Slow Response (Probe Timeout)",
         "ttfb_limit" => "TTFB Above Limit",
         "ttfb_anomaly" => "TTFB Anomaly",
         "cache_hit_low" => "Low Cache Hit Rate",
@@ -168,7 +171,7 @@ mod tests {
     #[test]
     fn test_all_known_types_have_display_names() {
         let known_types = [
-            "down", "ttfb_limit", "ttfb_anomaly", "cache_hit_low", "ssl_expiry",
+            "down", "slow_timeout", "ttfb_limit", "ttfb_anomaly", "cache_hit_low", "ssl_expiry",
             "cache_age_alert", "anycast", "cache_hit_trend_drop_region",
             "cache_hit_trend_drop_global", "ttfb_trend_up_region",
             "ttfb_trend_up_global", "ttfb_trend_down_region", "ttfb_trend_down_global",
@@ -195,6 +198,7 @@ mod tests {
     #[test]
     fn test_severity_tiers() {
         assert_eq!(alert_severity("down"), AlertSeverity::Critical);
+        assert_eq!(alert_severity("slow_timeout"), AlertSeverity::High);
         assert_eq!(alert_severity("ttfb_limit"), AlertSeverity::High);
         assert_eq!(alert_severity("ttfb_anomaly"), AlertSeverity::High);
         assert_eq!(alert_severity("cache_hit_low"), AlertSeverity::Medium);

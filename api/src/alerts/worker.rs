@@ -783,7 +783,7 @@ pub(crate) async fn resolve_stale_probe_incidents(state: &AppState) -> Result<()
         FROM alert_incidents
         WHERE resolved_at IS NULL
           AND alert_type IN (
-            'down', 'ttfb_limit', 'ttfb_anomaly',
+            'down', 'slow_timeout', 'ttfb_limit', 'ttfb_anomaly',
             'ttfb_trend_up_region', 'ttfb_trend_up_global',
             'ttfb_trend_down_region', 'ttfb_trend_down_global',
             'cache_hit_trend_drop_region', 'cache_hit_trend_drop_global'
