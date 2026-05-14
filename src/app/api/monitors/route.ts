@@ -3,12 +3,11 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { unauthorized } from '@/lib/api-auth'
 import sql from '@/lib/db'
+import { MONITOR_AUDIT_INTERVAL_SECONDS, MONITOR_CHECK_INTERVAL_SECONDS } from '@/lib/monitor-schedule'
 
 const createSchema = z.object({
   url: z.string().url('Must be a valid URL'),
   name: z.string().max(100).optional(),
-  check_interval_seconds: z.number().int().min(1).default(60),
-  audit_interval_seconds: z.number().int().min(0).default(0),
 })
 
 function normalizeMonitorUrl(rawUrl: string): string {
@@ -51,7 +50,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
   }
 
-  const { url, name, check_interval_seconds, audit_interval_seconds } = parsed.data
+  const { url, name } = parsed.data
   const normalizedUrl = normalizeMonitorUrl(url)
 
   // Se o nome não for fornecido, geramos um automaticamente a partir da URL (excluindo o protocolo)
@@ -82,9 +81,9 @@ export async function POST(request: NextRequest) {
       notify_email, notify_email_enabled
     )
     VALUES (
-      ${user.id}, ${normalizedUrl}, ${finalName}, ${check_interval_seconds}, ${audit_interval_seconds}, 
+      ${user.id}, ${normalizedUrl}, ${finalName}, ${MONITOR_CHECK_INTERVAL_SECONDS}, ${MONITOR_AUDIT_INTERVAL_SECONDS}, 
       'disabled', 1500, 500, 10, 50,
-      true, true, true, true, false, true, true, true,
+      true, true, true, false, false, false, true, true,
       ARRAY['prev_hour', 'day_avg'],
       ARRAY['prev_hour', 'day_avg'],
       ${user.email}, true

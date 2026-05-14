@@ -78,8 +78,6 @@ export function NewMonitorPage({ userEmail, logoutAction }: NewMonitorPageProps)
         body: JSON.stringify({
           url,
           name: name || undefined,
-          check_interval_seconds: 180,
-          audit_interval_seconds: 1800,
         }),
       })
 

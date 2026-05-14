@@ -3,13 +3,12 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { unauthorized } from '@/lib/api-auth'
 import sql from '@/lib/db'
+import { MONITOR_AUDIT_INTERVAL_SECONDS, MONITOR_CHECK_INTERVAL_SECONDS } from '@/lib/monitor-schedule'
 
 const VALID_COMPARATORS = ['prev_hour', 'same_hour_prev_day', 'day_avg'] as const
 
 const updateSchema = z.object({
   name: z.string().max(100).optional(),
-  check_interval_seconds: z.number().int().min(1).optional(),
-  audit_interval_seconds: z.number().int().min(0).optional(),
   is_active: z.boolean().optional(),
   notify_email: z.string().email().max(254).nullable().optional(),
   notify_email_enabled: z.boolean().optional(),
@@ -86,7 +85,7 @@ export async function PATCH(
   }
 
   const {
-    name, check_interval_seconds, audit_interval_seconds, is_active,
+    name, is_active,
     notify_email, notify_email_enabled,
     notify_slack_webhook, notify_slack_enabled,
     alert_threshold_ms, alert_threshold_hit_ms, alert_sensitivity,
@@ -101,7 +100,7 @@ export async function PATCH(
   } = parsed.data
 
   const allUndefined = [
-    name, check_interval_seconds, audit_interval_seconds, is_active,
+    name, is_active,
     notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
     alert_threshold_ms, alert_threshold_hit_ms, alert_sensitivity, alert_down_enabled, alert_ttfb_enabled, alert_ttfb_anomaly_enabled,
     alert_anycast_enabled, alert_cache_age_enabled, alert_cache_age_threshold_hours,
@@ -121,8 +120,8 @@ export async function PATCH(
     UPDATE monitors
     SET
       name                        = COALESCE(${name ?? null}, name),
-      check_interval_seconds      = COALESCE(${check_interval_seconds ?? null}, check_interval_seconds),
-      audit_interval_seconds      = COALESCE(${audit_interval_seconds ?? null}, audit_interval_seconds),
+      check_interval_seconds      = ${MONITOR_CHECK_INTERVAL_SECONDS},
+      audit_interval_seconds      = ${MONITOR_AUDIT_INTERVAL_SECONDS},
       is_active                   = COALESCE(${is_active ?? null}, is_active),
       notify_email                = CASE WHEN ${notify_email !== undefined} THEN ${notify_email ?? null} ELSE notify_email END,
       notify_email_enabled        = COALESCE(${notify_email_enabled ?? null}, notify_email_enabled),

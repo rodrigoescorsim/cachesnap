@@ -6,6 +6,7 @@ import { Info } from 'lucide-react'
 import { CustomSelect } from '@/components/custom-select'
 import { CsCheckbox } from '@/components/cs-checkbox'
 import { PremiumTooltip } from '@/components/premium-tooltip'
+import { MONITOR_AUDIT_INTERVAL_SECONDS, MONITOR_CHECK_INTERVAL_SECONDS } from '@/lib/monitor-schedule'
 
 export type TrendComparator = 'prev_hour' | 'same_hour_prev_day' | 'day_avg'
 
@@ -13,8 +14,6 @@ export interface MonitorEditFormProps {
   id: string
   url: string
   name: string | null
-  checkIntervalSeconds: number
-  auditIntervalSeconds: number
   notifyEmail: string | null
   notifyEmailEnabled: boolean
   notifySlackWebhook: string | null
@@ -56,8 +55,6 @@ export function MonitorEditForm({
   id,
   url,
   name,
-  checkIntervalSeconds,
-  auditIntervalSeconds,
   notifyEmail,
   notifyEmailEnabled,
   notifySlackWebhook,
@@ -97,8 +94,8 @@ export function MonitorEditForm({
     name: name ?? (() => {
       try { return new URL(url).hostname } catch { return url }
     })(),
-    check_interval_seconds: checkIntervalSeconds,
-    audit_interval_seconds: auditIntervalSeconds,
+    check_interval_seconds: MONITOR_CHECK_INTERVAL_SECONDS,
+    audit_interval_seconds: MONITOR_AUDIT_INTERVAL_SECONDS,
     notify_email: notifyEmail ?? '',
     notify_email_enabled: notifyEmailEnabled ?? false,
     notify_slack_webhook: notifySlackWebhook ?? '',
@@ -109,10 +106,10 @@ export function MonitorEditForm({
     alert_down_enabled: alertDownEnabled ?? true,
     alert_ttfb_enabled: alertTtfbEnabled ?? true,
     alert_ttfb_anomaly_enabled: alertTtfbAnomalyEnabled ?? true,
-    alert_anycast_enabled: alertAnycastEnabled ?? true,
+    alert_anycast_enabled: alertAnycastEnabled ?? false,
     alert_cache_age_enabled: alertCacheAgeEnabled ?? false,
     alert_cache_age_threshold_hours: alertCacheAgeThresholdHours ?? 72,
-    alert_cache_hit_enabled: alertCacheHitEnabled ?? true,
+    alert_cache_hit_enabled: alertCacheHitEnabled ?? false,
     alert_cache_hit_threshold_pct: alertCacheHitThresholdPct ?? 80,
     cache_hit_critical_pct: cacheHitCriticalPct ?? 50,
     alert_cache_hit_trend_enabled: alertCacheHitTrendEnabled ?? true,
@@ -187,7 +184,7 @@ export function MonitorEditForm({
     const cacheHitTrendGlobalErr = validate('alert_cache_hit_trend_global_threshold_pp', current.alert_cache_hit_trend_global_threshold_pp, current)
     const ttfbTrendGlobalErr = validate('alert_ttfb_trend_global_threshold_pct', current.alert_ttfb_trend_global_threshold_pct, current)
 
-    if (emailErr || slackErr || thresholdErr || cacheAgeHoursErr || cacheHitErr || cacheHitCriticalErr || cacheHitTrendErr || ttfbTrendErr || cacheHitTrendGlobalErr || ttfbTrendGlobalErr) {
+    if (emailErr || slackErr || thresholdErr || thresholdHitErr || cacheAgeHoursErr || cacheHitErr || cacheHitCriticalErr || cacheHitTrendErr || ttfbTrendErr || cacheHitTrendGlobalErr || ttfbTrendGlobalErr) {
       setErrors(prev => ({
         ...prev,
         notify_email: emailErr,
@@ -217,6 +214,8 @@ export function MonitorEditForm({
         name: current.name.trim(),
         notify_email: current.notify_email.trim() || null,
         notify_slack_webhook: current.notify_slack_webhook.trim() || null,
+        check_interval_seconds: MONITOR_CHECK_INTERVAL_SECONDS,
+        audit_interval_seconds: MONITOR_AUDIT_INTERVAL_SECONDS,
       }
 
       const res = await fetch(`/api/monitors/${id}`, {
@@ -325,7 +324,16 @@ export function MonitorEditForm({
         {/* MONITORING SECTION */}
         <section className="cs-card cs-card-focus p-6 flex flex-col h-full">
           <div className="cs-card-wash" />
-          <h3 className="cs-section-header">Monitoring</h3>
+          <div className="mb-6 flex items-center gap-1.5 relative z-10">
+            <h3 className="cs-section-header !mb-0">Monitoring</h3>
+            <PremiumTooltip
+              content="Check Interval is how often we probe every region. Bypass Audit is how often we run the deeper edge pass. Fixed at 5 and 30 minutes — shown for reference only."
+              position="top-left"
+              direction="top"
+            >
+              <Info className="h-3 w-3 shrink-0 text-zinc-400/90 hover:text-zinc-200 transition-colors cursor-help" aria-label="About monitoring schedule" />
+            </PremiumTooltip>
+          </div>
           <div className="grid grid-cols-2 gap-4 relative z-10 flex-1">
             <div>
               <label className="cs-label">Check Interval</label>
@@ -336,7 +344,8 @@ export function MonitorEditForm({
                   { value: 180, label: '3 minutes' },
                   { value: 300, label: '5 minutes' },
                 ]}
-                onChange={(val) => handleInputChange('check_interval_seconds', val)}
+                disabled
+                onChange={() => {}}
               />
             </div>
 
@@ -350,7 +359,8 @@ export function MonitorEditForm({
                   { value: 1800, label: '30 minutes' },
                   { value: 3600, label: '60 minutes' },
                 ]}
-                onChange={(val) => handleInputChange('audit_interval_seconds', val)}
+                disabled
+                onChange={() => {}}
               />
             </div>
           </div>
@@ -589,6 +599,22 @@ export function MonitorEditForm({
             {/* RIGHT: ADDITIONAL ALERT TYPES */}
             <div className="space-y-4">
               <div className="space-y-4 pt-1">
+                {/* Site down (Connectivity/Errors) */}
+                <div className="flex items-start gap-3">
+                  <CsCheckbox
+                    id={`${p}-alert_down_right`}
+                    align="start"
+                    checked={values.alert_down_enabled}
+                    onChange={(e) => handleInputChange('alert_down_enabled', e.target.checked)}
+                  />
+                  <label htmlFor={`${p}-alert_down_right`} className="cursor-pointer select-none">
+                    <span className="text-xs font-bold text-zinc-200 block">Monitor Down</span>
+                    <span className="text-xs text-zinc-400 leading-relaxed">
+                      Alert when your site is unreachable or returns 5xx errors.
+                    </span>
+                  </label>
+                </div>
+
                 {/* CACHE HIT RATE — warn threshold (Thresholds section) */}
                 <div className="flex items-start gap-3">
                   <CsCheckbox
@@ -605,21 +631,6 @@ export function MonitorEditForm({
                   </label>
                 </div>
 
-                {/* Site down (Connectivity/Errors) */}
-                <div className="flex items-start gap-3">
-                  <CsCheckbox
-                    id={`${p}-alert_down_right`}
-                    align="start"
-                    checked={values.alert_down_enabled}
-                    onChange={(e) => handleInputChange('alert_down_enabled', e.target.checked)}
-                  />
-                  <label htmlFor={`${p}-alert_down_right`} className="cursor-pointer select-none">
-                    <span className="text-xs font-bold text-zinc-200 block">Monitor Down</span>
-                    <span className="text-xs text-zinc-400 leading-relaxed">
-                      Alert when your site is unreachable or returns 5xx errors.
-                    </span>
-                  </label>
-                </div>
                 {/* Region mismatch */}
                 <div className="flex items-start gap-3">
                   <CsCheckbox

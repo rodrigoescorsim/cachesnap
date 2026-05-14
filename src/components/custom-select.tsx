@@ -4,14 +4,17 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown } from 'lucide-react'
 
-export function CustomSelect({ 
-  value, 
-  options, 
-  onChange 
-}: { 
-  value: number, 
-  options: { value: number, label: string }[], 
-  onChange: (val: number) => void 
+export function CustomSelect({
+  value,
+  options,
+  onChange,
+  disabled = false,
+}: {
+  value: number
+  options: { value: number; label: string }[]
+  onChange: (val: number) => void
+  /** When true, shows the current option but does not open or change selection. */
+  disabled?: boolean
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 })
@@ -52,7 +55,7 @@ export function CustomSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const dropdownContent = isOpen && (
+  const dropdownContent = isOpen && !disabled && (
     <div 
       ref={dropdownRef}
       className="cs-select-dropdown"
@@ -81,13 +84,23 @@ export function CustomSelect({
   )
 
   return (
-    <div className="relative" ref={containerRef}>
-      <div 
-        className="w-full h-11 cs-input flex items-center justify-between cursor-pointer select-none"
-        onClick={() => setIsOpen(!isOpen)}
+    <div className={`relative ${disabled ? 'opacity-60' : ''}`} ref={containerRef}>
+      <div
+        className={`w-full h-11 cs-input flex items-center justify-between select-none ${
+          disabled ? 'cursor-not-allowed pointer-events-none' : 'cursor-pointer'
+        }`}
+        onClick={() => {
+          if (disabled) return
+          setIsOpen(!isOpen)
+        }}
+        aria-disabled={disabled}
       >
-        <span className="font-semibold text-zinc-100">{activeLabel}</span>
-        <ChevronDown className={`w-4 h-4 text-zinc-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+        <span className={`font-semibold ${disabled ? 'text-zinc-400' : 'text-zinc-100'}`}>{activeLabel}</span>
+        <ChevronDown
+          className={`w-4 h-4 transition-transform duration-300 ${
+            disabled ? 'text-zinc-600' : 'text-zinc-500'
+          } ${isOpen && !disabled ? 'rotate-180' : ''}`}
+        />
       </div>
       {isOpen && typeof document !== 'undefined' && createPortal(dropdownContent, document.body)}
     </div>
