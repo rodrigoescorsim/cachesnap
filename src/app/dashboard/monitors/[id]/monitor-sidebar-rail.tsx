@@ -12,7 +12,6 @@ import {
   Lock,
   Radio,
   Settings,
-  Zap,
   ScrollText,
 } from 'lucide-react'
 import {
@@ -72,13 +71,19 @@ export function MonitorSidebarRail({
   activeView,
   filteredAlertType,
 }: MonitorSidebarRailProps) {
-  const railWidth = 'w-full max-w-[220px] sm:max-w-[220px] lg:w-[208px]'
-  const linkLayoutClass = 'justify-start items-start gap-2.5'
-  const itemBaseClass = 'relative flex rounded-xl px-2.5 py-2.5 text-xs font-bold leading-snug transition-all duration-200 ease-out'
-  const itemListClass = 'space-y-1.5'
-  const sectionClass = 'space-y-2.5'
+  /** Below `xl`: wrapped chip rail so the main column keeps full width. */
+  const railWidth = 'w-full max-w-none xl:w-[160px] xl:max-w-[160px] xl:shrink-0'
+  const linkLayoutClass =
+    'justify-start items-start gap-2.5 max-xl:items-center max-xl:gap-2 xl:gap-2'
+  const itemBaseClass =
+    'relative flex rounded-xl px-2 py-2 text-[11px] font-bold leading-snug transition-all duration-200 ease-out max-xl:shrink-0 xl:px-2 xl:py-2 xl:text-xs xl:leading-snug'
+  const itemListClass =
+    'space-y-1.5 max-xl:flex max-xl:flex-row max-xl:flex-wrap max-xl:space-y-0 max-xl:gap-x-1.5 max-xl:gap-y-2 max-xl:min-w-0'
+  const sectionClass =
+    'space-y-2.5 max-xl:flex max-xl:flex-row max-xl:flex-wrap max-xl:items-center max-xl:space-y-0 max-xl:gap-x-2 max-xl:gap-y-2 max-xl:max-w-full max-xl:min-w-0'
   const iconClass = 'h-3.5 w-3.5'
-  const sectionLabelClass = 'px-2.5 pb-1 text-[8px] font-black uppercase tracking-[0.15em] text-zinc-500 border-b border-zinc-700'
+  const sectionLabelClass =
+    'px-2.5 pb-1 text-[8px] font-black uppercase tracking-[0.15em] text-zinc-500 border-b border-zinc-700'
   const itemStateClass = (isActive: boolean) =>
     isActive
       ? 'border border-emerald-300/20 bg-emerald-400/10 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.20)] motion-safe:animate-[pulse_0.2s_ease-out_1]'
@@ -86,12 +91,12 @@ export function MonitorSidebarRail({
 
   return (
     <aside
-      className={`shrink-0 transition-[width] duration-200 ease-out lg:sticky lg:top-20 ${railWidth}`}
+      className={`transition-[width] duration-200 ease-out xl:sticky xl:top-20 ${railWidth}`}
     >
       <div className="relative overflow-hidden rounded-xl bg-surface shadow-[0_1px_3px_rgba(0,0,0,0.3)]">
-        <div className="flex flex-col gap-2 p-2 lg:p-2.5">
+        <div className="flex flex-col gap-2 p-2 xl:p-2">
           <nav aria-label="Monitor sections">
-            <div className="space-y-3.5">
+            <div className="space-y-3.5 max-xl:flex max-xl:flex-row max-xl:flex-wrap max-xl:items-center max-xl:gap-x-3 max-xl:gap-y-2 max-xl:space-y-0 max-xl:w-full max-xl:pb-0.5">
               <section aria-label="Back navigation" className={sectionClass}>
                 <ul className={itemListClass}>
                   <li>
@@ -110,7 +115,7 @@ export function MonitorSidebarRail({
               </section>
 
               <section aria-label="Performance views, Edge vs Origin, and security" className={sectionClass}>
-                <div>
+                <div className="max-xl:hidden">
                   <p className={sectionLabelClass}>Monitoring</p>
                 </div>
                 <ul className={itemListClass}>
@@ -152,7 +157,7 @@ export function MonitorSidebarRail({
               </section>
 
               <section aria-label="Configuration navigation" className={sectionClass}>
-                <div>
+                <div className="max-xl:hidden">
                   <p className={sectionLabelClass}>Configuration</p>
                 </div>
                 <ul className={itemListClass}>

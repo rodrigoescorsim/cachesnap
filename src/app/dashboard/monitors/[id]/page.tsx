@@ -1570,7 +1570,7 @@ export default async function MonitorDetailPage({
       )}
 
 
-      <div className="grid gap-8 border-t border-white/10 pt-5 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start lg:pt-6">
+      <div className="grid gap-8 border-t border-white/10 pt-5 xl:grid-cols-[auto_minmax(0,1fr)] xl:items-start xl:pt-6">
         <MonitorSidebarRail
           monitorId={monitor.id}
           range={range}
