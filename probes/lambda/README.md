@@ -23,7 +23,7 @@ Replaces the Cloudflare Worker probes with region-pinned infrastructure.
 4. Set environment variables:
    - `PROBE_SECRET`: your shared secret (same as `.env`)
    - `REGION`: one of `sa-east`, `us-east`, `eu-west`, `ap-east`, `oc`
-5. Set timeout to **30 seconds** (Configuration → General)
+5. Set timeout to **35 seconds** (Configuration → General). The internal HTTP budgets (25s main request + 10s redirect chain + 10s ingest report — see `index.mjs` constants) must always fit inside the runtime timeout with headroom.
 6. Enable **Function URL** with Auth type: NONE
 7. Repeat for each region
 

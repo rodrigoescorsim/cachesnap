@@ -42,6 +42,22 @@ import { performance } from 'node:perf_hooks';
 import { URL } from 'node:url';
 import { detectCdnProviderFromHeaders } from './cdn-providers.mjs';
 
+// ─── Timeout Budget ───────────────────────────────────────────────────────────
+//
+// The Lambda runtime is configured for 30s (see scripts/fix-lambda-timeout.ps1).
+// Internal phases must fit within that budget with headroom for cold start +
+// ingest reporting. Each error message embeds the actual configured value to
+// avoid "Timeout (15s)" mismatches when the limit is changed later.
+//
+// Detector classification (api/src/alerts/detector.rs) keys off the prefix:
+//   - `timeout: ...`           → slow_timeout (measurement failure, NOT down)
+//   - `timeout_redirect: ...`  → slow_timeout (pre-measurement redirect chain)
+//   - `connection_reset: ...`  → transient (down only with corroboration)
+//   - `socket_aborted: ...`    → transient (down only with corroboration)
+const PROBE_TIMEOUT_MS = 25000;     // Per-request budget for the main measurement.
+const REDIRECT_TIMEOUT_MS = 10000;  // Pre-measurement HEAD chain (count redirects).
+const INGEST_TIMEOUT_MS = 10000;    // POST result back to CacheSnap.
+
 // ─── Lambda Handler ───────────────────────────────────────────────────────────
 
 export const handler = async (event) => {
@@ -239,7 +255,7 @@ async function measureUrl(targetUrl, isBypass = false) {
       finalUrl,
       {
         headers: finalHeaders,
-        timeout: 10000,
+        timeout: PROBE_TIMEOUT_MS,
         agent: false,
       },
       (res) => {
@@ -389,10 +405,12 @@ async function measureUrl(targetUrl, isBypass = false) {
       });
     });
 
-    req.on('error', reject);
+    req.on('error', (err) => {
+      reject(normalizeMeasurementError(err));
+    });
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error('Timeout (15s)'));
+      reject(new Error(`timeout: Request did not complete within ${PROBE_TIMEOUT_MS / 1000}s`));
     });
   });
 }
@@ -426,7 +444,7 @@ function headRequest(targetUrl) {
       targetUrl,
       {
         headers: { 'User-Agent': 'CacheSnap-Probe/2.0.0 (Lambda)' },
-        timeout: 10000,
+        timeout: REDIRECT_TIMEOUT_MS,
         // We need manual control to count redirects
       },
       (res) => {
@@ -439,13 +457,52 @@ function headRequest(targetUrl) {
       }
     );
 
-    // Prevent auto-follow for redirect counting
-    req.on('error', reject);
+    req.on('error', (err) => {
+      reject(normalizeRedirectError(err));
+    });
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error('Redirect check timeout'));
+      reject(
+        new Error(
+          `timeout_redirect: Redirect chain did not complete within ${REDIRECT_TIMEOUT_MS / 1000}s`,
+        ),
+      );
     });
   });
+}
+
+// ─── Error Normalization ──────────────────────────────────────────────────────
+// Tag low-level Node errors with a prefix the detector can classify on. The
+// human-readable message stays after the colon for the UI/advisor copy.
+
+function normalizeMeasurementError(err) {
+  const tag = classifyNetworkError(err);
+  if (!tag) return err;
+  return new Error(`${tag}: ${err.message || err.code || tag}`);
+}
+
+function normalizeRedirectError(err) {
+  const tag = classifyNetworkError(err);
+  // Redirect chain failures share the slow-timeout/transient buckets but carry
+  // the `_redirect` suffix so the detector and operators know the failure
+  // occurred during the pre-measurement HEAD walk, not the main request.
+  const finalTag = tag ? `${tag}_redirect` : 'redirect_error';
+  return new Error(`${finalTag}: ${err.message || err.code || finalTag}`);
+}
+
+function classifyNetworkError(err) {
+  const code = err && err.code ? String(err.code) : '';
+  const message = err && err.message ? String(err.message) : '';
+  if (code === 'ETIMEDOUT' || /ETIMEDOUT|ESOCKETTIMEDOUT/i.test(message)) {
+    return 'timeout';
+  }
+  if (code === 'ECONNRESET' || /ECONNRESET/i.test(message)) {
+    return 'connection_reset';
+  }
+  if (code === 'ABORT_ERR' || /aborted|socket hang up/i.test(message)) {
+    return 'socket_aborted';
+  }
+  return null;
 }
 
 // ─── Cache Status Detection ───────────────────────────────────────────────────
@@ -640,7 +697,7 @@ async function sendToIngest(ingestUrl, data, secret) {
           'Content-Length': Buffer.byteLength(payload),
           'x-probe-secret': secret || '',
         },
-        timeout: 10000,
+        timeout: INGEST_TIMEOUT_MS,
       },
       (res) => {
         res.resume(); // drain response
