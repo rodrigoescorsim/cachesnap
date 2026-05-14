@@ -72,7 +72,7 @@ export function MonitorSidebarRail({
   filteredAlertType,
 }: MonitorSidebarRailProps) {
   /** Below `xl`: wrapped chip rail so the main column keeps full width. */
-  const railWidth = 'w-full max-w-none xl:w-[160px] xl:max-w-[160px] xl:shrink-0'
+  const railWidth = 'w-full max-w-none xl:w-[150px] xl:max-w-[150px] xl:shrink-0'
   const linkLayoutClass =
     'justify-start items-start gap-2.5 max-xl:items-center max-xl:gap-2 xl:gap-2'
   const itemBaseClass =
