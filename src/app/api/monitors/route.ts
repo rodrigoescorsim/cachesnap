@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
       'Content-Type': 'application/json',
       'x-probe-secret': process.env.PROBE_SECRET ?? '' 
     },
-    body: JSON.stringify({ bypass: false }),
+    body: JSON.stringify({ bypass: false, is_manual: false }),
   }).catch(() => {}) // fire-and-forget
 
   return NextResponse.json(monitor, { status: 201 })
