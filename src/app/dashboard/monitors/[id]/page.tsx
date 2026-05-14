@@ -541,12 +541,17 @@ export default async function MonitorDetailPage({
   const viewValue = readFirst(rawSearchParams.view)
   const alertTypeValue = readFirst(rawSearchParams.alert_type)
 
+  const previewTab = normalizeTab(tabValue)
+  const previewView: PerformanceView = previewTab === 'performance' ? normalizeView(viewValue) : 'real-time'
+  const defaultRange = previewView === 'trends' ? '1h' : '24h'
+
   const range = rangeValue === '1h' ? '1h'
     : rangeValue === '4h' ? '4h'
-      : rangeValue === '7d' ? '7d'
-        : rangeValue === '30d' ? '30d'
-          : rangeValue === '90d' ? '90d'
-            : '24h'
+      : rangeValue === '24h' ? '24h'
+        : rangeValue === '7d' ? '7d'
+          : rangeValue === '30d' ? '30d'
+            : rangeValue === '90d' ? '90d'
+              : defaultRange
   const dbInterval = range === '1h' ? '1 hour'
     : range === '4h' ? '4 hours'
       : range === '7d' ? '7 days'
@@ -559,8 +564,8 @@ export default async function MonitorDetailPage({
         : range === '30d' ? '1 day'
           : range === '90d' ? '3 days'
             : '30 minutes'
-  const activeTab = normalizeTab(tabValue)
-  const activeView: PerformanceView = activeTab === 'performance' ? normalizeView(viewValue) : 'real-time'
+  const activeTab = previewTab
+  const activeView: PerformanceView = previewView
   const filteredAlertType =
     activeTab === 'alert-history' ? normalizeAlertType(alertTypeValue) : null
 
@@ -1299,10 +1304,17 @@ export default async function MonitorDetailPage({
     cacheCriticalPct: monitor.cache_hit_critical_pct,
   })
 
+  const trendsTotalBuckets = new Set(chartPoints.map(p => p.bucket)).size
+  const trendsSpikeRegionLabels = [
+    ...new Set(spikes.map(s => regionLabels[s.region] ?? s.region)),
+  ]
+
   const trendsAdvisorState = deriveMonitorTrendsAdvisor({
     url: monitor.url,
     range,
     spikeCount: spikes.length,
+    spikeRegions: trendsSpikeRegionLabels,
+    totalBuckets: trendsTotalBuckets,
     hasHistory,
     worstRegion: worstWeekTrendRegion
       ? { label: regionLabels[worstWeekTrendRegion.region] ?? worstWeekTrendRegion.region, changePct: Math.round(worstWeekTrendRegion.change_pct) }
