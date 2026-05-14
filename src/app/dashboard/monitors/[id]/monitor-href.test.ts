@@ -26,17 +26,23 @@ describe('TIMEFRAME_TOOLTIPS', () => {
 })
 
 describe('buildViewHref', () => {
-  it('omits range param when range is 24h (default)', () => {
+  it('omits range param when range is the view default (24h for performance)', () => {
     const href = buildViewHref('performance', '24h')
     expect(href).not.toContain('range=')
   })
 
-  it('includes range param for non-default values', () => {
-    expect(buildViewHref('trends', '1h')).toContain('range=1h')
+  it('omits range param when range is the view default (1h for trends — short bucket)', () => {
+    const href = buildViewHref('trends', '1h')
+    expect(href).not.toContain('range=')
+  })
+
+  it('includes range param when explicit value differs from the view default', () => {
+    expect(buildViewHref('trends', '24h')).toContain('range=24h')
     expect(buildViewHref('trends', '4h')).toContain('range=4h')
     expect(buildViewHref('trends', '7d')).toContain('range=7d')
     expect(buildViewHref('trends', '30d')).toContain('range=30d')
     expect(buildViewHref('trends', '90d')).toContain('range=90d')
+    expect(buildViewHref('performance', '1h')).toContain('range=1h')
   })
 
   it('includes monitorId in path when provided', () => {

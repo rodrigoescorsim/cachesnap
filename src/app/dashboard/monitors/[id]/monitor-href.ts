@@ -80,11 +80,21 @@ export function buildMonitorHref(
   return `${full}${finalHash}`
 }
 
+/** Default range per Performance view — must match server-side resolution in monitor `page.tsx`. */
+const VIEW_DEFAULT_RANGE: Record<PerformanceView, string> = {
+  'real-time': '24h',
+  performance: '24h',
+  trends: '1h',
+  patterns: '24h',
+  infrastructure: '24h',
+}
+
 export function buildViewHref(view: PerformanceView, range: string, monitorId: string | null = null): string {
   const params = new URLSearchParams()
   params.set('tab', 'performance')
   params.set('view', view)
-  if (range && range !== '24h') params.set('range', range)
+  const defaultRange = VIEW_DEFAULT_RANGE[view]
+  if (range && range !== defaultRange) params.set('range', range)
   const query = params.toString()
   const path = monitorId ? `/dashboard/monitors/${monitorId}` : ''
   return `${path}?${query}`
