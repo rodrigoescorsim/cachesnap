@@ -24,6 +24,19 @@ pub enum BypassMode {
     Full,
 }
 
+/// Calcula o intervalo efetivo de uma probe considerando o estado de warmup.
+/// Warmup só acelera: se o intervalo configurado já for menor que o gap de warmup,
+/// o gap é ignorado. Espelha a lógica do Lua script em `should_run_now`.
+#[cfg(test)]
+pub fn effective_warmup_interval(warmup_index: Option<u32>, configured_secs: i64) -> i64 {
+    let gap = match warmup_index {
+        Some(0) => 30,
+        Some(1) => 60,
+        _ => return configured_secs,
+    };
+    gap.min(configured_secs)
+}
+
 pub async fn fetch_regions(db: &sqlx::PgPool) -> Vec<(String, String)> {
     match sqlx::query_as!(
         crate::models::region::Region,
@@ -201,12 +214,69 @@ pub(crate) async fn check_interval(state: &AppState, key: &str, interval_secs: i
 }
 
 async fn should_run_now(state: &AppState, monitor: &Monitor) -> bool {
-    check_interval(
-        state,
-        &format!("last_check:{}", monitor.id),
-        monitor.check_interval_seconds as i64,
-    )
-    .await
+    let mut conn = match state.redis.get().await {
+        Ok(c) => c,
+        Err(e) => {
+            error!("Scheduler: failed to get redis conn for monitor {}: {e}", monitor.id);
+            return false;
+        }
+    };
+
+    let now = chrono::Utc::now().timestamp();
+    let last_check_key = format!("last_check:{}", monitor.id);
+    let warmup_key = format!("warmup_probe_index:{}", monitor.id);
+
+    // Warmup burst: as 3 primeiras probes de cada monitor usam intervalos
+    // reduzidos (t=0, t+30s, t+90s) para que o usuário veja gráficos rapidamente.
+    // warmup_probe_index: 0→30s, 1→60s, ≥2 ou ausente→intervalo configurado.
+    // Warmup só acelera: se check_interval_seconds < gap de warmup, o gap é ignorado.
+    let script = r#"
+        local last_check   = redis.call('GET', KEYS[1])
+        local warmup_index = redis.call('GET', KEYS[2])
+        local now          = tonumber(ARGV[1])
+        local interval     = tonumber(ARGV[2])
+
+        local effective_interval = interval
+        if warmup_index ~= false then
+            local idx = tonumber(warmup_index)
+            local warmup_gap
+            if     idx == 0 then warmup_gap = 30
+            elseif idx == 1 then warmup_gap = 60
+            end
+            if warmup_gap and warmup_gap < interval then
+                effective_interval = warmup_gap
+            end
+        end
+
+        if not last_check or (now - tonumber(last_check)) >= effective_interval then
+            redis.call('SET', KEYS[1], now)
+            if not last_check then
+                redis.call('SET', KEYS[2], '0', 'EX', '300')
+            elseif warmup_index ~= false and tonumber(warmup_index) < 2 then
+                redis.call('INCR', KEYS[2])
+                redis.call('EXPIRE', KEYS[2], '300')
+            end
+            return 1
+        end
+        return 0
+    "#;
+
+    match cmd("EVAL")
+        .arg(script)
+        .arg(2)
+        .arg(&last_check_key)
+        .arg(&warmup_key)
+        .arg(now)
+        .arg(monitor.check_interval_seconds as i64)
+        .query_async::<_, i32>(&mut conn)
+        .await
+    {
+        Ok(result) => result == 1,
+        Err(e) => {
+            error!("Scheduler: warmup Lua script failed for monitor {}: {e}", monitor.id);
+            false
+        }
+    }
 }
 
 /// Determina a política de bypass baseado no estado de readiness persistido.
@@ -312,4 +382,41 @@ pub async fn dispatch_probes(
     .buffer_unordered(parallel)
     .collect::<()>()
     .await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::effective_warmup_interval;
+
+    #[test]
+    fn warmup_accelerates_standard_interval() {
+        assert_eq!(effective_warmup_interval(Some(0), 300), 30);
+        assert_eq!(effective_warmup_interval(Some(1), 300), 60);
+        assert_eq!(effective_warmup_interval(Some(2), 300), 300);
+        assert_eq!(effective_warmup_interval(None, 300), 300);
+    }
+
+    #[test]
+    fn warmup_never_slows_fast_monitors() {
+        // Monitores com intervalo < gap de warmup: gap é ignorado
+        assert_eq!(effective_warmup_interval(Some(0), 20), 20);
+        assert_eq!(effective_warmup_interval(Some(1), 45), 45);
+        assert_eq!(effective_warmup_interval(Some(1), 30), 30);
+    }
+
+    #[test]
+    fn warmup_complete_state_transition() {
+        // Índices ≥ 2 e None sempre devolvem o intervalo configurado
+        for idx in [2u32, 3, 10, 99] {
+            assert_eq!(effective_warmup_interval(Some(idx), 300), 300);
+        }
+        assert_eq!(effective_warmup_interval(None, 3600), 3600);
+    }
+
+    #[test]
+    fn warmup_boundary_at_exact_gap() {
+        // Intervalo igual ao gap: warmup não aplica (not strictly less than)
+        assert_eq!(effective_warmup_interval(Some(0), 30), 30);
+        assert_eq!(effective_warmup_interval(Some(1), 60), 60);
+    }
 }

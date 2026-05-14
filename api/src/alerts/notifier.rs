@@ -513,12 +513,17 @@ fn build_incident_email_html(
         html_escape(severity_note)
     );
 
+    let opened_display = format_incident_timestamp_utc(n.opened_at);
+    let opened_esc = html_escape(&opened_display);
+    let duration_esc = html_escape(&format_duration(&n.duration));
+
     let context_html = match n.notification_type {
         NotificationType::FirstFire => severity_html,
         NotificationType::Digest => format!(
-            "{}<p style='margin:0 0 12px;font-size:14px;color:#6b7280'>Ongoing for <strong>{}</strong> &middot; {} notification{} sent</p>",
+            "{}<p style='margin:0 0 12px;font-size:13px;color:#6b7280'>Since <strong style=\"color:#374151\">{}</strong> &middot; <strong>{}</strong> &middot; {} notification{} sent</p>",
             severity_html,
-            format_duration(&n.duration),
+            opened_esc,
+            duration_esc,
             n.notification_count,
             if n.notification_count == 1 { "" } else { "s" }
         ),
@@ -541,18 +546,12 @@ fn build_incident_email_html(
         .unwrap_or_default();
     let dashboard_url = format!("{}/dashboard", app_url);
 
-    let opened_display = format_incident_timestamp_utc(n.opened_at);
-    let opened_esc = html_escape(&opened_display);
     let incident_time_html = match n.notification_type {
         NotificationType::FirstFire => format!(
             "<p style='margin:0 0 12px;font-size:13px;color:#9ca3af'>First detected at <strong style=\"color:#6b7280\">{}</strong></p>",
             opened_esc
         ),
-        NotificationType::Digest => format!(
-            "<p style='margin:0 0 12px;font-size:13px;color:#9ca3af'>Ongoing since <strong style=\"color:#6b7280\">{}</strong></p>",
-            opened_esc
-        ),
-        NotificationType::Recovery => String::new(),
+        NotificationType::Digest | NotificationType::Recovery => String::new(),
     };
 
     format!(
@@ -800,8 +799,11 @@ fn build_slack_incident_text(
             format_incident_timestamp_utc(n.opened_at)
         )),
         NotificationType::Digest => parts.push(format!(
-            "Ongoing since {}",
-            format_incident_timestamp_utc(n.opened_at)
+            "Since {} · {} · {} notification{}",
+            format_incident_timestamp_utc(n.opened_at),
+            format_duration(&n.duration),
+            n.notification_count,
+            if n.notification_count == 1 { "" } else { "s" }
         )),
         NotificationType::Recovery => {}
     }
@@ -1258,12 +1260,15 @@ mod tests {
             "https://app",
         );
         assert!(
-            html.contains("Still Ongoing") || html.contains("Ongoing for"),
-            "got no ongoing marker"
+            html.contains("Still Ongoing"),
+            "digest header should mark ongoing state"
         );
         assert!(
-            html.contains("Ongoing since") && html.contains("2026-01-15 12:00 UTC"),
-            "digest email should show incident start time"
+            html.contains("Since <strong")
+                && html.contains("2026-01-15 12:00 UTC")
+                && html.contains("2 hours")
+                && html.contains("1 notification sent"),
+            "digest email should show start time, duration, and notification count on one line"
         );
     }
 
@@ -1295,8 +1300,11 @@ mod tests {
         );
         assert!(text.contains("ONGOING"));
         assert!(
-            text.contains("Ongoing since") && text.contains("2026-01-15 12:00 UTC"),
-            "slack digest should include opened_at"
+            text.contains("Since ")
+                && text.contains("2026-01-15 12:00 UTC")
+                && text.contains("2 hours")
+                && text.contains("1 notification"),
+            "slack digest should include opened_at, duration, and count"
         );
     }
 

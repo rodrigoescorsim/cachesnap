@@ -9,6 +9,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{models::monitor::Monitor, routes::auth, scheduler::runner, AppState};
+use deadpool_redis::redis::cmd;
 
 #[derive(serde::Deserialize)]
 pub struct DispatchRequest {
@@ -68,6 +69,27 @@ pub async fn handler(
     } else {
         runner::BypassMode::Off
     };
+    // Seta last_check imediatamente para que o scheduler não re-dispare antes
+    // das probes dos workers retornarem. Se não-manual (criação de monitor),
+    // também inicia a sequência de warmup burst.
+    if let Ok(mut conn) = state.redis.get().await {
+        let now = chrono::Utc::now().timestamp();
+        let _ = cmd("SET")
+            .arg(format!("last_check:{monitor_id}"))
+            .arg(now)
+            .query_async::<_, ()>(&mut conn)
+            .await;
+        if !is_manual {
+            let _ = cmd("SET")
+                .arg(format!("warmup_probe_index:{monitor_id}"))
+                .arg("0")
+                .arg("EX")
+                .arg("300")
+                .query_async::<_, ()>(&mut conn)
+                .await;
+        }
+    }
+
     tokio::spawn(async move {
         runner::dispatch_probes(&state, &monitor, regions, bypass_mode, is_manual, chrono::Utc::now()).await;
     });
