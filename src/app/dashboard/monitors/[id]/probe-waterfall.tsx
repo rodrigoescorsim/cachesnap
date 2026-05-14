@@ -1,5 +1,5 @@
 import { extractPop, popToCity, resolveCdnLabel } from '@/lib/edge-helpers'
-import { isCacheHit, getCacheDisplayLabel } from '@/lib/cache-utils'
+import { isCacheHit, getCacheDisplayLabel, getCacheStatusTooltip } from '@/lib/cache-utils'
 import {
   breakdownColor,
   breakdownEntries,
@@ -210,9 +210,11 @@ export function ProbeWaterfall({
                     )}
 
                     {probe.cache_status && (
-                      <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase ${cacheClass(probe.cache_status)}`}>
-                        {getCacheDisplayLabel(probe.cache_status)}
-                      </span>
+                      <PremiumTooltip content={getCacheStatusTooltip(probe.cache_status)}>
+                        <span className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase ${cacheClass(probe.cache_status)}`}>
+                          {getCacheDisplayLabel(probe.cache_status)}
+                        </span>
+                      </PremiumTooltip>
                     )}
 
                     {probe.redirect_count != null && probe.redirect_count > 0 && (

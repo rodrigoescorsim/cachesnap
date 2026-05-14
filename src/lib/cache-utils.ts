@@ -4,7 +4,20 @@
 
 export const CACHE_HIT_STATUSES = ['HIT', 'STALE', 'REVALIDATED', 'UPDATING', 'REVALIDATE', 'REFRESH_HIT'];
 export const CACHE_MISS_STATUSES = ['MISS', 'EXPIRED', 'ERROR'];
-export const CACHE_BYPASS_STATUSES = ['BYPASS', 'DYNAMIC', 'NONE', 'PASS', 'NO-CACHE', 'UNCALCULABLE', 'UNCACHEABLE', 'IGNORED', 'NO HEADER', 'LAMBDAGENERATED'];
+export const CACHE_BYPASS_STATUSES = [
+  'BYPASS',
+  'DYNAMIC',
+  'NONE',
+  'PASS',
+  'NO-CACHE',
+  'UNCALCULABLE',
+  'UNCACHEABLE',
+  'IGNORED',
+  'NO HEADER',
+  'LAMBDAGENERATED',
+  /** User-facing label for long CDN strings such as CloudFront `NOTCACHEABLE FROM CHILD`. */
+  'NOT CACHEABLE',
+];
 
 /**
  * Same classification as Timescale `probe_results_hourly.cdn_count` / alert worker:
@@ -100,12 +113,40 @@ export function isCacheBypass(status: string | null | undefined): boolean {
 }
 
 /**
+ * Tooltip copy for cache badges (plain language; raw vendor text only when useful).
+ */
+export function getCacheStatusTooltip(status: string | null | undefined): string {
+  if (!status || status === '—') {
+    return 'No cache header detected'
+  }
+  const upper = status.toUpperCase()
+  if (upper.includes('NOTCACHEABLE')) {
+    return 'Not cacheable at the edge. Usually cache headers or dynamic content.'
+  }
+  if (upper.includes(':')) {
+    const detail = status.slice(status.indexOf(':') + 1).trim()
+    if (detail.length > 0) {
+      return detail.length > 200 ? `${detail.slice(0, 197)}…` : detail
+    }
+  }
+  if (isCacheHit(status)) return 'Cache hit observed'
+  if (isCacheMiss(status)) return 'Request was cacheable but not found in edge cache'
+  if (isCacheBypass(status)) return 'Response bypassed or skipped edge cache'
+  return 'From response cache headers'
+}
+
+/**
  * Extracts a clean, short display label from a status string.
  * Example: "BYPASS:Cloudflare DYNAMIC" -> "DYNAMIC"
  */
 export function getCacheDisplayLabel(status: string | null | undefined): string {
   if (!status || status === '—') return 'NO HEADER'
   const upper = status.toUpperCase()
+
+  // CloudFront (and similar): internal "not cacheable at this edge tier" phrasing — unreadable in UI.
+  if (upper.includes('NOTCACHEABLE')) {
+    return 'NOT CACHEABLE'
+  }
 
   // 1. CDN vendor-prefixed format: "BYPASS:Cloudflare DYNAMIC", "HIT:Vercel HIT", etc.
   //    Parse the suffix first so the actual CDN status wins over the category prefix.

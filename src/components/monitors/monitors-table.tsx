@@ -55,7 +55,7 @@ import {
 } from '@/app/dashboard/monitors/[id]/monitor-table-styles'
 
 import { MONITOR_TTFB, MONITOR_CACHE, getTtfbTooltip, getCacheTooltip } from '@/lib/thresholds'
-import { isCacheHit, getCacheDisplayLabel, isCacheBypass } from '@/lib/cache-utils'
+import { isCacheHit, getCacheDisplayLabel, isCacheBypass, getCacheStatusTooltip } from '@/lib/cache-utils'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -183,9 +183,15 @@ function CacheHitBadge({ pct, status }: { pct: number | null; status: string | n
   const isIntentional = isCacheBypass(status) && displayLabel !== 'MISS' && displayLabel !== 'HIT'
 
   if (pct === null || (Math.round(pct) === 0 && isIntentional)) {
+    const bypassTooltip =
+      status?.toUpperCase().includes('NOTCACHEABLE')
+        ? getCacheStatusTooltip(status)
+        : pct === null
+          ? 'No cache-status header detected on recent probes.'
+          : 'Site is intentionally dynamic: All requests fetched from origin.'
     return (
       <PremiumTooltip
-        content={pct === null ? "No cache-status header detected on recent probes." : "Site is intentionally dynamic: All requests fetched from origin."}
+        content={bypassTooltip}
         position="top-center"
         direction="top"
       >

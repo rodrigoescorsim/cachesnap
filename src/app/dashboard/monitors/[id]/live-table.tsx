@@ -18,7 +18,7 @@ import {
 import {
   ProbeWaterfall
 } from './probe-waterfall'
-import { isCacheHit, isCacheMiss, getCacheDisplayLabel } from '@/lib/cache-utils'
+import { isCacheHit, isCacheMiss, getCacheDisplayLabel, getCacheStatusTooltip } from '@/lib/cache-utils'
 import { getTtfbTooltip, getTtfbColorClass } from '@/lib/thresholds'
 
 export interface LiveProbe {
@@ -283,12 +283,12 @@ export function LiveTable({
                           )
                         }
 
-                        const upper = status.toUpperCase()
                         const displayStatus = getCacheDisplayLabel(status)
+                        const cacheTip = getCacheStatusTooltip(status)
 
                         if (isCacheHit(status)) {
                           return (
-                            <PremiumTooltip content={upper.includes(':') ? upper.split(':')[1].trim() : 'Cache hit observed'} position="top-center" direction="top">
+                            <PremiumTooltip content={cacheTip} position="top-center" direction="top">
                               <span className="cs-badge-cache-hit">
                                 <Zap className="h-[10px] w-[10px] fill-current" />
                                 {displayStatus}
@@ -299,14 +299,14 @@ export function LiveTable({
 
                         if (isCacheMiss(status)) {
                           return (
-                            <PremiumTooltip content={upper.includes(':') ? upper.split(':')[1].trim() : 'Request was cacheable but not found in edge cache'} position="top-center" direction="top">
+                            <PremiumTooltip content={cacheTip} position="top-center" direction="top">
                               <span className="cs-badge-cache-miss">{displayStatus}</span>
                             </PremiumTooltip>
                           )
                         }
 
                         return (
-                          <PremiumTooltip content={upper.includes(':') ? upper.split(':')[1].trim() : 'Bypassed edge cache'} position="top-center" direction="top">
+                          <PremiumTooltip content={cacheTip} position="top-center" direction="top">
                             <span className="cs-badge-cache-not-reported">{displayStatus}</span>
                           </PremiumTooltip>
                         )

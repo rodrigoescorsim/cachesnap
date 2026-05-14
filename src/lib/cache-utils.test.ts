@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { 
-  isCacheHit, 
-  isCacheMiss, 
-  isCacheBypass, 
+import {
+  isCacheHit,
+  isCacheMiss,
+  isCacheBypass,
   getCacheDisplayLabel,
-  CACHE_HIT_STATUSES, 
-  CACHE_MISS_STATUSES, 
-  CACHE_BYPASS_STATUSES 
+  getCacheStatusTooltip,
+  CACHE_HIT_STATUSES,
+  CACHE_MISS_STATUSES,
+  CACHE_BYPASS_STATUSES,
 } from './cache-utils'
 
 describe('cache-utils', () => {
@@ -31,6 +32,7 @@ describe('cache-utils', () => {
       expect(CACHE_BYPASS_STATUSES).toContain('PASS')
       expect(CACHE_BYPASS_STATUSES).toContain('NO HEADER')
       expect(CACHE_BYPASS_STATUSES).toContain('UNCALCULABLE')
+      expect(CACHE_BYPASS_STATUSES).toContain('NOT CACHEABLE')
     })
   })
 
@@ -78,6 +80,11 @@ describe('cache-utils', () => {
       expect(isCacheBypass('HIT')).toBe(false)
       expect(isCacheBypass('MISS')).toBe(false)
     })
+
+    it('should treat CloudFront-style NOTCACHEABLE strings as bypass (NOT CACHEABLE label)', () => {
+      expect(isCacheBypass('NOTCACHEABLE FROM CHILD')).toBe(true)
+      expect(isCacheBypass('BYPASS:AWS CLOUDFRONT NOTCACHEABLE FROM CHILD')).toBe(true)
+    })
   })
 
   describe('getCacheDisplayLabel', () => {
@@ -97,6 +104,26 @@ describe('cache-utils', () => {
     it('should return the uppercase status for single words', () => {
       expect(getCacheDisplayLabel('hit')).toBe('HIT')
       expect(getCacheDisplayLabel('Dynamic')).toBe('DYNAMIC')
+    })
+
+    it('should shorten CloudFront NOTCACHEABLE phrases', () => {
+      expect(getCacheDisplayLabel('NOTCACHEABLE FROM CHILD')).toBe('NOT CACHEABLE')
+      expect(getCacheDisplayLabel('NotCacheable from child')).toBe('NOT CACHEABLE')
+      expect(getCacheDisplayLabel('BYPASS:AWS CLOUDFRONT NOTCACHEABLE FROM CHILD')).toBe(
+        'NOT CACHEABLE'
+      )
+    })
+  })
+
+  describe('getCacheStatusTooltip', () => {
+    it('should explain NOTCACHEABLE in plain language', () => {
+      const tip = getCacheStatusTooltip('NOTCACHEABLE FROM CHILD')
+      expect(tip).toContain('Not cacheable')
+      expect(tip).toContain('edge')
+    })
+
+    it('should prefer colon detail for vendor-prefixed statuses without NOTCACHEABLE', () => {
+      expect(getCacheStatusTooltip('MISS:Fastly MISS')).toBe('Fastly MISS')
     })
   })
 })
