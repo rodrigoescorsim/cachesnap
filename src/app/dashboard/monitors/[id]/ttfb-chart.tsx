@@ -737,6 +737,26 @@ export function TtfbChart({
     return PAD.top + (1 - (clamped - min) / (max - min)) * CH
   }
 
+  /**
+   * Build an SVG polyline path from bucket-indexed values.
+   * When a single point exists, draws a flat horizontal segment from the chart's
+   * left padding so the chart isn't visually empty while a second bucket is forming.
+   * `getY` may return null to skip missing data points.
+   */
+  const pathFromBuckets = (getY: (b: string, i: number) => number | null): string => {
+    const points: Array<{ x: number; y: number }> = []
+    for (let i = 0; i < allBuckets.length; i++) {
+      const y = getY(allBuckets[i], i)
+      if (y !== null && !Number.isNaN(y)) points.push({ x: toX(i), y })
+    }
+    if (points.length === 0) return ''
+    if (points.length === 1) {
+      const { x, y } = points[0]
+      return `M ${PAD.left} ${y} L ${x} ${y}`
+    }
+    return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+  }
+
   // ── Interaction ──────────────────────────────────────────────────────────
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!containerRef.current || allBuckets.length < 2) return
@@ -835,7 +855,23 @@ export function TtfbChart({
   const cacheThresholdOpacity = 0.3
 
   const renderXAxisLabels = () => {
-    if (allBuckets.length < 2) return null
+    if (allBuckets.length === 0) return null
+    if (allBuckets.length === 1) {
+      return (
+        <g>
+          <text
+            x={toX(0)}
+            y={H - 4}
+            textAnchor="middle"
+            fontSize={9}
+            fill="currentColor"
+            fillOpacity={0.3}
+          >
+            {formatChartLabel(allBuckets[0], range)}
+          </text>
+        </g>
+      )
+    }
     const count = allBuckets.length
     const step = Math.max(1, Math.floor(count / 5))
     const indices = []
@@ -1222,25 +1258,58 @@ export function TtfbChart({
         </div>
       )}
 
-      {allBuckets.length < 2 ? (
-        <div className="rounded-2xl border border-border bg-surface/30 p-12 text-center">
-          {isDown ? (
-            <div className="flex flex-col items-center justify-center space-y-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/10 mb-1">
-                <span className="relative flex h-3 w-3">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500"></span>
+      {allBuckets.length === 0 ? (
+        <section className="space-y-4">
+          <ViewSectionHeader
+            title={
+              <div className="flex items-baseline gap-2">
+                <span>Trends</span>
+                <span className="text-[11px] font-black uppercase tracking-[0.1em] text-zinc-400 opacity-70">
+                  · {range.toUpperCase()}
                 </span>
               </div>
-              <p className="text-sm font-bold text-red-400">Site Unreachable</p>
-              <p className="text-xs text-red-300/60 max-w-sm mx-auto">
-                No performance metrics available for this time window due to connection failures.
-              </p>
+            }
+          >
+            <div className="flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 dark:bg-white/5 px-1.5 border border-zinc-200 dark:border-white/10">
+              {(['1h', '4h', '24h', '7d', '30d', '90d'] as const).map((r) => (
+                <PremiumTooltip key={r} content={TIMEFRAME_TOOLTIPS[r]}>
+                  <Link
+                    href={buildViewHref('trends', r, monitorId)}
+                    className={`px-3 h-6 flex items-center justify-center rounded-lg text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 ${range === r
+                      ? 'bg-white dark:bg-white/10 text-zinc-900 dark:text-white shadow-lg shadow-black/5 ring-1 ring-black/5'
+                      : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
+                      }`}
+                  >
+                    {r}
+                  </Link>
+                </PremiumTooltip>
+              ))}
             </div>
-          ) : (
-            <p className="text-sm text-zinc-500 italic font-medium">Not enough data points in this time window.</p>
-          )}
-        </div>
+          </ViewSectionHeader>
+          <div className="rounded-2xl border border-border bg-surface/30 p-12 text-center">
+            {isDown ? (
+              <div className="flex flex-col items-center justify-center space-y-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/10 mb-1">
+                  <span className="relative flex h-3 w-3">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500"></span>
+                  </span>
+                </div>
+                <p className="text-sm font-bold text-red-400">Site Unreachable</p>
+                <p className="text-xs text-red-300/60 max-w-sm mx-auto">
+                  No performance metrics available for this time window due to connection failures.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <p className="text-sm text-zinc-300 font-medium">No data points in this time window.</p>
+                <p className="text-xs text-zinc-500">
+                  Try a different range or wait for the next probe.
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
       ) : (
         <section className="space-y-4">
           <>
@@ -1378,7 +1447,7 @@ export function TtfbChart({
                     >
                       <path d={bandPath} fill={regionMeta[region]?.color ?? '#6b7280'} fillOpacity={isActive ? 0.08 : 0.03} />
                       <path
-                        d={allBuckets.map((b, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toYTtfb(m.get(b)?.ttfb_avg ?? 0)}`).join(' ')}
+                        d={pathFromBuckets(b => toYTtfb(m.get(b)?.ttfb_avg ?? 0))}
                         fill="none"
                         stroke={regionMeta[region]?.color ?? '#6b7280'}
                         strokeWidth={isActive ? 3.5 : 1.5}
@@ -1393,7 +1462,7 @@ export function TtfbChart({
                 {showGlobalTtfb && (
                   <g onClick={() => handleLineClick('global', 'ttfb')} className="cursor-pointer">
                     <path
-                      d={globalTtfb.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toYTtfb(p.value)}`).join(' ')}
+                      d={pathFromBuckets((_b, i) => toYTtfb(globalTtfb[i]?.value ?? 0))}
                       fill="none"
                       stroke="#22d3ee"
                       strokeWidth={activeTtfbRegion === 'global' ? 4 : 2}
@@ -1583,10 +1652,10 @@ export function TtfbChart({
                         if (!selectedCacheRegions.has(region)) return null
                         const m = byRegion[region]
                         if (!m) return null
-                        const dPath = allBuckets.map((b, i) => {
+                        const dPath = pathFromBuckets(b => {
                           const p = m.get(b)
-                          return (p && p.cache_hit_pct != null) ? `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toYCache(p.cache_hit_pct)}` : null
-                        }).filter(Boolean).join(' ')
+                          return (p && p.cache_hit_pct != null) ? toYCache(p.cache_hit_pct) : null
+                        })
                         if (!dPath) return null
 
                         return (
@@ -1617,7 +1686,10 @@ export function TtfbChart({
                           className="cursor-pointer"
                         >
                           <path
-                            d={globalCache.map((p, i) => p.value != null ? `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toYCache(p.value)}` : null).filter(Boolean).join(' ')}
+                            d={pathFromBuckets((_b, i) => {
+                              const v = globalCache[i]?.value
+                              return v != null ? toYCache(v) : null
+                            })}
                             fill="none"
                             stroke="#22d3ee"
                             strokeWidth={activeCacheRegion === 'global' ? 4 : 2}
@@ -1790,7 +1862,7 @@ export function TtfbChart({
                 {showGlobalNet && (
                   <g onClick={() => handleLineClick('global', 'net')} className="cursor-pointer">
                     <path
-                      d={globalNet.map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toYNet(p.value)}`).join(' ')}
+                      d={pathFromBuckets((_b, i) => toYNet(globalNet[i]?.value ?? 0))}
                       fill="none"
                       stroke="#22d3ee"
                       strokeWidth={activeNetRegion === 'global' ? 4 : 2}
@@ -1807,7 +1879,7 @@ export function TtfbChart({
                   if (!selectedNetRegions.has(region)) return null
                   const m = byRegion[region]
                   if (!m) return null
-                  const dPath = allBuckets.map((b, i) => {
+                  const dPath = pathFromBuckets(b => {
                     const p = m.get(b)
                     if (!p) return null
                     let val = 0
@@ -1815,8 +1887,8 @@ export function TtfbChart({
                     else if (networkMetric === 'tcp') val = p.tcp_avg ?? 0
                     else if (networkMetric === 'tls') val = p.tls_avg ?? 0
                     else val = (p.dns_avg ?? 0) + (p.tcp_avg ?? 0) + (p.tls_avg ?? 0)
-                    return `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toYNet(val)}`
-                  }).filter(Boolean).join(' ')
+                    return toYNet(val)
+                  })
                   if (!dPath) return null
 
                   return (
