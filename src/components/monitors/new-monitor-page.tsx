@@ -18,6 +18,15 @@ function isValidUrl(raw: string): boolean {
   }
 }
 
+function getFaviconUrl(urlString: string): string | null {
+  try {
+    const { hostname } = new URL(urlString)
+    return `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`
+  } catch {
+    return null
+  }
+}
+
 const BENEFITS = [
   { icon: Map, text: 'Global performance map across 8+ regions' },
   { icon: BarChart3, text: 'Cache breakdown & TTFB analytics' },
@@ -36,18 +45,35 @@ export function NewMonitorPage({ userEmail, logoutAction }: NewMonitorPageProps)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [urlValue, setUrlValue] = useState('')
   const [urlStatus, setUrlStatus] = useState<UrlStatus>('idle')
+  const [faviconUrl, setFaviconUrl] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleUrlChange = (val: string) => {
     setUrlValue(val)
     if (!val.trim()) {
       setUrlStatus('idle')
+      setFaviconUrl(null)
       return
     }
     setUrlStatus('validating')
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      setUrlStatus(isValidUrl(val) ? 'valid' : 'invalid')
+      let normalized = val.trim()
+      // Auto-normaliza para https:// quando o usuário digita sem protocolo (ex: "youtube.com")
+      if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
+        const candidate = `https://${normalized}`
+        if (isValidUrl(candidate)) {
+          normalized = candidate
+          setUrlValue(normalized)
+        }
+      }
+      if (isValidUrl(normalized)) {
+        setUrlStatus('valid')
+        setFaviconUrl(getFaviconUrl(normalized))
+      } else {
+        setUrlStatus('invalid')
+        setFaviconUrl(null)
+      }
     }, 480)
   }
 
@@ -133,9 +159,18 @@ export function NewMonitorPage({ userEmail, logoutAction }: NewMonitorPageProps)
                 Monitor URL <span style={{ color: 'var(--brand-primary)' }}>*</span>
               </label>
               <div className="group relative">
-                {/* Left globe icon */}
+                {/* Left icon: favicon quando disponível, Globe como fallback */}
                 <div className="absolute left-4 top-1/2 z-20 -translate-y-1/2 text-zinc-500 transition-colors group-focus-within:text-[var(--brand-primary)]">
-                  <Globe className="h-4 w-4" />
+                  {faviconUrl ? (
+                    <img
+                      src={faviconUrl}
+                      alt=""
+                      className="h-4 w-4 rounded-sm object-contain"
+                      onError={() => setFaviconUrl(null)}
+                    />
+                  ) : (
+                    <Globe className="h-4 w-4" />
+                  )}
                 </div>
 
                 <input
