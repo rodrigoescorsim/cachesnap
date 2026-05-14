@@ -100,7 +100,20 @@ async fn test_downtime_aggregation_logic() {
     .bind(true).bind(true).bind(1000).bind(500)
     .execute(&state.db).await.unwrap();
 
+    // Three 5xx probes from distinct regions. Each is also persisted to
+    // probe_results so the corroboration query (≥2 regions in last 5min) sees
+    // them — the detector reads from the DB, not from in-memory state.
     for region in ["us-east", "eu-west", "sa-east"] {
+        sqlx::query(
+            "INSERT INTO probe_results (time, monitor_id, region, status_code, error)
+             VALUES (NOW(), $1, $2, 503, 'Service Unavailable')",
+        )
+        .bind(monitor_id)
+        .bind(region)
+        .execute(&state.db)
+        .await
+        .unwrap();
+
         let mut payload = create_test_payload(monitor_id, region);
         payload.status_code = Some(503);
         payload.error = Some("Service Unavailable".to_string());
@@ -125,6 +138,231 @@ async fn test_downtime_aggregation_logic() {
 
     assert_eq!(incident_count, 1, "Should have exactly 1 open incident");
     assert_eq!(alert_count, 1, "Should have exactly 1 alert history record (FirstFire)");
+
+    cleanup(&state, monitor_id, user_id).await;
+}
+
+// ── Scenario: a single timeout probe must NOT open a `down` incident ─────────
+// Regression test for the false-positive bug: ~90% of historical "Monitor Down"
+// alerts came from single-region timeouts. With the new classifier:
+//   - timeout errors route to `slow_timeout` (not `down`)
+//   - corroboration requires ≥2 regions OR ≥2 consecutive probes
+// A lone timeout from one region must produce zero incidents.
+#[tokio::test]
+async fn test_single_timeout_probe_does_not_open_incident() {
+    let state = get_test_state().await;
+    let monitor_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(format!("single-to-{}@cachesnap.com", user_id))
+        .bind("hash")
+        .execute(&state.db).await.unwrap();
+
+    // is_active = false so a co-running dev scheduler does not inject real DNS
+    // probes against the fake URL during the 18s wait window. check_probe_alerts
+    // is invoked directly and does not check the flag.
+    sqlx::query(
+        "INSERT INTO monitors (id, user_id, url, name, is_active, alert_down_enabled)
+         VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(monitor_id).bind(user_id)
+    .bind("http://single-timeout.com").bind("Single Timeout")
+    .bind(false).bind(true)
+    .execute(&state.db).await.unwrap();
+
+    // Single lone timeout in ap-south. Persist + dispatch.
+    sqlx::query(
+        "INSERT INTO probe_results (time, monitor_id, region, error)
+         VALUES (NOW(), $1, 'ap-south', 'timeout: Request did not complete within 25s')",
+    )
+    .bind(monitor_id).execute(&state.db).await.unwrap();
+
+    let mut payload = create_test_payload(monitor_id, "ap-south");
+    payload.error = Some("timeout: Request did not complete within 25s".to_string());
+    check_probe_alerts(state.clone(), payload).await;
+
+    tokio::time::sleep(Duration::from_secs(18)).await;
+
+    let down_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'down'"
+    )
+    .bind(monitor_id).fetch_one(&state.db).await.unwrap();
+
+    let slow_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'slow_timeout'"
+    )
+    .bind(monitor_id).fetch_one(&state.db).await.unwrap();
+
+    assert_eq!(down_count, 0, "Timeout must never open `down`");
+    assert_eq!(
+        slow_count, 0,
+        "Single uncorroborated timeout must be suppressed by the ≥2 regions / ≥2 consecutive gate"
+    );
+
+    cleanup(&state, monitor_id, user_id).await;
+}
+
+// ── Scenario: corroborated timeouts open `slow_timeout` (HIGH), not `down` ───
+// Two distinct regions experience timeouts simultaneously. The detector must
+// open a `slow_timeout` incident (severity High) — separate from `down`.
+#[tokio::test]
+async fn test_corroborated_timeouts_open_slow_timeout_not_down() {
+    let state = get_test_state().await;
+    let monitor_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(format!("corr-to-{}@cachesnap.com", user_id))
+        .bind("hash")
+        .execute(&state.db).await.unwrap();
+
+    // is_active = false — see note in test_single_timeout_probe_does_not_open_incident.
+    sqlx::query(
+        "INSERT INTO monitors (id, user_id, url, name, is_active, alert_down_enabled)
+         VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(monitor_id).bind(user_id)
+    .bind("http://corroborated-timeout.com").bind("Corr Timeout")
+    .bind(false).bind(true)
+    .execute(&state.db).await.unwrap();
+
+    for region in ["ap-south", "af-south"] {
+        sqlx::query(
+            "INSERT INTO probe_results (time, monitor_id, region, error)
+             VALUES (NOW(), $1, $2, 'timeout: Request did not complete within 25s')",
+        )
+        .bind(monitor_id).bind(region).execute(&state.db).await.unwrap();
+
+        let mut payload = create_test_payload(monitor_id, region);
+        payload.error = Some("timeout: Request did not complete within 25s".to_string());
+        check_probe_alerts(state.clone(), payload).await;
+    }
+
+    tokio::time::sleep(Duration::from_secs(18)).await;
+
+    let down_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'down'"
+    )
+    .bind(monitor_id).fetch_one(&state.db).await.unwrap();
+
+    let (slow_count, severity): (i64, String) = sqlx::query_as(
+        "SELECT COUNT(*)::bigint, MAX(severity)
+         FROM alert_incidents
+         WHERE monitor_id = $1 AND alert_type = 'slow_timeout'"
+    )
+    .bind(monitor_id).fetch_one(&state.db).await.unwrap();
+
+    assert_eq!(down_count, 0, "Corroborated timeouts must NOT open `down` — they are not application failures");
+    assert_eq!(slow_count, 1, "Corroborated timeouts must open exactly one `slow_timeout` incident");
+    assert_eq!(severity, "high", "slow_timeout severity tier is High, not Critical");
+
+    cleanup(&state, monitor_id, user_id).await;
+}
+
+// ── Scenario: a single 5xx probe also requires corroboration ─────────────────
+// Application failures (5xx) are real but still need ≥2 regions OR ≥2 consecutive
+// probes — the noise gate applies uniformly so single-region transient 502s
+// don't wake the team at 3am.
+#[tokio::test]
+async fn test_single_5xx_probe_does_not_open_incident() {
+    let state = get_test_state().await;
+    let monitor_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(format!("single-5xx-{}@cachesnap.com", user_id))
+        .bind("hash")
+        .execute(&state.db).await.unwrap();
+
+    // is_active = false — see note in test_single_timeout_probe_does_not_open_incident.
+    sqlx::query(
+        "INSERT INTO monitors (id, user_id, url, name, is_active, alert_down_enabled)
+         VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(monitor_id).bind(user_id)
+    .bind("http://single-5xx.com").bind("Single 5xx")
+    .bind(false).bind(true)
+    .execute(&state.db).await.unwrap();
+
+    sqlx::query(
+        "INSERT INTO probe_results (time, monitor_id, region, status_code)
+         VALUES (NOW(), $1, 'us-east', 502)",
+    )
+    .bind(monitor_id).execute(&state.db).await.unwrap();
+
+    let mut payload = create_test_payload(monitor_id, "us-east");
+    payload.status_code = Some(502);
+    check_probe_alerts(state.clone(), payload).await;
+
+    tokio::time::sleep(Duration::from_secs(18)).await;
+
+    let down_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'down'"
+    )
+    .bind(monitor_id).fetch_one(&state.db).await.unwrap();
+
+    assert_eq!(down_count, 0, "A single uncorroborated 502 must not open Monitor Down");
+
+    cleanup(&state, monitor_id, user_id).await;
+}
+
+// ── Scenario: ≥2 consecutive failures in the same region open the incident ───
+// Single-region outage path: when one region keeps failing back-to-back the
+// gate must let it through even without a second region. This validates the
+// `count_consecutive_failures_in_region` branch of the corroboration logic.
+#[tokio::test]
+async fn test_two_consecutive_failures_same_region_open_down() {
+    let state = get_test_state().await;
+    let monitor_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(format!("consec-{}@cachesnap.com", user_id))
+        .bind("hash")
+        .execute(&state.db).await.unwrap();
+
+    // is_active = false — see note in test_single_timeout_probe_does_not_open_incident.
+    sqlx::query(
+        "INSERT INTO monitors (id, user_id, url, name, is_active, alert_down_enabled)
+         VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(monitor_id).bind(user_id)
+    .bind("http://consec-fail.com").bind("Consec Fail")
+    .bind(false).bind(true)
+    .execute(&state.db).await.unwrap();
+
+    // First failure: older — already in the table when the second one fires.
+    sqlx::query(
+        "INSERT INTO probe_results (time, monitor_id, region, status_code)
+         VALUES (NOW() - INTERVAL '2 minutes', $1, 'us-east', 502)",
+    )
+    .bind(monitor_id).execute(&state.db).await.unwrap();
+
+    // Second failure (the one that triggers dispatch). The corroboration scan
+    // sees 2 consecutive 5xx in us-east → opens incident.
+    sqlx::query(
+        "INSERT INTO probe_results (time, monitor_id, region, status_code)
+         VALUES (NOW(), $1, 'us-east', 502)",
+    )
+    .bind(monitor_id).execute(&state.db).await.unwrap();
+
+    let mut payload = create_test_payload(monitor_id, "us-east");
+    payload.status_code = Some(502);
+    check_probe_alerts(state.clone(), payload).await;
+
+    tokio::time::sleep(Duration::from_secs(18)).await;
+
+    let down_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'down'"
+    )
+    .bind(monitor_id).fetch_one(&state.db).await.unwrap();
+
+    assert_eq!(down_count, 1, "Two consecutive 5xx in the same region must open Monitor Down");
 
     cleanup(&state, monitor_id, user_id).await;
 }
