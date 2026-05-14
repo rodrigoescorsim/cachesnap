@@ -33,7 +33,7 @@ pub async fn handler(
             .execute(&db)
             .await;
         });
-        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "deprecated probe version", "required": "1.28" }))).into_response();
+        return (StatusCode::BAD_REQUEST, Json(json!({ "error": "deprecated probe version", "required": "1.29" }))).into_response();
     }
 
     tracing::info!("Ingest: received result for monitor {} from region {} | bypass_ttfb: {:?}", payload.monitor_id, payload.region, payload.bypass_ttfb_ms);
