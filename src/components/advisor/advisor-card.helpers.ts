@@ -594,8 +594,8 @@ export function deriveMonitorTrendsAdvisor(input: MonitorTrendsAdvisorInput): Ad
   if (!input.hasHistory && !hasSpikes) {
     return {
       severity: 'good',
-      headline: 'Performance patterns stable',
-      body: `Latency patterns for ${host} are being established. No significant spikes or anomalies detected in the current collection period.`,
+      headline: 'No spikes detected',
+      body: `Latency data for ${host} is being established. No significant spikes or anomalies detected in the current collection period.`,
       actions: [],
     }
   }
@@ -659,9 +659,18 @@ export function deriveMonitorPatternsAdvisor(input: MonitorPatternsAdvisorInput)
   const { url, range, monitorId, hourlyPattern,
     thresholdMs = MONITOR_TTFB.SLOW, thresholdHitMs = MONITOR_TTFB.FAST,
     cacheWarnPct = MONITOR_CACHE.GOOD } = input
-  if (hourlyPattern.length < 3) return null
 
   const host = hostname(url)
+
+  if (hourlyPattern.length < 3) {
+    return {
+      severity: 'good',
+      headline: 'Building hourly patterns',
+      body: `Not enough data yet to detect recurring trends. Check back after a few more hours of probes.`,
+      actions: [],
+    }
+  }
+
   const sorted = [...hourlyPattern].sort((a, b) => b.ttfb_avg - a.ttfb_avg)
   const worstHour = sorted[0]
   const bestHour = sorted[sorted.length - 1]
