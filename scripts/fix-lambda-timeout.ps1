@@ -2,11 +2,13 @@
 # Updates the timeout and memory settings for all 8 AWS regions.
 #
 # Budget reasoning (must stay in sync with probes/lambda/index.mjs constants):
-#   - PROBE_TIMEOUT_MS    = 25s  (main measurement)
-#   - REDIRECT_TIMEOUT_MS = 10s  (pre-measurement HEAD chain)
-#   - INGEST_TIMEOUT_MS   = 10s  (POST result to CacheSnap)
-# Worst-case (cold start + redirect chain + measurement + ingest report) fits
-# inside 35s with headroom; 30s left a too-narrow margin in af-south / ap-south.
+#   - LAMBDA_TIMEOUT_MS  = 35s   (AWS runtime kill timer — set here)
+#   - PROBE_DEADLINE_MS  = 27s   (internal soft cut-off for all measurement phases)
+#   - INGEST_TIMEOUT_MS  =  6s   (POST result to CacheSnap, runs after the deadline)
+#
+# The internal deadline guarantees ~8s headroom so the Lambda can ALWAYS report
+# a classified `timeout:` error instead of being killed mid-flight by AWS.
+# Keep this file synced with deploy-lambda.ps1 / deploy-lambda.sh.
 
 $RegionMap = @{
     "sa-east-1"      = "hoplens-probe-sa-east"

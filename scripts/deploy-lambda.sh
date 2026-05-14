@@ -15,8 +15,10 @@ declare -A REGION_MAP=(
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-SOURCE_FILE="$PROJECT_ROOT/probes/lambda/index.mjs"
-ZIP_FILE="$PROJECT_ROOT/probes/lambda/lambda_deploy.zip"
+SOURCE_DIR="$PROJECT_ROOT/probes/lambda"
+ZIP_FILE="$SOURCE_DIR/lambda_deploy.zip"
+# Explicit allow-list — keeps test files out of the production bundle.
+DEPLOY_FILES=(index.mjs cdn-providers.mjs)
 
 echo "--- CacheSnap Lambda Deployer (8 Regions) ---"
 
@@ -25,16 +27,18 @@ if ! command -v aws &>/dev/null; then
     exit 1
 fi
 
-if [[ ! -f "$SOURCE_FILE" ]]; then
-    echo "[ERROR] Source file not found: $SOURCE_FILE" >&2
-    exit 1
-fi
+for FILE in "${DEPLOY_FILES[@]}"; do
+    if [[ ! -f "$SOURCE_DIR/$FILE" ]]; then
+        echo "[ERROR] Source file not found: $SOURCE_DIR/$FILE" >&2
+        exit 1
+    fi
+done
 
 # 1. Create zip
 echo -n "Creating deployment package..."
 rm -f "$ZIP_FILE"
-cd "$(dirname "$SOURCE_FILE")"
-zip -q "$ZIP_FILE" "$(basename "$SOURCE_FILE")"
+cd "$SOURCE_DIR"
+zip -q "$ZIP_FILE" "${DEPLOY_FILES[@]}"
 cd "$PROJECT_ROOT"
 echo " DONE"
 
@@ -59,10 +63,11 @@ for REGION in "${!REGION_MAP[@]}"; do
         --function-name "$FUNC_NAME" \
         --region "$REGION"
 
+    # Manter em sincronia com LAMBDA_TIMEOUT_MS em probes/lambda/index.mjs
     if aws lambda update-function-configuration \
             --function-name "$FUNC_NAME" \
             --region "$REGION" \
-            --timeout 30 \
+            --timeout 35 \
             --memory-size 128 \
             --output json &>/dev/null; then
         echo " SUCCESS"

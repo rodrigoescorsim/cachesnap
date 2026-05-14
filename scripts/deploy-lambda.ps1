@@ -46,8 +46,13 @@ if (-not (Test-Path $SourcePath)) {
 # 1. Create Zip
 Write-Host "Creating deployment package..." -NoNewline
 if (Test-Path $ZipFile) { Remove-Item $ZipFile -Force }
-# Include all .mjs files in the directory
-Compress-Archive -Path "probes/lambda/*.mjs" -DestinationPath $ZipFile
+# Explicit allow-list — keeps test files (test-local.mjs, *.test.mjs, etc.) out
+# of the production bundle.
+$DeployFiles = @(
+    "probes/lambda/index.mjs",
+    "probes/lambda/cdn-providers.mjs"
+)
+Compress-Archive -Path $DeployFiles -DestinationPath $ZipFile
 Write-Host " DONE" -ForegroundColor Green
 
 # 2. Update each region
@@ -75,11 +80,12 @@ foreach ($Region in $RegionMap.Keys) {
     # Wait for the code update to complete to avoid ResourceConflictException
     aws lambda wait function-updated --function-name $FuncName --region $Region
 
-    # Garante o timeout de 30s e memória de 128MB
+    # Garante o timeout de 35s e memória de 128MB
+    # Manter em sincronia com LAMBDA_TIMEOUT_MS em probes/lambda/index.mjs
     $ConfigOutput = aws lambda update-function-configuration `
         --function-name $FuncName `
         --region $Region `
-        --timeout 30 `
+        --timeout 35 `
         --memory-size 128 `
         --output json 2>&1
 

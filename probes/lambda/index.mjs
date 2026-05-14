@@ -44,19 +44,100 @@ import { detectCdnProviderFromHeaders } from './cdn-providers.mjs';
 
 // ─── Timeout Budget ───────────────────────────────────────────────────────────
 //
-// The Lambda runtime is configured for 30s (see scripts/fix-lambda-timeout.ps1).
-// Internal phases must fit within that budget with headroom for cold start +
-// ingest reporting. Each error message embeds the actual configured value to
-// avoid "Timeout (15s)" mismatches when the limit is changed later.
+// Two separate clocks govern execution:
+//
+//   LAMBDA_TIMEOUT_MS  — AWS Lambda runtime limit (keep in sync with
+//                        scripts/fix-lambda-timeout.ps1 and deploy-lambda.*).
+//                        When this fires, the AWS runtime kills the process
+//                        immediately; nothing more runs.
+//
+//   PROBE_DEADLINE_MS  — Our internal soft cut-off. All measurement phases
+//                        (redirects + bypass + normal) must finish within this
+//                        budget. Leaving the remaining ~8s for ingest + overhead
+//                        ensures the Lambda can always send a classified error to
+//                        the backend before the AWS runtime kills it.
+//
+// Flow:
+//   0s ──────── PROBE_DEADLINE_MS = 27s ──────── LAMBDA_TIMEOUT_MS = 35s
+//   [measure phases → deadline guard] → [ingest ≤ 6s] → [return]
+//                                  ↑
+//                         deadline exceeded here? emit timeout: error → ingest
+//
+// MIN_PHASE_MS  — Minimum remaining budget required to START a new phase.
+//                 If the remaining time is less than this, the phase is skipped
+//                 and a deadline error is recorded instead of silently omitting data.
+//
+// MAX_PROBE_MS  — Hard cap for a single measureUrl call (so one slow site
+//                 cannot consume the entire deadline on its own).
+//
+// MAX_REDIRECT_MS — Cap per redirect hop (not total chain — total is gated by deadline).
+//
+// INGEST_TIMEOUT_MS — Budget for the POST back to CacheSnap (outside the deadline,
+//                     uses the reserved window between PROBE_DEADLINE_MS and LAMBDA_TIMEOUT_MS).
 //
 // Detector classification (api/src/alerts/detector.rs) keys off the prefix:
 //   - `timeout: ...`           → slow_timeout (measurement failure, NOT down)
 //   - `timeout_redirect: ...`  → slow_timeout (pre-measurement redirect chain)
 //   - `connection_reset: ...`  → transient (down only with corroboration)
 //   - `socket_aborted: ...`    → transient (down only with corroboration)
-const PROBE_TIMEOUT_MS = 25000;     // Per-request budget for the main measurement.
-const REDIRECT_TIMEOUT_MS = 10000;  // Pre-measurement HEAD chain (count redirects).
-const INGEST_TIMEOUT_MS = 10000;    // POST result back to CacheSnap.
+const LAMBDA_TIMEOUT_MS  = 35000;  // AWS runtime. Keep in sync with deploy scripts.
+const PROBE_DEADLINE_MS  = 27000;  // Internal measurement cut-off.
+const MIN_PHASE_MS       =  2000;  // Skip a phase if remaining < this.
+const MAX_PROBE_MS       = 20000;  // Per-request cap inside measureUrl.
+const MAX_REDIRECT_MS    =  5000;  // Per-hop cap inside headRequest.
+const INGEST_TIMEOUT_MS  =  6000;  // POST result back to CacheSnap.
+
+// Defensive invariant: the internal deadline must leave room for the ingest
+// POST + cold-start overhead. If someone bumps PROBE_DEADLINE_MS too close to
+// LAMBDA_TIMEOUT_MS, surface the misconfiguration loudly on module load.
+if (PROBE_DEADLINE_MS + INGEST_TIMEOUT_MS >= LAMBDA_TIMEOUT_MS) {
+  throw new Error(
+    `[probe] Misconfigured budget: PROBE_DEADLINE_MS (${PROBE_DEADLINE_MS}) + ` +
+      `INGEST_TIMEOUT_MS (${INGEST_TIMEOUT_MS}) must be < LAMBDA_TIMEOUT_MS (${LAMBDA_TIMEOUT_MS})`,
+  );
+}
+
+// ─── Deadline ────────────────────────────────────────────────────────────────
+// Tracks wall-clock time from the start of the Lambda invocation and exposes
+// helpers used by every measurement phase to compute their effective timeout.
+// Exported for unit testing (see probes/lambda/deadline.test.mjs).
+
+export class Deadline {
+  constructor(limitMs) {
+    this._start = performance.now();
+    this._limitMs = limitMs;
+  }
+
+  elapsedMs() {
+    return performance.now() - this._start;
+  }
+
+  /**
+   * Remaining budget. Can go NEGATIVE once the deadline has been crossed —
+   * callers should not use this for arithmetic; use `effectiveTimeoutMs`
+   * (clamped ≥1) for socket timeouts and `exceeded()` for guards.
+   */
+  remainingMs() {
+    return this._limitMs - this.elapsedMs();
+  }
+
+  /**
+   * True when fewer than `minRequired` ms remain. With the default `0` this
+   * means "the deadline has been crossed". With a positive value it means
+   * "not enough budget to start a phase that needs at least minRequired ms".
+   */
+  exceeded(minRequired = 0) {
+    return this.remainingMs() <= minRequired;
+  }
+
+  /**
+   * Effective socket timeout for a single request: the lower of `maxMs` and
+   * the remaining deadline. Always at least 1ms so the Node.js API accepts it.
+   */
+  effectiveTimeoutMs(maxMs) {
+    return Math.min(maxMs, Math.max(1, this.remainingMs()));
+  }
+}
 
 // ─── Lambda Handler ───────────────────────────────────────────────────────────
 
@@ -81,6 +162,10 @@ export const handler = async (event) => {
       body: JSON.stringify({ error: 'monitor_id, url and ingest_url are required' }),
     };
   }
+
+  // One deadline per Lambda invocation. All measurement phases share it.
+  // Ingest send lives OUTSIDE the deadline window (uses the reserved buffer).
+  const deadline = new Deadline(PROBE_DEADLINE_MS);
 
   // Build the result object with ALL fields the Rust ingest API expects
   const result = {
@@ -118,71 +203,101 @@ export const handler = async (event) => {
   };
 
   try {
-    // 1. Count redirects (manual follow)
-    const { redirectCount } = await countRedirects(url);
-    result.redirect_count = redirectCount;
-
-    // 2. Probing Logic (Bypass-First Sequence)
-    if (run_bypass) {
-      console.log(`[probe] Step 1: Bypass-First check for ${url}`);
-      const bypassUrl = appendBypassParam(url);
-      const bypassMetrics = await measureUrl(bypassUrl, true);
-
-      // Store origin-side measurements for Edge vs Origin comparison
-      result.bypass_ttfb_ms = bypassMetrics.ttfb_ms;
-      result.bypass_total_ms = bypassMetrics.total_ms;
-      result.bypass_dns_ms = bypassMetrics.dns_ms;
-      result.bypass_tcp_ms = bypassMetrics.tcp_ms;
-      result.bypass_tls_ms = bypassMetrics.tls_ms;
-      result.bypass_status_code = bypassMetrics.status_code;
-      result.bypass_served_by = bypassMetrics.served_by;
-      result.bypass_server_timing = bypassMetrics.server_timing;
-      result.bypass_server_timing_breakdown = bypassMetrics.server_timing_breakdown;
-      result.bypass_cache_status = bypassMetrics.cache_status;
-      result.bypass_error = bypassMetrics.error;
-      result.bypass_age_s = bypassMetrics.age_s;
-
-      // Assinalar métricas base por padrão (Headers, Seguranças, etc)
-      Object.assign(result, bypassMetrics);
-
-      const cacheStatus = bypassMetrics.cache_status || 'HIDDEN';
-      const isConfirmedHit = cacheStatus === 'HIT';
-
-      // Reativo: se o provedor respeitou o bypass (não foi HIT cacheado) e não teve erro, medimos a Borda
-      if (!isConfirmedHit && !bypassMetrics.error) {
-        console.log(`[probe] Step 2: Immediate Normal check (Bypass was ${cacheStatus})`);
-        const normalMetrics = await measureUrl(url, false);
-
-        // Atualiza as métricas Naturais (Edge) refletindo o tempo real do usuário
-        result.ttfb_ms = normalMetrics.ttfb_ms;
-        result.download_ms = normalMetrics.download_ms;
-        result.total_ms = normalMetrics.total_ms;
-        result.dns_ms = normalMetrics.dns_ms;
-        result.tcp_ms = normalMetrics.tcp_ms;
-        result.tls_ms = normalMetrics.tls_ms;
-        result.status_code = normalMetrics.status_code;
-        result.cache_status = normalMetrics.cache_status;
-        result.served_by = normalMetrics.served_by;
-        result.cdn_provider = normalMetrics.cdn_provider;
-      } else {
-        console.log(`[probe] Step 2 Skipped: Bypass resulted in HIT or Error. Falling back single measurement.`);
-      }
-
+    // ── Phase 1: Redirect count ───────────────────────────────────────────────
+    // countRedirects follows the redirect chain and records the hop count.
+    // It consumes its per-hop budget from the shared deadline.
+    if (!deadline.exceeded(MIN_PHASE_MS)) {
+      const { redirectCount } = await countRedirects(url, deadline);
+      result.redirect_count = redirectCount;
     } else {
-      // MODO NATURAL: Única chamada orgânica
-      console.log(`[probe] Normal natural check for ${url}`);
-      const metrics = await measureUrl(url, false);
-      Object.assign(result, metrics);
+      result.error = `timeout: Probe exceeded internal deadline (${PROBE_DEADLINE_MS / 1000}s) before redirect check`;
+    }
+
+    // ── Phase 2: Measurement ──────────────────────────────────────────────────
+    if (result.error === null) {
+      if (run_bypass) {
+        // Step 2a: Bypass (origin) measurement
+        if (!deadline.exceeded(MIN_PHASE_MS)) {
+          console.log(`[probe] Step 1: Bypass-First check for ${url} (${deadline.remainingMs().toFixed(0)}ms remaining)`);
+          const bypassUrl = appendBypassParam(url);
+          const bypassMetrics = await measureUrl(bypassUrl, true, deadline);
+
+          result.bypass_ttfb_ms = bypassMetrics.ttfb_ms;
+          result.bypass_total_ms = bypassMetrics.total_ms;
+          result.bypass_dns_ms = bypassMetrics.dns_ms;
+          result.bypass_tcp_ms = bypassMetrics.tcp_ms;
+          result.bypass_tls_ms = bypassMetrics.tls_ms;
+          result.bypass_status_code = bypassMetrics.status_code;
+          result.bypass_served_by = bypassMetrics.served_by;
+          result.bypass_server_timing = bypassMetrics.server_timing;
+          result.bypass_server_timing_breakdown = bypassMetrics.server_timing_breakdown;
+          result.bypass_cache_status = bypassMetrics.cache_status;
+          result.bypass_error = bypassMetrics.error;
+          result.bypass_age_s = bypassMetrics.age_s;
+
+          // Assinalar métricas base por padrão (Headers, Segurança, etc)
+          Object.assign(result, bypassMetrics);
+
+          const cacheStatus = bypassMetrics.cache_status || 'HIDDEN';
+          const isConfirmedHit = cacheStatus === 'HIT';
+
+          // Step 2b: Normal (edge) measurement — only if bypass didn't HIT or error,
+          // and enough deadline budget remains to make the attempt worthwhile.
+          if (!isConfirmedHit && !bypassMetrics.error) {
+            if (!deadline.exceeded(MIN_PHASE_MS)) {
+              console.log(`[probe] Step 2: Normal check (Bypass was ${cacheStatus}, ${deadline.remainingMs().toFixed(0)}ms remaining)`);
+              const normalMetrics = await measureUrl(url, false, deadline);
+
+              result.ttfb_ms = normalMetrics.ttfb_ms;
+              result.download_ms = normalMetrics.download_ms;
+              result.total_ms = normalMetrics.total_ms;
+              result.dns_ms = normalMetrics.dns_ms;
+              result.tcp_ms = normalMetrics.tcp_ms;
+              result.tls_ms = normalMetrics.tls_ms;
+              result.status_code = normalMetrics.status_code;
+              result.cache_status = normalMetrics.cache_status;
+              result.served_by = normalMetrics.served_by;
+              result.cdn_provider = normalMetrics.cdn_provider;
+            } else {
+              // Deadline exhausted: record partial result, log for ops visibility.
+              // The bypass data is still useful; the error explains the gap.
+              console.warn(`[probe] Step 2 skipped — deadline reached (${deadline.elapsedMs().toFixed(0)}ms elapsed)`);
+              result.error = `timeout: Probe exceeded internal deadline (${PROBE_DEADLINE_MS / 1000}s) before normal measurement`;
+            }
+          } else {
+            console.log(`[probe] Step 2 Skipped: Bypass resulted in HIT or Error.`);
+          }
+
+        } else {
+          result.error = `timeout: Probe exceeded internal deadline (${PROBE_DEADLINE_MS / 1000}s) before bypass measurement`;
+        }
+
+      } else {
+        // MODO NATURAL: Única chamada orgânica
+        if (!deadline.exceeded(MIN_PHASE_MS)) {
+          console.log(`[probe] Normal check for ${url} (${deadline.remainingMs().toFixed(0)}ms remaining)`);
+          const metrics = await measureUrl(url, false, deadline);
+          Object.assign(result, metrics);
+        } else {
+          result.error = `timeout: Probe exceeded internal deadline (${PROBE_DEADLINE_MS / 1000}s) before measurement`;
+        }
+      }
     }
 
   } catch (err) {
     result.error = err.message;
   }
 
+  // Safety net: if all phases completed but deadline was already gone, tag it.
+  // This covers edge cases where a phase loop exits cleanly but just barely.
+  if (result.error === null && deadline.exceeded(0)) {
+    result.error = `timeout: Probe exceeded internal deadline (${PROBE_DEADLINE_MS / 1000}s)`;
+  }
+
   // 4. Report to CacheSnap ingest API
   const reportData = {
     ...result,
-    probe_version: "1.28"
+    probe_version: "1.29"
   };
   await sendToIngest(ingest_url, reportData, probeSecret);
 
@@ -194,8 +309,11 @@ export const handler = async (event) => {
 
 // ─── Core: Measure URL with granular DNS/TCP/TLS/TTFB/Download ────────────────
 
-async function measureUrl(targetUrl, isBypass = false) {
+async function measureUrl(targetUrl, isBypass = false, deadline = null) {
   return new Promise((resolve, reject) => {
+    const timeoutMs = deadline
+      ? deadline.effectiveTimeoutMs(MAX_PROBE_MS)
+      : MAX_PROBE_MS;
     const urlObj = new URL(targetUrl);
     const isHttps = urlObj.protocol === 'https:';
     const transport = isHttps ? https : http;
@@ -255,7 +373,7 @@ async function measureUrl(targetUrl, isBypass = false) {
       finalUrl,
       {
         headers: finalHeaders,
-        timeout: PROBE_TIMEOUT_MS,
+        timeout: timeoutMs,
         agent: false,
       },
       (res) => {
@@ -410,19 +528,23 @@ async function measureUrl(targetUrl, isBypass = false) {
     });
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error(`timeout: Request did not complete within ${PROBE_TIMEOUT_MS / 1000}s`));
+      reject(new Error(`timeout: Request did not complete within ${(timeoutMs / 1000).toFixed(1)}s`));
     });
   });
 }
 
 // ─── Redirect Counter ─────────────────────────────────────────────────────────
 
-async function countRedirects(url, maxRedirects = 10) {
+async function countRedirects(url, deadline = null, maxRedirects = 10) {
   let current = url;
   let count = 0;
 
   while (count <= maxRedirects) {
-    const { statusCode, location } = await headRequest(current);
+    // Stop following if the deadline has been exhausted — partial counts are
+    // still useful (they won't be 0), and the caller already guards.
+    if (deadline && deadline.exceeded(MIN_PHASE_MS)) break;
+
+    const { statusCode, location } = await headRequest(current, deadline);
 
     if (statusCode >= 300 && statusCode < 400 && location) {
       current = new URL(location, current).toString();
@@ -435,17 +557,19 @@ async function countRedirects(url, maxRedirects = 10) {
   return { redirectCount: count };
 }
 
-function headRequest(targetUrl) {
+function headRequest(targetUrl, deadline = null) {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(targetUrl);
     const transport = urlObj.protocol === 'https:' ? https : http;
+    const timeoutMs = deadline
+      ? deadline.effectiveTimeoutMs(MAX_REDIRECT_MS)
+      : MAX_REDIRECT_MS;
 
     const req = transport.get(
       targetUrl,
       {
         headers: { 'User-Agent': 'CacheSnap-Probe/2.0.0 (Lambda)' },
-        timeout: REDIRECT_TIMEOUT_MS,
-        // We need manual control to count redirects
+        timeout: timeoutMs,
       },
       (res) => {
         // Consume body to free up the socket
@@ -464,7 +588,7 @@ function headRequest(targetUrl) {
       req.destroy();
       reject(
         new Error(
-          `timeout_redirect: Redirect chain did not complete within ${REDIRECT_TIMEOUT_MS / 1000}s`,
+          `timeout_redirect: Redirect chain did not complete within ${(timeoutMs / 1000).toFixed(1)}s`,
         ),
       );
     });
