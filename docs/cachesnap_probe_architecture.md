@@ -14,12 +14,12 @@ graph TD
     end
 
     subgraph VPS["VPS — Rust API"]
-        SCHED[Scheduler\ntokio loop 10s]
+        SCHED[Scheduler\ntokio loop 1s]
         INGEST[POST /api/ingest]
         BASELINE[Baseline Calculator\n1h loop]
         DETECTOR[Anomaly Detector]
         NOTIFIER[Notifier\nResend / Slack]
-        REDIS[(Redis\nlast_check:uuid)]
+        REDIS[(Redis\nlast_check:uuid\nwarmup_probe_index:uuid)]
         DB[(TimescaleDB\nprobe_results\nmonitor_baselines\nalerts)]
     end
 
@@ -57,7 +57,71 @@ graph TD
 
 ---
 
-## 2. Ciclo completo de um probe (sequência)
+## 2. Warmup Burst — primeiras probes aceleradas
+
+Ao criar um monitor, as 3 primeiras probes usam intervalos reduzidos para que o
+usuário veja gráficos e médias (que requerem ≥ 2 amostras) logo nos primeiros 90
+segundos, independente do `check_interval_seconds` configurado.
+
+### Cadência
+
+| Probe | Offset acumulado | Gap usado |
+|-------|-----------------|-----------|
+| 1 | t = 0 s | imediata (via `/dispatch` na criação) |
+| 2 | t = 30 s | `warmup_probe_index = 0` → gap 30s |
+| 3 | t = 90 s | `warmup_probe_index = 1` → gap 60s |
+| 4+ | t = 90 s + `interval` | cadência normal |
+
+**Regra de aceleração exclusiva:** o gap de warmup só é aplicado se for **menor**
+que `check_interval_seconds`. Monitores com intervalo ≤ 30s (ou ≤ 60s) não são
+afetados.
+
+### Estado Redis
+
+| Chave | Valor | TTL | Descrição |
+|-------|-------|-----|-----------|
+| `last_check:{monitor_id}` | timestamp UNIX | sem TTL | Última probe despachada pelo scheduler |
+| `warmup_probe_index:{monitor_id}` | `0`, `1` ou `2` | 300s | Contador de warmup; ausente ou ≥ 2 = cadência normal |
+
+O `warmup_probe_index` é setado como `0` pelo endpoint `POST /api/monitors/:id/dispatch`
+na criação do monitor (flag `is_manual = false`). O Lua script em `should_run_now`
+incrementa e renova o TTL (300s) a cada probe de warmup, funcionando como fallback
+caso o endpoint de dispatch não seja chamado.
+
+### Sequência de criação com warmup
+
+```
+Next.js API                  Rust /dispatch            Redis                 Scheduler
+─────────────────────────────────────────────────────────────────────────────────────────
+POST /api/monitors           →  SET last_check = now   last_check = t0
+(monitor criado)             →  SET warmup_index = 0   warmup_index = 0
+                             →  spawn dispatch_probes  (probe 1 disparada)
+
+                                                                          tick t+1s:
+                                                                          should_run_now?
+                                                                          (now-last_check)=1s
+                                                                          gap=30s → NÃO
+
+                                                                          tick t+30s:
+                                                                          (now-last_check)=30s
+                                                                          gap=30s → SIM
+                             SET last_check = t+30s   last_check = t30   (probe 2 disparada)
+                             INCR + EXPIRE warmup_index  warmup_index = 1
+
+                                                                          tick t+90s:
+                                                                          (now-last_check)=60s
+                                                                          gap=60s → SIM
+                             SET last_check = t+90s   last_check = t90   (probe 3 disparada)
+                             INCR + EXPIRE warmup_index  warmup_index = 2
+
+                                                                          tick t+90s+interval:
+                                                                          gap = interval → SIM
+                                                                          (cadência normal)
+```
+
+---
+
+## 3. Ciclo completo de um probe (sequência)
 
 > Um ciclo a cada `check_interval_seconds` por monitor (padrão: 300s).
 
@@ -74,7 +138,7 @@ sequenceDiagram
     participant DT as Anomaly Detector
     participant NT as Notifier
 
-    RS->>RS: ticker.tick() a cada 10s
+    RS->>RS: ticker.tick() a cada 1s
     RS->>DB: SELECT monitors WHERE is_active = TRUE
     DB-->>RS: lista de monitores
 
@@ -441,7 +505,7 @@ quando disponível.
 
 ```mermaid
 flowchart LR
-    A["⏱ Scheduler Rust\n10s tick\nLua Redis dedup"] -->|"POST /\nx-probe-secret"| B
+    A["⏱ Scheduler Rust\n1s tick\nLua Redis dedup"] -->|"POST /\nx-probe-secret"| B
 
     B["☁️ CF Worker\nsa-east · eu-west\nus-east · ap-east · oc"] -->|"fetch url\n+ contar redirects\n+ medir TTFB"| C
 
