@@ -5,6 +5,7 @@ use crate::{
     },
     AppState,
 };
+use chrono::{DateTime, Utc};
 use hmac::{Hmac, Mac};
 use serde_json::json;
 use sha2::Sha256;
@@ -37,6 +38,8 @@ pub struct IncidentNotification {
     pub alert_type: String,
     pub affected_regions: Vec<String>,
     pub notification_type: NotificationType,
+    /// When this incident was first opened (UTC), for absolute time in emails.
+    pub opened_at: DateTime<Utc>,
     pub actual: Option<f64>,
     pub threshold: Option<f64>,
     pub duration: chrono::Duration,
@@ -466,6 +469,10 @@ pub fn sign_snooze_token(secret: &str, incident_id: Uuid, expires: i64) -> Strin
     hex::encode(mac.finalize().into_bytes())
 }
 
+fn format_incident_timestamp_utc(dt: DateTime<Utc>) -> String {
+    dt.format("%Y-%m-%d %H:%M UTC").to_string()
+}
+
 pub fn verify_snooze_token(secret: &str, incident_id: Uuid, expires: i64, token: &str) -> bool {
     let expected = sign_snooze_token(secret, incident_id, expires);
     // Constant-time comparison via HMAC verify
@@ -534,6 +541,20 @@ fn build_incident_email_html(
         .unwrap_or_default();
     let dashboard_url = format!("{}/dashboard", app_url);
 
+    let opened_display = format_incident_timestamp_utc(n.opened_at);
+    let opened_esc = html_escape(&opened_display);
+    let incident_time_html = match n.notification_type {
+        NotificationType::FirstFire => format!(
+            "<p style='margin:0 0 12px;font-size:13px;color:#9ca3af'>First detected at <strong style=\"color:#6b7280\">{}</strong></p>",
+            opened_esc
+        ),
+        NotificationType::Digest => format!(
+            "<p style='margin:0 0 12px;font-size:13px;color:#9ca3af'>Ongoing since <strong style=\"color:#6b7280\">{}</strong></p>",
+            opened_esc
+        ),
+        NotificationType::Recovery => String::new(),
+    };
+
     format!(
         r#"<!DOCTYPE html>
 <html>
@@ -550,6 +571,7 @@ fn build_incident_email_html(
     <td style="padding:24px">
       <h2 style="margin:0 0 4px;font-size:20px;color:#111;font-weight:700">{type_label}</h2>
       <p style="margin:0 0 16px;font-size:14px;color:#6b7280">{monitor_label_escaped} &middot; {region_label_escaped}</p>
+      {incident_time_html}
       {context_html}
       {metrics_html}
       {diag_html}
@@ -578,6 +600,7 @@ fn build_incident_email_html(
         type_label = html_escape(type_label),
         monitor_label_escaped = html_escape(monitor_label),
         region_label_escaped = html_escape(region_label),
+        incident_time_html = incident_time_html,
         context_html = context_html,
         metrics_html = metrics_html,
         diag_html = if !diagnosis.is_empty() {
@@ -770,6 +793,18 @@ fn build_slack_incident_text(
         "{} · *{}* ({})",
         prefix, monitor_label, region_label
     )];
+
+    match n.notification_type {
+        NotificationType::FirstFire => parts.push(format!(
+            "First detected at {}",
+            format_incident_timestamp_utc(n.opened_at)
+        )),
+        NotificationType::Digest => parts.push(format!(
+            "Ongoing since {}",
+            format_incident_timestamp_utc(n.opened_at)
+        )),
+        NotificationType::Recovery => {}
+    }
 
     if let (Some(actual), Some(delta), Some(reference)) = (n.actual, n.delta_pct, n.threshold) {
         let cmp = n
@@ -1028,6 +1063,9 @@ mod tests {
             alert_type: alert_type.to_string(),
             affected_regions: vec!["us-east-1".to_string()],
             notification_type,
+            opened_at: chrono::DateTime::parse_from_rfc3339("2026-01-15T12:00:00Z")
+                .unwrap()
+                .with_timezone(&chrono::Utc),
             actual: Some(45.0),
             threshold: Some(80.0),
             duration: chrono::Duration::hours(2),
@@ -1129,6 +1167,10 @@ mod tests {
         assert!(html.contains("Low Cache Hit Rate"), "type label missing");
         assert!(html.contains("My Monitor"));
         assert!(html.contains("Medium impact"));
+        assert!(
+            html.contains("First detected at") && html.contains("2026-01-15 12:00 UTC"),
+            "email should include incident opened_at (UTC)"
+        );
     }
 
     #[test]
@@ -1219,6 +1261,10 @@ mod tests {
             html.contains("Still Ongoing") || html.contains("Ongoing for"),
             "got no ongoing marker"
         );
+        assert!(
+            html.contains("Ongoing since") && html.contains("2026-01-15 12:00 UTC"),
+            "digest email should show incident start time"
+        );
     }
 
     // --- build_slack_incident_text ---
@@ -1233,6 +1279,10 @@ mod tests {
         );
         assert!(text.contains("CRITICAL"));
         assert!(text.contains("Monitor Down"));
+        assert!(
+            text.contains("First detected at") && text.contains("2026-01-15 12:00 UTC"),
+            "slack should include opened_at"
+        );
     }
 
     #[test]
@@ -1244,6 +1294,10 @@ mod tests {
             "Digest must use hourglass emoji"
         );
         assert!(text.contains("ONGOING"));
+        assert!(
+            text.contains("Ongoing since") && text.contains("2026-01-15 12:00 UTC"),
+            "slack digest should include opened_at"
+        );
     }
 
     #[test]

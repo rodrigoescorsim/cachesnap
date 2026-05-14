@@ -671,6 +671,7 @@ pub async fn handle_incident(
             alert_type: alert_type.to_string(),
             affected_regions,
             notification_type: notif_type,
+            opened_at: row.opened_at,
             actual,
             threshold,
             duration,
