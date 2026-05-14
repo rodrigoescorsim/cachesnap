@@ -30,7 +30,7 @@ pub enum BypassMode {
 #[cfg(test)]
 pub fn effective_warmup_interval(warmup_index: Option<u32>, configured_secs: i64) -> i64 {
     let gap = match warmup_index {
-        Some(0) => 30,
+        Some(0) => 60,
         Some(1) => 60,
         _ => return configured_secs,
     };
@@ -240,7 +240,7 @@ async fn should_run_now(state: &AppState, monitor: &Monitor) -> bool {
         if warmup_index ~= false then
             local idx = tonumber(warmup_index)
             local warmup_gap
-            if     idx == 0 then warmup_gap = 30
+            if     idx == 0 then warmup_gap = 60
             elseif idx == 1 then warmup_gap = 60
             end
             if warmup_gap and warmup_gap < interval then
@@ -390,7 +390,7 @@ mod tests {
 
     #[test]
     fn warmup_accelerates_standard_interval() {
-        assert_eq!(effective_warmup_interval(Some(0), 300), 30);
+        assert_eq!(effective_warmup_interval(Some(0), 300), 60);
         assert_eq!(effective_warmup_interval(Some(1), 300), 60);
         assert_eq!(effective_warmup_interval(Some(2), 300), 300);
         assert_eq!(effective_warmup_interval(None, 300), 300);
@@ -401,7 +401,7 @@ mod tests {
         // Monitores com intervalo < gap de warmup: gap é ignorado
         assert_eq!(effective_warmup_interval(Some(0), 20), 20);
         assert_eq!(effective_warmup_interval(Some(1), 45), 45);
-        assert_eq!(effective_warmup_interval(Some(1), 30), 30);
+        assert_eq!(effective_warmup_interval(Some(0), 30), 30);
     }
 
     #[test]
@@ -416,7 +416,7 @@ mod tests {
     #[test]
     fn warmup_boundary_at_exact_gap() {
         // Intervalo igual ao gap: warmup não aplica (not strictly less than)
-        assert_eq!(effective_warmup_interval(Some(0), 30), 30);
+        assert_eq!(effective_warmup_interval(Some(0), 60), 60);
         assert_eq!(effective_warmup_interval(Some(1), 60), 60);
     }
 }

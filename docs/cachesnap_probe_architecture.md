@@ -68,13 +68,12 @@ segundos, independente do `check_interval_seconds` configurado.
 | Probe | Offset acumulado | Gap usado |
 |-------|-----------------|-----------|
 | 1 | t = 0 s | imediata (via `/dispatch` na criação) |
-| 2 | t = 30 s | `warmup_probe_index = 0` → gap 30s |
-| 3 | t = 90 s | `warmup_probe_index = 1` → gap 60s |
-| 4+ | t = 90 s + `interval` | cadência normal |
+| 2 | t = 60 s | `warmup_probe_index = 0` → gap 60s |
+| 3 | t = 120 s | `warmup_probe_index = 1` → gap 60s |
+| 4+ | t = 120 s + `interval` | cadência normal |
 
 **Regra de aceleração exclusiva:** o gap de warmup só é aplicado se for **menor**
-que `check_interval_seconds`. Monitores com intervalo ≤ 30s (ou ≤ 60s) não são
-afetados.
+que `check_interval_seconds`. Monitores com intervalo ≤ 60s não são afetados.
 
 ### Estado Redis
 
@@ -102,19 +101,19 @@ POST /api/monitors           →  SET last_check = now   last_check = t0
                                                                           (now-last_check)=1s
                                                                           gap=30s → NÃO
 
-                                                                          tick t+30s:
-                                                                          (now-last_check)=30s
-                                                                          gap=30s → SIM
-                             SET last_check = t+30s   last_check = t30   (probe 2 disparada)
-                             INCR + EXPIRE warmup_index  warmup_index = 1
-
-                                                                          tick t+90s:
+                                                                          tick t+60s:
                                                                           (now-last_check)=60s
                                                                           gap=60s → SIM
-                             SET last_check = t+90s   last_check = t90   (probe 3 disparada)
+                             SET last_check = t+60s   last_check = t60   (probe 2 disparada)
+                             INCR + EXPIRE warmup_index  warmup_index = 1
+
+                                                                          tick t+120s:
+                                                                          (now-last_check)=60s
+                                                                          gap=60s → SIM
+                             SET last_check = t+120s  last_check = t120  (probe 3 disparada)
                              INCR + EXPIRE warmup_index  warmup_index = 2
 
-                                                                          tick t+90s+interval:
+                                                                          tick t+120s+interval:
                                                                           gap = interval → SIM
                                                                           (cadência normal)
 ```
