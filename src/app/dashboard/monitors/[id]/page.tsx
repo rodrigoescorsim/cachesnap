@@ -519,7 +519,7 @@ function formatMs(value: number | null): string {
   return `${Math.round(value)}ms`
 }
 
-import { EdgeVsOrigin } from './edge-vs-origin'
+import { EdgeVsOrigin, type EdgeVsOriginReadiness } from './edge-vs-origin'
 import { AdvisorCard } from '@/components/advisor/advisor-card'
 import { deriveMonitorDetailLiveAdvisor, deriveMonitorPerformancePeriodAdvisor, deriveMonitorTrendsAdvisor, deriveMonitorPatternsAdvisor, deriveMonitorSecurityAdvisor } from '@/components/advisor/advisor-card.helpers'
 
@@ -2093,7 +2093,7 @@ export default async function MonitorDetailPage({
                       comparable_regions: auditReadiness.comparable_regions,
                       edge_hit_ratio: auditReadiness.edge_hit_ratio,
                       updated_at: auditReadiness.updated_at,
-                    } : null as any}
+                    } : null as unknown as EdgeVsOriginReadiness}
                   />
                 </div>
               )}

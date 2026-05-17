@@ -560,7 +560,7 @@ export function MonitorEditForm({
                 <label htmlFor={`${p}-alert_ttfb_anomaly_enabled`} className="cursor-pointer select-none flex-1">
                   <span className="text-xs font-bold text-zinc-200 block">TTFB Anomaly</span>
                   <span className="text-xs text-zinc-400 leading-relaxed">
-                    Alert when TTFB spikes well above this region's 7-day baseline.
+                    Alert when TTFB spikes well above this region&apos;s 7-day baseline.
                   </span>
                 </label>
               </div>
