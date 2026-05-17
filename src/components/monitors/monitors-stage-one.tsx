@@ -79,21 +79,19 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
-  // ── URL → initial state ────────────────────────────────────────────────────
-  const [searchInput, setSearchInput] = useState(() => searchParams.get('q') ?? '')
-  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') ?? '')
-  const [activeFilter, setActiveFilter] = useState<MonitorQuickFilterId>(() =>
-    coerceFilter(searchParams.get('filter')),
-  )
-  const [sorting, setSorting] = useState<SortingState>(() => {
+  // ── URL → source of truth ──────────────────────────────────────────────────
+  const urlSearch = searchParams.get('q') ?? ''
+  const activeFilter = useMemo(() => coerceFilter(searchParams.get('filter')), [searchParams])
+  const sorting = useMemo<SortingState>(() => {
     const col = searchParams.get('sort')
     const dir = searchParams.get('dir')
     if (col && (dir === 'asc' || dir === 'desc')) return [{ id: col, desc: dir === 'desc' }]
     // Worst performers first: highest TTFB 1h Avg
     return [{ id: 'ttfbAvg1h', desc: true }]
-  })
+  }, [searchParams])
 
-  // ── Live Sync ──────────────────────────────────────────────────────────────
+  // ── Local UI State ─────────────────────────────────────────────────────────
+  const [searchInput, setSearchInput] = useState(urlSearch)
   const [liveSync, setLiveSync] = useState(true)
 
   // ── Data ───────────────────────────────────────────────────────────────────
@@ -113,48 +111,29 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
       : false,
   })
 
-  // ── Debounce search ────────────────────────────────────────────────────────
+  // Sync urlSearch to searchInput when the URL updates externally (e.g. Back button or AdvisorCard)
   useEffect(() => {
-    const t = setTimeout(() => setSearchQuery(searchInput), 300)
-    return () => clearTimeout(t)
-  }, [searchInput])
+    setSearchInput(urlSearch)
+  }, [urlSearch])
 
-  // ── URL → State sync (Handles external navigation or AdvisorCard links) ───
+  // ── Debounce search input to URL ───────────────────────────────────────────
   useEffect(() => {
-    const urlFilter = coerceFilter(searchParams.get('filter'))
-    if (urlFilter !== activeFilter) {
-      Promise.resolve().then(() => {
-        setActiveFilter(urlFilter)
-      })
-    }
+    const trimmedInput = searchInput.trim()
+    if (trimmedInput === urlSearch) return
 
-    const urlSearch = searchParams.get('q') ?? ''
-    if (urlSearch !== searchQuery) {
-      Promise.resolve().then(() => {
-        setSearchQuery(urlSearch)
-        setSearchInput(urlSearch)
-      })
-    }
-  }, [searchParams, activeFilter, searchQuery])
-
-  // ── State → URL sync ───────────────────────────────────────────────────────
-  // Using replace to avoid polluting history with every filter change
-  useEffect(() => {
-    const params = new URLSearchParams()
-    if (searchQuery.trim()) params.set('q', searchQuery.trim())
-    if (activeFilter !== 'all') params.set('filter', activeFilter)
-    if (sorting.length > 0) {
-      params.set('sort', sorting[0].id)
-      params.set('dir', sorting[0].desc ? 'desc' : 'asc')
-    }
-
-    const currentQs = searchParams.toString()
-    const nextQs = params.toString()
-
-    if (currentQs !== nextQs) {
+    const t = setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString())
+      if (trimmedInput) {
+        params.set('q', trimmedInput)
+      } else {
+        params.delete('q')
+      }
+      const nextQs = params.toString()
       router.replace(`${pathname}${nextQs ? `?${nextQs}` : ''}`, { scroll: false })
-    }
-  }, [searchQuery, activeFilter, sorting, router, pathname, searchParams])
+    }, 300)
+
+    return () => clearTimeout(t)
+  }, [searchInput, urlSearch, pathname, router, searchParams])
 
   // ── Optimistic state ───────────────────────────────────────────────────────
   const [optimisticStatus, setOptimisticStatus] = useState<Record<string, 'active' | 'paused'>>({})
@@ -169,10 +148,33 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleClearFilters = useCallback(() => {
     setSearchInput('')
-    setSearchQuery('')
-    setActiveFilter('all')
-    setSorting([{ id: 'ttfbAvg1h', desc: true }])
-  }, [])
+    router.replace(pathname, { scroll: false })
+  }, [router, pathname])
+
+  const handleFilterChange = useCallback((filterId: MonitorQuickFilterId) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (filterId === 'all') {
+      params.delete('filter')
+    } else {
+      params.set('filter', filterId)
+    }
+    const nextQs = params.toString()
+    router.replace(`${pathname}${nextQs ? `?${nextQs}` : ''}`, { scroll: false })
+  }, [searchParams, pathname, router])
+
+  const handleSortingChange = useCallback((updaterOrValue: SortingState | ((old: SortingState) => SortingState)) => {
+    const nextSorting = typeof updaterOrValue === 'function' ? updaterOrValue(sorting) : updaterOrValue
+    const params = new URLSearchParams(searchParams.toString())
+    if (nextSorting.length > 0) {
+      params.set('sort', nextSorting[0].id)
+      params.set('dir', nextSorting[0].desc ? 'desc' : 'asc')
+    } else {
+      params.delete('sort')
+      params.delete('dir')
+    }
+    const nextQs = params.toString()
+    router.replace(`${pathname}${nextQs ? `?${nextQs}` : ''}`, { scroll: false })
+  }, [sorting, searchParams, pathname, router])
 
   // ── Metrics calculation ──────────────────────────────────────────────────
 
@@ -431,7 +433,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
                   <PremiumTooltip key={filter.id} content={filter.tooltip} position="top-center">
                     <button
                       type="button"
-                      onClick={() => setActiveFilter(filter.id)}
+                      onClick={() => handleFilterChange(filter.id)}
                       aria-pressed={isActive}
                       className={`inline-flex h-8 items-center justify-center rounded-lg px-2.5 text-[9px] font-black uppercase tracking-widest transition-all duration-200 ${isActive
                         ? `cs-badge ${toneClass} !min-h-0 !px-2.5 !py-0 shadow-lg shadow-black/20`
@@ -489,10 +491,10 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
             isError={isError}
             onRetry={refetch}
             onClearFilters={handleClearFilters}
-            searchQuery={searchQuery}
+            searchQuery={urlSearch}
             activeFilter={activeFilter}
             sorting={sorting}
-            onSortingChange={setSorting}
+            onSortingChange={handleSortingChange}
             optimisticStatus={optimisticStatus}
             onOptimisticToggle={handleOptimisticToggle}
           />
