@@ -1,14 +1,17 @@
 'use client'
 
-import { useState, useActionState } from 'react'
+import { useState, useActionState, Suspense } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { login } from '@/app/actions/auth'
 import { Logo } from '@/components/logo'
-import { Eye, EyeOff, Lock, Loader2, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff, Lock, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 
-export default function LoginPage() {
+function LoginForm() {
   const [state, action, pending] = useActionState(login, undefined)
   const [showPassword, setShowPassword] = useState(false)
+  const searchParams = useSearchParams()
+  const resetSuccess = searchParams.get('reset') === 'success'
 
   // Consolidate all form validation or credential errors
   const allErrors = state?.errors ? Object.values(state.errors).flat() : []
@@ -24,6 +27,13 @@ export default function LoginPage() {
           Monitor your edge performance <span className="text-emerald-400 drop-shadow-[0_0_10px_rgba(34,255,136,0.4)]">with zero code</span>
         </p>
       </div>
+
+      {resetSuccess && (
+        <div className="cs-tint-success rounded-xl flex items-center gap-3 p-4 text-[12px] font-bold leading-relaxed mb-5 shadow-[0_0_20px_rgba(34,255,136,0.06)] animate-[cs-fade-in_0.3s_ease-out]">
+          <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-emerald-400 drop-shadow-[0_0_6px_rgba(34,255,136,0.5)]" />
+          <span>Password reset successfully! You can now sign in.</span>
+        </div>
+      )}
 
       {allErrors.length > 0 && (
         <div className="cs-tint-error rounded-xl flex flex-col gap-2.5 p-4 text-[12px] font-bold leading-relaxed mb-5 shadow-[0_0_20px_rgba(244,63,94,0.06)] animate-[cs-fade-in_0.3s_ease-out]">
@@ -58,11 +68,7 @@ export default function LoginPage() {
               Password
             </label>
             <Link
-              href="#"
-              onClick={(e) => {
-                e.preventDefault()
-                alert('Password recovery is currently in sandbox mode. Please contact support.')
-              }}
+              href="/forgot-password"
               className="text-[10px] font-black uppercase tracking-wider text-zinc-500 hover:text-white transition-colors"
             >
               Forgot password?
@@ -142,5 +148,18 @@ export default function LoginPage() {
         <span>Secure Encrypted Login</span>
       </div>
     </div>
-)
+  )
 }
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex justify-center items-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-emerald-400" />
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
+  )
+}
+
