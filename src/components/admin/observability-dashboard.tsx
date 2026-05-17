@@ -1303,6 +1303,7 @@ export function ObservabilityDashboard() {
     return () => clearInterval(timer)
   }, [fetchAll])
 
+
   if (sessionExpired) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">

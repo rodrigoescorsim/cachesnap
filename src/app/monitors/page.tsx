@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { logout } from '@/app/actions/auth'
 import { MonitorsStageOne } from '@/components/monitors/monitors-stage-one'
 import { getSession } from '@/lib/auth'
+import { RealTimeHub } from '@/app/dashboard/real-time-hub'
 
 // MonitorsStageOne uses useSearchParams, which requires a Suspense boundary
 // so the route can prerender everything above the boundary while the search
@@ -12,15 +13,18 @@ export default async function MonitorsPage() {
   if (!user) redirect('/login')
 
   return (
-    <Suspense fallback={
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex items-center gap-3 text-zinc-600">
-          <span className="h-2 w-2 animate-ping rounded-full" style={{ background: 'var(--brand-primary)', opacity: 0.6 }} />
-          <span className="text-[12px] font-semibold uppercase tracking-widest">Loading…</span>
+    <>
+      <RealTimeHub userId={user.id} />
+      <Suspense fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background">
+          <div className="flex items-center gap-3 text-zinc-600">
+            <span className="h-2 w-2 animate-ping rounded-full" style={{ background: 'var(--brand-primary)', opacity: 0.6 }} />
+            <span className="text-[12px] font-semibold uppercase tracking-widest">Loading…</span>
+          </div>
         </div>
-      </div>
-    }>
-      <MonitorsStageOne userEmail={user.email} logoutAction={logout} />
-    </Suspense>
+      }>
+        <MonitorsStageOne userEmail={user.email} logoutAction={logout} />
+      </Suspense>
+    </>
   )
 }

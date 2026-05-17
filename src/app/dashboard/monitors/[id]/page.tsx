@@ -1700,9 +1700,7 @@ export default async function MonitorDetailPage({
                     )}
                   </section>
 
-                  <section id="live-hub-section">
-                    <RealTimeHub userId={user.id} watchId={monitor.id} />
-                  </section>
+
                 </div>
               )}
 
