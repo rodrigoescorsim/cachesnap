@@ -35,6 +35,7 @@ async fn resync_embedded_migration_checksums(pool: &PgPool, migrator: &sqlx::mig
 }
 
 pub async fn run_migrations(pool: &PgPool) -> Result<()> {
+    // Force rebuild comment to embed new sqlx migrations
     let migrator = sqlx::migrate!("../migrations");
     match migrator.run(pool).await {
         Ok(()) => {}
