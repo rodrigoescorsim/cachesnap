@@ -204,3 +204,77 @@ export async function resetPassword(
 
   redirect('/login?reset=success')
 }
+
+// ── Google OAuth Sandbox Action & Sync Helper ───────────────────────────────
+
+export async function syncGoogleUser({
+  email,
+  providerAccountId,
+}: {
+  email: string
+  providerAccountId: string
+}): Promise<string> {
+  // Check if account already exists
+  const [existingAccount] = await sql<{ user_id: string }[]>`
+    SELECT user_id FROM accounts
+    WHERE provider = 'google' AND provider_account_id = ${providerAccountId}
+    LIMIT 1
+  `
+
+  if (existingAccount) {
+    return existingAccount.user_id
+  }
+
+  // Check if a user with that email already exists
+  const [existingUser] = await sql<{ id: string }[]>`
+    SELECT id FROM users WHERE email = ${email} LIMIT 1
+  `
+
+  let userId = existingUser?.id
+
+  if (!userId) {
+    // Register new user (Google Auth)
+    // Generate dummy password hash
+    const dummyPassword = Math.random().toString(36) + Math.random().toString(36)
+    const passwordHash = await bcrypt.hash(dummyPassword, 12)
+
+    const [newUser] = await sql<{ id: string }[]>`
+      INSERT INTO users (email, password_hash)
+      VALUES (${email}, ${passwordHash})
+      RETURNING id
+    `
+    userId = newUser.id
+  }
+
+  // Create the link account row
+  await sql`
+    INSERT INTO accounts (user_id, provider, provider_account_id)
+    VALUES (${userId}, 'google', ${providerAccountId})
+    ON CONFLICT (provider, provider_account_id) DO NOTHING
+  `
+
+  return userId
+}
+
+export async function loginGoogleSandbox(
+  _prev: ActionResult | undefined,
+  formData: FormData
+): Promise<ActionResult> {
+  const email = formData.get('email')?.toString().toLowerCase().trim()
+  if (!email || !email.includes('@')) {
+    return { errors: { email: ['Please enter a valid email address'] } }
+  }
+
+  const providerAccountId = `sandbox_google_${Buffer.from(email).toString('hex')}`
+
+  try {
+    const userId = await syncGoogleUser({ email, providerAccountId })
+    await createSession(userId)
+  } catch (error) {
+    console.error('[SANDBOX GOOGLE LOGIN ERROR]', error)
+    return { errors: { global: ['Failed to log in with simulated Google account'] } }
+  }
+
+  redirect('/dashboard')
+}
+
