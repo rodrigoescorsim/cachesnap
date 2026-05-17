@@ -45,6 +45,7 @@ See `README.md` and `docs/STACK.md` for runbooks and deeper technical detail.
 | `GET /api/monitors/active` | Lists active monitors for automation (e.g. legacy or auxiliary schedulers) |
 | `GET /api/events?user_id=…` | **Server-Sent Events (SSE)** stream; after each successful ingest, the API notifies the owning user so the dashboard can refresh |
 | `POST /api/monitors/:id/dispatch` | On-demand probe run for one monitor across all configured regions (`x-probe-secret`); optional **bypass** and **manual** flags align with audit vs. routine checks |
+| `GET /api/monitors/:id/incidents/:incident_id/snooze` | HMAC-authenticated snooze link (embedded in notification emails); mutes notifications for 24h and redirects to the app |
 
 ---
 
@@ -119,8 +120,9 @@ Alerts are processed through two paths in the Rust service: **Real-time Detectio
 
 | Path | Alert Types | Trigger |
 | :--- | :--- | :--- |
-| **Real-time** | `down`, `anomaly` | Immediately after `POST /api/ingest` |
-| **Audit Worker** | `cache_hit_low`, `ssl_expiry`, `anycast`, `zombie_cache` | Background cycle (`ALERTS_WORKER_INTERVAL_SECS`) |
+| **Real-time** (ingest path) | `down`, `slow_timeout`, `ttfb_limit`, `ttfb_anomaly` | Immediately after `POST /api/ingest` |
+| **Audit Worker** | `cache_hit_low`, `ssl_expiry`, `anycast`, `cache_age_alert` | Background cycle (`ALERTS_WORKER_INTERVAL_SECS`) |
+| **Trend Detector** (inside Audit Worker cycle) | `ttfb_trend_up_region`, `ttfb_trend_up_global`, `ttfb_trend_down_region`, `ttfb_trend_down_global`, `cache_hit_trend_drop_region`, `cache_hit_trend_drop_global` | Each audit worker cycle, after probe alerts |
 
 ### Delivery channels
 
@@ -177,12 +179,12 @@ Open incidents are deduplicated in **`alert_incidents`** (one open row per monit
 - **Rate limit:** At most **one** alert of this type per **monitor + region** per **24 hours** (prevents repeated alerts for a persistent condition).
 - **Configurable:** `alert_anycast_enabled` toggle (default off). Processed by the background **Audit Worker**.
 
-### 4. Zombie / stale cache signal (` zombie_cache `)
+### 4. Cache age alert (` cache_age_alert `)
 
-- **When:** Response **cache age** (`age_s`) exceeds **86 400** seconds (24 hours) - long-lived cached object worth reviewing.
+- **When:** Response **cache age** (`age_s`) exceeds the monitor's configured threshold (`alert_cache_age_threshold_hours`, default 72h).
 - **Metric:** `age_s`.
-- **Rate limit:** Same **24-hour** deduplication per **monitor + region**.
-- **Configurable:** `alert_zombie_cache_enabled` toggle (default off). Processed by the background **Audit Worker**.
+- **Incident model:** One open incident per monitor; resolves immediately when the next probe shows age below threshold (`try_resolve_per_probe_incidents` in the ingest path).
+- **Configurable:** `alert_cache_age_enabled` toggle + `alert_cache_age_threshold_hours` per monitor. Processed by the background **Audit Worker**.
 
 ### 5. Cache hit rate low (` cache_hit_low `)
 
