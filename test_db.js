@@ -1,3 +1,4 @@
+/* eslint-disable */
 const { db } = require('@vercel/postgres'); 
 async function run() { 
   const client = await db.connect(); 
