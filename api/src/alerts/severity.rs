@@ -97,7 +97,7 @@ pub fn alert_type_display(alert_type: &str) -> &'static str {
         "ttfb_anomaly" => "TTFB Anomaly",
         "cache_hit_low" => "Low Cache Hit Rate",
         "ssl_expiry" => "SSL Expiry Alert",
-        "cache_age_alert" => "Cache Age Alert",
+        "cache_age_alert" | "zombie_cache" => "Cache Age Alert",
         "anycast" => "Anycast Issue",
         "cache_hit_trend_drop_region" => "Cache Hit Drop (Region)",
         "cache_hit_trend_drop_global" => "Cache Hit Drop (Global)",

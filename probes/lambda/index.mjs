@@ -19,7 +19,7 @@
  *   ✅ security_headers (9-point audit: HSTS, CSP, X-Frame, X-Content-Type,
  *       Referrer-Policy, Permissions-Policy, COOP, COEP, CORP)
  *   ✅ redirect_count (manual redirect following)
- *   ✅ age_s (zombie cache detection)
+ *   ✅ age_s (stale cache content detection)
  *   ✅ http_version
  *   ✅ bypass probe (cache-busting second request)
  *   ✅ content_length
@@ -447,7 +447,7 @@ async function measureUrl(targetUrl, isBypass = false, deadline = null) {
             breakdown.tcp_ms = round(timings.tcpEnd - tcpStart);
           }
 
-          // ── Age header (zombie cache detection) ──
+          // ── Age header (stale cache content detection) ──
           let ageS = null;
           if (h['age'] != null) {
             const parsed = parseInt(h['age'], 10);

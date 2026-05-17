@@ -213,7 +213,7 @@ pub async fn handler(
                 crate::alerts::detector::check_probe_alerts(state_clone, payload_clone).await;
             });
 
-            // Probe-triggered incident resolution: eagerly closes zombie_cache / anycast /
+            // Probe-triggered incident resolution: eagerly closes cache_age_alert / anycast /
             // ssl_expiry incidents without waiting for the next worker cycle.
             if natural_inserted {
                 let state_pr = state.clone();

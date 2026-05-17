@@ -28,7 +28,7 @@ pub struct DiagnosisInput {
     pub region: String,
     pub error: Option<String>,
     pub served_by: Option<String>, // CF-Ray or X-Served-By — used for anycast audit
-    pub age_s: Option<i32>,        // Age response header — used for zombie cache detection
+    pub age_s: Option<i32>,        // Age response header — used for cache age breach detection
 }
 
 // ─── IATA → CacheSnap region mapping ───────────────────────────────────────────
@@ -108,7 +108,7 @@ pub fn detect_anycast_mismatch<'a>(served_by: &'a str, probe_region: &str) -> Op
 ///   4. Excessive redirects
 ///   5. Cache HIT but slow edge function
 ///   6. HTTP/1.1 upgrade suggestion
-///   7. Zombie cache (Age > 86400)          ← background audit, lower priority
+///   7. Cache age breach (Age > 86400)      ← background audit, lower priority
 ///   8. Anycast routing mismatch            ← background audit, lower priority
 ///   9. OK (no issues)
 pub fn diagnose(input: &DiagnosisInput) -> Diagnosis {
@@ -206,7 +206,7 @@ pub fn diagnose(input: &DiagnosisInput) -> Diagnosis {
         };
     }
 
-    // 7. Zombie cache — content older than 24h; lower priority than performance issues
+    // 7. Cache age breach — content older than 24h; lower priority than performance issues
     if let Some(age) = input.age_s {
         if age > 86_400 {
             let days = age / 86_400;
@@ -221,7 +221,7 @@ pub fn diagnose(input: &DiagnosisInput) -> Diagnosis {
                          combined with `stale-while-revalidate`, or configure purge rules on your CDN \
                          to evict content after significant updates."
                     .into(),
-                summary: format!("Zombie cache in {} — content {days}d old", input.region),
+                summary: format!("Cache Age Alert in {} — content {days}d old", input.region),
                 estimated_gain_ms: None,
             };
         }
@@ -335,21 +335,21 @@ mod tests {
         assert_eq!(d.severity, "ok");
     }
 
-    // ── Zombie cache ──────────────────────────────────────────────────────────
+    // ── Cache age breach ──────────────────────────────────────────────────────
 
     #[test]
-    fn detects_zombie_cache() {
+    fn detects_cache_age_breach() {
         let d = diagnose(&DiagnosisInput {
             age_s: Some(90_000), // 25 hours
             ..base_input()
         });
         assert_eq!(d.severity, "warning");
         assert!(d.cause.contains("stale"));
-        assert!(d.summary.contains("Zombie cache"));
+        assert!(d.summary.contains("Cache Age Alert"));
     }
 
     #[test]
-    fn zombie_cache_not_triggered_for_fresh_content() {
+    fn cache_age_breach_not_triggered_for_fresh_content() {
         let d = diagnose(&DiagnosisInput {
             age_s: Some(3600), // 1 hour — fine
             ..base_input()
@@ -357,32 +357,32 @@ mod tests {
         assert_eq!(d.severity, "ok");
     }
 
-    /// Cache MISS + high TTFB must take priority over zombie cache (rule 2 > rule 7)
+    /// Cache MISS + high TTFB must take priority over cache age breach (rule 2 > rule 7)
     #[test]
-    fn cache_miss_beats_zombie_cache() {
+    fn cache_miss_beats_cache_age_breach() {
         let d = diagnose(&DiagnosisInput {
             ttfb_ms: Some(500.0),
             cache_status: Some("MISS".into()),
-            age_s: Some(172_800), // 2 days old — zombie cache
+            age_s: Some(172_800), // 2 days old — cache age breach
             baseline_ttfb_ms: None,
             ..base_input()
         });
         assert_eq!(d.severity, "critical");
-        assert!(d.cause.contains("MISS"), "Cache MISS should win over zombie cache");
+        assert!(d.cause.contains("MISS"), "Cache MISS should win over cache age breach");
     }
 
-    /// Baseline anomaly must take priority over zombie cache (rule 3 > rule 7)
+    /// Baseline anomaly must take priority over cache age breach (rule 3 > rule 7)
     #[test]
-    fn baseline_anomaly_beats_zombie_cache() {
+    fn baseline_anomaly_beats_cache_age_breach() {
         let d = diagnose(&DiagnosisInput {
             ttfb_ms: Some(800.0),
             cache_status: Some("HIT".into()),
             baseline_ttfb_ms: Some(100.0), // 8x slower
-            age_s: Some(172_800),           // also zombie cache
+            age_s: Some(172_800),           // also cache age breach
             ..base_input()
         });
         assert_eq!(d.severity, "warning");
-        assert!(d.cause.contains("7-day baseline"), "Baseline anomaly should win over zombie cache");
+        assert!(d.cause.contains("7-day baseline"), "Baseline anomaly should win over cache age breach");
     }
 
     // ── Anycast audit ─────────────────────────────────────────────────────────

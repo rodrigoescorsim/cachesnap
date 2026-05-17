@@ -1,7 +1,7 @@
 use crate::{
     alerts::severity::{
         alert_severity, alert_type_display, format_duration, format_duration_short,
-        is_cache_hit_trend_drop_alert, is_cache_metric, metric_unit,
+        is_cache_hit_trend_drop_alert, is_cache_metric, metric_unit, AlertSeverity,
     },
     AppState,
 };
@@ -179,7 +179,12 @@ fn replace_region_ids_and_normalize_legacy_trend(
     text: &str,
     labels: &HashMap<String, String>,
 ) -> String {
-    normalize_legacy_trend_diagnosis_copy(&replace_region_ids(text, labels))
+    let raw = replace_region_ids(text, labels);
+    let normalized = normalize_legacy_trend_diagnosis_copy(&raw);
+    normalized
+        .replace("Zombie cache", "Cache Age Alert")
+        .replace("zombie cache", "cache age alert")
+        .replace("Zombie Cache", "Cache Age Alert")
 }
 
 fn severity_context(alert_type: &str) -> (&'static str, &'static str) {
@@ -288,8 +293,15 @@ pub async fn notify_incident(state: AppState, notif: IncidentNotification) {
 
     if monitor.notify_slack_enabled {
         if let Some(webhook_url) = &monitor.notify_slack_webhook {
-            let slack_text =
-                build_slack_incident_text(&notif, &monitor_label, &region_label, &region_labels);
+            let slack_text = build_slack_incident_text(
+                &notif,
+                &monitor_label,
+                &region_label,
+                &region_labels,
+                &snooze_url,
+                &monitor.url,
+                &state.config.app_url,
+            );
             let t0 = std::time::Instant::now();
             match send_slack(webhook_url, &slack_text).await {
                 Ok(()) => {
@@ -403,8 +415,13 @@ pub async fn notify_recovery(state: AppState, notif: RecoveryNotification) {
 
     if monitor.notify_slack_enabled {
         if let Some(webhook_url) = &monitor.notify_slack_webhook {
-            let text =
-                build_slack_recovery_text(&notif, &monitor_label, type_label, &region_labels);
+            let text = build_slack_recovery_text(
+                &notif,
+                &monitor_label,
+                type_label,
+                &region_labels,
+                &state.config.app_url,
+            );
             if let Ok(()) = send_slack(webhook_url, &text).await {
                 info!("notifier: recovery slack sent for {}", notif.alert_type);
             }
@@ -769,73 +786,115 @@ fn build_slack_incident_text(
     monitor_label: &str,
     region_label: &str,
     region_labels: &HashMap<String, String>,
+    snooze_url: &str,
+    site_url: &str,
+    app_url: &str,
 ) -> String {
     let severity = alert_severity(&n.alert_type);
     let type_label = alert_type_display(&n.alert_type);
     let unit = metric_unit(&n.alert_type);
 
-    let prefix = match n.notification_type {
+    let emoji = match severity {
+        AlertSeverity::Critical => "🚨",
+        AlertSeverity::High => "⚠️",
+        AlertSeverity::Medium => "⚡",
+        AlertSeverity::Low => "ℹ️",
+    };
+
+    let title = match n.notification_type {
         NotificationType::FirstFire => format!(
-            ":warning: *[{}]* {}",
+            "{} *[{}]* {}",
+            emoji,
             severity.as_str().to_uppercase(),
             type_label
         ),
         NotificationType::Digest => format!(
-            ":hourglass_flowing_sand: *[ONGOING {}]* {}",
+            "⏳ *[ONGOING - {}]* {}",
             format_duration_short(&n.duration),
             type_label
         ),
-        NotificationType::Recovery => format!(":white_check_mark: *[RESOLVED]* {}", type_label),
+        NotificationType::Recovery => format!("✅ *[RESOLVED]* {}", type_label),
     };
 
-    let mut parts = vec![format!(
-        "{} · *{}* ({})",
-        prefix, monitor_label, region_label
-    )];
+    let (sev_label, sev_note) = severity_context(&n.alert_type);
+    let monitor_domain = site_url.split("://").nth(1).unwrap_or(site_url);
+
+    let mut parts = vec![
+        title,
+        String::new(),
+        format!("*Severity:* *{}* — {}", sev_label, sev_note),
+        String::new(),
+        "*Incident Details:*".to_string(),
+        format!("• *Monitor:* {} (<{}|{}>)", monitor_label, site_url, monitor_domain),
+        format!("• *Affected Region:* {}", region_label),
+    ];
 
     match n.notification_type {
-        NotificationType::FirstFire => parts.push(format!(
-            "First detected at {}",
-            format_incident_timestamp_utc(n.opened_at)
-        )),
-        NotificationType::Digest => parts.push(format!(
-            "Since {} · {} · {} notification{}",
-            format_incident_timestamp_utc(n.opened_at),
-            format_duration(&n.duration),
-            n.notification_count,
-            if n.notification_count == 1 { "" } else { "s" }
-        )),
+        NotificationType::FirstFire => {
+            parts.push(format!(
+                "• *First detected at:* `{}`",
+                format_incident_timestamp_utc(n.opened_at)
+            ));
+        }
+        NotificationType::Digest => {
+            parts.push(format!(
+                "• Since `{}` · `{}` · `{} notification{}` sent",
+                format_incident_timestamp_utc(n.opened_at),
+                format_duration(&n.duration),
+                n.notification_count,
+                if n.notification_count == 1 { "" } else { "s" }
+            ));
+        }
         NotificationType::Recovery => {}
     }
 
+    parts.push(String::new()); // blank line
+
+    // Metrics formatting
     if let (Some(actual), Some(delta), Some(reference)) = (n.actual, n.delta_pct, n.threshold) {
         let cmp = n
             .comparator
             .as_deref()
             .map(comparator_display)
             .unwrap_or("reference");
+        
+        parts.push("*Metrics Breakdown:*".to_string());
+        parts.push(format!("• *Current Reading:* `{:.1}{}`", actual, unit));
+        
         if is_cache_hit_trend_drop_alert(&n.alert_type) {
-            parts.push(format!(
-                "{:.1}{} current · {:.1} pp vs {} · ref {:.1}{}",
-                actual, unit, delta, cmp, reference, unit
-            ));
+            parts.push(format!("• *Difference:* `{:.1} pp` vs `{}`", delta, cmp));
         } else {
             let sign = if delta > 0.0 { "+" } else { "" };
-            parts.push(format!(
-                "{:.1}{} current · {}{:.1}% vs {} · ref {:.1}{}",
-                actual, unit, sign, delta.abs(), cmp, reference, unit
-            ));
+            parts.push(format!("• *Difference:* `{}{:.1}%` vs `{}`", sign, delta.abs(), cmp));
         }
+        parts.push(format!("• *Reference Baseline:* `{:.1}{}`", reference, unit));
+        parts.push(String::new());
     } else if let (Some(actual), Some(threshold)) = (n.actual, n.threshold) {
-        parts.push(format!(
-            "{:.1}{} current · threshold {:.1}{}",
-            actual, unit, threshold, unit
-        ));
+        parts.push("*Metrics:*".to_string());
+        parts.push(format!("• *Current Reading:* `{:.1}{}`", actual, unit));
+        parts.push(format!("• *Configured Threshold:* `{:.1}{}`", threshold, unit));
+        parts.push(String::new());
     }
 
     if let Some(d) = &n.diagnosis {
-        parts.push(replace_region_ids_and_normalize_legacy_trend(d, region_labels));
+        let normalized = replace_region_ids_and_normalize_legacy_trend(d, region_labels);
+        parts.push("*Incident Diagnosis:*".to_string());
+        parts.push(format!("> {}", normalized));
+        parts.push(String::new());
     }
+
+    if let Some(act) = &n.action {
+        let normalized = replace_region_ids_and_normalize_legacy_trend(act, region_labels);
+        parts.push("*Recommended Action:*".to_string());
+        parts.push(format!("> {}", normalized));
+        parts.push(String::new());
+    }
+
+    let monitor_dashboard_url = format!("{}/dashboard/monitors/{}", app_url, n.monitor_id);
+    parts.push(format!(
+        "⚙️ <{}|Snooze 24h>  ·  🖥️ <{}|View Website>  ·  📊 <{}|Open Dashboard>",
+        snooze_url, site_url, monitor_dashboard_url
+    ));
 
     parts.join("\n")
 }
@@ -845,19 +904,40 @@ fn build_slack_recovery_text(
     monitor_label: &str,
     type_label: &str,
     region_labels: &HashMap<String, String>,
+    app_url: &str,
 ) -> String {
     let regions = if n.affected_regions.is_empty() {
-        String::new()
+        "Global".to_string()
     } else {
-        format!(" ({})", format_region_summary(&n.affected_regions, region_labels))
+        format_region_summary(&n.affected_regions, region_labels)
     };
-    format!(
-        ":white_check_mark: *[RESOLVED]* {}{} · *{}* · resolved after {}",
-        type_label,
-        regions,
-        monitor_label,
-        format_duration(&n.duration)
-    )
+    
+    let duration_text = format_duration(&n.duration);
+    let unit = metric_unit(&n.alert_type);
+
+    let mut parts = vec![
+        format!("✅ *[RESOLVED]* {}", type_label),
+        String::new(),
+        "*Recovery Details:*".to_string(),
+        format!("• *Monitor:* {}", monitor_label),
+        format!("• *Affected Region:* {}", regions),
+        format!("• *Resolved after:* `{}`", duration_text),
+    ];
+
+    if let (Some(actual), Some(threshold)) = (n.actual, n.threshold) {
+        parts.push(format!("• *Final Reading:* `{:.1}{}` (threshold: {:.1}{})", actual, unit, threshold, unit));
+    }
+
+    parts.push(format!("• *Notifications Sent:* `{} sent during this incident`", n.notification_count));
+    parts.push(String::new());
+
+    let monitor_dashboard_url = format!("{}/dashboard/monitors/{}", app_url, n.monitor_id);
+    parts.push(format!(
+        "📊 <{}|Open Dashboard>",
+        monitor_dashboard_url
+    ));
+
+    parts.join("\n")
 }
 
 // --- HTTP senders ---
@@ -1280,7 +1360,15 @@ mod tests {
             "Cache hit fell 11.1 pp vs previous hour (14.2% relative) · all regions · 67.2% now vs 78.3% reference"
                 .to_string(),
         );
-        let text = build_slack_incident_text(&n, "mon", "aggregate", &region_labels());
+        let text = build_slack_incident_text(
+            &n,
+            "mon",
+            "aggregate",
+            &region_labels(),
+            "https://snooze",
+            "https://site.com",
+            "https://app",
+        );
         assert!(text.contains("Global cache hit rate fell"));
         assert!(!text.contains("· all regions ·"));
     }
@@ -1315,10 +1403,18 @@ mod tests {
     #[test]
     fn test_slack_first_fire_has_warning_emoji() {
         let n = make_incident(NotificationType::FirstFire, "down");
-        let text = build_slack_incident_text(&n, "My Site", "global", &region_labels());
+        let text = build_slack_incident_text(
+            &n,
+            "My Site",
+            "global",
+            &region_labels(),
+            "https://snooze",
+            "https://site.com",
+            "https://app",
+        );
         assert!(
-            text.contains(":warning:"),
-            "FirstFire must use :warning: emoji"
+            text.contains("🚨"),
+            "FirstFire must use 🚨 emoji for down"
         );
         assert!(text.contains("CRITICAL"));
         assert!(text.contains("Monitor Down"));
@@ -1331,9 +1427,17 @@ mod tests {
     #[test]
     fn test_slack_digest_has_hourglass_emoji() {
         let n = make_incident(NotificationType::Digest, "cache_hit_low");
-        let text = build_slack_incident_text(&n, "My Site", "us-east-1", &region_labels());
+        let text = build_slack_incident_text(
+            &n,
+            "My Site",
+            "us-east-1",
+            &region_labels(),
+            "https://snooze",
+            "https://site.com",
+            "https://app",
+        );
         assert!(
-            text.contains(":hourglass_flowing_sand:"),
+            text.contains("⏳"),
             "Digest must use hourglass emoji"
         );
         assert!(text.contains("ONGOING"));
@@ -1349,9 +1453,17 @@ mod tests {
     #[test]
     fn test_slack_recovery_has_checkmark_emoji() {
         let n = make_incident(NotificationType::Recovery, "ttfb_limit");
-        let text = build_slack_incident_text(&n, "My Site", "ap-southeast-1", &region_labels());
+        let text = build_slack_incident_text(
+            &n,
+            "My Site",
+            "ap-southeast-1",
+            &region_labels(),
+            "https://snooze",
+            "https://site.com",
+            "https://app",
+        );
         assert!(
-            text.contains(":white_check_mark:"),
+            text.contains("✅"),
             "Recovery must use checkmark emoji"
         );
         assert!(text.contains("RESOLVED"));
@@ -1360,7 +1472,15 @@ mod tests {
     #[test]
     fn test_slack_incident_includes_metric_values() {
         let n = make_incident(NotificationType::FirstFire, "cache_hit_low");
-        let text = build_slack_incident_text(&n, "my-monitor", "eu-west-1", &region_labels());
+        let text = build_slack_incident_text(
+            &n,
+            "my-monitor",
+            "eu-west-1",
+            &region_labels(),
+            "https://snooze",
+            "https://site.com",
+            "https://app",
+        );
         assert!(text.contains("45.0%"), "actual must appear with % unit");
         assert!(text.contains("80.0%"), "threshold must appear");
     }
@@ -1370,9 +1490,14 @@ mod tests {
     #[test]
     fn test_slack_recovery_text_single_region() {
         let n = make_recovery("cache_hit_low", 3);
-        let text =
-            build_slack_recovery_text(&n, "my-monitor", "Low Cache Hit Rate", &region_labels());
-        assert!(text.contains(":white_check_mark:"));
+        let text = build_slack_recovery_text(
+            &n,
+            "my-monitor",
+            "Low Cache Hit Rate",
+            &region_labels(),
+            "https://app",
+        );
+        assert!(text.contains("✅"));
         assert!(text.contains("RESOLVED"));
         assert!(text.contains("my-monitor"));
         assert!(text.contains("3 hours"), "duration must appear");
@@ -1390,8 +1515,13 @@ mod tests {
             "eu-west-1".to_string(),
             "ap-southeast-1".to_string(),
         ];
-        let text =
-            build_slack_recovery_text(&n, "cdn-monitor", "Monitor Down", &region_labels());
+        let text = build_slack_recovery_text(
+            &n,
+            "cdn-monitor",
+            "Monitor Down",
+            &region_labels(),
+            "https://app",
+        );
         assert!(
             text.contains("3 regions"),
             "multi-region must say N regions"
@@ -1406,6 +1536,7 @@ mod tests {
             "monitor",
             "Cache Hit Trend Drop (Global)",
             &region_labels(),
+            "https://app",
         );
         assert!(
             !text.contains("cache_hit_trend_drop_global"),

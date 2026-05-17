@@ -406,7 +406,6 @@ async fn check_cache_hit(
     .await?;
 
     match hit_data {
-        (_, comparable) if comparable <= 0 => Ok(CacheHitResult::Cleared),
         (hit_pct, comparable) if comparable >= 5 => {
             if hit_pct < monitor.alert_cache_hit_threshold_pct {
                 Ok(CacheHitResult::Firing(Detection {

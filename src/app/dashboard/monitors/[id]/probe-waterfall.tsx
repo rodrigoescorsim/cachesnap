@@ -176,7 +176,7 @@ export function ProbeWaterfall({
           const cdnLabel = resolveCdnLabel(probe.cdn_provider, probe.served_by)
           const regionLabel = regionLabels[probe.region] ?? probe.region
           const age = formatAge(probe.age_s)
-          const isZombie = probe.age_s != null && probe.age_s > 86_400
+          const isStale = probe.age_s != null && probe.age_s > 86_400
 
           return (
             <div
@@ -228,14 +228,14 @@ export function ProbeWaterfall({
                     )}
 
                     {age && (
-                      <PremiumTooltip content={`Cache-Control Age: ${probe.age_s}s${isZombie ? ' — zombie cache detected' : ''}`}>
+                      <PremiumTooltip content={`Cache-Control Age: ${probe.age_s}s${isStale ? ' — stale cache content detected' : ''}`}>
                         <span
-                          className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${isZombie
+                          className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${isStale
                             ? 'border-red-500/20 bg-red-500/5 text-red-400'
                             : 'border-border bg-white/5 text-zinc-500'
                             }`}
                         >
-                          Age {age}{isZombie ? ' ⚠' : ''}
+                          Age {age}{isStale ? ' ⚠' : ''}
                         </span>
                       </PremiumTooltip>
                     )}
