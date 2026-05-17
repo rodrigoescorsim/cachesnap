@@ -26,7 +26,7 @@ export function HeroUrlForm() {
         className="cs-input flex-1 min-w-0 h-12 rounded-xl px-4 py-3 text-sm font-medium"
       />
       <button type="submit" className="cs-btn-primary h-12 rounded-xl px-6 text-sm font-semibold whitespace-nowrap">
-        Test now
+        Start monitoring →
       </button>
     </form>
   )
