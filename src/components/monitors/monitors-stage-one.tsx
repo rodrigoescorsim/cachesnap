@@ -123,15 +123,19 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
   useEffect(() => {
     const urlFilter = coerceFilter(searchParams.get('filter'))
     if (urlFilter !== activeFilter) {
-      setActiveFilter(urlFilter)
+      Promise.resolve().then(() => {
+        setActiveFilter(urlFilter)
+      })
     }
 
     const urlSearch = searchParams.get('q') ?? ''
     if (urlSearch !== searchQuery) {
-      setSearchQuery(urlSearch)
-      setSearchInput(urlSearch)
+      Promise.resolve().then(() => {
+        setSearchQuery(urlSearch)
+        setSearchInput(urlSearch)
+      })
     }
-  }, [searchParams]) // Only react to searchParams changes
+  }, [searchParams, activeFilter, searchQuery])
 
   // ── State → URL sync ───────────────────────────────────────────────────────
   // Using replace to avoid polluting history with every filter change

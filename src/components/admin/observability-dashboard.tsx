@@ -1295,8 +1295,10 @@ export function ObservabilityDashboard() {
   }, [timeWindow])
 
   useEffect(() => {
-    setInitialLoading(true)
-    fetchAll()
+    Promise.resolve().then(() => {
+      setInitialLoading(true)
+      fetchAll()
+    })
     const timer = setInterval(fetchAll, 30_000)
     return () => clearInterval(timer)
   }, [fetchAll])
