@@ -892,10 +892,24 @@ async fn send_email(
     }
 }
 
+fn format_webhook_url(webhook_url: &str) -> String {
+    let mut url = webhook_url.to_string();
+    if (url.contains("discord.com/api/webhooks") || url.contains("discordapp.com/api/webhooks"))
+        && !url.ends_with("/slack")
+    {
+        if url.ends_with('/') {
+            url.pop();
+        }
+        url.push_str("/slack");
+    }
+    url
+}
+
 async fn send_slack(webhook_url: &str, text: &str) -> Result<(), String> {
+    let formatted_url = format_webhook_url(webhook_url);
     let client = reqwest::Client::new();
     let res = client
-        .post(webhook_url)
+        .post(&formatted_url)
         .json(&json!({ "text": text }))
         .send()
         .await
@@ -973,6 +987,30 @@ mod tests {
         assert_eq!(NotificationType::FirstFire.as_str(), "first_fire");
         assert_eq!(NotificationType::Digest.as_str(), "digest");
         assert_eq!(NotificationType::Recovery.as_str(), "recovery");
+    }
+
+    #[test]
+    fn test_format_webhook_url() {
+        assert_eq!(
+            format_webhook_url("https://hooks.slack.com/services/T123/B456/XYZ"),
+            "https://hooks.slack.com/services/T123/B456/XYZ"
+        );
+        assert_eq!(
+            format_webhook_url("https://discord.com/api/webhooks/123456/abcdef"),
+            "https://discord.com/api/webhooks/123456/abcdef/slack"
+        );
+        assert_eq!(
+            format_webhook_url("https://discord.com/api/webhooks/123456/abcdef/"),
+            "https://discord.com/api/webhooks/123456/abcdef/slack"
+        );
+        assert_eq!(
+            format_webhook_url("https://discordapp.com/api/webhooks/123456/abcdef"),
+            "https://discordapp.com/api/webhooks/123456/abcdef/slack"
+        );
+        assert_eq!(
+            format_webhook_url("https://discord.com/api/webhooks/123456/abcdef/slack"),
+            "https://discord.com/api/webhooks/123456/abcdef/slack"
+        );
     }
 
     #[test]
