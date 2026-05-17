@@ -68,14 +68,21 @@ async fn main() -> Result<()> {
     // Carregar .env
     dotenvy::dotenv().ok();
 
-    // Logging
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "api=debug,CacheSnap_api=debug,tower_http=info".into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    // Logging — set RUST_LOG_FORMAT=json for structured JSON output (e.g. Loki, CloudWatch).
+    let log_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "api=debug,tower_http=info".into());
+
+    if std::env::var("RUST_LOG_FORMAT").as_deref() == Ok("json") {
+        tracing_subscriber::registry()
+            .with(log_filter)
+            .with(tracing_subscriber::fmt::layer().json())
+            .init();
+    } else {
+        tracing_subscriber::registry()
+            .with(log_filter)
+            .with(tracing_subscriber::fmt::layer())
+            .init();
+    }
 
     let config = Arc::new(config::Config::from_env()?);
     let (tx, _rx) = broadcast::channel(1024);
