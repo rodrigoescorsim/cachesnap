@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth'
 import { unauthorized } from '@/lib/api-auth'
 import sql from '@/lib/db'
 import { MONITOR_AUDIT_INTERVAL_SECONDS, MONITOR_CHECK_INTERVAL_SECONDS } from '@/lib/monitor-schedule'
-import { getMonitorLimit } from '@/lib/plans'
+import { getMonitorLimit, parsePlan } from '@/lib/plans'
 
 const createSchema = z.object({
   url: z.string().url('Must be a valid URL'),
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   const [{ count }] = await sql<[{ count: number }]>`
     SELECT COUNT(*)::int AS count FROM monitors WHERE user_id = ${user.id}
   `
-  const limit = getMonitorLimit(user.plan)
+  const limit = getMonitorLimit(parsePlan(user.plan))
   if (count >= limit) {
     return NextResponse.json(
       { error: `Plan limit reached. Your ${user.plan} plan includes up to ${limit} monitors.`, code: 'PLAN_LIMIT' },

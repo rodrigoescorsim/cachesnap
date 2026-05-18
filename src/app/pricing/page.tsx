@@ -141,8 +141,8 @@ export default function PricingPage() {
                     : 'border border-zinc-800/60 bg-zinc-900/30'
                 }`}
                 style={plan.highlighted ? {
-                  borderColor: 'rgba(34,255,136,0.35)',
-                  boxShadow: '0 0 40px -8px rgba(34,255,136,0.12)',
+                  borderColor: 'rgba(var(--brand-primary-rgb), 0.35)',
+                  boxShadow: '0 0 40px -8px rgba(var(--brand-primary-rgb), 0.12)',
                 } : undefined}
               >
                 {/* Recommended badge */}
