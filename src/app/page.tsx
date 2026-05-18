@@ -283,23 +283,23 @@ export default async function RootPage() {
               {/* Copy */}
               <div className="space-y-5">
                 <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--brand-primary)' }}>
-                  Zero Alert Fatigue
+                  Intelligent Routing
                 </p>
                 <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
-                  We group incidents.<br />We don&apos;t spam.
+                  Aggregated alerts.<br />Zero noise.
                 </h2>
                 <p className="text-zinc-400 leading-relaxed">
-                  Traditional monitors flood your inbox with repetitive alerts. CacheSnap aggregates regional issues into a single, clean incident.
+                  CacheSnap automatically consolidates multi-region errors into a single structured incident. Get total context on a single thread instead of hundreds of duplicate emails.
                 </p>
                 <p className="text-zinc-300 leading-relaxed font-medium">
-                  You get one initial <span className="text-white">FirstFire</span> alert, followed by smart digests at controlled intervals. One issue, one thread.
+                  Immediate notification triggers on the first edge failure, followed by smart regional updates. One issue, one clean thread.
                 </p>
                 <ul className="space-y-2.5 text-sm text-zinc-400">
                   {[
-                    'One open incident per (monitor, alert type)',
-                    'Digest cadence doubles after each notification',
-                    'Snooze for 24h with a single click from the email',
-                    'Recovery notification when the issue resolves',
+                    'One consolidated incident per active regional event',
+                    'Smart progressive quiet intervals to prevent flood',
+                    'One-click email snooze for 24 hours',
+                    'Instant recovery notifications upon resolution',
                   ].map(item => (
                     <li key={item} className="flex items-start gap-2.5">
                       <svg className="h-4 w-4 mt-0.5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2} style={{ color: 'var(--brand-primary)' }}>
