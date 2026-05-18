@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import Link from 'next/link'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import type { SortingState } from '@tanstack/react-table'
 import {
@@ -12,6 +13,7 @@ import {
   Zap,
   Search,
   Database,
+  Globe,
 } from 'lucide-react'
 import { GlobalHeader } from '@/components/dashboard/global-header'
 import { type MonitorQuickFilterId, monitorCacheHitIsComparable } from '@/types/monitor'
@@ -335,19 +337,32 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
             />
           </div>
 
-          {/* Empty state nudge when no data is available */}
+          {/* Empty state when no probe data yet */}
           {hasNoData && (
-            <div className="flex items-center justify-center gap-2.5 rounded-lg border border-dashed border-white/8 bg-white/[0.015] px-4 py-3 animate-[cs-fade-in_0.4s_ease-out]">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
-                {hasNoMonitors ? 'No monitors yet' : 'Awaiting data'}
-              </span>
-              <span className="text-zinc-700">·</span>
-              <span className="text-[11px] text-zinc-500">
-                {hasNoMonitors
-                  ? 'Add your first monitor to start seeing real metrics here.'
-                  : 'Metrics will appear once your monitors receive their first probe results.'}
-              </span>
-            </div>
+            hasNoMonitors ? (
+              <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-white/8 bg-white/[0.015] px-6 py-6 text-center animate-[cs-fade-in_0.4s_ease-out]">
+                <Globe className="h-7 w-7 text-zinc-600" aria-hidden />
+                <div className="max-w-sm space-y-1">
+                  <p className="text-[13px] font-semibold text-zinc-400">No monitors yet</p>
+                  <p className="text-[11px] leading-relaxed text-zinc-500">
+                    Add a URL to track latency and cache hit rate from edge regions worldwide.
+                  </p>
+                </div>
+                <Link href="/monitors/new" className="cs-btn-primary h-9 px-5 text-[12px] font-bold">
+                  Create your first monitor now
+                </Link>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-2.5 rounded-lg border border-dashed border-white/8 bg-white/[0.015] px-4 py-3 animate-[cs-fade-in_0.4s_ease-out]">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+                  Awaiting data
+                </span>
+                <span className="text-zinc-700">·</span>
+                <span className="text-[11px] text-zinc-500">
+                  Metrics will appear once your monitors receive their first probe results.
+                </span>
+              </div>
+            )
           )}
         </ViewSection>
 
