@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Logo } from '@/components/logo'
+import { MarketingFooter, MarketingHeader } from '@/components/marketing/marketing-chrome'
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -94,25 +94,7 @@ export default function PricingPage() {
         style={{ background: 'radial-gradient(ellipse at top, var(--brand-primary) 0%, transparent 65%)' }}
       />
 
-      {/* ═══════════════════════════════════════════════════════════ NAVBAR */}
-      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/96 backdrop-blur-md supports-[backdrop-filter]:bg-background/92">
-        <div className="cs-container-adaptive flex items-center justify-between h-14">
-          <Link href="/" className="transition-opacity hover:opacity-80">
-            <Logo className="h-11" />
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/pricing" className="text-sm font-medium text-white transition-colors">
-              Pricing
-            </Link>
-            <Link href="/login" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
-              Sign in
-            </Link>
-            <Link href="/signup" className="cs-btn-primary rounded-lg px-4 py-1.5 text-sm">
-              Get started free
-            </Link>
-          </div>
-        </div>
-      </header>
+      <MarketingHeader activeNav="pricing" />
 
       <main className="flex-1 relative z-10">
 
@@ -136,9 +118,7 @@ export default function PricingPage() {
               <div
                 key={plan.name}
                 className={`cs-card cs-card-glass relative flex flex-col overflow-hidden transition-all duration-200 ${
-                  plan.highlighted
-                    ? '!border-[rgba(var(--brand-primary-rgb),0.35)] shadow-[0_0_40px_-8px_rgba(var(--brand-primary-rgb),0.12)]'
-                    : ''
+                  plan.highlighted ? 'cs-card-highlight' : ''
                 }`}
               >
                 <div className="cs-card-wash" aria-hidden />
@@ -174,7 +154,7 @@ export default function PricingPage() {
                     className={
                       plan.highlighted
                         ? 'cs-btn-primary rounded-lg px-5 py-2.5 text-center text-sm font-bold'
-                        : 'inline-flex h-10 w-full items-center justify-center rounded-lg border border-white/5 bg-white/5 text-sm font-bold text-zinc-300 transition-all hover:border-emerald-500/25 hover:bg-emerald-500/[0.06] hover:text-emerald-300'
+                        : 'cs-btn-secondary-lg text-center'
                     }
                   >
                     {plan.cta}
@@ -211,24 +191,7 @@ export default function PricingPage() {
 
       </main>
 
-      {/* ═══════════════════════════════════════════════════════════ FOOTER */}
-      <footer className="relative z-10 border-t border-border bg-background/80 backdrop-blur-sm">
-        <div className="cs-container-adaptive py-10">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4">
-              <Logo className="h-8 opacity-70" />
-              <span className="hidden sm:inline text-zinc-700">·</span>
-              <span className="text-xs text-zinc-500">Edge Performance Monitoring</span>
-            </div>
-            <div className="flex items-center gap-6 text-xs text-zinc-500">
-              <Link href="/login" className="hover:text-zinc-300 transition-colors">Sign in</Link>
-              <Link href="/signup" className="hover:text-zinc-300 transition-colors">Sign up free</Link>
-              <span className="text-zinc-700">·</span>
-              <span className="text-zinc-600">© 2026 CacheSnap</span>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <MarketingFooter />
 
     </div>
   )
