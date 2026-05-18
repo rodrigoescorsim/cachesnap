@@ -131,7 +131,7 @@ export function ProbeWaterfall({
       {/* Legend - only show if not in embedded/compact mode */}
       {!hideHeader && !hideLegend && <WaterfallLegend maxTotal={maxTotal} />}
 
-      <div className="divide-y divide-zinc-200 overflow-hidden rounded-lg border border-border bg-surface dark:divide-zinc-800">
+      <div className="divide-y divide-zinc-200 overflow-hidden rounded-lg border border-border bg-surface dark:divide-white/10">
         {probes.map(probe => {
           const total = Number(probe.total_ms ?? probe.ttfb_ms ?? 0)
           const ttfb = Number(probe.ttfb_ms ?? 0)
@@ -471,7 +471,7 @@ export function ProbeWaterfall({
                 if (!showDetailBlocks) return null
 
                 return (
-                  <details className="group mt-1 border-t border-zinc-100 dark:border-zinc-800">
+                  <details className="group mt-1 border-t border-zinc-100 dark:border-white/10">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-2 py-1 pl-0 pr-0.5 text-[8px] font-semibold uppercase tracking-wider text-zinc-400 leading-tight hover:text-zinc-500 dark:hover:text-zinc-300 [&::-webkit-details-marker]:hidden">
                       <span>Additional timing breakdowns</span>
                       <span className="text-zinc-500 transition-transform group-open:rotate-180" aria-hidden>
@@ -494,7 +494,7 @@ export function ProbeWaterfall({
                                     {name}
                                   </span>
                                 </PremiumTooltip>
-                                <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                                <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-white/10 overflow-hidden">
                                   <div
                                     className={`h-full rounded-full ${breakdownColor(name)}`}
                                     style={{ width: pct(ms, ttfb > 0 ? ttfb : maxTotal) }}
@@ -511,7 +511,7 @@ export function ProbeWaterfall({
 
                       {(dns > 0 || tls > 0 || tcp > 0) && (
                         <div
-                          className={`bg-zinc-50/50 py-1.5 dark:bg-zinc-950/20 ${hasServerTiming ? 'border-t border-zinc-100 dark:border-zinc-800' : ''}`}
+                          className={`bg-zinc-50/50 py-1.5 dark:bg-white/[0.02] ${hasServerTiming ? 'border-t border-zinc-100 dark:border-white/10' : ''}`}
                         >
                           <p className="mb-1 text-[8px] font-semibold uppercase tracking-wider text-zinc-400">
                             Network layer timing
@@ -522,7 +522,7 @@ export function ProbeWaterfall({
                                 <span className="w-[72px] shrink-0 text-[10px] font-mono text-zinc-500 truncate" title="DNS Lookup">
                                   dns
                                 </span>
-                                <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                                <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-white/10 overflow-hidden">
                                   <div
                                     className={`h-full rounded-full ${TIMING.dns.barFill}`}
                                     style={{ width: pct(dns, Math.max(dns, ttfb > 0 ? ttfb : maxTotal)) }}
@@ -538,7 +538,7 @@ export function ProbeWaterfall({
                                 <span className="w-[72px] shrink-0 text-[10px] font-mono text-zinc-500 truncate" title="TCP Connect">
                                   tcp
                                 </span>
-                                <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                                <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-white/10 overflow-hidden">
                                   <div
                                     className={`h-full rounded-full ${TIMING.tcp.barFill}`}
                                     style={{ width: pct(tcp, Math.max(tcp, ttfb > 0 ? ttfb : maxTotal)) }}
@@ -554,7 +554,7 @@ export function ProbeWaterfall({
                                 <span className="w-[72px] shrink-0 text-[10px] font-mono text-zinc-500 truncate" title="TLS Handshake">
                                   tls
                                 </span>
-                                <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+                                <div className="flex-1 h-3 rounded-full bg-zinc-100 dark:bg-white/10 overflow-hidden">
                                   <div
                                     className={`h-full rounded-full ${TIMING.tls.barFill}`}
                                     style={{ width: pct(tls, Math.max(tls, ttfb > 0 ? ttfb : maxTotal)) }}
@@ -570,7 +570,7 @@ export function ProbeWaterfall({
                       )}
 
                       {!hasBreakdown && !hasServerTiming && (
-                        <div className={`py-1.5 ${hasServerTiming || dns > 0 || tls > 0 || tcp > 0 ? 'border-t border-zinc-100 dark:border-zinc-800' : ''}`}>
+                        <div className={`py-1.5 ${hasServerTiming || dns > 0 || tls > 0 || tcp > 0 ? 'border-t border-zinc-100 dark:border-white/10' : ''}`}>
                           <span className="text-[9px] text-zinc-400">
                             No <code className="font-mono">Server-Timing</code> header —
                             edge/origin split unavailable.

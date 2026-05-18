@@ -1972,7 +1972,7 @@ export function TtfbChart({
             </div>
           ))}
         </div>
-        <div className="flex items-center gap-4 border-l border-zinc-200 dark:border-zinc-800 pl-4">
+        <div className="flex items-center gap-4 border-l border-zinc-200 pl-4 dark:border-white/10">
           <div className="flex items-center gap-1.5 group/label">
             <div className="w-3 h-0.5 border-t border-dashed border-purple-500 opacity-60" />
             <span className={`text-[9px] font-bold uppercase tracking-wider ${TIMING.dns.text}`}>DNS</span>

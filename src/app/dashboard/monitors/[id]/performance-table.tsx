@@ -369,7 +369,7 @@ export function PerformanceTable({
                     <td className="cs-table-compact-td-mono text-right text-zinc-400">
                       {s.ttfb_min_ms != null ? (
                         <PremiumTooltip content={`Min: ${Math.round(s.ttfb_min_ms)}ms / Max: ${Math.round(s.ttfb_max_ms || 0)}ms recorded`} position="top-right">
-                          <span className="whitespace-nowrap border-b border-dashed border-zinc-800 hover:border-zinc-600 transition-colors pb-0.5 cursor-help">
+                          <span className="whitespace-nowrap border-b border-dashed border-white/10 hover:border-white/20 transition-colors pb-0.5 cursor-help">
                             {Math.round(s.ttfb_min_ms)}<span className="opacity-30 mx-1">/</span>{Math.round(s.ttfb_max_ms || 0)}<span className="text-[9px] ml-0.5 opacity-50 font-sans">ms</span>
                           </span>
                         </PremiumTooltip>

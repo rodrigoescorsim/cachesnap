@@ -391,22 +391,22 @@ export function EdgeVsOrigin({ data, regionLabels, readiness, isDown }: EdgeVsOr
                     <th className="px-4 py-3 text-left text-[10px] font-black text-zinc-500 uppercase tracking-widest">Region</th>
                     <th className="px-4 py-3 text-right">
                       <PremiumTooltip content="Average TTFB when content is served from the CDN Edge cache.">
-                        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest cursor-help border-b border-zinc-800 hover:border-zinc-600 transition-colors">Edge (HIT)</span>
+                        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest cursor-help border-b border-dashed border-white/10 hover:border-white/20 transition-colors">Edge (HIT)</span>
                       </PremiumTooltip>
                     </th>
                     <th className="px-4 py-3 text-right">
                       <PremiumTooltip content="Average TTFB when the CDN must fetch content directly from your origin server.">
-                        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest cursor-help border-b border-zinc-800 hover:border-zinc-600 transition-colors">Origin (direct)</span>
+                        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest cursor-help border-b border-dashed border-white/10 hover:border-white/20 transition-colors">Origin (direct)</span>
                       </PremiumTooltip>
                     </th>
                     <th className="px-4 py-3 text-right">
                       <PremiumTooltip content="Green: edge faster than origin for this region. Red: edge slower than origin (same as MISS).">
-                        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest cursor-help border-b border-zinc-800 hover:border-zinc-600 transition-colors">Latency delta</span>
+                        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest cursor-help border-b border-dashed border-white/10 hover:border-white/20 transition-colors">Latency delta</span>
                       </PremiumTooltip>
                     </th>
                     <th className="px-4 py-3 text-right">
                       <PremiumTooltip content="Green: lower latency vs origin. Red: higher latency vs origin (same as ms, same signal as MISS).">
-                        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest cursor-help border-b border-zinc-800 hover:border-zinc-600 transition-colors">Reduction %</span>
+                        <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest cursor-help border-b border-dashed border-white/10 hover:border-white/20 transition-colors">Reduction %</span>
                       </PremiumTooltip>
                     </th>
                   </tr>

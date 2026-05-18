@@ -95,7 +95,7 @@ export default function PricingPage() {
       />
 
       {/* ═══════════════════════════════════════════════════════════ NAVBAR */}
-      <header className="border-b border-zinc-800/50 backdrop-blur-md sticky top-0 z-50 w-full">
+      <header className="sticky top-0 z-50 w-full border-b border-border bg-background/96 backdrop-blur-md supports-[backdrop-filter]:bg-background/92">
         <div className="cs-container-adaptive flex items-center justify-between h-14">
           <Link href="/" className="transition-opacity hover:opacity-80">
             <Logo className="h-11" />
@@ -212,7 +212,7 @@ export default function PricingPage() {
       </main>
 
       {/* ═══════════════════════════════════════════════════════════ FOOTER */}
-      <footer className="border-t border-border relative z-10 bg-zinc-950/50 backdrop-blur-sm">
+      <footer className="relative z-10 border-t border-border bg-background/80 backdrop-blur-sm">
         <div className="cs-container-adaptive py-10">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
             <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4">

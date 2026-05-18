@@ -2382,7 +2382,7 @@ export default async function MonitorDetailPage({
                                     const valStr = String(value)
                                     if (valStr.length < 160) {
                                       return (
-                                        <div className="rounded border border-border bg-white/5 p-2 text-wrap dark:bg-zinc-900/40">
+                                        <div className="rounded border border-border bg-white/5 p-2 text-wrap">
                                           <code className="block text-[10px] text-zinc-600 dark:text-zinc-400 break-all font-mono leading-relaxed">
                                             {valStr}
                                           </code>
@@ -2392,7 +2392,7 @@ export default async function MonitorDetailPage({
                                     return (
                                       <details className="group">
                                         <summary className="flex items-center gap-1.5 cursor-pointer list-none outline-none">
-                                          <div className="min-w-0 flex-1 rounded border border-border bg-white/5 p-2 dark:bg-zinc-900/40">
+                                          <div className="min-w-0 flex-1 rounded border border-border bg-white/5 p-2">
                                             <code className="text-[10px] text-zinc-600 dark:text-zinc-400 font-mono block truncate">
                                               {valStr.slice(0, 100)}...
                                             </code>
@@ -2435,7 +2435,7 @@ export default async function MonitorDetailPage({
                                 <p className="text-sm font-bold text-red-700 dark:text-red-400">Variant configuration</p>
                                 <div className="flex gap-1">
                                   {prof.regions.map(r => (
-                                    <span key={r} className="text-[10px] font-bold bg-white dark:bg-zinc-900 px-1.5 py-0.5 rounded border border-red-100 dark:border-red-900/50 text-red-600">
+                                    <span key={r} className="text-[10px] font-bold rounded border border-red-100 bg-white px-1.5 py-0.5 text-red-600 dark:border-red-900/50 dark:bg-surface">
                                       {regionLabels[r]}
                                     </span>
                                   ))}
@@ -2449,7 +2449,7 @@ export default async function MonitorDetailPage({
                                   const normalizedDriftVal = normalizeSecurityHeaderValue(h.key, driftVal)
                                   if (JSON.stringify(normalizedMainVal) === JSON.stringify(normalizedDriftVal)) return null
                                   return (
-                                    <div key={h.key} className="text-[10px] p-2 bg-white/40 dark:bg-zinc-950/40 rounded border border-red-50 dark:border-red-900/30">
+                                    <div key={h.key} className="rounded border border-red-50 bg-white/40 p-2 text-[10px] dark:border-red-900/30 dark:bg-white/[0.02]">
                                       <p className="font-bold text-zinc-600 dark:text-zinc-400 uppercase mb-1">{h.label}</p>
 
                                       {(() => {
@@ -2608,7 +2608,7 @@ export default async function MonitorDetailPage({
                             style={{ height: `${Math.max((t.count / maxCount) * 100, 4)}%` }}
                           >
                             {t.count > 0 && (
-                              <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 text-white text-[10px] px-1.5 py-0.5 rounded pointer-events-none whitespace-nowrap z-10">
+                              <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded border border-white/10 bg-[var(--surface-dropdown)] px-1.5 py-0.5 text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100">
                                 {t.count} alert{t.count > 1 ? 's' : ''} @ {t.label.toString().padStart(2, '0')}:00
                               </div>
                             )}
@@ -2630,9 +2630,9 @@ export default async function MonitorDetailPage({
                 <Link
                   href={buildMonitorHref('alert-history', range, null, null, '', monitor.id)}
                   scroll={false}
-                  className={`px-2.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all ${filteredAlertType == null
-                    ? 'bg-zinc-900 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-900 shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-white/5'
+                  className={`rounded-md px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-tight transition-all ${filteredAlertType == null
+                    ? 'bg-white text-zinc-900 shadow-lg shadow-black/5 ring-1 ring-black/5 dark:bg-white/10 dark:text-white'
+                    : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-white/5 dark:hover:text-zinc-200'
                     }`}
                 >
                   All
@@ -2642,9 +2642,9 @@ export default async function MonitorDetailPage({
                     key={type}
                     href={buildMonitorHref('alert-history', range, type, null, '', monitor.id)}
                     scroll={false}
-                    className={`px-2.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-tight transition-all ${filteredAlertType === type
-                      ? 'bg-zinc-900 dark:bg-zinc-50 text-zinc-50 dark:text-zinc-900 shadow-sm'
-                      : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-white/5'
+                    className={`rounded-md px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-tight transition-all ${filteredAlertType === type
+                      ? 'bg-white text-zinc-900 shadow-lg shadow-black/5 ring-1 ring-black/5 dark:bg-white/10 dark:text-white'
+                      : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-white/5 dark:hover:text-zinc-200'
                       }`}
                   >
                     {ALERT_TYPE_LABELS[type]}
