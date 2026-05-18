@@ -294,6 +294,126 @@ body {
     background-color: var(--surface-dropdown);
   }
 
+  /** Settings / billing form blocks (card + focus ring). Pair with `.cs-card-wash` + `.cs-section-header`. */
+  .cs-form-section {
+    @apply relative overflow-hidden rounded-xl border border-border bg-surface p-6 transition-[border-color,box-shadow] duration-200;
+  }
+
+  .cs-form-section:focus-within {
+    border-color: rgba(var(--brand-primary-rgb), 0.25);
+    box-shadow: 0 0 0 4px rgba(var(--brand-primary-rgb), 0.08) inset;
+  }
+
+  /** Data panels (charts, tables) — no marketing hover glow. */
+  .cs-panel {
+    @apply relative overflow-hidden rounded-2xl border border-border bg-surface shadow-sm;
+  }
+
+  .cs-panel-interactive {
+    @apply relative overflow-hidden rounded-2xl border border-border bg-surface shadow-sm transition-all duration-200 hover:border-zinc-700;
+  }
+
+  /** Highlighted plan / featured card border. */
+  .cs-card-highlight {
+    border-color: rgba(var(--brand-primary-rgb), 0.35) !important;
+    box-shadow: 0 0 40px -8px rgba(var(--brand-primary-rgb), 0.12);
+  }
+
+  /** Secondary CTA (upgrade, create monitor nudge). */
+  .cs-btn-secondary {
+    @apply inline-flex items-center justify-center rounded-lg border border-white/5 bg-white/5 font-bold text-zinc-300 transition-all duration-200 hover:border-emerald-500/25 hover:bg-emerald-500/[0.06] hover:text-emerald-300 active:scale-95;
+  }
+
+  .cs-btn-secondary-sm {
+    @apply inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-white/5 bg-white/5 px-4 text-[11px] font-bold text-zinc-300 transition-all duration-200 hover:border-emerald-500/25 hover:bg-emerald-500/[0.06] hover:text-emerald-300 active:scale-95;
+  }
+
+  .cs-btn-secondary-md {
+    @apply inline-flex h-9 items-center justify-center rounded-lg border border-white/5 bg-white/5 px-4 text-[11px] font-bold uppercase tracking-wider text-zinc-300 transition-all duration-200 hover:border-emerald-500/25 hover:bg-emerald-500/[0.06] hover:text-emerald-300 active:scale-95;
+  }
+
+  .cs-btn-secondary-lg {
+    @apply inline-flex h-10 w-full items-center justify-center rounded-lg border border-white/5 bg-white/5 px-5 text-sm font-bold text-zinc-300 transition-all duration-200 hover:border-emerald-500/25 hover:bg-emerald-500/[0.06] hover:text-emerald-300 active:scale-95;
+  }
+
+  /** Neutral ghost button (clear filters, retry). */
+  .cs-btn-ghost {
+    @apply inline-flex items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] font-bold text-zinc-400 transition-all duration-200 hover:border-white/15 hover:bg-white/[0.07] hover:text-zinc-200 active:scale-95;
+  }
+
+  .cs-btn-ghost-sm {
+    @apply inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 text-[11px] font-bold text-zinc-400 transition-all duration-200 hover:border-white/15 hover:bg-white/[0.07] hover:text-zinc-200 active:scale-95;
+  }
+
+  /** Dashed empty-state strip / card. */
+  .cs-empty-nudge {
+    @apply rounded-lg border border-dashed border-white/8 bg-white/[0.015];
+  }
+
+  .cs-empty-nudge-inline {
+    @apply flex items-center justify-center gap-2.5 rounded-lg border border-dashed border-white/8 bg-white/[0.015] px-4 py-3;
+  }
+
+  .cs-empty-nudge-stack {
+    @apply flex flex-col items-center gap-3 rounded-lg border border-dashed border-white/8 bg-white/[0.015] px-6 py-6 text-center;
+  }
+
+  /** Inactive chart / filter chip. */
+  .cs-pill {
+    @apply inline-flex items-center rounded-full border border-white/10 bg-white/[0.02] text-[9px] font-bold uppercase tracking-tight text-zinc-500 transition-all duration-300 hover:border-white/15 hover:text-zinc-300;
+  }
+
+  .cs-pill-sm {
+    @apply inline-flex h-6 items-center rounded-full border border-white/10 bg-white/[0.02] px-2 text-[9px] font-bold uppercase tracking-tight text-zinc-500 transition-all duration-300 hover:border-white/15 hover:text-zinc-300;
+  }
+
+  /** Active timeframe / alert-type chip. */
+  .cs-chip-active {
+    @apply bg-white text-zinc-900 shadow-lg shadow-black/5 ring-1 ring-black/5 dark:bg-white/10 dark:text-white;
+  }
+
+  .cs-chip-track {
+    @apply flex h-9 items-center gap-1.5 rounded-xl border border-zinc-200 bg-zinc-100 px-1.5 dark:border-white/10 dark:bg-white/5;
+  }
+
+  .cs-chip-link {
+    @apply flex h-6 items-center justify-center rounded-lg px-3 text-[10px] font-black uppercase tracking-wider transition-all active:scale-95;
+  }
+
+  /** Marketing / feature icon container. */
+  .cs-icon-well {
+    @apply flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-[var(--brand-primary)];
+  }
+
+  .cs-icon-well-md {
+    @apply relative z-10 mb-5 flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-[var(--brand-primary)] transition-colors group-hover:border-[rgba(var(--brand-primary-rgb),0.3)];
+  }
+
+  .cs-icon-well-lg {
+    @apply relative z-10 flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-[var(--brand-primary)] shadow-[0_0_20px_-4px_rgba(var(--brand-primary-rgb),0.15)];
+  }
+
+  /** Marketing site chrome. */
+  .cs-marketing-header {
+    @apply sticky top-0 z-50 w-full border-b border-border bg-background/96 backdrop-blur-md supports-[backdrop-filter]:bg-background/92;
+  }
+
+  .cs-marketing-footer {
+    @apply relative z-10 border-t border-border bg-background/80 backdrop-blur-sm;
+  }
+
+  /** Floating chart / histogram tooltip. */
+  .cs-tooltip-floating {
+    @apply pointer-events-none rounded border border-white/10 text-[10px] text-white;
+    background-color: var(--surface-dropdown);
+  }
+
+  /** Insights / chart rich tooltip. */
+  .cs-tooltip-panel {
+    @apply rounded-xl border border-border shadow-2xl ring-1 ring-white/5;
+    background-color: var(--tooltip-surface);
+  }
+
   .cs-item {
     @apply flex items-center gap-2.5 px-2.5 py-2 w-full border-0 bg-transparent text-left rounded-md text-sm font-medium transition-all duration-150 cursor-pointer text-slate-300 no-underline hover:bg-white/5 hover:text-white;
   }
