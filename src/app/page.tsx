@@ -126,6 +126,9 @@ export default async function RootPage() {
             <Logo className="h-11" />
           </Link>
           <div className="flex items-center gap-4">
+            <Link href="/pricing" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
+              Pricing
+            </Link>
             <Link href="/login" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
               Sign in
             </Link>
