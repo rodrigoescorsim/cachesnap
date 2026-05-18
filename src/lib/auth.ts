@@ -8,6 +8,7 @@ const SESSION_DURATION_DAYS = 30
 export interface SessionUser {
   id: string
   email: string
+  plan: string
 }
 
 export async function createSession(userId: string): Promise<string> {
@@ -37,8 +38,8 @@ export async function getSession(): Promise<SessionUser | null> {
   const token = cookieStore.get(COOKIE_NAME)?.value
   if (!token) return null
 
-  const rows = await sql<{ id: string; email: string }[]>`
-    SELECT u.id, u.email
+  const rows = await sql<{ id: string; email: string; plan: string }[]>`
+    SELECT u.id, u.email, u.plan
     FROM sessions s
     JOIN users u ON u.id = s.user_id
     WHERE s.session_token = ${token}
