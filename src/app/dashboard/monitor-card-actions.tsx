@@ -67,11 +67,11 @@ export function MonitorCardActions({ monitorId, monitorLabel }: Props) {
       </button>
 
       {confirmOpen && (
-        <div className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg p-3">
-          <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+        <div className="cs-dropdown-panel absolute right-0 top-full mt-2 w-64 p-3">
+          <p className="text-xs font-semibold text-zinc-100">
             Delete monitor?
           </p>
-          <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+          <p className="mt-1 text-[11px] text-zinc-400">
             &quot;{monitorLabel}&quot; and all probe data and alerts will be permanently removed.
           </p>
 
@@ -80,7 +80,7 @@ export function MonitorCardActions({ monitorId, monitorLabel }: Props) {
               type="button"
               onClick={cancelDelete}
               disabled={isPending}
-              className="rounded-md border border-zinc-300 dark:border-zinc-700 px-2.5 py-1 text-[11px] font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50"
+              className="rounded-md border border-white/10 px-2.5 py-1 text-[11px] font-medium text-zinc-300 transition-colors hover:bg-white/5 disabled:opacity-50"
             >
               Cancel
             </button>

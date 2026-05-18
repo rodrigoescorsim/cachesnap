@@ -288,6 +288,12 @@ body {
     background-color: var(--surface-dropdown);
   }
 
+  /** Floating panels (user menu, monitors list, row actions). */
+  .cs-dropdown-panel {
+    @apply overflow-hidden rounded-xl border border-white/10 backdrop-blur-xl shadow-[0_24px_48px_-12px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.06)_inset];
+    background-color: var(--surface-dropdown);
+  }
+
   .cs-item {
     @apply flex items-center gap-2.5 px-2.5 py-2 w-full border-0 bg-transparent text-left rounded-md text-sm font-medium transition-all duration-150 cursor-pointer text-slate-300 no-underline hover:bg-white/5 hover:text-white;
   }

@@ -3,7 +3,7 @@
 /**
  * Dropdown da navegação "Monitors".
  *
- * Contraste: superfície `#1e2937`; largura ~260px (`16.25rem`, +30% vs 12.5rem) para caber URLs legíveis.
+ * Painel: `cs-dropdown-panel` + `--surface-dropdown`; largura ~260px para caber URLs legíveis.
  * Abertura: `cs-monitors-dropdown-panel` — scale 0.95→1 + opacity, 0.2s ease, origem top-left.
  * Lista: scroll com `cs-dropdown-scroll` (scrollbar fina em globals.css).
  */
@@ -113,9 +113,9 @@ export function MonitorsDropdown({ monitors, navActive = false }: MonitorsDropdo
       {isOpen && (
         <div
           ref={panelRef}
-          className="cs-monitors-dropdown-panel absolute left-0 top-full z-40 mt-1.5 w-[min(16.25rem,calc(100vw-1.5rem))] overflow-hidden rounded-xl border border-slate-500/25 bg-[#1e2937] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.06)_inset] backdrop-blur-sm"
+          className="cs-monitors-dropdown-panel cs-dropdown-panel absolute left-0 top-full z-40 mt-1.5 w-[min(16.25rem,calc(100vw-1.5rem))]"
         >
-          <div className="border-b border-slate-600/40 p-3">
+          <div className="border-b border-white/10 p-3">
             <label htmlFor="monitor-search" className="sr-only">
               Search monitors
             </label>
@@ -132,7 +132,7 @@ export function MonitorsDropdown({ monitors, navActive = false }: MonitorsDropdo
                 value={query}
                 onChange={event => setQuery(event.target.value)}
                 placeholder="Search monitors..."
-                className="h-9 w-full rounded-lg border border-slate-600/50 bg-[#0f172a]/90 py-2 pl-10 pr-3 text-[12px] leading-snug text-slate-100 placeholder:text-slate-500 shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] transition-[border-color,box-shadow] duration-200 ease-out outline-none focus:border-cyan-500/45 focus:ring-2 focus:ring-cyan-500/15"
+                className="h-9 w-full rounded-lg border border-white/10 bg-white/[0.04] py-2 pl-10 pr-3 text-[12px] leading-snug text-slate-100 placeholder:text-slate-500 shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] transition-[border-color,box-shadow] duration-200 ease-out outline-none focus:border-cyan-500/45 focus:ring-2 focus:ring-cyan-500/15"
               />
             </div>
           </div>
@@ -165,7 +165,7 @@ export function MonitorsDropdown({ monitors, navActive = false }: MonitorsDropdo
             )}
           </div>
 
-          <div className="border-t border-slate-600/35 bg-[#172033]/80 p-2.5">
+          <div className="border-t border-white/10 bg-surface/80 p-2.5">
             <Link
               href="/monitors/new"
               onClick={closeDropdown}

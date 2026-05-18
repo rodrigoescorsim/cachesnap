@@ -144,7 +144,7 @@ function Sparkline({ data, delta }: { data: number[]; delta: number }) {
       {tip !== null && tipMs !== null && (
         <div
           role="tooltip"
-          className="pointer-events-none absolute bottom-full left-0 z-20 mb-6 min-w-[3rem] -translate-x-1/2 rounded border border-white/[0.12] bg-zinc-950/95 px-1.5 py-0.5 text-center text-[10px] font-semibold tabular-nums text-zinc-200 shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
+          className="pointer-events-none absolute bottom-full left-0 z-20 mb-6 min-w-[3rem] -translate-x-1/2 rounded border border-white/10 bg-[var(--surface-dropdown)] px-1.5 py-0.5 text-center text-[10px] font-semibold tabular-nums text-zinc-200 shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
           style={{ left: `${tip.px}px` }}
         >
           {tipMs} ms
@@ -378,7 +378,7 @@ function RowActionsDropdown({
 
   const menu = isOpen && coords && typeof document !== 'undefined' ? createPortal(
     <div
-      className="cs-row-actions-dropdown-panel fixed z-[9999] w-40 overflow-hidden rounded-xl border border-slate-500/25 bg-[#172033] p-1.5 shadow-[0_24px_48px_-12px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.06)_inset] animate-in fade-in zoom-in-95 duration-150"
+      className="cs-row-actions-dropdown-panel cs-dropdown-panel fixed z-[9999] w-40 p-1.5 animate-in fade-in zoom-in-95 duration-150"
       style={{
         top: coords.top - 6,
         left: coords.left,

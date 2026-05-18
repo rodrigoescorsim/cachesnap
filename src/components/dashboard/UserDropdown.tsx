@@ -3,7 +3,7 @@
 /**
  * Dropdown da conta (avatar / "Signed in as").
  *
- * Contraste: `#172033` + borda `slate-500/25` — painel claramente separado do fundo `#020617` da página.
+ * Painel: `cs-dropdown-panel` + `--surface-dropdown` — separado do fundo da página.
  * Abertura: `cs-user-dropdown-panel` — scale 0.95→1 + opacity, 0.2s ease, origem top-right (alinhado ao trigger).
  * Sign out: tom neutro com hover vermelho suave (ação destrutiva sem gritar).
  */
@@ -67,7 +67,7 @@ export function UserDropdown({ email, logoutAction, variant = 'default', avatarT
         <span
           className={
             isMonitorsBadge
-              ? 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-zinc-900 text-[11px] font-black ring-1 ring-white/5 transition-transform group-hover:scale-105'
+              ? 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-surface text-[11px] font-black ring-1 ring-white/5 transition-transform group-hover:scale-105'
               : 'flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface text-[9px] font-semibold tracking-wide text-zinc-300 ring-1 ring-white/[0.12] transition-transform duration-200 ease-out group-hover:scale-[1.04] group-hover:ring-[rgba(34,255,136,0.25)] group-active:scale-[0.96]'
           }
           aria-hidden
@@ -84,9 +84,9 @@ export function UserDropdown({ email, logoutAction, variant = 'default', avatarT
       {open && (
         <div
           role="menu"
-          className="cs-user-dropdown-panel absolute right-0 top-full z-[60] mt-2 w-[min(17.5rem,calc(100vw-1.5rem))] overflow-hidden rounded-xl border border-slate-500/25 bg-[#172033] shadow-[0_24px_48px_-12px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.06)_inset] backdrop-blur-sm"
+          className="cs-user-dropdown-panel cs-dropdown-panel absolute right-0 top-full z-[60] mt-2 w-[min(17.5rem,calc(100vw-1.5rem))]"
         >
-          <div className="border-b border-slate-600/35 px-4 py-4">
+          <div className="border-b border-white/10 px-4 py-4">
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Signed in as</p>
             <p className="mt-2 break-all text-[13px] font-medium leading-snug text-slate-100" title={email}>
               {email}
