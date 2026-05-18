@@ -35,6 +35,8 @@ function ChangePasswordForm({ isOAuthUser }: { isOAuthUser: boolean }) {
   const [showCurrent, setShowCurrent] = useState(false)
   const [showNew, setShowNew] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  /** Avoids eager browser autofill on load; user focuses to type or accept saved login. */
+  const [currentFieldReady, setCurrentFieldReady] = useState(false)
 
   const globalErrors = state?.errors?.global ?? []
 
@@ -73,14 +75,39 @@ function ChangePasswordForm({ isOAuthUser }: { isOAuthUser: boolean }) {
         {!state?.success && (
           <form action={action} className="space-y-4">
             {[
-              { id: 'currentPassword', label: 'Current password', show: showCurrent, toggle: () => setShowCurrent(v => !v), errors: state?.errors?.currentPassword },
-              { id: 'newPassword', label: 'New password', show: showNew, toggle: () => setShowNew(v => !v), errors: state?.errors?.newPassword },
-              { id: 'confirmNewPassword', label: 'Confirm new password', show: showConfirm, toggle: () => setShowConfirm(v => !v), errors: state?.errors?.confirmNewPassword },
-            ].map(({ id, label, show, toggle, errors }) => (
+              {
+                id: 'currentPassword',
+                label: 'Current password',
+                show: showCurrent,
+                toggle: () => setShowCurrent((v) => !v),
+                errors: state?.errors?.currentPassword,
+                placeholder: 'Enter your current password',
+                hint: 'Your browser may autofill your login password here. CacheSnap never loads your password from the server.',
+              },
+              {
+                id: 'newPassword',
+                label: 'New password',
+                show: showNew,
+                toggle: () => setShowNew((v) => !v),
+                errors: state?.errors?.newPassword,
+                placeholder: 'At least 8 characters',
+              },
+              {
+                id: 'confirmNewPassword',
+                label: 'Confirm new password',
+                show: showConfirm,
+                toggle: () => setShowConfirm((v) => !v),
+                errors: state?.errors?.confirmNewPassword,
+                placeholder: 'Repeat new password',
+              },
+            ].map(({ id, label, show, toggle, errors, placeholder, hint }) => (
               <div key={id}>
                 <label htmlFor={id} className="cs-label">
                   {label}
                 </label>
+                {hint ? (
+                  <p className="mb-1.5 text-[11px] leading-relaxed text-zinc-500">{hint}</p>
+                ) : null}
                 <div className="relative">
                   <input
                     id={id}
@@ -88,7 +115,11 @@ function ChangePasswordForm({ isOAuthUser }: { isOAuthUser: boolean }) {
                     type={show ? 'text' : 'password'}
                     autoComplete={id === 'currentPassword' ? 'current-password' : 'new-password'}
                     required
-                    placeholder="••••••••"
+                    placeholder={placeholder}
+                    readOnly={id === 'currentPassword' && !currentFieldReady}
+                    onFocus={() => {
+                      if (id === 'currentPassword') setCurrentFieldReady(true)
+                    }}
                     className={`w-full h-11 cs-input pr-10 ${errors?.length ? 'cs-input-error' : ''}`}
                   />
                   <button
