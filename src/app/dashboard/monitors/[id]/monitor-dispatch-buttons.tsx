@@ -158,7 +158,7 @@ export function MonitorDispatchButtons({
               className={`inline-flex h-9 items-center justify-center gap-2 rounded-xl px-4 text-xs font-semibold tracking-tight shadow-sm transition-all duration-300 ease-out active:scale-[0.98] ${
                 isFrozen
                   ? 'border border-indigo-400/65 bg-indigo-900/40 text-white hover:border-indigo-300 hover:bg-indigo-800/50 hover:shadow-[0_0_18px_rgba(99,102,241,0.28)]'
-                  : 'border border-teal-300/25 bg-zinc-900/55 text-zinc-300 hover:border-teal-300/45 hover:bg-zinc-800/70 hover:text-zinc-100'
+                  : 'border border-white/10 bg-white/[0.04] text-zinc-300 hover:border-teal-300/45 hover:bg-white/[0.06] hover:text-zinc-100'
               }`}
             >
               {isFrozen ? <PauseCircle className="h-3.5 w-3.5" /> : <Snowflake className="h-3.5 w-3.5" />}

@@ -135,21 +135,16 @@ export default function PricingPage() {
             {PLANS.map((plan) => (
               <div
                 key={plan.name}
-                className={`relative rounded-2xl flex flex-col overflow-hidden transition-all duration-200 ${
+                className={`cs-card cs-card-glass relative flex flex-col overflow-hidden transition-all duration-200 ${
                   plan.highlighted
-                    ? 'border bg-zinc-900/60'
-                    : 'border border-zinc-800/60 bg-zinc-900/30'
+                    ? '!border-[rgba(var(--brand-primary-rgb),0.35)] shadow-[0_0_40px_-8px_rgba(var(--brand-primary-rgb),0.12)]'
+                    : ''
                 }`}
-                style={plan.highlighted ? {
-                  borderColor: 'rgba(var(--brand-primary-rgb), 0.35)',
-                  boxShadow: '0 0 40px -8px rgba(var(--brand-primary-rgb), 0.12)',
-                } : undefined}
               >
-                {/* Recommended badge */}
+                <div className="cs-card-wash" aria-hidden />
+
                 {plan.highlighted && (
-                  <div
-                    className="absolute top-0 inset-x-0 flex justify-center"
-                  >
+                  <div className="absolute inset-x-0 top-0 z-20 flex justify-center">
                     <span
                       className="rounded-b-lg px-4 py-1 text-[10px] font-bold uppercase tracking-widest"
                       style={{ background: 'var(--brand-primary)', color: '#0B1220' }}
@@ -159,7 +154,7 @@ export default function PricingPage() {
                   </div>
                 )}
 
-                <div className={`p-7 flex flex-col gap-6 flex-1 ${plan.highlighted ? 'pt-9' : ''}`}>
+                <div className={`relative z-10 flex flex-1 flex-col gap-6 p-7 ${plan.highlighted ? 'pt-9' : ''}`}>
 
                   {/* Plan header */}
                   <div className="space-y-1">
@@ -176,17 +171,16 @@ export default function PricingPage() {
                   {/* CTA */}
                   <Link
                     href={plan.ctaHref}
-                    className={`text-center rounded-xl px-5 py-2.5 text-sm font-bold transition-all duration-200 ${
+                    className={
                       plan.highlighted
-                        ? 'cs-btn-primary'
-                        : 'border border-zinc-700/60 bg-zinc-800/50 text-zinc-300 hover:border-zinc-600 hover:text-white hover:bg-zinc-800'
-                    }`}
+                        ? 'cs-btn-primary rounded-lg px-5 py-2.5 text-center text-sm font-bold'
+                        : 'inline-flex h-10 w-full items-center justify-center rounded-lg border border-white/5 bg-white/5 text-sm font-bold text-zinc-300 transition-all hover:border-emerald-500/25 hover:bg-emerald-500/[0.06] hover:text-emerald-300'
+                    }
                   >
                     {plan.cta}
                   </Link>
 
-                  {/* Divider */}
-                  <div className="border-t border-zinc-800/60" />
+                  <div className="border-t border-white/5" aria-hidden />
 
                   {/* Features */}
                   <ul className="space-y-3">

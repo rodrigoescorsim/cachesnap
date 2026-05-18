@@ -1332,7 +1332,7 @@ export function TtfbChart({
                     onClick={() => setIsSynced(!isSynced)}
                     className={`flex h-9 items-center justify-center gap-1.5 px-2 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 ${isSynced
                       ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400/90 shadow-indigo-500/10'
-                      : 'bg-zinc-800/50 border-zinc-700 text-zinc-500 hover:text-zinc-300'
+                      : 'border-white/10 bg-white/[0.05] text-zinc-500 hover:border-white/15 hover:text-zinc-300'
                       }`}
                   >
                     <div className={`${isSynced ? 'text-indigo-400' : 'text-zinc-500'} transition-colors`}>
@@ -1380,7 +1380,7 @@ export function TtfbChart({
                     onClick={() => toggleGlobal('ttfb')}
                     className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobalTtfb
                       ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30'
-                      : 'border-zinc-700/60 bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'}`}
+                      : 'border-white/10 bg-white/[0.02] text-zinc-500 hover:border-white/15 hover:text-zinc-300'}`}
                   >
                     GLOBAL
                   </button>
@@ -1390,7 +1390,7 @@ export function TtfbChart({
                     onClick={() => toggleAllRegions('ttfb')}
                     className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedTtfbRegions.size === regions.length
                       ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-200'
-                      : 'border-zinc-700/60 bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'}`}
+                      : 'border-white/10 bg-white/[0.02] text-zinc-500 hover:border-white/15 hover:text-zinc-300'}`}
                   >
                     {selectedTtfbRegions.size === regions.length ? 'CLEAR' : 'ALL'}
                   </button>
@@ -1561,7 +1561,7 @@ export function TtfbChart({
                         onClick={() => toggleGlobal('cache')}
                         className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobalCache
                           ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30'
-                          : 'border-zinc-700/60 bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'}`}
+                          : 'border-white/10 bg-white/[0.02] text-zinc-500 hover:border-white/15 hover:text-zinc-300'}`}
                       >
                         GLOBAL
                       </button>
@@ -1571,7 +1571,7 @@ export function TtfbChart({
                         onClick={() => toggleAllRegions('cache')}
                         className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedCacheRegions.size === regions.length
                           ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-200'
-                          : 'border-zinc-700/60 bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'}`}
+                          : 'border-white/10 bg-white/[0.02] text-zinc-500 hover:border-white/15 hover:text-zinc-300'}`}
                       >
                         {selectedCacheRegions.size === regions.length ? 'CLEAR' : 'ALL'}
                       </button>
@@ -1602,7 +1602,7 @@ export function TtfbChart({
                 </div>
               </div>
               {isCacheNotReported ? (
-                <div className="mt-1 rounded-xl border border-dashed border-zinc-700/60 bg-zinc-900/20 px-4 py-3 text-[11px] text-zinc-500">
+                <div className="mt-1 rounded-xl border border-dashed border-white/8 bg-white/[0.015] px-4 py-3 text-[11px] text-zinc-500">
                   No cache headers detected in the selected timeframe.
                 </div>
               ) : (
@@ -1807,7 +1807,7 @@ export function TtfbChart({
                     onClick={() => toggleGlobal('net')}
                     className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobalNet
                       ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30'
-                      : 'border-zinc-700/60 bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'}`}
+                      : 'border-white/10 bg-white/[0.02] text-zinc-500 hover:border-white/15 hover:text-zinc-300'}`}
                   >
                     GLOBAL
                   </button>
@@ -1817,7 +1817,7 @@ export function TtfbChart({
                     onClick={() => toggleAllRegions('net')}
                     className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedNetRegions.size === regions.length
                       ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-200'
-                      : 'border-zinc-700/60 bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-400'}`}
+                      : 'border-white/10 bg-white/[0.02] text-zinc-500 hover:border-white/15 hover:text-zinc-300'}`}
                   >
                     {selectedNetRegions.size === regions.length ? 'CLEAR' : 'ALL'}
                   </button>
