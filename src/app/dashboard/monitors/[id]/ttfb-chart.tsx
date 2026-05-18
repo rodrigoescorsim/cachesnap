@@ -1270,13 +1270,13 @@ export function TtfbChart({
               </div>
             }
           >
-            <div className="flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 dark:bg-white/5 px-1.5 border border-zinc-200 dark:border-white/10">
+            <div className="cs-chip-track">
               {(['1h', '4h', '24h', '7d', '30d', '90d'] as const).map((r) => (
                 <PremiumTooltip key={r} content={TIMEFRAME_TOOLTIPS[r]}>
                   <Link
                     href={buildViewHref('trends', r, monitorId)}
-                    className={`px-3 h-6 flex items-center justify-center rounded-lg text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 ${range === r
-                      ? 'bg-white dark:bg-white/10 text-zinc-900 dark:text-white shadow-lg shadow-black/5 ring-1 ring-black/5'
+                    className={`cs-chip-link ${range === r
+                      ? 'cs-chip-active'
                       : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
                       }`}
                   >
@@ -1286,7 +1286,7 @@ export function TtfbChart({
               ))}
             </div>
           </ViewSectionHeader>
-          <div className="rounded-2xl border border-border bg-surface/30 p-12 text-center">
+          <div className="cs-panel bg-surface/30 p-12 text-center">
             {isDown ? (
               <div className="flex flex-col items-center justify-center space-y-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/10 mb-1">
@@ -1342,13 +1342,13 @@ export function TtfbChart({
                   </button>
                 </PremiumTooltip>
 
-                <div className="flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 dark:bg-white/5 px-1.5 border border-zinc-200 dark:border-white/10">
+                <div className="cs-chip-track">
                   {(['1h', '4h', '24h', '7d', '30d', '90d'] as const).map((r) => (
                     <PremiumTooltip key={r} content={TIMEFRAME_TOOLTIPS[r]}>
                       <Link
                         href={buildViewHref('trends', r, monitorId)}
-                        className={`px-3 h-6 flex items-center justify-center rounded-lg text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 ${range === r
-                          ? 'bg-white dark:bg-white/10 text-zinc-900 dark:text-white shadow-lg shadow-black/5 ring-1 ring-black/5'
+                        className={`cs-chip-link ${range === r
+                          ? 'cs-chip-active'
                           : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
                           }`}
                       >
@@ -1363,7 +1363,7 @@ export function TtfbChart({
 
           <div className="space-y-4">
             <div
-              className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700"
+              className="cs-panel-interactive group p-4"
             >
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -1378,9 +1378,9 @@ export function TtfbChart({
                   <button
                     type="button"
                     onClick={() => toggleGlobal('ttfb')}
-                    className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobalTtfb
+                    className={`cs-pill-sm ${showGlobalTtfb
                       ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30'
-                      : 'border-white/10 bg-white/[0.02] text-zinc-500 hover:border-white/15 hover:text-zinc-300'}`}
+                      : ''}`}
                   >
                     GLOBAL
                   </button>
@@ -1388,9 +1388,9 @@ export function TtfbChart({
                   <button
                     type="button"
                     onClick={() => toggleAllRegions('ttfb')}
-                    className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedTtfbRegions.size === regions.length
+                    className={`cs-pill-sm ${selectedTtfbRegions.size === regions.length
                       ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-200'
-                      : 'border-white/10 bg-white/[0.02] text-zinc-500 hover:border-white/15 hover:text-zinc-300'}`}
+                      : ''}`}
                   >
                     {selectedTtfbRegions.size === regions.length ? 'CLEAR' : 'ALL'}
                   </button>
@@ -1521,7 +1521,7 @@ export function TtfbChart({
             </div>
 
             <div
-              className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700"
+              className="cs-panel-interactive group p-4"
             >
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -1559,9 +1559,9 @@ export function TtfbChart({
                       <button
                         type="button"
                         onClick={() => toggleGlobal('cache')}
-                        className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobalCache
+                        className={`cs-pill-sm ${showGlobalCache
                           ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30'
-                          : 'border-white/10 bg-white/[0.02] text-zinc-500 hover:border-white/15 hover:text-zinc-300'}`}
+                          : ''}`}
                       >
                         GLOBAL
                       </button>
@@ -1569,9 +1569,9 @@ export function TtfbChart({
                       <button
                         type="button"
                         onClick={() => toggleAllRegions('cache')}
-                        className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedCacheRegions.size === regions.length
+                        className={`cs-pill-sm ${selectedCacheRegions.size === regions.length
                           ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-200'
-                          : 'border-white/10 bg-white/[0.02] text-zinc-500 hover:border-white/15 hover:text-zinc-300'}`}
+                          : ''}`}
                       >
                         {selectedCacheRegions.size === regions.length ? 'CLEAR' : 'ALL'}
                       </button>
@@ -1602,7 +1602,7 @@ export function TtfbChart({
                 </div>
               </div>
               {isCacheNotReported ? (
-                <div className="mt-1 rounded-xl border border-dashed border-white/8 bg-white/[0.015] px-4 py-3 text-[11px] text-zinc-500">
+                <div className="cs-empty-nudge mt-1 rounded-xl px-4 py-3 text-[11px] text-zinc-500">
                   No cache headers detected in the selected timeframe.
                 </div>
               ) : (
@@ -1754,7 +1754,7 @@ export function TtfbChart({
             </div>
 
             <div
-              className="group rounded-2xl border border-border bg-surface p-4 shadow-sm relative overflow-hidden transition-all hover:border-zinc-700"
+              className="cs-panel-interactive group p-4"
             >
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -1805,9 +1805,9 @@ export function TtfbChart({
                   <button
                     type="button"
                     onClick={() => toggleGlobal('net')}
-                    className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${showGlobalNet
+                    className={`cs-pill-sm ${showGlobalNet
                       ? 'border-cyan-500/50 bg-cyan-500/20 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.15)] ring-1 ring-cyan-500/30'
-                      : 'border-white/10 bg-white/[0.02] text-zinc-500 hover:border-white/15 hover:text-zinc-300'}`}
+                      : ''}`}
                   >
                     GLOBAL
                   </button>
@@ -1815,9 +1815,9 @@ export function TtfbChart({
                   <button
                     type="button"
                     onClick={() => toggleAllRegions('net')}
-                    className={`inline-flex h-6 items-center rounded-full border px-2 text-[9px] font-bold uppercase tracking-tight transition-all duration-300 ${selectedNetRegions.size === regions.length
+                    className={`cs-pill-sm ${selectedNetRegions.size === regions.length
                       ? 'border-zinc-500/50 bg-zinc-500/20 text-zinc-200'
-                      : 'border-white/10 bg-white/[0.02] text-zinc-500 hover:border-white/15 hover:text-zinc-300'}`}
+                      : ''}`}
                   >
                     {selectedNetRegions.size === regions.length ? 'CLEAR' : 'ALL'}
                   </button>

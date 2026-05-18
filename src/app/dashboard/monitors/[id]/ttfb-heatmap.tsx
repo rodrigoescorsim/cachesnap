@@ -51,7 +51,7 @@ export function TtfbHeatmap({ data, thresholdMs, thresholdHitMs, cacheWarnPct, c
   const hourLabels = [0, 6, 12, 18, 23]
 
   return (
-    <div className="rounded-2xl border border-border bg-surface p-4 shadow-sm relative">
+    <div className="cs-panel p-4">
       {/* Header with mode toggle */}
       <div className="flex items-center justify-between mb-4">
         <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-tight opacity-40">Weekly Pattern</span>

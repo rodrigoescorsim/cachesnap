@@ -1720,13 +1720,13 @@ export default async function MonitorDetailPage({
                         </div>
                       }
                     >
-                      <div className="flex h-9 items-center gap-1.5 rounded-xl bg-zinc-100 dark:bg-white/5 px-1.5 border border-zinc-200 dark:border-white/10">
+                      <div className="cs-chip-track">
                         {(['1h', '4h', '24h', '7d', '30d', '90d'] as const).map((r) => (
                           <PremiumTooltip key={r} content={TIMEFRAME_TOOLTIPS[r]}>
                             <Link
                               href={buildViewHref('performance', r)}
-                              className={`px-3 h-6 flex items-center justify-center rounded-lg text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 ${range === r
-                                ? 'bg-white dark:bg-white/10 text-zinc-900 dark:text-white shadow-lg shadow-black/5 ring-1 ring-black/5'
+                              className={`cs-chip-link ${range === r
+                                ? 'cs-chip-active'
                                 : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
                                 }`}
                             >
@@ -1860,7 +1860,7 @@ export default async function MonitorDetailPage({
                   {activeView === 'trends' && spikes.length > 0 && (
                     <section className="space-y-4">
                       <ViewSectionHeader title={`Recent performance spikes — ${range === '1h' ? 'last hour' : range === '4h' ? 'last 4 hours' : range === '7d' ? 'last 7 days' : range === '30d' ? 'last 30 days' : range === '90d' ? 'last 90 days' : 'last 24 hours'}`} />
-                      <div className="rounded-2xl border border-border bg-surface divide-y divide-white/[0.03] overflow-hidden">
+                      <div className="cs-panel divide-y divide-white/[0.03]">
                         {spikes.map((spike, index) => (
                           <div key={index} className="flex items-center justify-between py-5 px-4 hover:bg-white/[0.03] transition-all group/spike">
                             <div className="flex items-center gap-4">
@@ -1902,7 +1902,7 @@ export default async function MonitorDetailPage({
                   {activeView === 'trends' && weekTrend.length > 0 && (
                     <section className="space-y-4">
                       <ViewSectionHeader title="Week-over-week performance trend" />
-                      <div className="rounded-2xl border border-border bg-surface p-4 shadow-sm space-y-4">
+                      <div className="cs-panel p-4 space-y-4">
                         <div className="flex items-center gap-4 mb-4 px-1">
                           <div className="flex items-center gap-1.5">
                             <div className="w-2 h-2 rounded-full bg-zinc-400" />
@@ -2162,7 +2162,7 @@ export default async function MonitorDetailPage({
               )}
 
               {security && securityByRegion.length === 0 && (
-                <div id="security-score" className="rounded-2xl border border-border bg-surface p-6 shadow-sm scroll-mt-24">
+                <div id="security-score" className="cs-panel p-6 scroll-mt-24">
                   <div className="flex flex-wrap items-end justify-between gap-4">
                     <div className="space-y-1">
                       <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Security headers</h3>
@@ -2208,7 +2208,7 @@ export default async function MonitorDetailPage({
 
                         return (
                           <section className="space-y-4">
-                            <div className="relative overflow-hidden rounded-2xl border border-border bg-surface p-6 shadow-sm">
+                            <div className="cs-panel p-6">
                               <div className={BRAND_CARD_SURFACE_GRADIENT} />
                               <div className="relative">
                                 <div className="mb-6 flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-start sm:justify-between">
@@ -2333,7 +2333,7 @@ export default async function MonitorDetailPage({
                       })()}
 
                     <section id="security-score" className="scroll-mt-24 space-y-4">
-                      <div className="relative overflow-hidden rounded-2xl border border-border bg-surface p-6 shadow-sm">
+                      <div className="cs-panel p-6">
                         <div className={BRAND_CARD_SURFACE_GRADIENT} />
                         <div className="relative">
                           <div className="mb-6 flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-start sm:justify-between">
@@ -2608,7 +2608,7 @@ export default async function MonitorDetailPage({
                             style={{ height: `${Math.max((t.count / maxCount) * 100, 4)}%` }}
                           >
                             {t.count > 0 && (
-                              <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded border border-white/10 bg-[var(--surface-dropdown)] px-1.5 py-0.5 text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100">
+                              <div className="cs-tooltip-floating pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap px-1.5 py-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                                 {t.count} alert{t.count > 1 ? 's' : ''} @ {t.label.toString().padStart(2, '0')}:00
                               </div>
                             )}

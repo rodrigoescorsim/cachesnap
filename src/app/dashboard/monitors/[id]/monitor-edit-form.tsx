@@ -303,7 +303,7 @@ export function MonitorEditForm({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* GENERAL SECTION */}
-        <section className="cs-card cs-card-focus p-6 flex flex-col h-full">
+        <section className="cs-form-section flex flex-col h-full">
           <div className="cs-card-wash" />
           <h3 className="cs-section-header">General</h3>
           <div className="relative z-10 flex-1">
@@ -322,7 +322,7 @@ export function MonitorEditForm({
         </section>
 
         {/* MONITORING SECTION */}
-        <section className="cs-card cs-card-focus p-6 flex flex-col h-full">
+        <section className="cs-form-section flex flex-col h-full">
           <div className="cs-card-wash" />
           <div className="mb-6 flex items-center gap-1.5 relative z-10">
             <h3 className="cs-section-header !mb-0">Monitoring</h3>
@@ -366,7 +366,7 @@ export function MonitorEditForm({
           </div>
         </section>
         {/* NOTIFICATIONS SECTION */}
-        <section className="cs-card cs-card-focus p-6 md:col-span-2">
+        <section className="cs-form-section md:col-span-2">
           <div className="cs-card-wash" />
           <h3 className="cs-section-header">Where to send alerts</h3>
 
@@ -420,7 +420,7 @@ export function MonitorEditForm({
 
 
         {/* THRESHOLDS SECTION */}
-        <section className="cs-card cs-card-focus p-6 md:col-span-2">
+        <section className="cs-form-section md:col-span-2">
           <div className="cs-card-wash" />
           <h3 className="cs-section-header">Thresholds</h3>
           <p className="text-xs text-zinc-400 mb-6 relative z-10">
@@ -526,7 +526,7 @@ export function MonitorEditForm({
         </section>
 
         {/* ALERTS SECTION */}
-        <section className="cs-card cs-card-focus p-6 md:col-span-2">
+        <section className="cs-form-section md:col-span-2">
           <div className="cs-card-wash" />
           <h3 className="cs-section-header">Alert triggers</h3>
 
@@ -683,7 +683,7 @@ export function MonitorEditForm({
         </section>
 
         {/* TREND ALERTS SECTION */}
-        <section className="cs-card cs-card-focus p-6 md:col-span-2">
+        <section className="cs-form-section md:col-span-2">
           <div className="cs-card-wash" />
           <h3 className="cs-section-header">Trend alerts</h3>
           <p className="text-xs text-zinc-400 mb-6 relative z-10">

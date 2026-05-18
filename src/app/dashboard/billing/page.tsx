@@ -69,7 +69,7 @@ export default async function BillingPage() {
       </ViewSection>
 
       {/* Current plan */}
-      <section className="cs-card cs-card-focus relative overflow-hidden p-6">
+      <section className="cs-form-section">
         <div className="cs-card-wash" aria-hidden />
         <h2 className="cs-section-header">Current plan</h2>
         <div className="relative z-10 -mt-2 space-y-2">
@@ -85,7 +85,7 @@ export default async function BillingPage() {
       </section>
 
       {/* Monitor usage */}
-      <section className="cs-card cs-card-focus relative overflow-hidden p-6">
+      <section className="cs-form-section">
         <div className="cs-card-wash" aria-hidden />
         <h2 className="cs-section-header">Monitor usage</h2>
         <div className="relative z-10 -mt-2 space-y-4">
@@ -114,7 +114,7 @@ export default async function BillingPage() {
       </section>
 
       {/* Included features */}
-      <section className="cs-card cs-card-focus relative overflow-hidden p-6">
+      <section className="cs-form-section">
         <div className="cs-card-wash" aria-hidden />
         <h2 className="cs-section-header">Included in your plan</h2>
         <ul className="relative z-10 -mt-2 space-y-2.5">
@@ -128,7 +128,7 @@ export default async function BillingPage() {
       </section>
 
       {/* Plan comparison */}
-      <section className="cs-card cs-card-focus relative overflow-hidden p-6">
+      <section className="cs-form-section">
         <div className="cs-card-wash" aria-hidden />
         <h2 className="cs-section-header">
           {plan === 'team' ? 'All plans' : 'Upgrade your plan'}
@@ -175,7 +175,7 @@ export default async function BillingPage() {
                 {isUpgrade && (
                   <a
                     href={`mailto:hello@cachesnap.com?subject=${UPGRADE_SUBJECT[p]}`}
-                    className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-white/5 bg-white/5 text-[11px] font-bold uppercase tracking-wider text-zinc-300 transition-all hover:border-emerald-500/25 hover:bg-emerald-500/[0.06] hover:text-emerald-300"
+                    className="cs-btn-secondary-md w-full"
                   >
                     Upgrade →
                   </a>

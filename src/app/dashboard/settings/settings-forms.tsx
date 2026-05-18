@@ -40,7 +40,7 @@ function ChangePasswordForm({ isOAuthUser }: { isOAuthUser: boolean }) {
 
   if (isOAuthUser) {
     return (
-      <section className="cs-card cs-card-focus relative overflow-hidden p-6">
+      <section className="cs-form-section">
         <div className="cs-card-wash" aria-hidden />
         <h2 className="cs-section-header">Password</h2>
         <div className="relative z-10 flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-4">
@@ -59,7 +59,7 @@ function ChangePasswordForm({ isOAuthUser }: { isOAuthUser: boolean }) {
   }
 
   return (
-    <section className="cs-card cs-card-focus relative overflow-hidden p-6">
+    <section className="cs-form-section">
       <div className="cs-card-wash" aria-hidden />
       <h2 className="cs-section-header">Password</h2>
       <p className="relative z-10 -mt-2 mb-6 text-xs leading-relaxed text-zinc-400">

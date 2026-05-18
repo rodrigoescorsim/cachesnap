@@ -340,7 +340,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
           {/* Empty state when no probe data yet */}
           {hasNoData && (
             hasNoMonitors ? (
-              <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-white/8 bg-white/[0.015] px-6 py-6 text-center animate-[cs-fade-in_0.4s_ease-out]">
+              <div className="cs-empty-nudge-stack animate-[cs-fade-in_0.4s_ease-out]">
                 <Globe className="h-7 w-7 text-zinc-600" aria-hidden />
                 <div className="max-w-sm space-y-1">
                   <p className="text-[13px] font-semibold text-zinc-400">No monitors yet</p>
@@ -353,7 +353,7 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
                 </Link>
               </div>
             ) : (
-              <div className="flex items-center justify-center gap-2.5 rounded-lg border border-dashed border-white/8 bg-white/[0.015] px-4 py-3 animate-[cs-fade-in_0.4s_ease-out]">
+              <div className="cs-empty-nudge-inline animate-[cs-fade-in_0.4s_ease-out]">
                 <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
                   Awaiting data
                 </span>

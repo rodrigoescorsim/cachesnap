@@ -391,7 +391,7 @@ function TrendChart({
         typeof document !== 'undefined' &&
         createPortal(
           <div
-            className="pointer-events-none fixed z-[200] min-w-[8.25rem] rounded-lg border border-white/[0.12] bg-[#111d32]/98 px-3 py-2 text-left shadow-2xl ring-1 ring-white/[0.06] backdrop-blur-md"
+            className="cs-tooltip-panel pointer-events-none fixed z-[200] min-w-[8.25rem] px-3 py-2 text-left backdrop-blur-md"
             style={{
               left: hovered.tipX,
               top: hovered.tipY,
@@ -461,10 +461,10 @@ function SlowRegionsPopover({ regions, visible }: { regions: RegionEntry[]; visi
   return (
     <div
       role="tooltip"
-      className="pointer-events-none absolute bottom-full left-0 z-50 mb-6 w-[220px] animate-[cs-fade-in_0.15s_ease-out] rounded-xl border border-border bg-[#111d32] p-3 shadow-2xl ring-1 ring-white/5"
+      className="cs-tooltip-panel pointer-events-none absolute bottom-full left-0 z-50 mb-6 w-[220px] animate-[cs-fade-in_0.15s_ease-out] p-3"
     >
       {/* Arrow */}
-      <div className="absolute -bottom-[5px] left-4 h-2.5 w-2.5 rotate-45 rounded-[2px] border-b border-r border-border bg-[#111d32]" />
+      <div className="absolute -bottom-[5px] left-4 h-2.5 w-2.5 rotate-45 rounded-[2px] border-b border-r border-border bg-[var(--tooltip-surface)]" />
 
       <p className="mb-2.5 text-[10px] font-black uppercase tracking-widest text-zinc-500">
         <span className="text-rose-400">{slowCount} slow</span>
@@ -982,7 +982,7 @@ export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
 
           {/* Empty state nudge below the cards */}
           {hasNoData && (
-            <div className="flex items-center justify-center gap-2.5 rounded-lg border border-dashed border-white/8 bg-white/[0.015] px-4 py-3 animate-[cs-fade-in_0.4s_ease-out]">
+            <div className="cs-empty-nudge-inline animate-[cs-fade-in_0.4s_ease-out]">
               <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
                 {hasNoMonitors ? 'No monitors yet' : 'Awaiting data'}
               </span>

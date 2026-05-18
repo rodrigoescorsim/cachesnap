@@ -144,7 +144,7 @@ function Sparkline({ data, delta }: { data: number[]; delta: number }) {
       {tip !== null && tipMs !== null && (
         <div
           role="tooltip"
-          className="pointer-events-none absolute bottom-full left-0 z-20 mb-6 min-w-[3rem] -translate-x-1/2 rounded border border-white/10 bg-[var(--surface-dropdown)] px-1.5 py-0.5 text-center text-[10px] font-semibold tabular-nums text-zinc-200 shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
+          className="cs-tooltip-floating absolute bottom-full left-0 z-20 mb-6 min-w-[3rem] -translate-x-1/2 px-1.5 py-0.5 text-center font-semibold tabular-nums text-zinc-200 shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
           style={{ left: `${tip.px}px` }}
         >
           {tipMs} ms
@@ -1191,7 +1191,7 @@ export function MonitorsTable({
               <button
                 type="button"
                 onClick={onRetry}
-                className="inline-flex h-8 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-4 text-[11px] font-bold text-zinc-400 transition-all duration-200 hover:border-white/15 hover:bg-white/[0.07] hover:text-zinc-200 active:scale-95"
+                className="cs-btn-ghost-sm"
               >
                 <RefreshCw className="h-3 w-3" aria-hidden />
                 Try again
@@ -1230,7 +1230,7 @@ export function MonitorsTable({
               <button
                 type="button"
                 onClick={onClearFilters}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-4 text-[11px] font-bold text-zinc-400 transition-all duration-200 hover:border-emerald-500/25 hover:bg-emerald-500/[0.06] hover:text-emerald-300 active:scale-95"
+                className="cs-btn-secondary-sm"
               >
                 Clear filters
               </button>

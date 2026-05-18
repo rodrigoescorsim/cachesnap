@@ -59,7 +59,7 @@ export function HourlyPatternChart({ data, range, thresholdMs, thresholdHitMs, c
   const xAxisLabels = [0, 6, 12, 18, 23]
 
   return (
-    <div className="rounded-2xl border border-border bg-surface p-4 shadow-sm relative">
+    <div className="cs-panel p-4">
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="w-full h-auto overflow-visible"
