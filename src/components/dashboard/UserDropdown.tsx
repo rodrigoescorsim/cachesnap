@@ -7,8 +7,9 @@
  * Abertura: `cs-user-dropdown-panel` — scale 0.95→1 + opacity, 0.2s ease, origem top-right (alinhado ao trigger).
  * Sign out: tom neutro com hover vermelho suave (ação destrutiva sem gritar).
  */
+import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
-import { Building2, CreditCard, LogOut, Settings } from 'lucide-react'
+import { CreditCard, LogOut, Settings } from 'lucide-react'
 
 function emailInitials(email: string): string {
   const local = email.split('@')[0] ?? email
@@ -92,47 +93,25 @@ export function UserDropdown({ email, logoutAction, variant = 'default', avatarT
             </p>
           </div>
           <div className="p-2">
-            <button
-              type="button"
-              disabled
+            <Link
+              href="/dashboard/settings"
               role="menuitem"
-              aria-disabled="true"
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium text-slate-500 opacity-60 cursor-not-allowed"
+              onClick={() => setOpen(false)}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium text-slate-300 transition-colors duration-200 ease-out hover:bg-white/[0.04] hover:text-white focus:outline-none focus-visible:bg-white/[0.04]"
             >
-              <Settings className="h-4 w-4 shrink-0" strokeWidth={2} />
+              <Settings className="h-4 w-4 shrink-0 text-slate-400" strokeWidth={2} />
               <span className="flex-1">Settings</span>
-              <span className="rounded px-1.5 py-px text-[9px] font-black uppercase tracking-wider text-slate-600 bg-white/5">
-                Soon
-              </span>
-            </button>
+            </Link>
 
-            <button
-              type="button"
-              disabled
+            <Link
+              href="/dashboard/billing"
               role="menuitem"
-              aria-disabled="true"
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium text-slate-500 opacity-60 cursor-not-allowed"
+              onClick={() => setOpen(false)}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium text-slate-300 transition-colors duration-200 ease-out hover:bg-white/[0.04] hover:text-white focus:outline-none focus-visible:bg-white/[0.04]"
             >
-              <CreditCard className="h-4 w-4 shrink-0" strokeWidth={2} />
+              <CreditCard className="h-4 w-4 shrink-0 text-slate-400" strokeWidth={2} />
               <span className="flex-1">Billing</span>
-              <span className="rounded px-1.5 py-px text-[9px] font-black uppercase tracking-wider text-slate-600 bg-white/5">
-                Soon
-              </span>
-            </button>
-
-            <button
-              type="button"
-              disabled
-              role="menuitem"
-              aria-disabled="true"
-              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium text-slate-500 opacity-60 cursor-not-allowed"
-            >
-              <Building2 className="h-4 w-4 shrink-0" strokeWidth={2} />
-              <span className="flex-1">Organization</span>
-              <span className="rounded px-1.5 py-px text-[9px] font-black uppercase tracking-wider text-slate-600 bg-white/5">
-                Soon
-              </span>
-            </button>
+            </Link>
 
             <div className="my-1.5 border-t border-slate-600/30" />
 
