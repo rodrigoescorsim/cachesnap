@@ -185,7 +185,7 @@ export default async function RootPage() {
               ].map(item => (
                 <span
                   key={item}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700/60 bg-zinc-800/50 px-3 py-1 text-xs font-medium text-zinc-300"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-zinc-300"
                 >
                   <svg className="h-3 w-3 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2.5} style={{ color: 'var(--brand-primary)' }}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l3.5 3.5L13 4" />
@@ -220,14 +220,12 @@ export default async function RootPage() {
             <div className="hidden md:block absolute top-10 left-[calc(16.67%+1rem)] right-[calc(16.67%+1rem)] h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent" />
 
             {STEPS.map((step) => (
-              <div key={step.number} className="relative flex flex-col items-center text-center gap-5 p-8 rounded-2xl border border-zinc-800/60 bg-zinc-900/30 backdrop-blur-sm">
-                <div
-                  className="h-14 w-14 rounded-2xl flex items-center justify-center shrink-0 relative z-10 bg-zinc-900 border border-zinc-700/50"
-                  style={{ boxShadow: '0 0 20px -4px rgba(34,255,136,0.15)' }}
-                >
-                  <span style={{ color: 'var(--brand-primary)' }}>{step.icon}</span>
+              <div key={step.number} className="cs-card cs-card-glass relative flex flex-col items-center gap-5 overflow-hidden p-8 text-center">
+                <div className="cs-card-wash" aria-hidden />
+                <div className="relative z-10 flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-[var(--brand-primary)] shadow-[0_0_20px_-4px_rgba(var(--brand-primary-rgb),0.15)]">
+                  {step.icon}
                 </div>
-                <div>
+                <div className="relative z-10">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">{step.number}</p>
                   <h3 className="text-base font-bold text-white mb-2">{step.title}</h3>
                   <p className="text-sm text-zinc-400 leading-relaxed">{step.description}</p>
@@ -255,16 +253,14 @@ export default async function RootPage() {
             {FEATURES.map((f) => (
               <div
                 key={f.title}
-                className="group p-6 rounded-2xl border border-zinc-800/60 bg-zinc-900/30 backdrop-blur-sm hover:border-zinc-700 hover:bg-zinc-900/60 transition-all duration-200"
+                className="cs-card cs-card-glass group relative overflow-hidden p-6 transition-all duration-200"
               >
-                <div
-                  className="h-10 w-10 rounded-xl flex items-center justify-center mb-5 border border-zinc-700/50 bg-zinc-800/50 group-hover:border-brand/30 transition-colors"
-                  style={{ '--border-brand': 'rgba(34,255,136,0.3)' } as React.CSSProperties}
-                >
-                  <span style={{ color: 'var(--brand-primary)' }}>{f.icon}</span>
+                <div className="cs-card-wash" aria-hidden />
+                <div className="relative z-10 mb-5 flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-[var(--brand-primary)] transition-colors group-hover:border-[rgba(var(--brand-primary-rgb),0.3)]">
+                  {f.icon}
                 </div>
-                <h3 className="text-sm font-bold text-white mb-2">{f.title}</h3>
-                <p className="text-sm text-zinc-400 leading-relaxed">{f.description}</p>
+                <h3 className="relative z-10 mb-2 text-sm font-bold text-white">{f.title}</h3>
+                <p className="relative z-10 text-sm leading-relaxed text-zinc-400">{f.description}</p>
               </div>
             ))}
           </div>
@@ -272,17 +268,15 @@ export default async function RootPage() {
 
         {/* ═══════════════════════════════════════════ ALERTS SPOTLIGHT */}
         <section className="cs-container-adaptive pb-28">
-          <div
-            className="rounded-3xl border border-zinc-800/60 overflow-hidden relative"
-            style={{ background: 'linear-gradient(135deg, rgba(34,255,136,0.04) 0%, rgba(99,102,241,0.04) 100%)' }}
-          >
-            {/* Glow */}
+          <div className="cs-card cs-card-glass relative overflow-hidden">
+            <div className="cs-card-wash" aria-hidden />
             <div
-              className="absolute inset-0 opacity-30 pointer-events-none"
+              className="pointer-events-none absolute inset-0 opacity-30"
               style={{ background: 'radial-gradient(ellipse at 70% 50%, rgba(34,255,136,0.12) 0%, transparent 70%)' }}
+              aria-hidden
             />
 
-            <div className="relative p-8 sm:p-12 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+            <div className="relative z-10 grid grid-cols-1 items-center gap-10 p-8 sm:p-12 lg:grid-cols-2">
               {/* Copy */}
               <div className="space-y-5">
                 <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--brand-primary)' }}>
@@ -373,7 +367,7 @@ export default async function RootPage() {
                 </div>
 
                 {/* Resolved incident */}
-                <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-4 space-y-3 opacity-70">
+                <div className="cs-card cs-card-glass space-y-3 p-4 opacity-70">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
                       <span className="h-2 w-2 rounded-full bg-emerald-400" />
@@ -386,7 +380,7 @@ export default async function RootPage() {
                 </div>
 
                 {/* Notification preview */}
-                <div className="rounded-xl border border-zinc-700/50 bg-zinc-900/60 p-4 space-y-2">
+                <div className="cs-card cs-card-glass space-y-2 p-4">
                   <div className="flex items-center gap-2 text-xs text-zinc-400">
                     <svg className="h-3.5 w-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                     <span className="font-medium text-zinc-300">Email notification</span>
