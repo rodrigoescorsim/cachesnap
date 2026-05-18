@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import { useState, useTransition, useRef } from 'react'
@@ -36,9 +37,14 @@ const BENEFITS = [
 type NewMonitorPageProps = {
   userEmail: string
   logoutAction: () => Promise<void>
+  plan: string
+  monitorCount: number
+  monitorLimit: number
 }
 
-export function NewMonitorPage({ userEmail, logoutAction }: NewMonitorPageProps) {
+export function NewMonitorPage({ userEmail, logoutAction, plan, monitorCount, monitorLimit }: NewMonitorPageProps) {
+  const isAtLimit = monitorCount >= monitorLimit
+  const isNearLimit = !isAtLimit && monitorCount === monitorLimit - 1
   const router = useRouter()
   const queryClient = useQueryClient()
   const [isPending, startTransition] = useTransition()
@@ -145,6 +151,40 @@ export function NewMonitorPage({ userEmail, logoutAction }: NewMonitorPageProps)
           </p>
         </div>
 
+        {isAtLimit ? (
+          <div className="cs-card relative p-8 text-center shadow-2xl sm:p-10 space-y-5">
+            <div
+              className="pointer-events-none absolute inset-x-0 -top-12 -z-10 h-24 opacity-20 blur-[100px]"
+              style={{ backgroundColor: '#f59e0b' }}
+            />
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/20">
+              <svg className="h-6 w-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+            </div>
+            <div className="space-y-2">
+              <p className="text-base font-bold text-white">Monitor limit reached</p>
+              <p className="text-sm text-zinc-400">
+                Your <span className="capitalize font-semibold text-zinc-300">{plan}</span> plan includes up to{' '}
+                <span className="font-semibold text-zinc-300">{monitorLimit} {monitorLimit === 1 ? 'monitor' : 'monitors'}</span>.
+                Upgrade to add more.
+              </p>
+            </div>
+            <Link href="/pricing" className="cs-btn-primary inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-bold">
+              View plans →
+            </Link>
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+              >
+                Go back
+              </button>
+            </div>
+          </div>
+        ) : (
+
         <form onSubmit={handleSubmit} className="cs-card cs-card-focus relative p-8 shadow-2xl sm:p-10">
           <div
             className="pointer-events-none absolute inset-x-0 -top-12 -z-10 h-24 opacity-20 blur-[100px]"
@@ -243,6 +283,22 @@ export function NewMonitorPage({ userEmail, logoutAction }: NewMonitorPageProps)
               </p>
             </div>
 
+            {/* NEAR LIMIT WARNING */}
+            {isNearLimit && (
+              <div className="flex items-center gap-2.5 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+                <svg className="h-4 w-4 shrink-0 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                </svg>
+                <p className="text-xs text-amber-300">
+                  Last monitor on your <span className="capitalize font-semibold">{plan}</span> plan.{' '}
+                  <Link href="/pricing" className="underline underline-offset-2 hover:text-amber-200 transition-colors">
+                    Upgrade
+                  </Link>{' '}
+                  to add more.
+                </p>
+              </div>
+            )}
+
             {/* ACTIONS */}
             <div className="flex flex-col gap-3.5 pt-4 sm:flex-row">
               <button
@@ -291,6 +347,7 @@ export function NewMonitorPage({ userEmail, logoutAction }: NewMonitorPageProps)
             </div>
           </div>
         </form>
+        )}
       </div>
     </div>
   )
