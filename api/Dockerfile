@@ -1,5 +1,5 @@
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
-FROM rust:1.77-slim-bookworm AS builder
+FROM rust:1.88-slim-bookworm AS builder
 
 WORKDIR /app
 
@@ -11,13 +11,18 @@ RUN apt-get update && apt-get install -y \
 
 # Copiar manifests e fazer cache das dependências (camada separada)
 # Isso evita recompilar todas as deps a cada mudança de código
-COPY Cargo.toml Cargo.lock ./
+COPY api/Cargo.toml api/Cargo.lock ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo build --release
 RUN rm -f target/release/deps/api* target/release/deps/cachesnap*
 
-# Copiar código fonte e compilar binary final
-COPY src ./src
+# Copiar migrations para o path esperado pelo sqlx::migrate!("../migrations")
+COPY migrations /migrations
+
+# Copiar código fonte e cache sqlx offline, compilar binary final
+COPY api/src ./src
+COPY api/.sqlx ./.sqlx
+ENV SQLX_OFFLINE=true
 RUN cargo build --release
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────

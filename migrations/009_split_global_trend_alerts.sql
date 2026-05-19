@@ -4,15 +4,15 @@
 -- Regional thresholds bumped to match the new 4-hour window sensitivity.
 
 ALTER TABLE monitors
-  ADD COLUMN alert_cache_hit_trend_global_enabled      BOOLEAN NOT NULL DEFAULT TRUE,
-  ADD COLUMN alert_cache_hit_trend_global_threshold_pp FLOAT   NOT NULL DEFAULT 10.0,
-  ADD COLUMN alert_ttfb_trend_global_enabled           BOOLEAN NOT NULL DEFAULT TRUE,
-  ADD COLUMN alert_ttfb_trend_global_threshold_pct     FLOAT   NOT NULL DEFAULT 30.0;
+  ADD COLUMN IF NOT EXISTS alert_cache_hit_trend_global_enabled      BOOLEAN NOT NULL DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS alert_cache_hit_trend_global_threshold_pp FLOAT   NOT NULL DEFAULT 10.0,
+  ADD COLUMN IF NOT EXISTS alert_ttfb_trend_global_enabled           BOOLEAN NOT NULL DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS alert_ttfb_trend_global_threshold_pct     FLOAT   NOT NULL DEFAULT 30.0;
 
 ALTER TABLE monitors
-  DROP COLUMN alert_trend_global_enabled,
-  DROP COLUMN alert_trend_global_threshold_factor,
-  DROP COLUMN alert_trend_require_consecutive;
+  DROP COLUMN IF EXISTS alert_trend_global_enabled,
+  DROP COLUMN IF EXISTS alert_trend_global_threshold_factor,
+  DROP COLUMN IF EXISTS alert_trend_require_consecutive;
 
 -- Bump regional defaults (4h window requires higher threshold to stay reliable)
 ALTER TABLE monitors

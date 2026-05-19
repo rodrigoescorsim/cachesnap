@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT region FROM probe_results\n                 WHERE monitor_id = $1 AND ttfb_ms > $2\n                   AND time > NOW() - INTERVAL '1 minute'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "region",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f70c731cef5db4e757739ebf31ef6a5e03ac6d19b0cd7ec4c29a1ae55bd84e47"
+}

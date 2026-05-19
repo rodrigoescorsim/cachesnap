@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT ON (region) region, ttfb_ms, cache_status, age_s, security_headers, served_by\n         FROM probe_results WHERE monitor_id = $1 AND time > NOW() - INTERVAL '24 hours'\n         ORDER BY region, time DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "region",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "ttfb_ms",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 2,
+        "name": "cache_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "age_s",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "security_headers",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 5,
+        "name": "served_by",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "e3c1781edbf40dbb8145f1913f968a55160143cd388a391ecdfb44a6172723bc"
+}

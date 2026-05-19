@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT url, name, notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled\n         FROM monitors WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "notify_email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "notify_email_enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "notify_slack_webhook",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "notify_slack_enabled",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "5ad8e2a38f93b537cdab5f24f43d857357f3219dde26c3fd04ab9f381c058483"
+}

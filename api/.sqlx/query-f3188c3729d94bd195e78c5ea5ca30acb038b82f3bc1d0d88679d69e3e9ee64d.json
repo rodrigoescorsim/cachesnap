@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT region, error, status_code\n           FROM probe_results\n           WHERE monitor_id = $1\n             AND (error IS NOT NULL OR status_code >= 500)\n             AND time > NOW() - INTERVAL '5 minutes'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "region",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "error",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "status_code",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "f3188c3729d94bd195e78c5ea5ca30acb038b82f3bc1d0d88679d69e3e9ee64d"
+}

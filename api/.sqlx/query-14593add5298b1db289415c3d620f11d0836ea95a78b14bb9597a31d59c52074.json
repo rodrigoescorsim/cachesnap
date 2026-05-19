@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, alert_cache_hit_enabled, alert_cache_hit_threshold_pct,\n               alert_anycast_enabled, alert_cache_age_enabled,\n               alert_cache_age_threshold_hours\n        FROM monitors\n        WHERE is_active = true\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "alert_cache_hit_enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "alert_cache_hit_threshold_pct",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 3,
+        "name": "alert_anycast_enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "alert_cache_age_enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "alert_cache_age_threshold_hours",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "14593add5298b1db289415c3d620f11d0836ea95a78b14bb9597a31d59c52074"
+}

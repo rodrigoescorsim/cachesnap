@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH recent_probes AS (\n            SELECT ttfb_ms\n            FROM probe_results\n            WHERE monitor_id = $1 AND region = $2\n            ORDER BY time DESC\n            LIMIT $3\n        )\n        SELECT COUNT(*) FROM recent_probes WHERE ttfb_ms > $4\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int8",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "359bd75010bbdaa9c9c69489ddd76414d751f65eb72d7bfb9db5bf648025ef82"
+}

@@ -3,8 +3,8 @@
 services:
   api:
     build:
-      context: ./api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: api/Dockerfile
     environment:
       DATABASE_URL: postgresql://cachesnap:${DB_PASSWORD}@db:5432/cachesnap
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
@@ -12,6 +12,9 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL}
       PROBE_SECRET: ${PROBE_SECRET}
+      ALERT_SNOOZE_SECRET: ${ALERT_SNOOZE_SECRET}
+      ALERTS_WORKER_INTERVAL_SECS: ${ALERTS_WORKER_INTERVAL_SECS:-900}
+      ALERT_FROM_EMAIL: ${ALERT_FROM_EMAIL}
       APP_URL: ${APP_URL}
       API_URL: ${API_URL}
     ports:

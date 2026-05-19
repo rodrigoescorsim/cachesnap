@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT error, status_code\n           FROM probe_results\n           WHERE monitor_id = $1 AND region = $2\n             AND time > NOW() - INTERVAL '10 minutes'\n           ORDER BY time DESC\n           LIMIT 5",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "error",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "status_code",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "a4f80610302bef85f3cda16662a626c7f094d7d373c52606c30fa56732d0318c"
+}
