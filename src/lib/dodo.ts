@@ -2,7 +2,7 @@ import DodoPayments from 'dodopayments'
 
 export const dodo = new DodoPayments({
   bearerToken: process.env.DODO_API_KEY!,
-  environment: 'test_mode',
+  environment: (process.env.DODO_ENV ?? 'test_mode') as 'test_mode' | 'live_mode',
   webhookKey: process.env.DODO_WEBHOOK_SECRET!,
 })
 

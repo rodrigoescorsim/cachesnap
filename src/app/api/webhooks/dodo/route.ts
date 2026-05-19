@@ -5,8 +5,6 @@ import sql from '@/lib/db'
 export async function POST(req: NextRequest) {
   const body = await req.text()
 
-  console.log('[dodo-webhook] received', req.headers.get('webhook-id'))
-
   let event
   try {
     event = dodo.webhooks.unwrap(body, {
@@ -16,19 +14,15 @@ export async function POST(req: NextRequest) {
         'webhook-timestamp': req.headers.get('webhook-timestamp') ?? '',
       },
     })
-  } catch (err) {
-    console.error('[dodo-webhook] signature error', err)
+  } catch {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
   }
-
-  console.log('[dodo-webhook] event type:', event.type)
 
   switch (event.type) {
     case 'subscription.active': {
       const sub = event.data
       const userId = sub.metadata?.user_id
       const plan = planFromProductId(sub.product_id)
-      console.log('[dodo-webhook] subscription.active — userId:', userId, 'product_id:', sub.product_id, 'plan:', plan)
       if (userId && plan) {
         await sql`
           UPDATE users
@@ -37,9 +31,6 @@ export async function POST(req: NextRequest) {
               dodo_subscription_id = ${sub.subscription_id}
           WHERE id = ${userId}
         `
-        console.log('[dodo-webhook] user updated to plan:', plan)
-      } else {
-        console.warn('[dodo-webhook] missing userId or plan — skipping update')
       }
       break
     }
