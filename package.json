@@ -17,6 +17,7 @@
     "@tanstack/react-table": "^8.21.3",
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.3",
+    "dodopayments": "^2.31.2",
     "lucide-react": "^1.8.0",
     "next": "16.2.2",
     "postgres": "^3.4.9",
