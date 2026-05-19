@@ -4,6 +4,8 @@ import { getSession } from '@/lib/auth'
 import sql from '@/lib/db'
 import { ViewSection, ViewSectionHeader } from '@/components/dashboard/dashboard-ui'
 import { PLAN_LIMITS, parsePlan, type Plan } from '@/lib/plans'
+import { UpgradeButton, ManageButton } from '@/components/billing/upgrade-button'
+import { BillingSuccessVerifier } from '@/components/billing/billing-success-verifier'
 
 const PLAN_LABELS: Record<Plan, string> = { free: 'Free', pro: 'Pro', team: 'Team' }
 const PLAN_PRICES: Record<Plan, string> = { free: '$0', pro: '$19', team: '$59' }
@@ -38,21 +40,27 @@ const PLAN_FEATURES: Record<Plan, string[]> = {
 
 const PLAN_ORDER: Plan[] = ['free', 'pro', 'team']
 
-const UPGRADE_SUBJECT: Record<Plan, string> = {
-  free: '',
-  pro: 'Upgrade%20to%20Pro',
-  team: 'Upgrade%20to%20Team',
-}
 
-export default async function BillingPage() {
+export default async function BillingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ success?: string; subscription_id?: string }>
+}) {
   const user = await getSession()
   if (!user) redirect('/login')
+
+  const params = await searchParams
+  const pendingSubscriptionId =
+    params.success === '1' && params.subscription_id ? params.subscription_id : null
 
   const plan = parsePlan(user.plan)
   const limits = PLAN_LIMITS[plan]
 
   const [{ count }] = await sql<[{ count: number }]>`
     SELECT COUNT(*)::int AS count FROM monitors WHERE user_id = ${user.id}
+  `
+  const [{ dodo_subscription_id }] = await sql<[{ dodo_subscription_id: string | null }]>`
+    SELECT dodo_subscription_id FROM users WHERE id = ${user.id}
   `
 
   const usagePct = Math.min(100, Math.round((count / limits.monitors) * 100))
@@ -61,6 +69,9 @@ export default async function BillingPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 py-2">
+      {pendingSubscriptionId && (
+        <BillingSuccessVerifier subscriptionId={pendingSubscriptionId} />
+      )}
       <ViewSection>
         <ViewSectionHeader title="Billing & Plan" showDot={false} />
         <p className="px-1 text-xs leading-relaxed text-zinc-500">
@@ -167,18 +178,16 @@ export default async function BillingPage() {
                 </ul>
 
                 {isCurrent && (
-                  <span className="cs-badge cs-badge-success w-full justify-center !py-1.5">
-                    Current
-                  </span>
+                  <div className="space-y-2">
+                    <span className="cs-badge cs-badge-success w-full justify-center !py-1.5">
+                      Current
+                    </span>
+                    {dodo_subscription_id && p !== 'free' && <ManageButton />}
+                  </div>
                 )}
 
-                {isUpgrade && (
-                  <a
-                    href={`mailto:hello@cachesnap.com?subject=${UPGRADE_SUBJECT[p]}`}
-                    className="cs-btn-secondary-md w-full"
-                  >
-                    Upgrade →
-                  </a>
+                {isUpgrade && (p === 'pro' || p === 'team') && (
+                  <UpgradeButton plan={p} label="Upgrade →" />
                 )}
 
                 {!isCurrent && !isUpgrade && (
