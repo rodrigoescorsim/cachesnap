@@ -170,7 +170,7 @@ export function NewMonitorPage({ userEmail, logoutAction, plan, monitorCount, mo
                 Upgrade to add more.
               </p>
             </div>
-            <Link href="/pricing" className="cs-btn-primary inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-bold">
+            <Link href="/dashboard/billing" className="cs-btn-primary inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-bold">
               View plans →
             </Link>
             <div className="pt-1">
@@ -291,7 +291,7 @@ export function NewMonitorPage({ userEmail, logoutAction, plan, monitorCount, mo
                 </svg>
                 <p className="text-xs text-amber-300">
                   Last monitor on your <span className="capitalize font-semibold">{plan}</span> plan.{' '}
-                  <Link href="/pricing" className="underline underline-offset-2 hover:text-amber-200 transition-colors">
+                  <Link href="/dashboard/billing" className="underline underline-offset-2 hover:text-amber-200 transition-colors">
                     Upgrade
                   </Link>{' '}
                   to add more.

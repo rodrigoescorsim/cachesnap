@@ -88,13 +88,15 @@ export function GlobalHeader({ userEmail, logoutAction }: GlobalHeaderProps) {
         {/* Right: Create Monitor + User + Mobile toggle */}
         <div className="flex items-center gap-3">
           {showCreateMonitor && (
-            <Link
-              href="/monitors/new"
-              className="cs-btn-primary hidden h-9 gap-2 px-4 text-[13px] font-bold md:inline-flex"
-              aria-label="Create a new monitor"
-            >
-              <span>+ Create Monitor</span>
-            </Link>
+            <div className="hidden md:block">
+              <Link
+                href="/monitors/new"
+                className="cs-btn-primary inline-flex h-9 gap-2 px-4 text-[13px] font-bold"
+                aria-label="Create a new monitor"
+              >
+                <span>+ Create Monitor</span>
+              </Link>
+            </div>
           )}
           <UserDropdown email={userEmail} logoutAction={logoutAction} />
           <button
