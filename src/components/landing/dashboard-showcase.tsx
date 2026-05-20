@@ -1,10 +1,29 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { LandingEdgeVsOriginDemo } from './landing-edge-vs-origin-demo'
-import { LandingPeriodPerformanceDemo } from './landing-period-performance-demo'
-import { LandingMonitorsDemo } from './landing-monitors-demo'
-import { LandingHistoricalTrendsDemo } from './landing-historical-trends-demo'
+import dynamic from 'next/dynamic'
+
+const DEMO_SKELETON = <div className="min-h-[340px] w-full animate-pulse rounded-xl bg-white/[0.03]" />
+
+const LandingEdgeVsOriginDemo = dynamic(
+  () => import('./landing-edge-vs-origin-demo').then(m => ({ default: m.LandingEdgeVsOriginDemo })),
+  { ssr: false, loading: () => DEMO_SKELETON },
+)
+
+const LandingMonitorsDemo = dynamic(
+  () => import('./landing-monitors-demo').then(m => ({ default: m.LandingMonitorsDemo })),
+  { ssr: false, loading: () => DEMO_SKELETON },
+)
+
+const LandingPeriodPerformanceDemo = dynamic(
+  () => import('./landing-period-performance-demo').then(m => ({ default: m.LandingPeriodPerformanceDemo })),
+  { ssr: false, loading: () => DEMO_SKELETON },
+)
+
+const LandingHistoricalTrendsDemo = dynamic(
+  () => import('./landing-historical-trends-demo').then(m => ({ default: m.LandingHistoricalTrendsDemo })),
+  { ssr: false, loading: () => DEMO_SKELETON },
+)
 
 /** Mesmo canvas do dashboard / screenshots */
 const SHOWCASE_CANVAS = '#0B1220'
