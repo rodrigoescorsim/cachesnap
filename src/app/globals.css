@@ -545,6 +545,63 @@ body {
     }
   }
 
+  @keyframes landing-showcase-reveal {
+    from {
+      opacity: 0;
+      transform: translateY(32px) scale(0.96);
+      filter: blur(12px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      filter: blur(0);
+    }
+  }
+
+  @keyframes landing-showcase-glow-pulse {
+    0%,
+    100% {
+      opacity: 0.55;
+      transform: scale(1);
+    }
+
+    50% {
+      opacity: 0.85;
+      transform: scale(1.04);
+    }
+  }
+
+  .landing-showcase-reveal {
+    opacity: 0;
+  }
+
+  .landing-showcase-reveal.is-visible {
+    animation: landing-showcase-reveal 1.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .landing-showcase-reveal-delay {
+    opacity: 0;
+  }
+
+  .landing-showcase-reveal-delay.is-visible {
+    animation: landing-showcase-reveal 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.15s forwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .landing-showcase-reveal,
+    .landing-showcase-reveal-delay {
+      opacity: 1;
+      animation: none;
+      filter: none;
+      transform: none;
+    }
+
+    .landing-showcase-glow-pulse {
+      animation: none !important;
+    }
+  }
+
   /** Dropdowns header: 95% → 100% scale + opacity (0.2s ease); origem no canto do trigger. */
   @keyframes cs-monitors-dropdown-in {
     from {
