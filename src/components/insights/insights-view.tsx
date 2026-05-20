@@ -452,16 +452,30 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
 
 type RegionEntry = { code: string; label: string; flag: string; isSlow: boolean }
 
-function SlowRegionsPopover({ regions, visible }: { regions: RegionEntry[]; visible: boolean }) {
-  if (!visible) return null
+function SlowRegionsPopover({
+  regions,
+  visible,
+  anchor,
+}: {
+  regions: RegionEntry[]
+  visible: boolean
+  anchor: DOMRect | null
+}) {
+  if (!visible || !anchor || typeof document === 'undefined') return null
 
   const slowCount = regions.filter(r => r.isSlow).length
   const sorted = [...regions].sort((a, b) => (b.isSlow ? 1 : 0) - (a.isSlow ? 1 : 0))
+  const flipX = anchor.left > (typeof window !== 'undefined' ? window.innerWidth * 0.55 : 960)
 
-  return (
+  const panel = (
     <div
       role="tooltip"
-      className="cs-tooltip-panel pointer-events-none absolute bottom-full left-0 z-50 mb-6 w-[220px] animate-[cs-fade-in_0.15s_ease-out] p-3"
+      className="cs-tooltip-panel pointer-events-none fixed z-[200] w-[220px] animate-[cs-fade-in_0.15s_ease-out] p-3"
+      style={{
+        left: flipX ? anchor.right : anchor.left,
+        top: anchor.top,
+        transform: `translate(${flipX ? '-100%' : '0'}, calc(-100% - 16px))`,
+      }}
     >
       {/* Arrow */}
       <div className="absolute -bottom-[5px] left-4 h-2.5 w-2.5 rotate-45 rounded-[2px] border-b border-r border-border bg-[var(--tooltip-surface)]" />
@@ -493,6 +507,8 @@ function SlowRegionsPopover({ regions, visible }: { regions: RegionEntry[]; visi
       </div>
     </div>
   )
+
+  return createPortal(panel, document.body)
 }
 
 // ─── InsightCard ──────────────────────────────────────────────────────────────
@@ -511,6 +527,7 @@ function InsightCard({
   const strongTone = s.tone !== 'neutral'
   const showRegionPopover = insight.id === 'slow-regions' && (regionList?.length ?? 0) > 0
   const [regionsOpen, setRegionsOpen] = useState(false)
+  const [regionPopoverAnchor, setRegionPopoverAnchor] = useState<DOMRect | null>(null)
 
   return (
     <article
@@ -557,11 +574,18 @@ function InsightCard({
       {/* Action */}
       <div
         className="relative z-10 mt-4"
-        onMouseEnter={() => showRegionPopover && setRegionsOpen(true)}
-        onMouseLeave={() => setRegionsOpen(false)}
+        onMouseEnter={(e) => {
+          if (!showRegionPopover) return
+          setRegionPopoverAnchor(e.currentTarget.getBoundingClientRect())
+          setRegionsOpen(true)
+        }}
+        onMouseLeave={() => {
+          setRegionsOpen(false)
+          setRegionPopoverAnchor(null)
+        }}
       >
         {showRegionPopover && (
-          <SlowRegionsPopover regions={regionList!} visible={regionsOpen} />
+          <SlowRegionsPopover regions={regionList!} visible={regionsOpen} anchor={regionPopoverAnchor} />
         )}
 
         {insight.actionHref ? (

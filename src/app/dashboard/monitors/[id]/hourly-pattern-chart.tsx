@@ -9,6 +9,7 @@ import {
   type HourlyPoint,
 } from './hourly-pattern.helpers'
 import { getTtfbTooltip, getTtfbColorClass, getCacheColor } from '@/lib/thresholds'
+import { chartTooltipStyle } from '@/lib/chart-tooltip-style'
 
 const W = 700
 const H = 220
@@ -22,8 +23,8 @@ const BAR_W = (CHART_W - BAR_GAP * (BAR_COUNT - 1)) / BAR_COUNT
 interface Tooltip {
   hour: number
   point: HourlyPoint
-  x: number
-  y: number
+  clientX: number
+  clientY: number
 }
 
 export function HourlyPatternChart({ data, range, thresholdMs, thresholdHitMs, cacheWarnPct, cacheCriticalPct }: {
@@ -94,13 +95,11 @@ export function HourlyPatternChart({ data, range, thresholdMs, thresholdHitMs, c
               opacity={isNight ? 0.4 : 0.75}
               rx={1}
               onMouseEnter={(e) => {
-                const svg = (e.currentTarget as SVGRectElement).ownerSVGElement!
-                const rect = svg.getBoundingClientRect()
                 setTooltip({
                   hour,
                   point,
-                  x: e.clientX - rect.left,
-                  y: e.clientY - rect.top,
+                  clientX: e.clientX,
+                  clientY: e.clientY,
                 })
               }}
               style={{ cursor: 'default' }}
@@ -157,8 +156,8 @@ export function HourlyPatternChart({ data, range, thresholdMs, thresholdHitMs, c
       {/* Tooltip */}
       {tooltip && (
         <div
-          className="absolute z-50 pointer-events-none bg-surface/95 backdrop-blur-xl border border-white/10 p-2.5 rounded-xl shadow-2xl text-white min-w-[140px]"
-          style={{ left: tooltip.x + 20, top: tooltip.y + 20 }}
+          className="fixed z-[100] pointer-events-none bg-surface/95 backdrop-blur-xl border border-white/10 p-2.5 rounded-xl shadow-2xl text-white min-w-[140px]"
+          style={chartTooltipStyle(tooltip.clientX, tooltip.clientY)}
         >
           <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">{tooltip.hour}:00 UTC</p>
           <div className="space-y-0.5 tabular-nums">

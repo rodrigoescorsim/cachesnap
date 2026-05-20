@@ -8,7 +8,8 @@ import {
   buildHeatmapGrid,
   type HeatmapCell,
 } from './ttfb-heatmap.helpers'
-import { getTtfbTooltip, getTtfbColorClass, getCacheColor, getCacheTooltip } from '@/lib/thresholds'
+import { getTtfbTooltip, getTtfbColorClass, getCacheColor } from '@/lib/thresholds'
+import { chartTooltipStyle } from '@/lib/chart-tooltip-style'
 
 const CELL_W = 30
 const CELL_H = 30
@@ -25,8 +26,8 @@ interface TooltipState {
   cell: HeatmapCell
   dow: number
   hour: number
-  x: number
-  y: number
+  clientX: number
+  clientY: number
 }
 
 export function TtfbHeatmap({ data, thresholdMs, thresholdHitMs, cacheWarnPct, cacheCriticalPct }: {
@@ -130,9 +131,7 @@ export function TtfbHeatmap({ data, thresholdMs, thresholdHitMs, cacheWarnPct, c
                 opacity={cell == null ? 0.2 : 0.85}
                 onMouseEnter={(e) => {
                   if (!cell) return
-                  const svg = (e.currentTarget as SVGRectElement).ownerSVGElement!
-                  const rect = svg.getBoundingClientRect()
-                  setTooltip({ cell, dow, hour, x: e.clientX - rect.left, y: e.clientY - rect.top })
+                  setTooltip({ cell, dow, hour, clientX: e.clientX, clientY: e.clientY })
                 }}
                 style={{ cursor: cell ? 'default' : 'default' }}
               />
@@ -144,8 +143,8 @@ export function TtfbHeatmap({ data, thresholdMs, thresholdHitMs, cacheWarnPct, c
       {/* Tooltip */}
       {tooltip && (
         <div
-          className="absolute z-50 pointer-events-none bg-surface/95 backdrop-blur-xl border border-white/10 p-2.5 rounded-xl shadow-2xl text-white min-w-[150px]"
-          style={{ left: tooltip.x + 20, top: tooltip.y + 20 }}
+          className="fixed z-[100] pointer-events-none bg-surface/95 backdrop-blur-xl border border-white/10 p-2.5 rounded-xl shadow-2xl text-white min-w-[150px]"
+          style={chartTooltipStyle(tooltip.clientX, tooltip.clientY)}
         >
           <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">
             {dowLabel(tooltip.dow)} {tooltip.hour}:00

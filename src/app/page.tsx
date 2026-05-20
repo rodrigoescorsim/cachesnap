@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { HeroUrlForm } from './hero-url-form'
 import { MarketingFooter, MarketingHeader } from '@/components/marketing/marketing-chrome'
+import { DashboardPreview } from '@/components/landing/dashboard-preview'
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -162,6 +163,9 @@ export default async function RootPage() {
         </section>
 
 
+
+        {/* ═══════════════════════════════════════════ DASHBOARD PREVIEW */}
+        <DashboardPreview />
 
         {/* ══════════════════════════════════════════════════ HOW IT WORKS */}
         <section className="cs-container-adaptive pb-28">

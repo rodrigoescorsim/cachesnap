@@ -25,6 +25,7 @@ import { type TrendComparator } from './monitor-edit-form'
 import { LiveActivityHeader } from './live-activity-header'
 import { RealTimeHub } from '../../real-time-hub'
 import { ViewSectionHeader, LiveDot } from '@/components/dashboard/dashboard-ui'
+import { TimeframeChipTrack } from './timeframe-chip-track'
 import { extractPop, popToCity, resolveCdnLabel } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
 import { MonitorSidebarRail } from './monitor-sidebar-rail'
@@ -38,7 +39,6 @@ import {
   type PerformanceView,
   VALID_ALERT_TYPES,
   ALERT_TYPE_LABELS,
-  TIMEFRAME_TOOLTIPS,
 } from './monitor-href'
 import { type Alert } from '@/types/monitor'
 import { AlertHistoryTable } from './alert-history-table'
@@ -1720,21 +1720,7 @@ export default async function MonitorDetailPage({
                         </div>
                       }
                     >
-                      <div className="cs-chip-track">
-                        {(['1h', '4h', '24h', '7d', '30d', '90d'] as const).map((r) => (
-                          <PremiumTooltip key={r} content={TIMEFRAME_TOOLTIPS[r]}>
-                            <Link
-                              href={buildViewHref('performance', r)}
-                              className={`cs-chip-link ${range === r
-                                ? 'cs-chip-active'
-                                : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
-                                }`}
-                            >
-                              {r}
-                            </Link>
-                          </PremiumTooltip>
-                        ))}
-                      </div>
+                      <TimeframeChipTrack view="performance" range={range} monitorId={monitor.id} />
                     </ViewSectionHeader>
 
                     {!isCollecting && (
@@ -1838,7 +1824,18 @@ export default async function MonitorDetailPage({
                   )}
                   {stats.length === 0 ? (
                     <section className="space-y-4">
-                      <ViewSectionHeader title="Trends" />
+                      <ViewSectionHeader
+                        title={
+                          <div className="flex items-baseline gap-2">
+                            <span>Trends</span>
+                            <span className="text-[11px] font-black uppercase tracking-[0.1em] text-zinc-400 opacity-70">
+                              · {range.toUpperCase()}
+                            </span>
+                          </div>
+                        }
+                      >
+                        <TimeframeChipTrack view="trends" range={range} monitorId={monitor.id} />
+                      </ViewSectionHeader>
                       <div className="cs-card cs-card-glass min-h-[180px] flex flex-col items-center justify-center p-8 text-center animate-[cs-fade-in_0.5s_ease-out]">
                         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.02] shadow-[0_0_24px_-8px_rgba(34,211,238,0.15)]">
                           <BarChart3 className="h-5 w-5 text-zinc-500 animate-pulse" />
@@ -1995,7 +1992,18 @@ export default async function MonitorDetailPage({
                   )}
                   {hourlyPattern.length === 0 && heatmapRows.length === 0 ? (
                     <section id="patterns-empty-state" className="space-y-4">
-                      <ViewSectionHeader title="Patterns Analysis" />
+                      <ViewSectionHeader
+                        title={
+                          <div className="flex items-baseline gap-2">
+                            <span>Patterns Analysis</span>
+                            <span className="text-[11px] font-black uppercase tracking-[0.1em] text-zinc-400 opacity-70">
+                              · {range.toUpperCase()}
+                            </span>
+                          </div>
+                        }
+                      >
+                        <TimeframeChipTrack view="patterns" range={range} monitorId={id} />
+                      </ViewSectionHeader>
                       <div className="cs-card cs-card-glass min-h-[300px] flex flex-col items-center justify-center p-12 text-center animate-[cs-fade-in_0.5s_ease-out]">
                         <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.02] shadow-[0_0_32px_-8px_rgba(34,211,238,0.2)]">
                           <History className="h-7 w-7 text-zinc-500 animate-pulse" />
@@ -2030,7 +2038,9 @@ export default async function MonitorDetailPage({
                                 </span>
                               </div>
                             }
-                          />
+                          >
+                            <TimeframeChipTrack view="patterns" range={range} monitorId={id} />
+                          </ViewSectionHeader>
                           <HourlyPatternChart
                             data={hourlyPattern}
                             range={range}
@@ -2044,7 +2054,18 @@ export default async function MonitorDetailPage({
 
                       {heatmapRows.length > 0 && (
                         <section id="weekly-pattern-section" className="space-y-4">
-                          <ViewSectionHeader title="Weekly Heatmap" />
+                          <ViewSectionHeader
+                            title={
+                              <div className="flex items-baseline gap-2">
+                                <span>Weekly Heatmap</span>
+                                <span className="text-[11px] font-black uppercase tracking-[0.1em] text-zinc-400 opacity-70">
+                                  · {range.toUpperCase()}
+                                </span>
+                              </div>
+                            }
+                          >
+                            <TimeframeChipTrack view="patterns" range={range} monitorId={id} />
+                          </ViewSectionHeader>
                           <TtfbHeatmap
                             data={heatmapRows}
                             thresholdMs={monitor.alert_threshold_ms}

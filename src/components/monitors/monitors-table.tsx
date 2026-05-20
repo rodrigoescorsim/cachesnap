@@ -13,6 +13,7 @@ import {
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
+import { chartTooltipStyle } from '@/lib/chart-tooltip-style'
 import {
   useReactTable,
   getCoreRowModel,
@@ -105,7 +106,7 @@ const SPARK_W = 60
 const SPARK_H = 18
 
 function Sparkline({ data, delta }: { data: number[]; delta: number }) {
-  const [tip, setTip] = useState<{ idx: number; px: number } | null>(null)
+  const [tip, setTip] = useState<{ idx: number; clientX: number; clientY: number } | null>(null)
 
   if (data.length < 2) return null
   const min = Math.min(...data)
@@ -132,9 +133,9 @@ function Sparkline({ data, delta }: { data: number[]; delta: number }) {
     const svg = e.currentTarget
     const rect = svg.getBoundingClientRect()
     const x = e.clientX - rect.left
-    const t = SPARK_W <= 0 ? 0 : Math.min(1, Math.max(0, x / SPARK_W))
+    const t = SPARK_W <= 0 ? 0 : Math.min(1, Math.max(0, x / rect.width))
     const idx = Math.round(t * (data.length - 1))
-    setTip({ idx, px: (idx / (data.length - 1)) * SPARK_W })
+    setTip({ idx, clientX: e.clientX, clientY: e.clientY })
   }
 
   const tipMs = tip !== null ? Math.round(data[tip.idx]) : null
@@ -144,8 +145,8 @@ function Sparkline({ data, delta }: { data: number[]; delta: number }) {
       {tip !== null && tipMs !== null && (
         <div
           role="tooltip"
-          className="cs-tooltip-floating absolute bottom-full left-0 z-20 mb-6 min-w-[3rem] -translate-x-1/2 px-1.5 py-0.5 text-center font-semibold tabular-nums text-zinc-200 shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
-          style={{ left: `${tip.px}px` }}
+          className="cs-tooltip-floating fixed z-[100] min-w-[3rem] px-1.5 py-0.5 text-center font-semibold tabular-nums text-zinc-200 shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
+          style={chartTooltipStyle(tip.clientX, tip.clientY)}
         >
           {tipMs} ms
         </div>
