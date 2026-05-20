@@ -53,6 +53,52 @@ const PAD = { top: 12, right: 16, bottom: 32, left: 48 }
 const CW = W - PAD.left - PAD.right
 const CH = H - PAD.top - PAD.bottom
 
+const TREND_RANGES = ['1h', '4h', '24h', '7d', '30d', '90d'] as const
+
+function trendChipClass(active: boolean) {
+  return `cs-chip-link ${active
+    ? 'cs-chip-active'
+    : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
+    }`
+}
+
+function TrendsTimeframeChips({
+  range,
+  monitorId,
+  previewMode,
+  onRangeChange,
+}: {
+  range: string
+  monitorId: string
+  previewMode?: boolean
+  onRangeChange?: (range: string) => void
+}) {
+  return (
+    <div className="cs-chip-track">
+      {TREND_RANGES.map((r) => (
+        <PremiumTooltip key={r} content={TIMEFRAME_TOOLTIPS[r]}>
+          {previewMode ? (
+            <button
+              type="button"
+              onClick={() => onRangeChange?.(r)}
+              className={trendChipClass(range === r)}
+            >
+              {r}
+            </button>
+          ) : (
+            <Link
+              href={buildViewHref('trends', r, monitorId)}
+              className={trendChipClass(range === r)}
+            >
+              {r}
+            </Link>
+          )}
+        </PremiumTooltip>
+      ))}
+    </div>
+  )
+}
+
 export function TtfbChart({
   data,
   range,
@@ -60,6 +106,10 @@ export function TtfbChart({
   cacheHitThresholdPct,
   isDown,
   monitorId,
+  previewMode = false,
+  onRangeChange,
+  initialEnabledRegions,
+  initialActiveRegion,
 }: {
   data: ChartPoint[]
   range: string
@@ -67,16 +117,39 @@ export function TtfbChart({
   cacheHitThresholdPct?: number | null
   isDown?: boolean
   monitorId: string
+  /** Landing preview — timeframe chips update local state instead of navigating */
+  previewMode?: boolean
+  onRangeChange?: (range: string) => void
+  /** Region ids pre-selected on TTFB / cache / network charts (e.g. sao-paulo, tokyo, cape-town) */
+  initialEnabledRegions?: string[]
+  /** Linha em destaque ao carregar (deve estar em initialEnabledRegions ou 'global') */
+  initialActiveRegion?: string | 'global'
 }) {
+  const presetRegions = useMemo(
+    () => (initialEnabledRegions?.length ? new Set(initialEnabledRegions) : null),
+    [initialEnabledRegions],
+  )
+  const hasPresetRegions = presetRegions !== null && presetRegions.size > 0
+  const defaultActiveRegion: string | 'global' = (() => {
+    if (initialActiveRegion) return initialActiveRegion
+    if (hasPresetRegions && initialEnabledRegions?.length) return initialEnabledRegions[0]
+    return 'global'
+  })()
   const [hoveredTtfbIdx, setHoveredTtfbIdx] = useState<number | null>(null)
   const [hoveredCacheIdx, setHoveredCacheIdx] = useState<number | null>(null)
   const [hoveredNetIdx, setHoveredNetIdx] = useState<number | null>(null)
 
   const [hoveredChart, setHoveredChart] = useState<'ttfb' | 'cache' | 'network' | null>(null)
 
-  const [activeTtfbRegion, setActiveTtfbRegion] = useState<string | 'global' | null>('global')
-  const [activeCacheRegion, setActiveCacheRegion] = useState<string | 'global' | null>('global')
-  const [activeNetRegion, setActiveNetRegion] = useState<string | 'global' | null>('global')
+  const [activeTtfbRegion, setActiveTtfbRegion] = useState<string | 'global' | null>(
+    () => defaultActiveRegion,
+  )
+  const [activeCacheRegion, setActiveCacheRegion] = useState<string | 'global' | null>(
+    () => defaultActiveRegion,
+  )
+  const [activeNetRegion, setActiveNetRegion] = useState<string | 'global' | null>(
+    () => defaultActiveRegion,
+  )
 
   const [hoveredTtfbRegion, setHoveredTtfbRegion] = useState<string | null>(null)
   const [hoveredCacheRegion, setHoveredCacheRegion] = useState<string | null>(null)
@@ -88,12 +161,18 @@ export function TtfbChart({
   const [cacheHistory, setCacheHistory] = useState<string[]>([])
   const [netHistory, setNetHistory] = useState<string[]>([])
 
-  const [showGlobalTtfb, setShowGlobalTtfb] = useState(true)
-  const [selectedTtfbRegions, setSelectedTtfbRegions] = useState<Set<string>>(new Set())
-  const [showGlobalCache, setShowGlobalCache] = useState(true)
-  const [selectedCacheRegions, setSelectedCacheRegions] = useState<Set<string>>(new Set())
-  const [showGlobalNet, setShowGlobalNet] = useState(true)
-  const [selectedNetRegions, setSelectedNetRegions] = useState<Set<string>>(new Set())
+  const [showGlobalTtfb, setShowGlobalTtfb] = useState(!hasPresetRegions)
+  const [selectedTtfbRegions, setSelectedTtfbRegions] = useState<Set<string>>(
+    () => new Set(presetRegions ?? []),
+  )
+  const [showGlobalCache, setShowGlobalCache] = useState(!hasPresetRegions)
+  const [selectedCacheRegions, setSelectedCacheRegions] = useState<Set<string>>(
+    () => new Set(presetRegions ?? []),
+  )
+  const [showGlobalNet, setShowGlobalNet] = useState(!hasPresetRegions)
+  const [selectedNetRegions, setSelectedNetRegions] = useState<Set<string>>(
+    () => new Set(presetRegions ?? []),
+  )
   const [networkMetric, setNetworkMetric] = useState<'dns' | 'tcp' | 'tls' | 'net'>('net')
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -118,6 +197,9 @@ export function TtfbChart({
       'northern virginia': 'NVA',
       'virginia': 'VIR',
       'cape town': 'CPT',
+      'cape-town': 'CPT',
+      'sao-paulo': 'SPO',
+      'tokyo': 'TYO',
     }
 
     const toAbbreviation = (label: string, fallbackRegion: string) => {
@@ -1270,21 +1352,12 @@ export function TtfbChart({
               </div>
             }
           >
-            <div className="cs-chip-track">
-              {(['1h', '4h', '24h', '7d', '30d', '90d'] as const).map((r) => (
-                <PremiumTooltip key={r} content={TIMEFRAME_TOOLTIPS[r]}>
-                  <Link
-                    href={buildViewHref('trends', r, monitorId)}
-                    className={`cs-chip-link ${range === r
-                      ? 'cs-chip-active'
-                      : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
-                      }`}
-                  >
-                    {r}
-                  </Link>
-                </PremiumTooltip>
-              ))}
-            </div>
+            <TrendsTimeframeChips
+              range={range}
+              monitorId={monitorId}
+              previewMode={previewMode}
+              onRangeChange={onRangeChange}
+            />
           </ViewSectionHeader>
           <div className="cs-panel bg-surface/30 p-12 text-center">
             {isDown ? (
@@ -1342,21 +1415,12 @@ export function TtfbChart({
                   </button>
                 </PremiumTooltip>
 
-                <div className="cs-chip-track">
-                  {(['1h', '4h', '24h', '7d', '30d', '90d'] as const).map((r) => (
-                    <PremiumTooltip key={r} content={TIMEFRAME_TOOLTIPS[r]}>
-                      <Link
-                        href={buildViewHref('trends', r, monitorId)}
-                        className={`cs-chip-link ${range === r
-                          ? 'cs-chip-active'
-                          : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
-                          }`}
-                      >
-                        {r}
-                      </Link>
-                    </PremiumTooltip>
-                  ))}
-                </div>
+                <TrendsTimeframeChips
+                  range={range}
+                  monitorId={monitorId}
+                  previewMode={previewMode}
+                  onRangeChange={onRangeChange}
+                />
               </div>
             </ViewSectionHeader>
           </>

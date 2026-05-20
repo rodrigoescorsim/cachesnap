@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { LandingEdgeVsOriginDemo } from './landing-edge-vs-origin-demo'
 import { LandingPeriodPerformanceDemo } from './landing-period-performance-demo'
 import { LandingMonitorsDemo } from './landing-monitors-demo'
+import { LandingHistoricalTrendsDemo } from './landing-historical-trends-demo'
 
 /** Mesmo canvas do dashboard / screenshots */
 const SHOWCASE_CANVAS = '#0B1220'
@@ -22,7 +23,7 @@ type Slide =
   | {
       id: string
       kind: 'live'
-      live: 'edge-vs-origin' | 'period-performance' | 'monitors'
+      live: 'edge-vs-origin' | 'period-performance' | 'monitors' | 'historical-trends'
       maxWidth: number
       title: string
       description: string
@@ -80,11 +81,9 @@ const SLIDES: Slide[] = [
   },
   {
     id: 'trends',
-    kind: 'image',
-    src: '/screenshots/trends.png',
-    width: 1040,
-    height: 1092,
-    alt: 'CacheSnap trends — TTFB and cache hit rate over time',
+    kind: 'live',
+    live: 'historical-trends',
+    maxWidth: 1040,
     title: 'Historical trends',
     description: 'TTFB and cache hit rate over time, per region. Spot regressions before users do.',
     ambient: softAmbient('rgba(244,114,182,0.05)', 'rgba(251,191,36,0.04)'),
@@ -112,8 +111,10 @@ function ShowcasePreview({
           <LandingEdgeVsOriginDemo />
         ) : slide.live === 'period-performance' ? (
           <LandingPeriodPerformanceDemo />
-        ) : (
+        ) : slide.live === 'monitors' ? (
           <LandingMonitorsDemo />
+        ) : (
+          <LandingHistoricalTrendsDemo />
         )
       ) : (
         /* eslint-disable-next-line @next/next/no-img-element */
