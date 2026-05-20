@@ -104,7 +104,7 @@ export default async function RootPage() {
   if (user) redirect('/monitors')
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-hidden bg-background text-foreground">
+    <div className="min-h-screen flex flex-col relative overflow-x-hidden bg-background text-foreground">
 
       {/* ── Background glows ── */}
       <div
