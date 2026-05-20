@@ -199,7 +199,6 @@ export function TtfbChart({
       'cape town': 'CPT',
       'cape-town': 'CPT',
       'sao-paulo': 'SPO',
-      'tokyo': 'TYO',
     }
 
     const toAbbreviation = (label: string, fallbackRegion: string) => {

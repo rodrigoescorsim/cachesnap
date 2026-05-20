@@ -1,12 +1,13 @@
 'use client'
 
 import Link from 'next/link'
+import { Suspense } from 'react'
 import { useActionState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { signup } from '@/app/actions/auth'
 import { Logo } from '@/components/logo'
 
-export default function SignupPage() {
+function SignupForm() {
   const [state, action, pending] = useActionState(signup, undefined)
   const searchParams = useSearchParams()
   const urlParam = searchParams.get('url') ?? ''
@@ -102,5 +103,13 @@ export default function SignupPage() {
         </Link>
       </p>
     </div>
+  )
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense>
+      <SignupForm />
+    </Suspense>
   )
 }
