@@ -130,20 +130,19 @@ export default async function RootPage() {
 
             {/* Headline */}
             <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white max-w-3xl leading-[1.1] drop-shadow-sm">
-              The monitoring platform that{' '}
+              Edge performance,{' '}
               <span
                 className="text-transparent bg-clip-text"
                 style={{ backgroundImage: 'linear-gradient(135deg, var(--brand-primary) 0%, #34d399 50%, #38bdf8 100%)' }}
               >
-                understands your edge infrastructure.
+                finally transparent.
               </span>
             </h1>
 
             {/* Subtitle */}
             <div className="space-y-3 max-w-2xl text-center">
               <p className="text-lg text-zinc-400 leading-relaxed">
-                Real-time visibility into your edge network performance. We track TTFB,
-                cache behavior, CDN headers, and global routing across independent regions.
+                Cache hit rate, edge vs origin TTFB, latency trends and patterns — across all continents.
               </p>
               <p className="text-sm font-semibold text-zinc-500 tracking-wide">
                 Zero integration. Zero configuration.
@@ -157,25 +156,6 @@ export default async function RootPage() {
               Start testing for free · No credit card required
             </p>
 
-            {/* Capability strip */}
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              {[
-                'Cache HIT/MISS rate · per region',
-                'Edge vs Origin timing',
-                'Stale content & wrong headers',
-                'CDN routing issues',
-              ].map(item => (
-                <span
-                  key={item}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-zinc-300"
-                >
-                  <svg className="h-3 w-3 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2.5} style={{ color: 'var(--brand-primary)' }}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l3.5 3.5L13 4" />
-                  </svg>
-                  {item}
-                </span>
-              ))}
-            </div>
 
 
           </div>

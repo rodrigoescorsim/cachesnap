@@ -6,6 +6,7 @@ import crypto from 'crypto'
 import { z } from 'zod'
 import sql from '@/lib/db'
 import { createSession, deleteSession } from '@/lib/auth'
+import { MONITOR_AUDIT_INTERVAL_SECONDS, MONITOR_CHECK_INTERVAL_SECONDS } from '@/lib/monitor-schedule'
 
 const signupSchema = z.object({
   email: z.string().email('Invalid email'),
@@ -48,6 +49,42 @@ export async function signup(
   `
 
   await createSession(user.id)
+
+  const rawUrl = formData.get('url')?.toString().trim()
+  if (rawUrl) {
+    try {
+      const parsed = new URL(rawUrl)
+      parsed.searchParams.delete('__CacheSnap_bypass')
+      let normalizedUrl = parsed.toString()
+      if (normalizedUrl.endsWith('/')) normalizedUrl = normalizedUrl.slice(0, -1)
+      const name = normalizedUrl.replace(/^https?:\/\//, '')
+
+      await sql`
+        INSERT INTO monitors (
+          user_id, url, name, check_interval_seconds, audit_interval_seconds,
+          audit_readiness_state, alert_threshold_ms, alert_threshold_hit_ms,
+          alert_cache_hit_trend_threshold_pp, alert_ttfb_trend_threshold_pct,
+          alert_ttfb_enabled, alert_down_enabled, alert_ttfb_anomaly_enabled,
+          alert_anycast_enabled, alert_cache_age_enabled, alert_cache_hit_enabled,
+          alert_cache_hit_trend_enabled, alert_ttfb_trend_enabled,
+          alert_cache_hit_trend_comparators, alert_ttfb_trend_comparators,
+          notify_email, notify_email_enabled
+        )
+        VALUES (
+          ${user.id}, ${normalizedUrl}, ${name},
+          ${MONITOR_CHECK_INTERVAL_SECONDS}, ${MONITOR_AUDIT_INTERVAL_SECONDS},
+          'disabled', 1500, 500, 10, 50,
+          true, true, true, false, false, false, true, true,
+          ARRAY['prev_hour', 'day_avg'],
+          ARRAY['prev_hour', 'day_avg'],
+          ${email}, true
+        )
+      `
+    } catch {
+      // URL inválida — ignora, usuário vai criar o monitor manualmente
+    }
+  }
+
   redirect('/monitors')
 }
 

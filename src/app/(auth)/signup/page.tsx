@@ -2,11 +2,14 @@
 
 import Link from 'next/link'
 import { useActionState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { signup } from '@/app/actions/auth'
 import { Logo } from '@/components/logo'
 
 export default function SignupPage() {
   const [state, action, pending] = useActionState(signup, undefined)
+  const searchParams = useSearchParams()
+  const urlParam = searchParams.get('url') ?? ''
 
   return (
     <div className="w-full max-w-sm">
@@ -14,10 +17,18 @@ export default function SignupPage() {
         <Link href="/" className="mb-6 hover:opacity-80 transition-opacity">
           <Logo className="h-16" />
         </Link>
-        <p className="text-sm text-zinc-500 font-medium">Create your free account</p>
+        {urlParam ? (
+          <p className="text-sm text-zinc-500 font-medium text-center">
+            Create your account to start monitoring<br />
+            <span className="text-zinc-300 font-semibold">{urlParam}</span>
+          </p>
+        ) : (
+          <p className="text-sm text-zinc-500 font-medium">Create your free account</p>
+        )}
       </div>
 
       <form action={action} className="space-y-4">
+        {urlParam && <input type="hidden" name="url" value={urlParam} />}
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-zinc-400 mb-1">
             Email
