@@ -74,7 +74,7 @@ export function HeroUrlForm() {
         : ''
 
   return (
-    <form onSubmit={handleSubmit} className="flex w-full max-w-xl gap-2">
+    <form onSubmit={handleSubmit} className="flex w-full max-w-xl flex-col gap-2 sm:flex-row">
       <div className={`cs-input flex-1 min-w-0 h-12 rounded-xl flex items-center gap-2.5 px-3 transition-all duration-200 ${borderClass}`}>
         {/* Favicon / Globe */}
         <div className="h-5 w-5 shrink-0 flex items-center justify-center">

@@ -17,13 +17,13 @@ export function MarketingHeader({ activeNav }: MarketingHeaderProps) {
         <div className="flex items-center gap-4">
           <Link
             href="/pricing"
-            className={`text-sm font-medium transition-colors ${
+            className={`hidden text-sm font-medium transition-colors sm:inline ${
               activeNav === 'pricing' ? 'text-white' : 'text-zinc-400 hover:text-white'
             }`}
           >
             Pricing
           </Link>
-          <Link href="/login" className="text-sm font-medium text-zinc-400 transition-colors hover:text-white">
+          <Link href="/login" className="hidden text-sm font-medium text-zinc-400 transition-colors hover:text-white sm:inline">
             Sign in
           </Link>
           <Link href="/signup" className="cs-btn-primary rounded-lg px-4 py-1.5 text-sm">

@@ -28,8 +28,6 @@ type Slide =
       title: string
       description: string
       ambient: string
-      accent: string
-      glow: string
     }
   | {
       id: string
@@ -41,8 +39,6 @@ type Slide =
       title: string
       description: string
       ambient: string
-      accent: string
-      glow: string
     }
 
 const SLIDES: Slide[] = [
@@ -54,8 +50,6 @@ const SLIDES: Slide[] = [
     title: 'Edge vs Origin',
     description: 'See exactly how much your CDN saves per region — edge HIT vs origin MISS, side by side.',
     ambient: softAmbient('rgba(34,255,136,0.06)', 'rgba(16,185,129,0.04)'),
-    accent: 'rgba(34,255,136,0.55)',
-    glow: 'rgba(34,255,136,0.2)',
   },
   {
     id: 'monitors',
@@ -65,8 +59,6 @@ const SLIDES: Slide[] = [
     title: 'Monitors',
     description: 'Every URL in one view — global averages, per-site metrics, regional health, and open incidents.',
     ambient: softAmbient('rgba(99,102,241,0.07)', 'rgba(56,189,248,0.04)'),
-    accent: 'rgba(129,140,248,0.5)',
-    glow: 'rgba(129,140,248,0.18)',
   },
   {
     id: 'performance',
@@ -76,8 +68,6 @@ const SLIDES: Slide[] = [
     title: 'Period performance',
     description: 'Edge cache TTFB vs origin TTFB per region for any time window.',
     ambient: softAmbient('rgba(34,211,238,0.06)', 'rgba(20,184,166,0.04)'),
-    accent: 'rgba(34,211,238,0.5)',
-    glow: 'rgba(34,211,238,0.18)',
   },
   {
     id: 'trends',
@@ -87,8 +77,6 @@ const SLIDES: Slide[] = [
     title: 'Historical trends',
     description: 'TTFB and cache hit rate over time, per region. Spot regressions before users do.',
     ambient: softAmbient('rgba(244,114,182,0.05)', 'rgba(251,191,36,0.04)'),
-    accent: 'rgba(251,191,36,0.45)',
-    glow: 'rgba(251,191,36,0.16)',
   },
 ]
 
@@ -103,7 +91,7 @@ function ShowcasePreview({
 
   return (
     <div
-      className={`landing-showcase-reveal relative mx-auto w-full ${visible ? 'is-visible' : ''}`}
+      className={`landing-showcase-reveal relative mx-auto w-full overflow-x-auto ${visible ? 'is-visible' : ''}`}
       style={{ maxWidth }}
     >
       {slide.kind === 'live' ? (
@@ -258,46 +246,6 @@ export function DashboardShowcase() {
           <p className="mx-auto mt-4 max-w-lg text-base leading-relaxed text-zinc-400">
             Live latency, cache diagnostics, and security checks across every region — no setup required.
           </p>
-          <p className="mt-3 text-[11px] font-medium uppercase tracking-[0.2em] text-zinc-600">
-            Scroll to explore each view
-          </p>
-
-          <nav className="mt-12 flex flex-col items-center gap-4 sm:flex-row sm:justify-center sm:gap-0" aria-label="Views progress">
-            {SLIDES.map((s, i) => {
-              const isActive = i === active
-              const isPast = i < active
-              return (
-                <div key={s.id} className="flex items-center sm:max-w-[140px] sm:flex-1">
-                  <div className="flex flex-col items-center gap-2 px-3">
-                    <span
-                      className="flex h-2.5 w-2.5 rounded-full transition-all duration-700 ease-out"
-                      style={{
-                        background: isActive ? s.accent : isPast ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)',
-                        boxShadow: isActive ? `0 0 14px 1px ${s.glow}` : 'none',
-                        transform: isActive ? 'scale(1.3)' : 'scale(1)',
-                      }}
-                    />
-                    <span
-                      className={`text-[10px] font-black uppercase tracking-[0.14em] transition-colors duration-500 ${isActive ? 'text-white' : 'text-zinc-600'}`}
-                    >
-                      {s.title}
-                    </span>
-                  </div>
-                  {i < SLIDES.length - 1 ? (
-                    <div
-                      className="mx-1 hidden h-px flex-1 transition-colors duration-700 sm:block"
-                      style={{
-                        background: isPast
-                          ? 'linear-gradient(90deg, rgba(255,255,255,0.2), rgba(255,255,255,0.06))'
-                          : 'rgba(255,255,255,0.06)',
-                      }}
-                      aria-hidden
-                    />
-                  ) : null}
-                </div>
-              )
-            })}
-          </nav>
         </div>
       </div>
 
