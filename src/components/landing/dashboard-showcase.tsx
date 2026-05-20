@@ -2,6 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+const CANVAS = 'var(--background)'
+
+/** Glow suave — centro deslocado, sem pico na borda superior */
+function softAmbient(primary: string, secondary?: string): string {
+  const layers = [
+    `radial-gradient(ellipse 130% 85% at 50% 42%, ${primary} 0%, transparent 72%)`,
+    secondary
+      ? `radial-gradient(ellipse 90% 70% at 72% 78%, ${secondary} 0%, transparent 68%)`
+      : null,
+  ].filter(Boolean)
+  return layers.join(', ')
+}
+
 type Slide = {
   id: string
   src: string
@@ -28,10 +41,9 @@ const SLIDES: Slide[] = [
     metricDetail: 'Edge vs Origin · 24h window · 8 regions',
     title: 'Edge vs Origin',
     description: 'See exactly how much your CDN saves per region — edge HIT vs origin MISS, side by side.',
-    ambient:
-      'radial-gradient(ellipse 80% 60% at 50% 0%, rgba(34,255,136,0.16) 0%, transparent 55%), radial-gradient(ellipse 60% 50% at 80% 100%, rgba(16,185,129,0.1) 0%, transparent 50%), #060b14',
+    ambient: softAmbient('rgba(34,255,136,0.11)', 'rgba(16,185,129,0.06)'),
     accent: 'rgba(34,255,136,0.55)',
-    glow: 'rgba(34,255,136,0.35)',
+    glow: 'rgba(34,255,136,0.28)',
   },
   {
     id: 'monitors',
@@ -41,10 +53,9 @@ const SLIDES: Slide[] = [
     alt: 'CacheSnap monitors — global TTFB, cache hit rate, uptime and incidents per URL',
     title: 'Monitors',
     description: 'Every URL in one view — global averages, per-site metrics, regional health, and open incidents.',
-    ambient:
-      'radial-gradient(ellipse 75% 55% at 30% 0%, rgba(99,102,241,0.18) 0%, transparent 55%), radial-gradient(ellipse 50% 45% at 90% 80%, rgba(56,189,248,0.1) 0%, transparent 50%), #070b16',
+    ambient: softAmbient('rgba(99,102,241,0.12)', 'rgba(56,189,248,0.06)'),
     accent: 'rgba(129,140,248,0.5)',
-    glow: 'rgba(129,140,248,0.32)',
+    glow: 'rgba(129,140,248,0.24)',
   },
   {
     id: 'performance',
@@ -54,10 +65,9 @@ const SLIDES: Slide[] = [
     alt: 'CacheSnap period performance — edge vs origin TTFB per region',
     title: 'Period performance',
     description: 'Edge cache TTFB vs origin TTFB per region for any time window.',
-    ambient:
-      'radial-gradient(ellipse 70% 50% at 70% 0%, rgba(34,211,238,0.16) 0%, transparent 55%), radial-gradient(ellipse 55% 40% at 10% 100%, rgba(20,184,166,0.1) 0%, transparent 50%), #061018',
+    ambient: softAmbient('rgba(34,211,238,0.1)', 'rgba(20,184,166,0.06)'),
     accent: 'rgba(34,211,238,0.5)',
-    glow: 'rgba(34,211,238,0.3)',
+    glow: 'rgba(34,211,238,0.22)',
   },
   {
     id: 'trends',
@@ -67,10 +77,9 @@ const SLIDES: Slide[] = [
     alt: 'CacheSnap trends — TTFB and cache hit rate over time',
     title: 'Historical trends',
     description: 'TTFB and cache hit rate over time, per region. Spot regressions before users do.',
-    ambient:
-      'radial-gradient(ellipse 75% 55% at 50% 0%, rgba(244,114,182,0.12) 0%, transparent 55%), radial-gradient(ellipse 50% 45% at 20% 100%, rgba(251,191,36,0.08) 0%, transparent 50%), #0a0812',
+    ambient: softAmbient('rgba(244,114,182,0.08)', 'rgba(251,191,36,0.06)'),
     accent: 'rgba(251,191,36,0.45)',
-    glow: 'rgba(251,191,36,0.28)',
+    glow: 'rgba(251,191,36,0.2)',
   },
 ]
 
@@ -93,39 +102,34 @@ function ProductStage({
 }) {
   return (
     <div
-      className={`landing-showcase-reveal relative mx-auto w-full flex justify-center ${visible ? 'is-visible' : ''}`}
+      className={`landing-showcase-reveal relative mx-auto flex w-full justify-center ${visible ? 'is-visible' : ''}`}
       style={{ maxWidth: width }}
     >
       <div
-        className="landing-showcase-glow-pulse pointer-events-none absolute left-1/2 top-[42%] h-[55%] w-[88%] -translate-x-1/2 -translate-y-1/2 rounded-[48px] blur-[72px]"
+        className="landing-showcase-glow-pulse pointer-events-none absolute left-1/2 top-[42%] h-[55%] w-[92%] -translate-x-1/2 -translate-y-1/2 rounded-[48px] blur-[80px]"
         style={{
-          background: `radial-gradient(ellipse at center, ${glow} 0%, transparent 72%)`,
+          background: `radial-gradient(ellipse at center, ${glow} 0%, transparent 78%)`,
           animation: visible ? 'landing-showcase-glow-pulse 6s ease-in-out infinite' : undefined,
         }}
         aria-hidden
       />
-      <div
-        className="pointer-events-none absolute left-1/2 top-[48%] h-[40%] w-[70%] -translate-x-1/2 -translate-y-1/2 rounded-full blur-[100px] opacity-40"
-        style={{ background: glow }}
-        aria-hidden
-      />
 
       <div
-        className="relative w-full overflow-hidden rounded-2xl border border-white/[0.14] bg-[#0c1422]/80 backdrop-blur-[2px]"
+        className="relative w-full overflow-hidden rounded-2xl border border-white/[0.12] bg-[#0c1422]/75 backdrop-blur-[2px]"
         style={{
           maxWidth: width,
           boxShadow: [
             '0 0 0 1px rgba(255,255,255,0.04) inset',
-            '0 1px 0 0 rgba(255,255,255,0.08) inset',
-            `0 0 0 1px color-mix(in srgb, ${accent} 25%, transparent)`,
-            '0 32px 64px -28px rgba(0,0,0,0.85)',
-            `0 0 100px -24px ${glow}`,
+            '0 1px 0 0 rgba(255,255,255,0.06) inset',
+            '0 40px 72px -36px rgba(0,0,0,0.75)',
+            '0 24px 48px -32px rgba(0,0,0,0.55)',
+            `0 0 80px -32px color-mix(in srgb, ${glow} 65%, transparent)`,
           ].join(', '),
         }}
       >
         <div
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px"
-          style={{ background: `linear-gradient(90deg, transparent 5%, ${accent} 50%, transparent 95%)` }}
+          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px opacity-70"
+          style={{ background: `linear-gradient(90deg, transparent 8%, ${accent} 50%, transparent 92%)` }}
           aria-hidden
         />
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -180,20 +184,6 @@ function ShowcaseSlidePanel({
       data-step-index={index}
       className="relative flex min-h-[88svh] flex-col justify-center py-16 sm:py-24"
     >
-      <div
-        className="pointer-events-none absolute inset-0 transition-[background] duration-[1.4s] ease-out"
-        style={{ background: slide.ambient }}
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute inset-y-0 left-0 w-20 bg-gradient-to-r from-[var(--background)]/50 to-transparent sm:w-32"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute inset-y-0 right-0 w-20 bg-gradient-to-l from-[var(--background)]/50 to-transparent sm:w-32"
-        aria-hidden
-      />
-
       <div className="cs-container-adaptive relative z-10 flex w-full flex-col items-center px-4 sm:px-8">
         <ProductStage
           src={slide.src}
@@ -209,7 +199,7 @@ function ShowcaseSlidePanel({
           className={`landing-showcase-reveal-delay mx-auto mt-8 max-w-2xl text-center sm:mt-10 ${revealed ? 'is-visible' : ''}`}
         >
           {slide.metric ? (
-            <p className="text-base sm:text-lg font-bold tracking-tight" style={{ color: 'var(--brand-primary)' }}>
+            <p className="text-base font-bold tracking-tight sm:text-lg" style={{ color: 'var(--brand-primary)' }}>
               {slide.metric}
             </p>
           ) : null}
@@ -217,13 +207,44 @@ function ShowcaseSlidePanel({
             <p className="mt-1 text-[11px] text-zinc-500">{slide.metricDetail}</p>
           ) : null}
           <p
-            className={`font-black uppercase tracking-[0.14em] text-white ${slide.metric || slide.metricDetail ? 'mt-3' : 'mt-0'} text-xs`}
+            className={`text-xs font-black uppercase tracking-[0.14em] text-white ${slide.metric || slide.metricDetail ? 'mt-3' : 'mt-0'}`}
           >
             {slide.title}
           </p>
           <p className="mt-2 text-sm leading-relaxed text-zinc-400">{slide.description}</p>
         </div>
       </div>
+    </div>
+  )
+}
+
+function ShowcaseAmbientLayer({ active }: { active: number }) {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden>
+      <div className="absolute inset-0" style={{ background: CANVAS }} />
+      {SLIDES.map((slide, i) => (
+        <div
+          key={slide.id}
+          className="absolute inset-0 transition-opacity duration-[2.2s] ease-in-out"
+          style={{
+            background: slide.ambient,
+            opacity: i === active ? 1 : 0,
+          }}
+        />
+      ))}
+      {/* Suaviza topo e base do bloco de slides — sem linha reta de corte */}
+      <div
+        className="absolute inset-x-0 top-0 h-[min(28rem,38vh)]"
+        style={{
+          background: `linear-gradient(to bottom, ${CANVAS} 0%, color-mix(in srgb, ${CANVAS} 72%, transparent) 38%, transparent 100%)`,
+        }}
+      />
+      <div
+        className="absolute inset-x-0 bottom-0 h-[min(24rem,32vh)]"
+        style={{
+          background: `linear-gradient(to top, ${CANVAS} 0%, color-mix(in srgb, ${CANVAS} 65%, transparent) 42%, transparent 100%)`,
+        }}
+      />
     </div>
   )
 }
@@ -267,29 +288,21 @@ export function DashboardShowcase() {
     }
   }, [])
 
-  const activeSlide = SLIDES[active] ?? SLIDES[0]
-
   return (
     <section
-      className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2"
+      className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 bg-background"
       aria-label="Product screenshots"
     >
-      <div className="relative overflow-hidden bg-[#060b14] py-20 sm:py-28">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-60 transition-opacity duration-[1.2s]"
-          style={{
-            background: `radial-gradient(ellipse 60% 50% at 50% 0%, ${activeSlide.glow} 0%, transparent 65%)`,
-          }}
-          aria-hidden
-        />
-        <div className="cs-container-adaptive relative z-10 text-center">
-          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--brand-primary)' }}>
+      {/* Intro — texto limpo, sem container de glow (evita “caixa” retangular) */}
+      <div className="relative z-10 py-20 sm:py-28">
+        <div className="cs-container-adaptive text-center">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--brand-primary)' }}>
             Platform
           </p>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+          <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
             This is what you get, immediately.
           </h2>
-          <p className="mt-4 text-zinc-400 max-w-lg mx-auto text-base leading-relaxed">
+          <p className="mx-auto mt-4 max-w-lg text-base leading-relaxed text-zinc-400">
             Live latency, cache diagnostics, and security checks across every region — no setup required.
           </p>
           <p className="mt-3 text-[11px] font-medium uppercase tracking-[0.2em] text-zinc-600">
@@ -301,14 +314,14 @@ export function DashboardShowcase() {
               const isActive = i === active
               const isPast = i < active
               return (
-                <div key={s.id} className="flex items-center sm:flex-1 sm:max-w-[140px]">
+                <div key={s.id} className="flex items-center sm:max-w-[140px] sm:flex-1">
                   <div className="flex flex-col items-center gap-2 px-3">
                     <span
                       className="flex h-2.5 w-2.5 rounded-full transition-all duration-700 ease-out"
                       style={{
                         background: isActive ? s.accent : isPast ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.12)',
-                        boxShadow: isActive ? `0 0 16px 2px ${s.glow}` : 'none',
-                        transform: isActive ? 'scale(1.35)' : 'scale(1)',
+                        boxShadow: isActive ? `0 0 14px 1px ${s.glow}` : 'none',
+                        transform: isActive ? 'scale(1.3)' : 'scale(1)',
                       }}
                     />
                     <span
@@ -319,10 +332,10 @@ export function DashboardShowcase() {
                   </div>
                   {i < SLIDES.length - 1 ? (
                     <div
-                      className="hidden h-px flex-1 sm:block mx-1 transition-colors duration-700"
+                      className="mx-1 hidden h-px flex-1 transition-colors duration-700 sm:block"
                       style={{
                         background: isPast
-                          ? 'linear-gradient(90deg, rgba(255,255,255,0.25), rgba(255,255,255,0.08))'
+                          ? 'linear-gradient(90deg, rgba(255,255,255,0.2), rgba(255,255,255,0.06))'
                           : 'rgba(255,255,255,0.06)',
                       }}
                       aria-hidden
@@ -335,9 +348,14 @@ export function DashboardShowcase() {
         </div>
       </div>
 
-      {SLIDES.map((slide, i) => (
-        <ShowcaseSlidePanel key={slide.id} slide={slide} index={i} setStepRef={setStepRef} />
-      ))}
+      {/* Slides — um único fundo com crossfade, painéis transparentes */}
+      <div className="relative">
+        <ShowcaseAmbientLayer active={active} />
+
+        {SLIDES.map((slide, i) => (
+          <ShowcaseSlidePanel key={slide.id} slide={slide} index={i} setStepRef={setStepRef} />
+        ))}
+      </div>
     </section>
   )
 }
