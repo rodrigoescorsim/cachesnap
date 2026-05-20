@@ -114,14 +114,18 @@ function ShowcasePreview({
       style={{ maxWidth }}
     >
       {slide.kind === 'live' ? (
-        slide.live === 'edge-vs-origin' ? (
-          <LandingEdgeVsOriginDemo />
-        ) : slide.live === 'period-performance' ? (
-          <LandingPeriodPerformanceDemo />
-        ) : slide.live === 'monitors' ? (
-          <LandingMonitorsDemo />
+        visible ? (
+          slide.live === 'edge-vs-origin' ? (
+            <LandingEdgeVsOriginDemo />
+          ) : slide.live === 'period-performance' ? (
+            <LandingPeriodPerformanceDemo />
+          ) : slide.live === 'monitors' ? (
+            <LandingMonitorsDemo />
+          ) : (
+            <LandingHistoricalTrendsDemo />
+          )
         ) : (
-          <LandingHistoricalTrendsDemo />
+          <div className="min-h-[340px] w-full" />
         )
       ) : (
         /* eslint-disable-next-line @next/next/no-img-element */
