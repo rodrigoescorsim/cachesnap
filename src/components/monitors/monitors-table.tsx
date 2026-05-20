@@ -1079,7 +1079,7 @@ export function MonitorsTable({
     <div className="relative rounded-xl">
       <div className={BRAND_TABLE_SURFACE_GRADIENT} aria-hidden />
       <div className={`${MONITOR_TABLE.innerScroll} cs-dropdown-scroll`}>
-        <table className={`w-full table-fixed border-collapse ${MONITOR_TABLE.transition}`}>
+        <table className={`w-full min-w-[700px] table-fixed border-collapse ${MONITOR_TABLE.transition}`}>
 
           <thead className="sticky top-0 z-10">
             {table.getHeaderGroups().map((hg) => (
