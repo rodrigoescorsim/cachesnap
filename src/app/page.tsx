@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import { getSession } from '@/lib/auth'
 import { HeroUrlForm } from './hero-url-form'
 import { MarketingFooter, MarketingHeader } from '@/components/marketing/marketing-chrome'
@@ -99,6 +101,8 @@ const STEPS = [
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
+const animatedLogoSvg = readFileSync(join(process.cwd(), 'public/logo-animated.svg'), 'utf-8')
+
 export default async function RootPage() {
   const user = await getSession()
   if (user) redirect('/monitors')
@@ -128,6 +132,12 @@ export default async function RootPage() {
         <section className="cs-container-adaptive pt-24 pb-16">
           <div className="flex flex-col items-center text-center gap-8">
 
+            {/* Animated logo — inline SVG para fundo transparente */}
+            <div
+              className="w-[148px] h-[148px] sm:w-[172px] sm:h-[172px] shrink-0"
+              aria-hidden="true"
+              dangerouslySetInnerHTML={{ __html: animatedLogoSvg }}
+            />
 
             {/* Headline */}
             <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white max-w-3xl leading-[1.1] drop-shadow-sm">
