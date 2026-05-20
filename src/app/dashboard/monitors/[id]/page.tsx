@@ -1859,7 +1859,7 @@ export default async function MonitorDetailPage({
                       <ViewSectionHeader title={`Recent performance spikes — ${range === '1h' ? 'last hour' : range === '4h' ? 'last 4 hours' : range === '7d' ? 'last 7 days' : range === '30d' ? 'last 30 days' : range === '90d' ? 'last 90 days' : 'last 24 hours'}`} />
                       <div className="cs-panel divide-y divide-white/[0.03]">
                         {spikes.map((spike, index) => (
-                          <div key={index} className="flex items-center justify-between py-5 px-4 hover:bg-white/[0.03] transition-all group/spike">
+                          <div key={index} className="flex flex-col gap-1.5 py-3 px-4 hover:bg-white/[0.03] transition-all group/spike sm:flex-row sm:items-center sm:justify-between sm:py-5">
                             <div className="flex items-center gap-4">
                               <div className="flex items-center gap-2">
                                 <div className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
@@ -1870,7 +1870,7 @@ export default async function MonitorDetailPage({
                               <span className="text-[10px] font-black text-zinc-300 uppercase tracking-widest group-hover/spike:text-white transition-colors">{regionLabels[spike.region] ?? spike.region}</span>
                             </div>
 
-                            <div className="flex items-center gap-5 tabular-nums">
+                            <div className="flex items-center gap-4 tabular-nums">
                               <div className="text-[10px] font-medium flex items-center gap-1.5">
                                 <PremiumTooltip content={`Baseline: region average during the previous ${bucketSize} window`}>
                                   <span className="text-zinc-400 line-through decoration-zinc-700/30 cursor-help">{spike.prev_avg}ms</span>
@@ -1928,9 +1928,9 @@ export default async function MonitorDetailPage({
 
                               return (
                                 <div key={t.region} className="space-y-1.5 py-1.2 border-b border-white/[0.03] last:border-0 group/row">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <span className="text-[10px] font-black text-zinc-300 min-w-[110px] uppercase tracking-widest transition-colors group-hover/row:text-white">{regionLabels[t.region] ?? t.region}</span>
-                                    <div className="flex items-center gap-6 tabular-nums">
+                                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                                    <span className="text-[10px] font-black text-zinc-300 uppercase tracking-widest transition-colors group-hover/row:text-white">{regionLabels[t.region] ?? t.region}</span>
+                                    <div className="flex items-center gap-3 tabular-nums sm:gap-6">
                                       <div className="text-[10px] font-medium flex items-center gap-2">
                                         <span className="text-zinc-400 line-through decoration-zinc-600/30">{t.previous_avg_ms}ms</span>
                                         <span className="text-zinc-500/30">→</span>

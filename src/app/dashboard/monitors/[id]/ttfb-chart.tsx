@@ -1396,14 +1396,14 @@ export function TtfbChart({
                 </div>
               }
             >
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 items-center gap-2">
                 <PremiumTooltip
                   content={isSynced ? "Charts are synchronized. Click to decouple." : "Charts are independent. Click to synchronize."}
                   position="bottom-center"
                 >
                   <button
                     onClick={() => setIsSynced(!isSynced)}
-                    className={`flex h-9 items-center justify-center gap-1.5 px-2 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 ${isSynced
+                    className={`flex shrink-0 h-9 items-center justify-center gap-1.5 px-2 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 ${isSynced
                       ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400/90 shadow-indigo-500/10'
                       : 'border-white/10 bg-white/[0.05] text-zinc-500 hover:border-white/15 hover:text-zinc-300'
                       }`}
@@ -1415,12 +1415,14 @@ export function TtfbChart({
                   </button>
                 </PremiumTooltip>
 
-                <TrendsTimeframeChips
-                  range={range}
-                  monitorId={monitorId}
-                  previewMode={previewMode}
-                  onRangeChange={onRangeChange}
-                />
+                <div className="min-w-0 overflow-x-auto">
+                  <TrendsTimeframeChips
+                    range={range}
+                    monitorId={monitorId}
+                    previewMode={previewMode}
+                    onRangeChange={onRangeChange}
+                  />
+                </div>
               </div>
             </ViewSectionHeader>
           </>
@@ -1429,7 +1431,7 @@ export function TtfbChart({
             <div
               className="cs-panel-interactive group p-4"
             >
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">TTFB Trend</div>
                   <div className="h-3 w-px bg-white/10" />
@@ -1438,7 +1440,7 @@ export function TtfbChart({
                     <span className="text-[10px] font-black text-cyan-300 tabular-nums leading-none mb-[1px]">{Math.round(ttfbTimeframeAvg)}ms</span>
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => toggleGlobal('ttfb')}
@@ -1587,8 +1589,8 @@ export function TtfbChart({
             <div
               className="cs-panel-interactive group p-4"
             >
-              <div className="mb-2 flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2">
                   <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">Cache Hit Rate</div>
                   {isCacheNotReported && (
                     <span className="inline-flex items-center rounded-full border border-zinc-500/30 bg-zinc-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-tight text-zinc-300">
@@ -1617,9 +1619,9 @@ export function TtfbChart({
                     </>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div>
                   {hasCacheData && (
-                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <button
                         type="button"
                         onClick={() => toggleGlobal('cache')}
@@ -1820,8 +1822,8 @@ export function TtfbChart({
             <div
               className="cs-panel-interactive group p-4"
             >
-              <div className="mb-2 flex items-center justify-between">
-                <div className="flex items-center gap-3">
+              <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-3">
                   <div className="text-[11px] font-bold text-zinc-300 uppercase tracking-tight opacity-80">Connection Time</div>
                   <div className="h-3 w-px bg-white/10" />
                   <div className="flex items-center gap-1.5">
@@ -1865,7 +1867,7 @@ export function TtfbChart({
                     ))}
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => toggleGlobal('net')}
