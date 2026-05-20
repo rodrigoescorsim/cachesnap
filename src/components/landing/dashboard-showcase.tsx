@@ -168,7 +168,7 @@ function ShowcaseSlidePanel({
     <div
       ref={panelRef}
       data-step-index={index}
-      className="relative flex min-h-[88svh] flex-col justify-center py-16 sm:py-24"
+      className="relative flex flex-col py-14 sm:py-16 md:py-20"
     >
       <div className="cs-container-adaptive relative z-10 flex w-full flex-col items-center px-4 sm:px-8">
         <div
