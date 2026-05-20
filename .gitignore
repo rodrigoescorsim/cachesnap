@@ -59,3 +59,6 @@ workers/probe/.wrangler/
 # logs
 cloudflared.log
 *.log
+
+# img backups
+img/bkp/
