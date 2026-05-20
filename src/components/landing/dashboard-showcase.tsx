@@ -1,148 +1,133 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { LandingEdgeVsOriginDemo } from './landing-edge-vs-origin-demo'
+import { LandingPeriodPerformanceDemo } from './landing-period-performance-demo'
+import { LandingMonitorsDemo } from './landing-monitors-demo'
 
-const CANVAS = 'var(--background)'
+/** Mesmo canvas do dashboard / screenshots */
+const SHOWCASE_CANVAS = '#0B1220'
 
-/** Glow suave — centro deslocado, sem pico na borda superior */
 function softAmbient(primary: string, secondary?: string): string {
   const layers = [
-    `radial-gradient(ellipse 130% 85% at 50% 42%, ${primary} 0%, transparent 72%)`,
+    `radial-gradient(ellipse 140% 90% at 50% 48%, ${primary} 0%, transparent 78%)`,
     secondary
-      ? `radial-gradient(ellipse 90% 70% at 72% 78%, ${secondary} 0%, transparent 68%)`
+      ? `radial-gradient(ellipse 100% 75% at 68% 82%, ${secondary} 0%, transparent 72%)`
       : null,
   ].filter(Boolean)
   return layers.join(', ')
 }
 
-type Slide = {
-  id: string
-  src: string
-  alt: string
-  width: number
-  height: number
-  title: string
-  description: string
-  metric?: string
-  metricDetail?: string
-  ambient: string
-  accent: string
-  glow: string
-}
+type Slide =
+  | {
+      id: string
+      kind: 'live'
+      live: 'edge-vs-origin' | 'period-performance' | 'monitors'
+      maxWidth: number
+      title: string
+      description: string
+      ambient: string
+      accent: string
+      glow: string
+    }
+  | {
+      id: string
+      kind: 'image'
+      src: string
+      alt: string
+      width: number
+      height: number
+      title: string
+      description: string
+      ambient: string
+      accent: string
+      glow: string
+    }
 
 const SLIDES: Slide[] = [
   {
     id: 'edge',
-    src: '/screenshots/edge-vs-origin.png',
-    width: 1042,
-    height: 821,
-    alt: 'CacheSnap Edge vs Origin — edge cache latency compared to origin',
-    metric: '95% faster · 2059ms saved per request on average',
-    metricDetail: 'Edge vs Origin · 24h window · 8 regions',
+    kind: 'live',
+    live: 'edge-vs-origin',
+    maxWidth: 1042,
     title: 'Edge vs Origin',
     description: 'See exactly how much your CDN saves per region — edge HIT vs origin MISS, side by side.',
-    ambient: softAmbient('rgba(34,255,136,0.11)', 'rgba(16,185,129,0.06)'),
+    ambient: softAmbient('rgba(34,255,136,0.06)', 'rgba(16,185,129,0.04)'),
     accent: 'rgba(34,255,136,0.55)',
-    glow: 'rgba(34,255,136,0.28)',
+    glow: 'rgba(34,255,136,0.2)',
   },
   {
     id: 'monitors',
-    src: '/screenshots/monitors.png',
-    width: 1224,
-    height: 1078,
-    alt: 'CacheSnap monitors — global TTFB, cache hit rate, uptime and incidents per URL',
+    kind: 'live',
+    live: 'monitors',
+    maxWidth: 1224,
     title: 'Monitors',
     description: 'Every URL in one view — global averages, per-site metrics, regional health, and open incidents.',
-    ambient: softAmbient('rgba(99,102,241,0.12)', 'rgba(56,189,248,0.06)'),
+    ambient: softAmbient('rgba(99,102,241,0.07)', 'rgba(56,189,248,0.04)'),
     accent: 'rgba(129,140,248,0.5)',
-    glow: 'rgba(129,140,248,0.24)',
+    glow: 'rgba(129,140,248,0.18)',
   },
   {
     id: 'performance',
-    src: '/screenshots/performance.png',
-    width: 1010,
-    height: 639,
-    alt: 'CacheSnap period performance — edge vs origin TTFB per region',
+    kind: 'live',
+    live: 'period-performance',
+    maxWidth: 1010,
     title: 'Period performance',
     description: 'Edge cache TTFB vs origin TTFB per region for any time window.',
-    ambient: softAmbient('rgba(34,211,238,0.1)', 'rgba(20,184,166,0.06)'),
+    ambient: softAmbient('rgba(34,211,238,0.06)', 'rgba(20,184,166,0.04)'),
     accent: 'rgba(34,211,238,0.5)',
-    glow: 'rgba(34,211,238,0.22)',
+    glow: 'rgba(34,211,238,0.18)',
   },
   {
     id: 'trends',
+    kind: 'image',
     src: '/screenshots/trends.png',
     width: 1040,
     height: 1092,
     alt: 'CacheSnap trends — TTFB and cache hit rate over time',
     title: 'Historical trends',
     description: 'TTFB and cache hit rate over time, per region. Spot regressions before users do.',
-    ambient: softAmbient('rgba(244,114,182,0.08)', 'rgba(251,191,36,0.06)'),
+    ambient: softAmbient('rgba(244,114,182,0.05)', 'rgba(251,191,36,0.04)'),
     accent: 'rgba(251,191,36,0.45)',
-    glow: 'rgba(251,191,36,0.2)',
+    glow: 'rgba(251,191,36,0.16)',
   },
 ]
 
-function ProductStage({
-  src,
-  alt,
-  accent,
-  glow,
-  width,
-  height,
+function ShowcasePreview({
+  slide,
   visible,
 }: {
-  src: string
-  alt: string
-  accent: string
-  glow: string
-  width: number
-  height: number
+  slide: Slide
   visible: boolean
 }) {
+  const maxWidth = slide.kind === 'live' ? slide.maxWidth : slide.width
+
   return (
     <div
-      className={`landing-showcase-reveal relative mx-auto flex w-full justify-center ${visible ? 'is-visible' : ''}`}
-      style={{ maxWidth: width }}
+      className={`landing-showcase-reveal relative mx-auto w-full ${visible ? 'is-visible' : ''}`}
+      style={{ maxWidth }}
     >
-      <div
-        className="landing-showcase-glow-pulse pointer-events-none absolute left-1/2 top-[42%] h-[55%] w-[92%] -translate-x-1/2 -translate-y-1/2 rounded-[48px] blur-[80px]"
-        style={{
-          background: `radial-gradient(ellipse at center, ${glow} 0%, transparent 78%)`,
-          animation: visible ? 'landing-showcase-glow-pulse 6s ease-in-out infinite' : undefined,
-        }}
-        aria-hidden
-      />
-
-      <div
-        className="relative w-full overflow-hidden rounded-2xl border border-white/[0.12] bg-[#0c1422]/75 backdrop-blur-[2px]"
-        style={{
-          maxWidth: width,
-          boxShadow: [
-            '0 0 0 1px rgba(255,255,255,0.04) inset',
-            '0 1px 0 0 rgba(255,255,255,0.06) inset',
-            '0 40px 72px -36px rgba(0,0,0,0.75)',
-            '0 24px 48px -32px rgba(0,0,0,0.55)',
-            `0 0 80px -32px color-mix(in srgb, ${glow} 65%, transparent)`,
-          ].join(', '),
-        }}
-      >
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 z-10 h-px opacity-70"
-          style={{ background: `linear-gradient(90deg, transparent 8%, ${accent} 50%, transparent 92%)` }}
-          aria-hidden
-        />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
+      {slide.kind === 'live' ? (
+        slide.live === 'edge-vs-origin' ? (
+          <LandingEdgeVsOriginDemo />
+        ) : slide.live === 'period-performance' ? (
+          <LandingPeriodPerformanceDemo />
+        ) : (
+          <LandingMonitorsDemo />
+        )
+      ) : (
+        /* eslint-disable-next-line @next/next/no-img-element */
         <img
-          src={src}
-          alt={alt}
-          width={width}
-          height={height}
-          className="relative z-[1] block h-auto w-full"
-          style={{ maxWidth: width }}
+          src={slide.src}
+          alt={slide.alt}
+          width={slide.width}
+          height={slide.height}
+          className="block h-auto w-full select-none"
+          style={{ maxWidth: slide.width }}
           decoding="async"
+          draggable={false}
         />
-      </div>
+      )}
     </div>
   )
 }
@@ -185,34 +170,14 @@ function ShowcaseSlidePanel({
       className="relative flex min-h-[88svh] flex-col justify-center py-16 sm:py-24"
     >
       <div className="cs-container-adaptive relative z-10 flex w-full flex-col items-center px-4 sm:px-8">
-        <ProductStage
-          src={slide.src}
-          alt={slide.alt}
-          accent={slide.accent}
-          glow={slide.glow}
-          width={slide.width}
-          height={slide.height}
-          visible={revealed}
-        />
-
         <div
-          className={`landing-showcase-reveal-delay mx-auto mt-8 max-w-2xl text-center sm:mt-10 ${revealed ? 'is-visible' : ''}`}
+          className={`landing-showcase-reveal-delay mx-auto mb-8 max-w-2xl text-center sm:mb-10 ${revealed ? 'is-visible' : ''}`}
         >
-          {slide.metric ? (
-            <p className="text-base font-bold tracking-tight sm:text-lg" style={{ color: 'var(--brand-primary)' }}>
-              {slide.metric}
-            </p>
-          ) : null}
-          {slide.metricDetail ? (
-            <p className="mt-1 text-[11px] text-zinc-500">{slide.metricDetail}</p>
-          ) : null}
-          <p
-            className={`text-xs font-black uppercase tracking-[0.14em] text-white ${slide.metric || slide.metricDetail ? 'mt-3' : 'mt-0'}`}
-          >
-            {slide.title}
-          </p>
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-white">{slide.title}</p>
           <p className="mt-2 text-sm leading-relaxed text-zinc-400">{slide.description}</p>
         </div>
+
+        <ShowcasePreview slide={slide} visible={revealed} />
       </div>
     </div>
   )
@@ -220,31 +185,18 @@ function ShowcaseSlidePanel({
 
 function ShowcaseAmbientLayer({ active }: { active: number }) {
   return (
-    <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden>
-      <div className="absolute inset-0" style={{ background: CANVAS }} />
+    <div className="pointer-events-none absolute inset-0 z-0" aria-hidden>
+      <div className="absolute inset-0" style={{ background: SHOWCASE_CANVAS }} />
       {SLIDES.map((slide, i) => (
         <div
           key={slide.id}
-          className="absolute inset-0 transition-opacity duration-[2.2s] ease-in-out"
+          className="absolute inset-0 transition-opacity duration-[2.4s] ease-in-out"
           style={{
             background: slide.ambient,
-            opacity: i === active ? 1 : 0,
+            opacity: i === active ? 0.55 : 0,
           }}
         />
       ))}
-      {/* Suaviza topo e base do bloco de slides — sem linha reta de corte */}
-      <div
-        className="absolute inset-x-0 top-0 h-[min(28rem,38vh)]"
-        style={{
-          background: `linear-gradient(to bottom, ${CANVAS} 0%, color-mix(in srgb, ${CANVAS} 72%, transparent) 38%, transparent 100%)`,
-        }}
-      />
-      <div
-        className="absolute inset-x-0 bottom-0 h-[min(24rem,32vh)]"
-        style={{
-          background: `linear-gradient(to top, ${CANVAS} 0%, color-mix(in srgb, ${CANVAS} 65%, transparent) 42%, transparent 100%)`,
-        }}
-      />
     </div>
   )
 }
@@ -290,10 +242,10 @@ export function DashboardShowcase() {
 
   return (
     <section
-      className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 bg-background"
+      className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2"
+      style={{ background: SHOWCASE_CANVAS }}
       aria-label="Product screenshots"
     >
-      {/* Intro — texto limpo, sem container de glow (evita “caixa” retangular) */}
       <div className="relative z-10 py-20 sm:py-28">
         <div className="cs-container-adaptive text-center">
           <p className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--brand-primary)' }}>
@@ -348,7 +300,6 @@ export function DashboardShowcase() {
         </div>
       </div>
 
-      {/* Slides — um único fundo com crossfade, painéis transparentes */}
       <div className="relative">
         <ShowcaseAmbientLayer active={active} />
 

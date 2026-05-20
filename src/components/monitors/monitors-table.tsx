@@ -20,6 +20,7 @@ import {
   getSortedRowModel,
   flexRender,
   createColumnHelper,
+  type ColumnDef,
   type OnChangeFn,
   type SortingState,
 } from '@tanstack/react-table'
@@ -546,6 +547,7 @@ function buildMonitorColumns(
   activeDropdownId: string | null,
   setActiveDropdownId: (id: string | null) => void,
   onOptimisticToggle: (id: string, status: 'active' | 'paused') => void,
+  previewMode = false,
 ) {
   const col = createColumnHelper<Monitor>()
 
@@ -584,7 +586,7 @@ function buildMonitorColumns(
     },
   })
 
-  return [
+  const columns = [
     col.accessor('name', {
       id: 'monitor',
       header: () => <MonitorsThTooltip label="Monitor" description={HEADER_HELP.monitor} />,
@@ -938,27 +940,32 @@ function buildMonitorColumns(
       },
     }),
 
-    col.display({
-      id: 'actions',
-      header: '',
-      size: 6,
-      enableSorting: false,
-      cell: ({ row }) => {
-        const m = row.original
-        const isPaused = m.status === 'paused'
-        return (
-          <RowActionsDropdown
-            monitor={m}
-            onDelete={onDelete}
-            onView={onView}
-            isOpen={activeDropdownId === m.id}
-            setIsOpen={setActiveDropdownId}
-            onOptimisticToggle={onOptimisticToggle}
-          />
-        )
-      },
-    }),
   ]
+
+  const actionsColumn = col.display({
+    id: 'actions',
+    header: '',
+    size: 6,
+    enableSorting: false,
+    cell: ({ row }) => {
+      const m = row.original
+      return (
+        <RowActionsDropdown
+          monitor={m}
+          onDelete={onDelete}
+          onView={onView}
+          isOpen={activeDropdownId === m.id}
+          setIsOpen={setActiveDropdownId}
+          onOptimisticToggle={onOptimisticToggle}
+        />
+      )
+    },
+  })
+
+  return [
+    ...columns,
+    ...(previewMode ? [] : [actionsColumn]),
+  ] as ColumnDef<Monitor>[]
 }
 
 // ─── MonitorsTable ────────────────────────────────────────────────────────────
@@ -979,6 +986,8 @@ interface MonitorsTableProps {
   onSortingChange: OnChangeFn<SortingState>
   optimisticStatus: Record<string, 'active' | 'paused'>
   onOptimisticToggle: (id: string, status: 'active' | 'paused') => void
+  /** Landing preview — no navigation or row actions */
+  previewMode?: boolean
 }
 
 export function MonitorsTable({
@@ -994,6 +1003,7 @@ export function MonitorsTable({
   onSortingChange,
   optimisticStatus,
   onOptimisticToggle,
+  previewMode = false,
 }: MonitorsTableProps) {
   const router = useRouter()
   const [deleteMonitorId, setDeleteMonitorId] = useState<string | null>(null)
@@ -1028,9 +1038,10 @@ export function MonitorsTable({
       (id) => router.push(`/dashboard/monitors/${id}`),
       activeDropdownId,
       setActiveDropdownId,
-      onOptimisticToggle
+      onOptimisticToggle,
+      previewMode,
     ),
-    [monitorWidthPct, showHit24hAvgColumn, router, activeDropdownId, onOptimisticToggle],
+    [monitorWidthPct, showHit24hAvgColumn, router, activeDropdownId, onOptimisticToggle, previewMode],
   )
 
   useEffect(() => {
@@ -1053,8 +1064,11 @@ export function MonitorsTable({
   })
 
   const handleRowClick = useCallback(
-    (monitorId: string) => router.push(`/dashboard/monitors/${monitorId}`),
-    [router],
+    (monitorId: string) => {
+      if (previewMode) return
+      router.push(`/dashboard/monitors/${monitorId}`)
+    },
+    [router, previewMode],
   )
 
   const rows = table.getRowModel().rows
@@ -1130,20 +1144,24 @@ export function MonitorsTable({
                 return (
                   <tr
                     key={row.id}
-                    tabIndex={0}
-                    role="button"
-                    aria-label={`View details for ${row.original.name}`}
-                    onClick={() => handleRowClick(row.original.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        handleRowClick(row.original.id)
-                      }
-                    }}
+                    tabIndex={previewMode ? undefined : 0}
+                    role={previewMode ? undefined : 'button'}
+                    aria-label={previewMode ? undefined : `View details for ${row.original.name}`}
+                    onClick={previewMode ? undefined : () => handleRowClick(row.original.id)}
+                    onKeyDown={
+                      previewMode
+                        ? undefined
+                        : (e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              handleRowClick(row.original.id)
+                            }
+                          }
+                    }
                     style={{ animationDelay: `${Math.min(i, 7) * 25}ms` }}
                     className={[
                       MONITOR_TABLE.tbodyRow,
-                      'group/row cursor-pointer',
+                      previewMode ? 'group/row' : 'group/row cursor-pointer',
                       'animate-[cs-fade-in_0.22s_ease-out_both]',
                       'active:bg-white/[0.03]',
                       'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-white/15',
