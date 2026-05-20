@@ -1,0 +1,152 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="clip">
+      <rect width="512" height="512" rx="115" ry="115"/>
+    </clipPath>
+
+    <!-- Glow pulsante para o símbolo -->
+    <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feComponentTransfer in="blur" result="gb">
+        <feFuncA type="linear" slope="0.6"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="gb"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Glow intenso para pulse -->
+    <filter id="glowPulse" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feComponentTransfer in="blur" result="gb">
+        <feFuncA type="linear" slope="0.8"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="gb"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Glow borda -->
+    <filter id="borderGlow" x="-5%" y="-5%" width="110%" height="110%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComponentTransfer in="blur" result="gb">
+        <feFuncA type="linear" slope="0.5"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="gb"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <radialGradient id="bgGrad" cx="50%" cy="42%" r="58%">
+      <stop offset="0%" stop-color="#0f1e33"/>
+      <stop offset="100%" stop-color="#0B1220"/>
+    </radialGradient>
+  </defs>
+
+  <g clip-path="url(#clip)">
+    <!-- Fundo -->
+    <rect width="512" height="512" fill="url(#bgGrad)"/>
+
+    <!-- ── Borda neon animada (opacity pulse) ── -->
+    <rect x="6" y="6" width="500" height="500" rx="110" ry="110"
+      fill="none" stroke="#22FF88" stroke-width="2.5"
+      filter="url(#borderGlow)">
+      <animate attributeName="stroke-opacity"
+        values="0.2;0.5;0.2"
+        dur="3s" repeatCount="indefinite" calcMode="spline"
+        keySplines="0.4 0 0.6 1; 0.4 0 0.6 1"/>
+    </rect>
+
+    <!-- ── Halo de scan — ring que expande de dentro para fora e some ── -->
+    <circle cx="256" cy="256" r="60" fill="none" stroke="#22FF88" stroke-width="1.5">
+      <animate attributeName="r"      values="60;200;200" dur="3s" repeatCount="indefinite" calcMode="spline" keySplines="0.2 0 0.8 1;0.2 0 0.8 1"/>
+      <animate attributeName="stroke-opacity" values="0.5;0;0"   dur="3s" repeatCount="indefinite" calcMode="spline" keySplines="0.2 0 0.8 1;0.2 0 0.8 1"/>
+      <animate attributeName="stroke-width"   values="2;0.5;0.5" dur="3s" repeatCount="indefinite" calcMode="spline" keySplines="0.2 0 0.8 1;0.2 0 0.8 1"/>
+    </circle>
+
+    <!-- ── Símbolo principal ── -->
+    <g transform="translate(256,256)">
+
+      <!-- Hexágono externo com rotação lenta contínua -->
+      <g filter="url(#glow)">
+        <animateTransform attributeName="transform"
+          type="rotate"
+          from="0" to="360"
+          dur="30s" repeatCount="indefinite"/>
+        <polygon
+          points="0,-215 186.2,-107.5 186.2,107.5 0,215 -186.2,107.5 -186.2,-107.5"
+          fill="none"
+          stroke="#22FF88"
+          stroke-width="10"
+          stroke-linejoin="round">
+          <!-- Pulse de opacidade suave -->
+          <animate attributeName="stroke-opacity"
+            values="0.85;1;0.85"
+            dur="3s" repeatCount="indefinite" calcMode="spline"
+            keySplines="0.4 0 0.6 1; 0.4 0 0.6 1"/>
+        </polygon>
+      </g>
+
+      <!-- Inner ring — rotação inversa -->
+      <g>
+        <animateTransform attributeName="transform"
+          type="rotate"
+          from="0" to="-360"
+          dur="20s" repeatCount="indefinite"/>
+        <polygon
+          points="0,-175 151.55,-87.5 151.55,87.5 0,175 -151.55,87.5 -151.55,-87.5"
+          fill="none"
+          stroke="rgba(34,255,136,0.18)"
+          stroke-width="1.5"
+          stroke-linejoin="round"
+          stroke-dasharray="20 12">
+          <animate attributeName="stroke-opacity"
+            values="0.1;0.25;0.1"
+            dur="3s" repeatCount="indefinite" calcMode="spline"
+            keySplines="0.4 0 0.6 1; 0.4 0 0.6 1"/>
+        </polygon>
+      </g>
+
+      <!-- Cubo 3D — glow pulsante sincronizado -->
+      <g filter="url(#glowPulse)">
+        <!-- Face superior — iluminada -->
+        <polygon
+          points="0,-115 115,-57.5 0,0 -115,-57.5"
+          stroke="#22FF88"
+          stroke-width="6"
+          stroke-linejoin="round">
+          <animate attributeName="fill"
+            values="rgba(34,255,136,0.14);rgba(34,255,136,0.22);rgba(34,255,136,0.14)"
+            dur="3s" repeatCount="indefinite" calcMode="spline"
+            keySplines="0.4 0 0.6 1; 0.4 0 0.6 1"/>
+        </polygon>
+        <!-- Face direita — meia-luz -->
+        <polygon
+          points="115,-57.5 115,57.5 0,115 0,0"
+          stroke="#22FF88"
+          stroke-width="6"
+          stroke-linejoin="round">
+          <animate attributeName="fill"
+            values="rgba(34,255,136,0.07);rgba(34,255,136,0.12);rgba(34,255,136,0.07)"
+            dur="3s" repeatCount="indefinite" calcMode="spline"
+            keySplines="0.4 0 0.6 1; 0.4 0 0.6 1"/>
+        </polygon>
+        <!-- Face esquerda — sombra -->
+        <polygon
+          points="-115,-57.5 0,0 0,115 -115,57.5"
+          stroke="#22FF88"
+          stroke-width="6"
+          stroke-linejoin="round">
+          <animate attributeName="fill"
+            values="rgba(34,255,136,0.20);rgba(34,255,136,0.30);rgba(34,255,136,0.20)"
+            dur="3s" repeatCount="indefinite" calcMode="spline"
+            keySplines="0.4 0 0.6 1; 0.4 0 0.6 1"/>
+        </polygon>
+      </g>
+
+    </g>
+  </g>
+</svg>

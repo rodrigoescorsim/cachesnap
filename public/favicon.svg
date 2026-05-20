@@ -1,0 +1,78 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="clip"><rect width="512" height="512" rx="115" ry="115"/></clipPath>
+
+    <!-- Glow principal para todo o símbolo -->
+    <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feComponentTransfer in="blur" result="gb">
+        <feFuncA type="linear" slope="0.6"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="gb"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Glow suave para a borda externa -->
+    <filter id="borderGlow" x="-5%" y="-5%" width="110%" height="110%">
+      <feGaussianBlur stdDeviation="3.5" result="blur"/>
+      <feComponentTransfer in="blur" result="gb">
+        <feFuncA type="linear" slope="0.5"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="gb"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <radialGradient id="bgGrad" cx="50%" cy="42%" r="58%">
+      <stop offset="0%" stop-color="#0f1e33"/>
+      <stop offset="100%" stop-color="#0B1220"/>
+    </radialGradient>
+  </defs>
+
+  <g clip-path="url(#clip)">
+    <!-- Fundo -->
+    <rect width="512" height="512" fill="url(#bgGrad)"/>
+
+    <!-- 3. Borda neon sutil — anel interno colado à borda do clip -->
+    <rect x="6" y="6" width="500" height="500" rx="110" ry="110" fill="none" stroke="#22FF88" stroke-width="2.5" stroke-opacity="0.35" filter="url(#borderGlow)"/>
+
+    <!-- Símbolo centrado -->
+    <g transform="translate(256,256)" filter="url(#glow)">
+
+      <!-- 1. Hexágono externo — traço sólido neon, igual ao cubo -->
+      <polygon
+        points="0,-215 186.2,-107.5 186.2,107.5 0,215 -186.2,107.5 -186.2,-107.5"
+        fill="none"
+        stroke="#22FF88"
+        stroke-width="10"
+        stroke-linejoin="round"/>
+
+      <!-- 2. Cubo 3D — 3 faces limpas, fills mais contrastados para impacto em pequenos -->
+      <!-- Face superior (mais clara — topo iluminado) -->
+      <polygon
+        points="0,-115 115,-57.5 0,0 -115,-57.5"
+        fill="rgba(34,255,136,0.14)"
+        stroke="#22FF88"
+        stroke-width="6"
+        stroke-linejoin="round"/>
+      <!-- Face direita (média) -->
+      <polygon
+        points="115,-57.5 115,57.5 0,115 0,0"
+        fill="rgba(34,255,136,0.07)"
+        stroke="#22FF88"
+        stroke-width="6"
+        stroke-linejoin="round"/>
+      <!-- Face esquerda (mais escura — sombra) -->
+      <polygon
+        points="-115,-57.5 0,0 0,115 -115,57.5"
+        fill="rgba(34,255,136,0.20)"
+        stroke="#22FF88"
+        stroke-width="6"
+        stroke-linejoin="round"/>
+
+    </g>
+  </g>
+</svg>

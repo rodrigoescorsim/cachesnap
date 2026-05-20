@@ -1,0 +1,218 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="clip">
+      <rect width="512" height="512" rx="115" ry="115"/>
+    </clipPath>
+
+    <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feComponentTransfer in="blur" result="gb">
+        <feFuncA type="linear" slope="0.7"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="gb"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="glowFlash" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feComponentTransfer in="blur" result="gb">
+        <feFuncA type="linear" slope="0.9"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="gb"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="borderGlow" x="-5%" y="-5%" width="110%" height="110%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComponentTransfer in="blur" result="gb">
+        <feFuncA type="linear" slope="0.55"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="gb"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <radialGradient id="bgGrad" cx="50%" cy="42%" r="58%">
+      <stop offset="0%" stop-color="#0f1e33"/>
+      <stop offset="100%" stop-color="#0B1220"/>
+    </radialGradient>
+
+    <linearGradient id="scanLine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#22FF88" stop-opacity="0"/>
+      <stop offset="48%"  stop-color="#22FF88" stop-opacity="0"/>
+      <stop offset="50%"  stop-color="#22FF88" stop-opacity="0.15"/>
+      <stop offset="52%"  stop-color="#22FF88" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#22FF88" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <g clip-path="url(#clip)">
+    <rect width="512" height="512" fill="url(#bgGrad)"/>
+
+    <!-- SCAN LINE -->
+    <rect x="0" y="0" width="512" height="512" fill="url(#scanLine)">
+      <animateTransform attributeName="transform" type="translate"
+        values="0,-512; 0,512" dur="4s" repeatCount="indefinite" calcMode="linear"/>
+    </rect>
+
+    <!-- BORDA — draw-in suave, sem ponta de início -->
+    <!-- Perímetro aprox rect 500x500 rx110: ~2*pi*110 corners + 4*(500-220) ≈ 1808 -->
+    <rect x="6" y="6" width="500" height="500" rx="110" ry="110"
+      fill="none" stroke="#22FF88" stroke-width="2.5" stroke-linecap="round"
+      filter="url(#borderGlow)"
+      stroke-dasharray="2100" stroke-dashoffset="2100">
+      <animate attributeName="stroke-dashoffset"
+        values="2100;0" begin="0s" dur="0.9s" fill="freeze"
+        calcMode="spline" keySplines="0.4 0 0.2 1"/>
+      <animate attributeName="stroke-opacity"
+        values="0.35;0.65;0.35" begin="1.1s" dur="3s" repeatCount="indefinite"
+        calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+    </rect>
+
+    <g transform="translate(256,256)" filter="url(#glow)">
+
+      <!-- HEXÁGONO — path com início no meio de uma aresta (sem vértice exposto)
+           pathLength=1290, início em aresta v5→v0 -->
+      <path
+        d="M -93.1,-161.25 L 0,-215 L 186.2,-107.5 L 186.2,107.5 L 0,215 L -186.2,107.5 L -186.2,-107.5 Z"
+        fill="none"
+        stroke="#22FF88"
+        stroke-width="10"
+        stroke-linejoin="round"
+        stroke-linecap="round"
+        pathLength="1290"
+        stroke-dasharray="1290"
+        stroke-dashoffset="1290">
+        <animate attributeName="stroke-dashoffset"
+          values="1290;0" begin="0.2s" dur="1.2s" fill="freeze"
+          calcMode="spline" keySplines="0.4 0 0.2 1"/>
+        <animate attributeName="stroke-opacity"
+          values="1;0.75;1" begin="1.6s" dur="3.5s" repeatCount="indefinite"
+          calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+      </path>
+
+      <!-- INNER RING tracejado — fade + rotação -->
+      <polygon
+        points="0,-175 151.55,-87.5 151.55,87.5 0,175 -151.55,87.5 -151.55,-87.5"
+        fill="none" stroke="#22FF88" stroke-width="1.5"
+        stroke-linejoin="round" stroke-dasharray="8 10" stroke-opacity="0">
+        <animate attributeName="stroke-opacity"
+          values="0;0.22" begin="1.3s" dur="0.4s" fill="freeze"/>
+        <animateTransform attributeName="transform" type="rotate"
+          from="0" to="360" begin="1.7s" dur="25s" repeatCount="indefinite"/>
+      </polygon>
+
+      <!-- CUBO face superior — path começa no meio de aresta, não num vértice -->
+      <path
+        d="M -57.5,-86.25 L 0,-115 L 115,-57.5 L 0,0 L -115,-57.5 Z"
+        stroke="#22FF88" stroke-width="6"
+        stroke-linejoin="round" stroke-linecap="round"
+        fill="rgba(34,255,136,0)"
+        pathLength="514" stroke-dasharray="514" stroke-dashoffset="514">
+        <animate attributeName="stroke-dashoffset"
+          values="514;0" begin="1.4s" dur="0.4s" fill="freeze"
+          calcMode="spline" keySplines="0.4 0 0.2 1"/>
+        <animate attributeName="fill"
+          values="rgba(34,255,136,0);rgba(34,255,136,0.14)"
+          begin="1.85s" dur="0.2s" fill="freeze"/>
+        <animate attributeName="fill"
+          values="rgba(34,255,136,0.14);rgba(34,255,136,0.22);rgba(34,255,136,0.14)"
+          begin="2.2s" dur="3s" repeatCount="indefinite"
+          calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+      </path>
+
+      <!-- CUBO face direita — início no meio de aresta -->
+      <path
+        d="M 57.5,-28.75 L 115,-57.5 L 115,57.5 L 0,115 L 0,0 Z"
+        stroke="#22FF88" stroke-width="6"
+        stroke-linejoin="round" stroke-linecap="round"
+        fill="rgba(34,255,136,0)"
+        pathLength="460" stroke-dasharray="460" stroke-dashoffset="460">
+        <animate attributeName="stroke-dashoffset"
+          values="460;0" begin="1.7s" dur="0.4s" fill="freeze"
+          calcMode="spline" keySplines="0.4 0 0.2 1"/>
+        <animate attributeName="fill"
+          values="rgba(34,255,136,0);rgba(34,255,136,0.07)"
+          begin="2.15s" dur="0.2s" fill="freeze"/>
+        <animate attributeName="fill"
+          values="rgba(34,255,136,0.07);rgba(34,255,136,0.12);rgba(34,255,136,0.07)"
+          begin="2.2s" dur="3s" repeatCount="indefinite"
+          calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+      </path>
+
+      <!-- CUBO face esquerda — início no meio de aresta -->
+      <path
+        d="M -115.0,0.0 L -115,-57.5 L 0,0 L 0,115 L -115,57.5 Z"
+        stroke="#22FF88" stroke-width="6"
+        stroke-linejoin="round" stroke-linecap="round"
+        fill="rgba(34,255,136,0)"
+        pathLength="514" stroke-dasharray="514" stroke-dashoffset="514">
+        <animate attributeName="stroke-dashoffset"
+          values="514;0" begin="2.0s" dur="0.4s" fill="freeze"
+          calcMode="spline" keySplines="0.4 0 0.2 1"/>
+        <animate attributeName="fill"
+          values="rgba(34,255,136,0);rgba(34,255,136,0.20)"
+          begin="2.45s" dur="0.2s" fill="freeze"/>
+        <animate attributeName="fill"
+          values="rgba(34,255,136,0.20);rgba(34,255,136,0.30);rgba(34,255,136,0.20)"
+          begin="2.2s" dur="3s" repeatCount="indefinite"
+          calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+      </path>
+
+      <!-- FLASH DE ENERGIA -->
+      <polygon
+        points="0,-215 186.2,-107.5 186.2,107.5 0,215 -186.2,107.5 -186.2,-107.5"
+        fill="#22FF88" stroke="none" opacity="0" filter="url(#glowFlash)">
+        <animate attributeName="opacity"
+          values="0;0.35;0" begin="2.5s" dur="0.5s" fill="freeze"
+          calcMode="spline" keySplines="0.1 0 0.3 1;0.3 0 0.9 1"/>
+        <animateTransform attributeName="transform" type="scale"
+          values="0.9;1.15" begin="2.5s" dur="0.5s" fill="freeze"
+          calcMode="spline" keySplines="0.1 0 0.3 1"/>
+      </polygon>
+
+    </g>
+
+    <!-- PARTÍCULAS nos 6 vértices do hexágono -->
+    <circle cx="256" cy="41" r="3" fill="#22FF88" opacity="0">
+      <animate attributeName="opacity" values="0;0.9;0" begin="2.5s" dur="0.7s" fill="freeze"/>
+      <animate attributeName="cy" values="41;4" begin="2.5s" dur="0.7s" fill="freeze" calcMode="spline" keySplines="0.2 0 0.8 1"/>
+      <animate attributeName="r" values="3;0.5" begin="2.5s" dur="0.7s" fill="freeze"/>
+    </circle>
+    <circle cx="442" cy="148" r="3" fill="#22FF88" opacity="0">
+      <animate attributeName="opacity" values="0;0.9;0" begin="2.5s" dur="0.7s" fill="freeze"/>
+      <animate attributeName="cx" values="442;492" begin="2.5s" dur="0.7s" fill="freeze" calcMode="spline" keySplines="0.2 0 0.8 1"/>
+      <animate attributeName="cy" values="148;98" begin="2.5s" dur="0.7s" fill="freeze" calcMode="spline" keySplines="0.2 0 0.8 1"/>
+      <animate attributeName="r" values="3;0.5" begin="2.5s" dur="0.7s" fill="freeze"/>
+    </circle>
+    <circle cx="442" cy="364" r="3" fill="#22FF88" opacity="0">
+      <animate attributeName="opacity" values="0;0.9;0" begin="2.5s" dur="0.7s" fill="freeze"/>
+      <animate attributeName="cx" values="442;492" begin="2.5s" dur="0.7s" fill="freeze" calcMode="spline" keySplines="0.2 0 0.8 1"/>
+      <animate attributeName="cy" values="364;414" begin="2.5s" dur="0.7s" fill="freeze" calcMode="spline" keySplines="0.2 0 0.8 1"/>
+      <animate attributeName="r" values="3;0.5" begin="2.5s" dur="0.7s" fill="freeze"/>
+    </circle>
+    <circle cx="256" cy="471" r="3" fill="#22FF88" opacity="0">
+      <animate attributeName="opacity" values="0;0.9;0" begin="2.5s" dur="0.7s" fill="freeze"/>
+      <animate attributeName="cy" values="471;508" begin="2.5s" dur="0.7s" fill="freeze" calcMode="spline" keySplines="0.2 0 0.8 1"/>
+      <animate attributeName="r" values="3;0.5" begin="2.5s" dur="0.7s" fill="freeze"/>
+    </circle>
+    <circle cx="70" cy="364" r="3" fill="#22FF88" opacity="0">
+      <animate attributeName="opacity" values="0;0.9;0" begin="2.5s" dur="0.7s" fill="freeze"/>
+      <animate attributeName="cx" values="70;20" begin="2.5s" dur="0.7s" fill="freeze" calcMode="spline" keySplines="0.2 0 0.8 1"/>
+      <animate attributeName="cy" values="364;414" begin="2.5s" dur="0.7s" fill="freeze" calcMode="spline" keySplines="0.2 0 0.8 1"/>
+      <animate attributeName="r" values="3;0.5" begin="2.5s" dur="0.7s" fill="freeze"/>
+    </circle>
+    <circle cx="70" cy="148" r="3" fill="#22FF88" opacity="0">
+      <animate attributeName="opacity" values="0;0.9;0" begin="2.5s" dur="0.7s" fill="freeze"/>
+      <animate attributeName="cx" values="70;20" begin="2.5s" dur="0.7s" fill="freeze" calcMode="spline" keySplines="0.2 0 0.8 1"/>
+      <animate attributeName="cy" values="148;98" begin="2.5s" dur="0.7s" fill="freeze" calcMode="spline" keySplines="0.2 0 0.8 1"/>
+      <animate attributeName="r" values="3;0.5" begin="2.5s" dur="0.7s" fill="freeze"/>
+    </circle>
+
+  </g>
+</svg>

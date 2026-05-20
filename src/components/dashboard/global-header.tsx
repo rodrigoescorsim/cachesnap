@@ -48,7 +48,7 @@ export function GlobalHeader({ userEmail, logoutAction }: GlobalHeaderProps) {
               className="pointer-events-none absolute -inset-2.5 rounded-2xl opacity-0 blur-lg transition-opacity duration-200 ease-out group-hover:opacity-100"
               style={{ background: 'radial-gradient(ellipse at center, rgba(34,255,136,0.1) 0%, transparent 72%)' }}
             />
-            <Logo variant="header" className="relative z-10 h-8 w-auto sm:h-[2.2rem]" />
+            <Logo className="relative z-10 h-8 w-auto sm:h-[2.2rem]" />
           </Link>
 
           <nav className="hidden items-center gap-6 md:flex" aria-label="Main">
