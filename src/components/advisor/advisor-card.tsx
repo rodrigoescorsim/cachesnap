@@ -67,7 +67,7 @@ export function AdvisorCard({ state, variant = 'default', className = '', hideAc
   if (variant === 'compact') {
     return (
       <div
-        className={`cs-card cs-card-glass relative flex items-center gap-3 px-4 py-2.5 ${cfg.bgClass} ${cfg.ringClass} animate-[cs-fade-in_0.3s_ease-out] ${className}`}
+        className={`cs-card cs-card-glass relative flex items-center gap-3 px-4 py-2.5 ${cfg.bgClass} ${cfg.ringClass} max-md:animate-none animate-[cs-fade-in_0.3s_ease-out] ${className}`}
         role="status"
         aria-label={`Advisor: ${state.headline}`}
       >
@@ -104,7 +104,7 @@ export function AdvisorCard({ state, variant = 'default', className = '', hideAc
   // ── Default (full card) ───────────────────────────────────────────────────
   return (
     <div
-      className={`cs-card cs-card-glass relative ${cfg.bgClass} ${cfg.ringClass} px-5 py-4 animate-[cs-fade-in_0.35s_ease-out] ${className}`}
+      className={`cs-card cs-card-glass relative ${cfg.bgClass} ${cfg.ringClass} px-5 py-4 max-md:animate-none animate-[cs-fade-in_0.35s_ease-out] ${className}`}
       role="status"
       aria-label={`Advisor: ${state.headline}`}
     >

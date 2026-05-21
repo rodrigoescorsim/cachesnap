@@ -4,7 +4,7 @@ import React from 'react'
  * Padrão de ponto pulsante discreto usado em cabeçalhos e indicadores de "Live".
  */
 export const LiveDot = ({ colorClass = 'bg-emerald-500' }: { colorClass?: string }) => (
-  <span className={`h-1.5 w-1.5 rounded-full animate-pulse shrink-0 ${colorClass}`} />
+  <span className={`h-1.5 w-1.5 rounded-full shrink-0 max-md:animate-none md:animate-pulse ${colorClass}`} />
 )
 
 interface ViewSectionHeaderProps {

@@ -37,8 +37,6 @@ export function LiveActivityHeader({ monitorId, freezeStorageKey, latestDataAt }
     }
 
     updateFromStorage()
-    const id = window.setInterval(updateFromStorage, 1000)
-    return () => window.clearInterval(id)
   }, [freezeStorageKey])
 
   const handleToggleFreeze = () => {
@@ -55,14 +53,14 @@ export function LiveActivityHeader({ monitorId, freezeStorageKey, latestDataAt }
   }
 
   return (
-    <div className="mb-5 isolate px-1">
+    <div className="mb-5 isolate overflow-x-clip px-1">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="cs-view-section-title">
           <LiveDot />
           Live Performance
         </h2>
 
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <div className="flex max-md:w-full max-md:flex-col max-md:items-stretch shrink-0 flex-wrap items-center justify-end gap-2">
           <MonitorDispatchButtons
             monitorId={monitorId}
             variant="compact"

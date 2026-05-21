@@ -166,6 +166,10 @@ body {
     .cs-card.cs-card-glass {
       @apply bg-surface backdrop-blur-none;
     }
+
+    .cs-card-wash {
+      display: none;
+    }
   }
 
   /** Form sections: subtle ring when a child control is focused (inset — works with .cs-card overflow). */
