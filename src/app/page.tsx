@@ -370,43 +370,66 @@ export default async function RootPage() {
 
         {/* ══════════════════════════════════════════════════════ FINAL CTA */}
         <section
-          className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 pb-28"
+          className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 overflow-hidden py-20 pb-28 sm:py-28 sm:pb-36"
           style={{ backgroundColor: LANDING_BG_CTA_SECTION }}
+          aria-label="Get started"
         >
-          <div className="cs-container-adaptive text-center space-y-8">
-            <div
-              className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold"
-              style={{ borderColor: 'rgba(34,255,136,0.25)', background: 'rgba(34,255,136,0.08)', color: 'var(--brand-primary)' }}
-            >
-              <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: 'var(--brand-primary)' }} />
-              Free tier included
-            </div>
-            <h2 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight max-w-2xl mx-auto leading-tight">
-              Your CDN might be serving stale content right now.
-            </h2>
-            <p className="text-zinc-400 max-w-lg mx-auto text-lg">
-              Most teams find out when a user complains. Set up a monitor in minutes and know before they do.
+          <div
+            className="pointer-events-none absolute left-1/2 top-1/4 h-64 w-[min(100%,36rem)] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-50 blur-3xl"
+            style={{ background: 'radial-gradient(ellipse, rgba(99, 102, 241, 0.14) 0%, transparent 70%)' }}
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute bottom-0 left-1/2 h-56 w-[min(100%,32rem)] -translate-x-1/2 translate-y-1/3 rounded-full opacity-45 blur-3xl"
+            style={{ background: 'radial-gradient(ellipse, rgba(34, 255, 136, 0.12) 0%, transparent 70%)' }}
+            aria-hidden
+          />
+
+          <div className="cs-container-adaptive relative z-10 mx-auto max-w-2xl text-center">
+            <p className="text-2xl font-extrabold leading-tight tracking-tight text-white sm:text-4xl sm:leading-tight">
+              Invisible edge problems are costing you performance and reputation.
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+
+            <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-zinc-400 sm:mt-6 sm:text-lg">
+              While you focus on building, your CDN might be serving stale content, slow responses, or poor cache efficiency to real users.
+            </p>
+
+            <div className="my-8 flex items-center justify-center gap-4 sm:my-10">
+              <span className="hidden h-px w-16 bg-gradient-to-r from-transparent to-white/15 sm:block" aria-hidden />
+              <p
+                className="text-xl font-bold tracking-tight sm:text-2xl"
+                style={{ color: 'var(--brand-primary)' }}
+              >
+                Know before they complain.
+              </p>
+              <span className="hidden h-px w-16 bg-gradient-to-l from-transparent to-white/15 sm:block" aria-hidden />
+            </div>
+
+            <p className="mx-auto max-w-xl text-base leading-relaxed text-zinc-400 sm:text-lg">
+              Set up monitoring in under a minute and gain complete visibility into your edge stack.
+            </p>
+
+            <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:mt-10 sm:flex-row sm:gap-5">
               <Link
                 href="/signup"
-                className="cs-btn-primary rounded-xl px-8 py-3.5 text-base font-bold"
+                className="cs-btn-primary rounded-xl px-8 py-3.5 text-base font-bold shadow-[0_0_28px_-6px_rgba(var(--brand-primary-rgb),0.5)]"
               >
                 Start monitoring free →
               </Link>
               <Link
                 href="/login"
-                className="text-sm font-medium text-zinc-400 hover:text-white transition-colors"
+                className="text-sm font-medium text-zinc-400 transition-colors hover:text-white"
               >
                 Already have an account? Sign in
               </Link>
             </div>
-            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-zinc-500 font-medium">
+
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-2 sm:mt-10">
               {['No credit card', 'No SDK or agent', 'No DNS changes', 'Cancel anytime'].map(item => (
-                <span key={item} className="flex items-center gap-1.5">
-                  <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={2} style={{ color: 'var(--brand-primary)' }}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 7l3 3L11.5 4" />
-                  </svg>
+                <span
+                  key={item}
+                  className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400"
+                >
                   {item}
                 </span>
               ))}
