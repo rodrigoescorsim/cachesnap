@@ -50,17 +50,52 @@ type Slide = {
   mobileImage: string
 }
 
-const PLATFORM_FEATURES = [
-  'Live TTFB and real cache hit/miss rates across global regions',
-  'Edge vs Origin performance deltas and comparison',
-  'Latency trends, patterns and intelligent anomaly detection',
-  'Security header validation, HSTS, CSP and SSL insights',
-  'Intelligent Advisor with actionable recommendations',
-  'Hourly patterns, weekly heatmaps and historical insight',
-  '',
-  '',
-  '',
+const PLATFORM_FEATURE_COLUMNS = [
+  [
+    'Real-time global probes from multiple continents',
+    'Live TTFB + DNS, TCP, TLS connection breakdown',
+    'Real cache hit/miss rates with Edge Cache Age analysis',
+    'Edge vs Origin performance deltas and comparison',
+    'Flexible time ranges: 1h, 4h, 24h, 7d, 30d, 90d',
+  ],
+  [
+    'Recent performance spikes & TTFB anomaly detection',
+    'Latency trends, patterns and intelligent anomaly detection',
+    'Weekly heatmaps, hourly patterns and historical insights',
+    'Performance baselines and historical comparisons',
+    'Live sync and real-time regional monitoring',
+  ],
+  [
+    'Global Resilience Score',
+    'Active Incidents with smart grouping',
+    'Configurable alerts by threshold and behavioral change',
+    'Global Security Profile with automated scoring',
+    'Intelligent Advisor with actionable recommendations',
+  ],
 ] as const
+
+function PlatformFeatureCard({ text }: { text: string }) {
+  return (
+    <li className="group relative flex items-start gap-2.5 overflow-hidden rounded-xl border border-white/[0.1] bg-white/[0.06] px-4 py-3.5 text-sm leading-snug text-zinc-200 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08),0_2px_10px_-3px_rgba(0,0,0,0.4)] backdrop-blur-sm transition-[border-color,background-color,box-shadow,color] duration-200 hover:border-white/[0.16] hover:bg-white/[0.09] hover:text-white hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12),0_4px_18px_-4px_rgba(0,0,0,0.45)]">
+      <div
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-[rgba(var(--brand-primary-rgb),0.04)]"
+        aria-hidden
+      />
+      <svg
+        className="relative z-10 mt-0.5 h-4 w-4 shrink-0 transition-[filter] duration-200 group-hover:drop-shadow-[0_0_6px_rgba(var(--brand-primary-rgb),0.4)]"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        style={{ color: 'var(--brand-primary)' }}
+        aria-hidden
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l3.5 3.5L13 4" />
+      </svg>
+      <span className="relative z-10">{text}</span>
+    </li>
+  )
+}
 
 const SLIDES: Slide[] = [
   {
@@ -209,35 +244,15 @@ export function DashboardShowcase() {
             />
 
             <div className="relative z-10 p-8 sm:p-12">
-              <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 lg:gap-5">
-                {PLATFORM_FEATURES.map((item, i) => (
-                  <li
-                    key={item || `platform-feature-${i}`}
-                    className={`flex min-h-[4.5rem] items-start gap-2.5 rounded-xl border px-4 py-3.5 text-sm leading-snug transition-colors ${
-                      item
-                        ? 'border-white/[0.08] bg-[#0b121c] text-zinc-400 hover:border-white/[0.12] hover:bg-[#0e161f]'
-                        : 'border-transparent bg-transparent text-transparent'
-                    }`}
-                  >
-                    {item ? (
-                      <svg
-                        className="mt-0.5 h-4 w-4 shrink-0"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        style={{ color: 'var(--brand-primary)' }}
-                        aria-hidden
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l3.5 3.5L13 4" />
-                      </svg>
-                    ) : (
-                      <span className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                    )}
-                    <span>{item || '\u00A0'}</span>
-                  </li>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
+                {PLATFORM_FEATURE_COLUMNS.map((column, columnIndex) => (
+                  <ul key={columnIndex} className="flex flex-col gap-3 sm:gap-3.5">
+                    {column.map((item) => (
+                      <PlatformFeatureCard key={item} text={item} />
+                    ))}
+                  </ul>
                 ))}
-              </ul>
+              </div>
 
               <div className="mt-6 border-t border-white/[0.06] pt-6 text-center sm:mt-8 sm:pt-8">
               <div className="flex flex-wrap items-center justify-center gap-2">
@@ -267,12 +282,14 @@ export function DashboardShowcase() {
         aria-label="Dashboard"
       >
         <div className="cs-container-adaptive py-12 sm:py-16">
-          <p
-            className="mb-5 text-center text-xs font-semibold uppercase tracking-widest sm:mb-6"
-            style={{ color: 'var(--brand-primary)' }}
-          >
-            Dashboard
-          </p>
+          <div className="mb-14 text-center">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--brand-primary)' }}>
+              Dashboard
+            </p>
+            <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-white sm:text-3xl sm:leading-tight">
+              Real examples of the interfaces you&apos;ll work with.
+            </h2>
+          </div>
 
           <div className="relative mx-auto w-full overflow-hidden rounded-xl border border-white/[0.08] bg-[#090f18]">
             <div className="relative z-10 border-b border-white/[0.06] px-4 py-5 sm:px-6 sm:py-6">
