@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useRef, useMemo, useEffect } from 'react'
+import { createPortal } from 'react-dom'
+import { trendsChartTooltipStyle } from '@/lib/chart-tooltip-style'
 import { formatChartLabel, niceMax, globalBucketAverage, buildP95BandPath } from './ttfb-chart.helpers'
 import { TIMING } from './timing-metrics-palette'
 import { PremiumTooltip } from '@/components/premium-tooltip'
@@ -154,7 +156,12 @@ export function TtfbChart({
   const [hoveredTtfbRegion, setHoveredTtfbRegion] = useState<string | null>(null)
   const [hoveredCacheRegion, setHoveredCacheRegion] = useState<string | null>(null)
   const [hoveredNetRegion, setHoveredNetRegion] = useState<string | null>(null)
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0, clientX: 0, clientY: 0, isRight: false, isBottom: false })
+  const [mousePos, setMousePos] = useState({ clientX: 0, clientY: 0 })
+  const [tooltipMounted, setTooltipMounted] = useState(false)
+
+  useEffect(() => {
+    setTooltipMounted(true)
+  }, [])
   const [isSynced, setIsSynced] = useState(true)
 
   const [ttfbHistory, setTtfbHistory] = useState<string[]>([])
@@ -842,26 +849,22 @@ export function TtfbChart({
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!containerRef.current || allBuckets.length < 2) return
 
-    const rect = containerRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    const isRight = e.clientX > (typeof window !== 'undefined' ? window.innerWidth * 0.5 : 800)
-    const isBottom = e.clientY > (typeof window !== 'undefined' ? window.innerHeight * 0.5 : 500)
-    setMousePos({ x, y, clientX: e.clientX, clientY: e.clientY, isRight, isBottom })
+    setMousePos({ clientX: e.clientX, clientY: e.clientY })
 
-    const svgElement = (e.target as Element | null)?.closest('svg')
+    const svgElement = (e.target as Element | null)?.closest('svg[data-trends-chart]')
     if (!svgElement) {
+      setHoveredChart(null)
       updateHoveredIdx(null, 'ttfb')
       updateHoveredIdx(null, 'cache')
       updateHoveredIdx(null, 'net')
       return
     }
 
-    const chartType: 'ttfb' | 'cache' | 'net' = hoveredChart === 'network'
-      ? 'net'
-      : hoveredChart === 'cache'
-        ? 'cache'
-        : 'ttfb'
+    const chartAttr = svgElement.getAttribute('data-trends-chart')
+    const chartType: 'ttfb' | 'cache' | 'net' =
+      chartAttr === 'cache' ? 'cache' : chartAttr === 'network' ? 'net' : 'ttfb'
+    setHoveredChart(chartType === 'net' ? 'network' : chartType)
+
     const svgRect = svgElement.getBoundingClientRect()
     const relativeX = (e.clientX - svgRect.left) * (W / svgRect.width)
 
@@ -1025,21 +1028,12 @@ export function TtfbChart({
     : null
 
   // ── Render ────────────────────────────────────────────────────────────────
-  return (
-    <div className="space-y-6 relative" ref={containerRef} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
-      {/* Tooltip */}
-      {hoveredChart !== null && currentHoveredIdx !== null && (
-        <div
-          className={`fixed z-[100] pointer-events-none bg-surface/95 backdrop-blur-xl border border-white/10 p-3 rounded-xl shadow-2xl text-white transition-all duration-300 ease-out ${hoveredChart === 'network' ? 'min-w-[400px]' : 'min-w-[260px]'}`}
-          style={{
-            left: `${mousePos.clientX}px`,
-            top: `${mousePos.clientY}px`,
-            transform: `translate(
-              calc(-${(mousePos.clientX / (typeof window !== 'undefined' ? window.innerWidth : 1920)) * 100}% + ${mousePos.clientX > (typeof window !== 'undefined' ? window.innerWidth * 0.5 : 800) ? '-24px' : '24px'}), 
-              ${mousePos.isBottom ? 'calc(-100% - 24px)' : '24px'}
-            )`
-          }}
-        >
+  const trendsTooltip =
+    hoveredChart !== null && currentHoveredIdx !== null ? (
+      <div
+        className={`pointer-events-none z-[99999] bg-surface/95 backdrop-blur-xl border border-white/10 p-3 rounded-xl shadow-2xl text-white ${hoveredChart === 'network' ? 'min-w-[400px]' : 'min-w-[260px]'}`}
+        style={trendsChartTooltipStyle(mousePos.clientX, mousePos.clientY)}
+      >
           <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2 border-b border-white/5 pb-1.5 px-0.5">
             {formatChartLabel(allBuckets[currentHoveredIdx], range)} {range === '7d' || range === '30d' || range === '90d' ? '' : 'UTC'}
           </p>
@@ -1337,7 +1331,11 @@ export function TtfbChart({
             </>
           )}
         </div>
-      )}
+    ) : null
+
+  return (
+    <div className="space-y-6 relative" ref={containerRef} onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+      {tooltipMounted && trendsTooltip ? createPortal(trendsTooltip, document.body) : null}
 
       {allBuckets.length === 0 ? (
         <section className="space-y-4">
@@ -1484,10 +1482,9 @@ export function TtfbChart({
                 </div>
               </div>
               <svg
+                data-trends-chart="ttfb"
                 viewBox={`0 0 ${W} ${H}`}
                 className="w-full h-auto overflow-visible"
-                onMouseEnter={() => setHoveredChart('ttfb')}
-                onMouseLeave={() => setHoveredChart(null)}
               >
                 {[0, Math.round(niceMaxTtfb / 2), niceMaxTtfb].map(v => (
                   <g key={v}>
@@ -1672,10 +1669,9 @@ export function TtfbChart({
                 </div>
               ) : (
                 <svg
+                  data-trends-chart="cache"
                   viewBox={`0 0 ${W} ${H}`}
                   className="w-full h-auto overflow-visible"
-                  onMouseEnter={() => setHoveredChart('cache')}
-                  onMouseLeave={() => setHoveredChart(null)}
                 >
                   <rect x={PAD.left} y={toYCache(100)} width={CW} height={toYCache(95) - toYCache(100)} fill="#10b981" fillOpacity={0.04} />
                   <rect x={PAD.left} y={toYCache(95)} width={CW} height={toYCache(90) - toYCache(95)} fill="#f59e0b" fillOpacity={0.035} />
@@ -1911,10 +1907,9 @@ export function TtfbChart({
                 </div>
               </div>
               <svg
+                data-trends-chart="network"
                 viewBox={`0 0 ${W} ${H}`}
                 className="w-full h-auto overflow-visible"
-                onMouseEnter={() => setHoveredChart('network')}
-                onMouseLeave={() => setHoveredChart(null)}
               >
                 {[0, Math.round(niceMaxNet / 2), niceMaxNet].map(v => (
                   <g key={v}>
