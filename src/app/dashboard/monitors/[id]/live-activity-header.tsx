@@ -55,7 +55,7 @@ export function LiveActivityHeader({ monitorId, freezeStorageKey, latestDataAt }
   }
 
   return (
-    <div className="mb-5 px-1">
+    <div className="mb-5 isolate px-1">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="cs-view-section-title">
           <LiveDot />

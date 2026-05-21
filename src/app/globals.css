@@ -161,6 +161,13 @@ body {
     @apply bg-surface/50 backdrop-blur-md;
   }
 
+  /** Mobile: solid cards — backdrop-blur + scroll causes GPU ghosting (Safari/iOS). */
+  @media (max-width: 767px) {
+    .cs-card.cs-card-glass {
+      @apply bg-surface backdrop-blur-none;
+    }
+  }
+
   /** Form sections: subtle ring when a child control is focused (inset — works with .cs-card overflow). */
   .cs-card-focus {
     @apply transition-[border-color,box-shadow] duration-200;

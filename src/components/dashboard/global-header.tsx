@@ -34,7 +34,7 @@ export function GlobalHeader({ userEmail, logoutAction }: GlobalHeaderProps) {
   const showCreateMonitor = pathname !== '/monitors/new'
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-background/96 shadow-[0_1px_0_0_rgba(0,0,0,0.45)] backdrop-blur-md supports-[backdrop-filter]:bg-background/92">
+    <header className="sticky top-0 z-50 border-b border-border bg-background shadow-[0_1px_0_0_rgba(0,0,0,0.45)] md:bg-background/92 md:backdrop-blur-md md:supports-[backdrop-filter]:bg-background/92">
       <div className="cs-container-adaptive flex h-14 items-center justify-between">
 
         {/* Left: Logo + Desktop Nav */}

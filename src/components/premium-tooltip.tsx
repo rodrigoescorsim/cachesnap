@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 export type PremiumTooltipPosition =
@@ -108,6 +108,15 @@ export function PremiumTooltip({
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [open, setOpen] = useState(false)
   const [fixedStyle, setFixedStyle] = useState<React.CSSProperties>({})
+  const [hoverCapable, setHoverCapable] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(hover: hover) and (pointer: fine)')
+    const sync = () => setHoverCapable(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current) {
@@ -141,6 +150,7 @@ export function PremiumTooltip({
   useLayoutEffect(() => () => clearCloseTimer(), [clearCloseTimer])
 
   const onEnterHost = () => {
+    if (!hoverCapable) return
     clearCloseTimer()
     const el = hostRef.current
     if (el) setFixedStyle(tooltipFixedStyle(el.getBoundingClientRect(), position, interactive, panelSizing))
@@ -166,7 +176,7 @@ export function PremiumTooltip({
   }
 
   const panel =
-    open && typeof document !== 'undefined' ? (
+    hoverCapable && open && typeof document !== 'undefined' ? (
       <div
         data-premium-tooltip-panel
         style={fixedStyle}
@@ -190,8 +200,8 @@ export function PremiumTooltip({
       ref={hostRef}
       className={`relative inline-flex items-center ${className || ''}`}
       style={style}
-      onMouseEnter={onEnterHost}
-      onMouseLeave={onLeaveHost}
+      onMouseEnter={hoverCapable ? onEnterHost : undefined}
+      onMouseLeave={hoverCapable ? onLeaveHost : undefined}
     >
       {children}
       {panel ? createPortal(panel, document.body) : null}
