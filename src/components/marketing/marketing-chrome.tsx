@@ -147,26 +147,69 @@ export function MarketingHeader({ activeNav }: MarketingHeaderProps) {
   )
 }
 
+const FOOTER_LINK_CLASS = 'text-sm text-zinc-400 transition-colors hover:text-white'
+
+function FooterColumn({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500">{title}</p>
+      <ul className="flex flex-col gap-2.5">{children}</ul>
+    </div>
+  )
+}
+
+function FooterLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <li>
+      <Link href={href} className={FOOTER_LINK_CLASS}>
+        {children}
+      </Link>
+    </li>
+  )
+}
+
 export function MarketingFooter() {
   return (
     <footer className="cs-marketing-footer">
-      <div className="cs-container-adaptive py-10">
-        <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
-          <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-4">
-            <Logo className="h-8 opacity-70" />
-            <span className="hidden text-zinc-700 sm:inline">·</span>
-            <span className="text-xs text-zinc-500">Edge Performance Monitoring</span>
-          </div>
-          <div className="flex items-center gap-6 text-xs text-zinc-500">
-            <Link href="/login" className="transition-colors hover:text-zinc-300">
-              Sign in
+      <div className="cs-container-adaptive pt-10 pb-8 md:pt-12 md:pb-9">
+        <div className="grid grid-cols-2 gap-10 md:grid-cols-4 md:gap-8 lg:gap-12">
+          <div className="col-span-2 flex flex-col gap-3 md:col-span-1">
+            <Link href="/" className="w-fit transition-opacity hover:opacity-80">
+              <Logo className="h-8 opacity-80" />
             </Link>
-            <Link href="/signup" className="transition-colors hover:text-zinc-300">
-              Sign up free
-            </Link>
-            <span className="text-zinc-700">·</span>
-            <span className="text-zinc-600">© 2026 CacheSnap</span>
+            <p className="max-w-[14rem] text-sm leading-relaxed text-zinc-500">
+              Edge monitoring platform.
+            </p>
           </div>
+
+          <FooterColumn title="Product">
+            <FooterLink href="/#how-it-works">How it works</FooterLink>
+            <FooterLink href="/#dashboard">Dashboard</FooterLink>
+            <FooterLink href="/pricing">Pricing</FooterLink>
+            <FooterLink href="/signup">Start free</FooterLink>
+          </FooterColumn>
+
+          <FooterColumn title="Account">
+            <FooterLink href="/login">Sign in</FooterLink>
+            <FooterLink href="/signup">Sign up free</FooterLink>
+          </FooterColumn>
+
+          <FooterColumn title="Company">
+            <li>
+              <a href="mailto:hello@cachesnap.com" className={FOOTER_LINK_CLASS}>
+                Contact
+              </a>
+            </li>
+          </FooterColumn>
+        </div>
+
+        <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-white/[0.06] pt-6 md:flex-row md:gap-6">
+          <p className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">
+            © 2026 CacheSnap
+          </p>
+          <p className="text-center text-[11px] font-medium uppercase tracking-widest text-zinc-500 md:text-right">
+            No SDK · No Agent · No DNS changes
+          </p>
         </div>
       </div>
     </footer>
