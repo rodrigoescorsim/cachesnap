@@ -69,8 +69,8 @@ const FEATURES = [
 const STEPS = [
   {
     number: '01',
-    title: 'Enter your URL',
-    description: 'No code changes, no DNS updates. Live in seconds.',
+    title: 'Paste your URL',
+    description: 'Start monitoring any public site instantly.',
     icon: (
       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -79,8 +79,8 @@ const STEPS = [
   },
   {
     number: '02',
-    title: 'Continuous Probes',
-    description: 'Multi-region checks every few minutes. We track latency, cache hit-rate, and headers.',
+    title: 'Global Continuous Monitoring',
+    description: 'Probes from multiple continents track latency, cache efficiency, edge vs origin and more.',
     icon: (
       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064" />
@@ -89,8 +89,8 @@ const STEPS = [
   },
   {
     number: '03',
-    title: 'Instant Dashboards',
-    description: 'Real-time performance metrics and instant alerts. Complete visibility over your edge.',
+    title: 'Live Dashboards',
+    description: 'Real-time metrics, trends, patterns and performance breakdowns — ready in seconds.',
     icon: (
       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -116,10 +116,6 @@ export default async function RootPage() {
         style={{ background: 'radial-gradient(ellipse at top, var(--brand-primary) 0%, transparent 65%)' }}
       />
       <div
-        className="absolute top-[60rem] left-1/4 w-[40rem] h-[40rem] opacity-10 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse, #6366f1 0%, transparent 70%)' }}
-      />
-      <div
         className="absolute top-[120rem] right-1/4 w-[40rem] h-[40rem] opacity-10 pointer-events-none"
         style={{ background: 'radial-gradient(ellipse, var(--brand-primary) 0%, transparent 70%)' }}
       />
@@ -128,18 +124,15 @@ export default async function RootPage() {
 
       <main className="flex-1 relative z-10">
 
-        {/* ═══════════════════════════════════════════════════════════ HERO */}
-        <section className="cs-container-adaptive pt-24 pb-16">
-          <div className="flex flex-col items-center text-center gap-8">
-
-            {/* Animated logo — inline SVG para fundo transparente */}
+        {/* ═══════════════════════════════════════════ HERO + HOW IT WORKS */}
+        <section className="cs-container-adaptive pt-14 pb-20 sm:pt-16 sm:pb-24" aria-label="Hero and how it works">
+          <div className="flex flex-col items-center text-center gap-9 sm:gap-10">
             <div
               className="w-[148px] h-[148px] sm:w-[172px] sm:h-[172px] shrink-0"
               aria-hidden="true"
               dangerouslySetInnerHTML={{ __html: animatedLogoSvg }}
             />
 
-            {/* Headline */}
             <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white max-w-3xl leading-[1.1] drop-shadow-sm">
               Deep visibility into your{' '}
               <span
@@ -150,8 +143,7 @@ export default async function RootPage() {
               </span>
             </h1>
 
-            {/* Subtitle */}
-            <div className="space-y-3 max-w-2xl text-center">
+            <div className="space-y-4 max-w-2xl text-center">
               <p className="text-lg text-zinc-400 leading-relaxed">
                 The only monitoring platform that truly understands cache behavior, edge vs origin performance and regional reality — across all continents.
               </p>
@@ -160,64 +152,43 @@ export default async function RootPage() {
               </p>
             </div>
 
-            {/* Form */}
             <HeroUrlForm />
 
-            <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest -mt-2">
+            <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest">
               Start testing for free · No credit card required
             </p>
-
-
-
           </div>
-        </section>
 
+          <div className="mt-16 text-center sm:mt-20">
+            <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: 'var(--brand-primary)' }}>
+              How it Works
+            </p>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+              Zero setup. Real insights in seconds.
+            </h2>
+          </div>
 
+          <div className="relative mt-12 grid grid-cols-1 gap-7 md:grid-cols-3 sm:mt-14">
+            <div className="hidden md:block absolute top-10 left-[calc(16.67%+1rem)] right-[calc(16.67%+1rem)] h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent" />
 
-        {/* ═══════════════════════════════════════════ DASHBOARD PREVIEW */}
-        <DashboardPreview />
-
-        {/* ══════════════════════════════════════════════════ HOW IT WORKS */}
-        <section
-          className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 overflow-hidden border-y border-white/[0.04] py-24 cs-grid-pattern"
-          style={{
-            background: 'radial-gradient(circle at center, rgba(34, 255, 136, 0.04) 0%, transparent 65%), #0B1220'
-          }}
-          aria-label="How it works"
-        >
-          <div className="cs-container-adaptive">
-            <div className="text-center mb-14">
-              <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--brand-primary)' }}>
-                How it works
-              </p>
-              <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-                From URL to insight in seconds
-              </h2>
-              <p className="mt-4 text-zinc-400 max-w-xl mx-auto">
-                No agents. No SDKs. If your URL is public, we can monitor it.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
-              {/* Connector line */}
-              <div className="hidden md:block absolute top-10 left-[calc(16.67%+1rem)] right-[calc(16.67%+1rem)] h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent" />
-
-              {STEPS.map((step) => (
-                <div key={step.number} className="cs-card cs-card-glass relative flex flex-col items-center gap-5 overflow-hidden p-8 text-center transition-all duration-300 hover:scale-[1.01]">
-                  <div className="cs-card-wash" aria-hidden />
-                  <div className="cs-icon-well-lg">
-                    {step.icon}
-                  </div>
-                  <div className="relative z-10">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">{step.number}</p>
-                    <h3 className="text-base font-bold text-white mb-2">{step.title}</h3>
-                    <p className="text-sm text-zinc-400 leading-relaxed">{step.description}</p>
-                  </div>
+            {STEPS.map((step) => (
+              <div key={step.number} className="cs-card cs-card-glass relative flex flex-col items-center gap-6 overflow-hidden p-9 text-center transition-all duration-300 hover:scale-[1.01]">
+                <div className="cs-card-wash" aria-hidden />
+                <div className="cs-icon-well-lg">
+                  {step.icon}
                 </div>
-              ))}
-            </div>
+                <div className="relative z-10">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2.5">{step.number}</p>
+                  <h3 className="text-base font-bold text-white mb-2.5">{step.title}</h3>
+                  <p className="text-sm text-zinc-400 leading-relaxed">{step.description}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
+
+        {/* ═══════════════════════════════════════════ DASHBOARD + PLATFORM */}
+        <DashboardPreview />
 
         {/* ══════════════════════════════════════════════════ FEATURES GRID */}
         <section
@@ -241,7 +212,7 @@ export default async function RootPage() {
               {FEATURES.map((f) => (
                 <div
                   key={f.title}
-                  className="cs-card cs-card-glass group relative overflow-hidden p-6 transition-all duration-300 hover:scale-[1.01] hover:border-[rgba(var(--brand-primary-rgb),0.3)]"
+                  className="cs-card group relative overflow-hidden p-6 transition-all duration-300 hover:scale-[1.01] hover:border-[rgba(var(--brand-primary-rgb),0.3)]"
                 >
                   <div className="cs-card-wash" aria-hidden />
                   <div className="cs-icon-well-md transition-colors duration-300 group-hover:border-[rgba(var(--brand-primary-rgb),0.3)]">

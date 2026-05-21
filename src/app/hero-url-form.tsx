@@ -116,7 +116,7 @@ export function HeroUrlForm() {
         disabled={urlStatus !== 'valid'}
         className="cs-btn-primary h-12 rounded-xl px-6 text-sm font-semibold whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
       >
-        Monitor this →
+        Start monitoring →
       </button>
     </form>
   )
