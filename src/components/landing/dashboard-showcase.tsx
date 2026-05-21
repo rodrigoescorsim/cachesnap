@@ -76,9 +76,9 @@ const PLATFORM_FEATURE_COLUMNS = [
 
 function PlatformFeatureCard({ text }: { text: string }) {
   return (
-    <li className="group relative flex items-start gap-2.5 overflow-hidden rounded-xl border border-white/[0.1] bg-white/[0.06] px-4 py-3.5 text-sm leading-snug text-zinc-200 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08),0_2px_10px_-3px_rgba(0,0,0,0.4)] backdrop-blur-sm transition-[border-color,background-color,box-shadow,color] duration-200 hover:border-white/[0.16] hover:bg-white/[0.09] hover:text-white hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12),0_4px_18px_-4px_rgba(0,0,0,0.45)]">
+    <li className="group relative flex items-start gap-2.5 overflow-hidden rounded-xl border border-white/[0.1] bg-[#0e1826] px-4 py-3.5 text-sm leading-snug text-zinc-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.07),0_2px_10px_-3px_rgba(0,0,0,0.38)] transition-[border-color,background-color,box-shadow,color] duration-200 hover:border-white/[0.14] hover:bg-[#101c2a] hover:text-zinc-100 hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.09),0_4px_18px_-4px_rgba(0,0,0,0.45)]">
       <div
-        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-[rgba(var(--brand-primary-rgb),0.04)]"
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.05] via-transparent to-[rgba(var(--brand-primary-rgb),0.04)]"
         aria-hidden
       />
       <svg
@@ -291,47 +291,52 @@ export function DashboardShowcase() {
             </h2>
           </div>
 
-          <div className="relative mx-auto w-full overflow-hidden rounded-xl border border-white/[0.08] bg-[#090f18]">
-            <div className="relative z-10 border-b border-white/[0.06] px-4 py-5 sm:px-6 sm:py-6">
-              <div
-                className="mx-auto grid w-full max-w-2xl grid-cols-2 gap-1 rounded-xl bg-white/[0.04] p-1 sm:grid-cols-4"
-                role="tablist"
-                aria-label="Dashboard views"
-              >
-                {SLIDES.map((slide, i) => (
-                  <button
-                    key={slide.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={active === i}
-                    onClick={() => handleTabChange(i)}
-                    className={`rounded-lg px-2 py-2.5 text-center text-[10px] font-black uppercase tracking-wider transition-colors duration-200 sm:text-[11px] ${
-                      active === i
-                        ? 'bg-[var(--brand-primary)] text-zinc-900 shadow-[0_0_12px_-3px_rgba(var(--brand-primary-rgb),0.45)]'
-                        : 'text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300'
-                    }`}
-                  >
-                    {slide.tabLabel}
-                  </button>
-                ))}
+          <div className="relative mx-auto w-full">
+            <div
+              className="pointer-events-none absolute -inset-px rounded-2xl bg-gradient-to-br from-white/[0.14] via-white/[0.05] to-[rgba(var(--brand-primary-rgb),0.14)] opacity-70"
+              aria-hidden
+            />
+            <div className="relative overflow-hidden rounded-2xl border border-white/[0.12] shadow-[0_28px_56px_-16px_rgba(0,0,0,0.72),inset_0_1px_0_0_rgba(255,255,255,0.08)]">
+              <div className="relative z-10 border-b border-white/[0.08] bg-[#090f18] px-4 py-5 sm:px-6 sm:py-6">
+                <div
+                  className="mx-auto grid w-full max-w-2xl grid-cols-2 gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.05] p-1.5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.07)] backdrop-blur-sm sm:grid-cols-4"
+                  role="tablist"
+                  aria-label="Dashboard views"
+                >
+                  {SLIDES.map((slide, i) => (
+                    <button
+                      key={slide.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active === i}
+                      onClick={() => handleTabChange(i)}
+                      className={`rounded-lg px-2 py-2.5 text-center text-[10px] font-black uppercase tracking-wider transition-all duration-200 sm:text-[11px] ${
+                        active === i
+                          ? 'bg-[var(--brand-primary)] text-zinc-900 shadow-[0_0_16px_-4px_rgba(var(--brand-primary-rgb),0.55)]'
+                          : 'text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200'
+                      }`}
+                    >
+                      {slide.tabLabel}
+                    </button>
+                  ))}
+                </div>
+
+                <div
+                  className={`mt-5 text-center transition-all duration-200 ease-out sm:mt-6 ${
+                    isTransitioning ? 'opacity-0 translate-y-0.5' : 'opacity-100 translate-y-0'
+                  }`}
+                  role="tabpanel"
+                >
+                  <h3 className="text-lg font-bold tracking-tight text-white sm:text-xl">
+                    {SLIDES[active].title}
+                  </h3>
+                  <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-zinc-400">
+                    {SLIDES[active].description}
+                  </p>
+                </div>
               </div>
 
-              <div
-                className={`mt-4 text-center transition-all duration-200 ease-out ${
-                  isTransitioning ? 'opacity-0 translate-y-0.5' : 'opacity-100 translate-y-0'
-                }`}
-                role="tabpanel"
-              >
-                <h3 className="text-lg font-bold tracking-tight text-white sm:text-xl">
-                  {SLIDES[active].title}
-                </h3>
-                <p className="mx-auto mt-1.5 max-w-lg text-sm leading-snug text-zinc-500">
-                  {SLIDES[active].description}
-                </p>
-              </div>
-            </div>
-
-            <div className="relative z-10 bg-[#090f18] px-3 pt-4 pb-10 sm:px-5 sm:pt-6 sm:pb-12">
+              <div className="relative z-10 bg-[#090f18] px-3 pt-4 pb-10 sm:px-5 sm:pt-6 sm:pb-12">
               <div className="bg-[#0a101c]">
                 <div
                   className={`pb-3 transition-opacity duration-200 ease-out sm:pb-4 ${
@@ -341,6 +346,7 @@ export function DashboardShowcase() {
                   <ShowcasePreview slide={SLIDES[active]} visible={true} isMobile={isMobile} />
                 </div>
               </div>
+            </div>
             </div>
           </div>
         </div>
