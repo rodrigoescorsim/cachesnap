@@ -53,6 +53,28 @@ export function GoogleOneTap({ clientId }: GoogleOneTapProps) {
     }
   }, [gsiReady, clientId, handleCredential])
 
+  useEffect(() => {
+    if (!gsiReady) return
+
+    const cancelPrompt = () => {
+      window.google?.accounts?.id?.cancel()
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        cancelPrompt()
+      }
+    }
+
+    window.addEventListener('pagehide', cancelPrompt)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      window.removeEventListener('pagehide', cancelPrompt)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [gsiReady])
+
   return (
     <Script
       src="https://accounts.google.com/gsi/client"
