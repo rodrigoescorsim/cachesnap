@@ -1,12 +1,13 @@
 <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <clipPath id="clip"><rect width="512" height="512" rx="115" ry="115"/></clipPath>
+    <clipPath id="clip">
+      <rect width="512" height="512" rx="115" ry="115"/>
+    </clipPath>
 
-    <!-- Glow principal para todo o símbolo -->
     <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
-      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feGaussianBlur stdDeviation="7" result="blur"/>
       <feComponentTransfer in="blur" result="gb">
-        <feFuncA type="linear" slope="0.6"/>
+        <feFuncA type="linear" slope="0.7"/>
       </feComponentTransfer>
       <feMerge>
         <feMergeNode in="gb"/>
@@ -14,11 +15,21 @@
       </feMerge>
     </filter>
 
-    <!-- Glow suave para a borda externa -->
-    <filter id="borderGlow" x="-5%" y="-5%" width="110%" height="110%">
-      <feGaussianBlur stdDeviation="3.5" result="blur"/>
+    <filter id="glowFlash" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
       <feComponentTransfer in="blur" result="gb">
-        <feFuncA type="linear" slope="0.5"/>
+        <feFuncA type="linear" slope="0.9"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="gb"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="borderGlow" x="-5%" y="-5%" width="110%" height="110%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComponentTransfer in="blur" result="gb">
+        <feFuncA type="linear" slope="0.55"/>
       </feComponentTransfer>
       <feMerge>
         <feMergeNode in="gb"/>
@@ -30,49 +41,118 @@
       <stop offset="0%" stop-color="#0f1e33"/>
       <stop offset="100%" stop-color="#0B1220"/>
     </radialGradient>
+
+
   </defs>
 
   <g clip-path="url(#clip)">
-    <!-- Fundo -->
     <rect width="512" height="512" fill="url(#bgGrad)"/>
 
-    <!-- 3. Borda neon sutil — anel interno colado à borda do clip -->
-    <rect x="6" y="6" width="500" height="500" rx="110" ry="110" fill="none" stroke="#22FF88" stroke-width="2.5" stroke-opacity="0.35" filter="url(#borderGlow)"/>
+<!-- BORDA — draw-in suave, sem ponta de início -->
+    <!-- Perímetro aprox rect 500x500 rx110: ~2*pi*110 corners + 4*(500-220) ≈ 1808 -->
+    <rect x="6" y="6" width="500" height="500" rx="110" ry="110"
+      fill="none" stroke="#22FF88" stroke-width="2.5" stroke-linecap="round"
+      filter="url(#borderGlow)"
+      stroke-dasharray="2100" stroke-dashoffset="2100">
+      <animate attributeName="stroke-dashoffset"
+        values="2100;0" begin="0s" dur="0.9s" fill="freeze"
+        calcMode="spline" keySplines="0.4 0 0.2 1"/>
+      <animate attributeName="stroke-opacity"
+        values="0.35;0.65;0.35" begin="1.1s" dur="3s" repeatCount="indefinite"
+        calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+    </rect>
 
-    <!-- Símbolo centrado -->
     <g transform="translate(256,256)" filter="url(#glow)">
 
-      <!-- 1. Hexágono externo — traço sólido neon, igual ao cubo -->
-      <polygon
-        points="0,-215 186.2,-107.5 186.2,107.5 0,215 -186.2,107.5 -186.2,-107.5"
+      <!-- HEXÁGONO — path com início no meio de uma aresta (sem vértice exposto)
+           pathLength=1290, início em aresta v5→v0 -->
+      <path
+        d="M -93.1,-161.25 L 0,-215 L 186.2,-107.5 L 186.2,107.5 L 0,215 L -186.2,107.5 L -186.2,-107.5 Z"
         fill="none"
         stroke="#22FF88"
         stroke-width="10"
-        stroke-linejoin="round"/>
+        stroke-linejoin="round"
+        stroke-linecap="round"
+        pathLength="1290"
+        stroke-dasharray="1290"
+        stroke-dashoffset="1290">
+        <animate attributeName="stroke-dashoffset"
+          values="1290;0" begin="0.2s" dur="1.2s" fill="freeze"
+          calcMode="spline" keySplines="0.4 0 0.2 1"/>
+        <animate attributeName="stroke-opacity"
+          values="1;0.75;1" begin="1.6s" dur="3.5s" repeatCount="indefinite"
+          calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+      </path>
 
-      <!-- 2. Cubo 3D — 3 faces limpas, fills mais contrastados para impacto em pequenos -->
-      <!-- Face superior (mais clara — topo iluminado) -->
+      <!-- INNER RING tracejado — fade + rotação -->
       <polygon
-        points="0,-115 115,-57.5 0,0 -115,-57.5"
-        fill="rgba(34,255,136,0.14)"
-        stroke="#22FF88"
-        stroke-width="6"
-        stroke-linejoin="round"/>
-      <!-- Face direita (média) -->
-      <polygon
-        points="115,-57.5 115,57.5 0,115 0,0"
-        fill="rgba(34,255,136,0.07)"
-        stroke="#22FF88"
-        stroke-width="6"
-        stroke-linejoin="round"/>
-      <!-- Face esquerda (mais escura — sombra) -->
-      <polygon
-        points="-115,-57.5 0,0 0,115 -115,57.5"
-        fill="rgba(34,255,136,0.20)"
-        stroke="#22FF88"
-        stroke-width="6"
-        stroke-linejoin="round"/>
+        points="0,-175 151.55,-87.5 151.55,87.5 0,175 -151.55,87.5 -151.55,-87.5"
+        fill="none" stroke="#22FF88" stroke-width="1.5"
+        stroke-linejoin="round" stroke-dasharray="8 10" stroke-opacity="0">
+        <animate attributeName="stroke-opacity"
+          values="0;0.22" begin="1.3s" dur="0.4s" fill="freeze"/>
+        <animateTransform attributeName="transform" type="rotate"
+          from="0" to="360" begin="1.7s" dur="25s" repeatCount="indefinite"/>
+      </polygon>
+
+      <!-- CUBO face superior — path começa no meio de aresta, não num vértice -->
+      <path
+        d="M -57.5,-86.25 L 0,-115 L 115,-57.5 L 0,0 L -115,-57.5 Z"
+        stroke="#22FF88" stroke-width="6"
+        stroke-linejoin="round" stroke-linecap="round"
+        fill="rgba(34,255,136,0)"
+        pathLength="514" stroke-dasharray="514" stroke-dashoffset="514">
+        <animate attributeName="stroke-dashoffset"
+          values="514;0" begin="1.4s" dur="0.4s" fill="freeze"
+          calcMode="spline" keySplines="0.4 0 0.2 1"/>
+        <animate attributeName="fill"
+          values="rgba(34,255,136,0);rgba(34,255,136,0.14)"
+          begin="1.85s" dur="0.2s" fill="freeze"/>
+        <animate attributeName="fill"
+          values="rgba(34,255,136,0.14);rgba(34,255,136,0.22);rgba(34,255,136,0.14)"
+          begin="2.2s" dur="3s" repeatCount="indefinite"
+          calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+      </path>
+
+      <!-- CUBO face direita — início no meio de aresta -->
+      <path
+        d="M 57.5,-28.75 L 115,-57.5 L 115,57.5 L 0,115 L 0,0 Z"
+        stroke="#22FF88" stroke-width="6"
+        stroke-linejoin="round" stroke-linecap="round"
+        fill="rgba(34,255,136,0)"
+        pathLength="460" stroke-dasharray="460" stroke-dashoffset="460">
+        <animate attributeName="stroke-dashoffset"
+          values="460;0" begin="1.7s" dur="0.4s" fill="freeze"
+          calcMode="spline" keySplines="0.4 0 0.2 1"/>
+        <animate attributeName="fill"
+          values="rgba(34,255,136,0);rgba(34,255,136,0.07)"
+          begin="2.05s" dur="0.2s" fill="freeze"/>
+        <animate attributeName="fill"
+          values="rgba(34,255,136,0.07);rgba(34,255,136,0.12);rgba(34,255,136,0.07)"
+          begin="2.2s" dur="3s" repeatCount="indefinite"
+          calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+      </path>
+
+      <!-- CUBO face esquerda — início no meio de aresta -->
+      <path
+        d="M -115.0,0.0 L -115,-57.5 L 0,0 L 0,115 L -115,57.5 Z"
+        stroke="#22FF88" stroke-width="6"
+        stroke-linejoin="round" stroke-linecap="round"
+        fill="rgba(34,255,136,0)"
+        pathLength="514" stroke-dasharray="514" stroke-dashoffset="514">
+        <animate attributeName="stroke-dashoffset"
+          values="514;0" begin="2.0s" dur="0.4s" fill="freeze"
+          calcMode="spline" keySplines="0.4 0 0.2 1"/>
+        <animate attributeName="fill"
+          values="rgba(34,255,136,0);rgba(34,255,136,0.20)"
+          begin="2.2s" dur="0.2s" fill="freeze"/>
+        <animate attributeName="fill"
+          values="rgba(34,255,136,0.20);rgba(34,255,136,0.30);rgba(34,255,136,0.20)"
+          begin="2.2s" dur="3s" repeatCount="indefinite"
+          calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1"/>
+      </path>
 
     </g>
+
   </g>
 </svg>
