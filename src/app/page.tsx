@@ -6,6 +6,7 @@ import { getSession } from '@/lib/auth'
 import { HeroUrlForm } from './hero-url-form'
 import { MarketingFooter, MarketingHeader } from '@/components/marketing/marketing-chrome'
 import { DashboardPreview } from '@/components/landing/dashboard-preview'
+import { GoogleOneTap } from '@/components/landing/google-one-tap'
 import {
   LANDING_BG_CTA_SECTION,
   LANDING_BG_EDGE_INTELLIGENCE_SECTION,
@@ -113,8 +114,11 @@ export default async function RootPage() {
   const user = await getSession()
   if (user) redirect('/monitors')
 
+  const googleClientId = process.env.GOOGLE_CLIENT_ID
+
   return (
     <div className="min-h-screen flex flex-col relative overflow-x-hidden text-foreground">
+      {googleClientId ? <GoogleOneTap clientId={googleClientId} /> : null}
       <MarketingHeader />
 
       <main className="flex-1 relative z-10">
