@@ -6,6 +6,12 @@ import { getSession } from '@/lib/auth'
 import { HeroUrlForm } from './hero-url-form'
 import { MarketingFooter, MarketingHeader } from '@/components/marketing/marketing-chrome'
 import { DashboardPreview } from '@/components/landing/dashboard-preview'
+import {
+  LANDING_BG_CTA_SECTION,
+  LANDING_BG_EDGE_INTELLIGENCE_SECTION,
+  LANDING_BG_HERO_SECTION,
+  LANDING_BG_INTELLIGENT_ROUTING_SECTION,
+} from '@/components/landing/landing-section-bg'
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -108,24 +114,18 @@ export default async function RootPage() {
   if (user) redirect('/monitors')
 
   return (
-    <div className="min-h-screen flex flex-col relative overflow-x-hidden bg-background text-foreground">
-
-      {/* ── Background glows ── */}
-      <div
-        className="absolute top-0 left-1/2 -translate-x-1/2 w-[90rem] h-[48rem] opacity-20 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse at top, var(--brand-primary) 0%, transparent 65%)' }}
-      />
-      <div
-        className="absolute top-[120rem] right-1/4 w-[40rem] h-[40rem] opacity-10 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse, var(--brand-primary) 0%, transparent 70%)' }}
-      />
-
+    <div className="min-h-screen flex flex-col relative overflow-x-hidden text-foreground">
       <MarketingHeader />
 
       <main className="flex-1 relative z-10">
 
         {/* ═══════════════════════════════════════════ HERO + HOW IT WORKS */}
-        <section className="cs-container-adaptive pt-14 pb-20 sm:pt-16 sm:pb-24" aria-label="Hero and how it works">
+        <section
+          className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2"
+          style={{ backgroundColor: LANDING_BG_HERO_SECTION }}
+          aria-label="Hero and how it works"
+        >
+          <div className="cs-container-adaptive pt-14 pb-20 sm:pt-16 sm:pb-24">
           <div className="flex flex-col items-center text-center gap-8">
             <div
               className="w-[148px] h-[148px] sm:w-[172px] sm:h-[172px] shrink-0"
@@ -185,6 +185,7 @@ export default async function RootPage() {
               </div>
             ))}
           </div>
+          </div>
         </section>
 
         {/* ═══════════════════════════════════════════ DASHBOARD + PLATFORM */}
@@ -192,10 +193,11 @@ export default async function RootPage() {
 
         {/* ══════════════════════════════════════════════════ FEATURES GRID */}
         <section
-          className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 overflow-hidden border-b border-white/[0.04] py-24 bg-gradient-to-b from-[#0B1220] via-[#09101E] to-[#0B1220]"
+          className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 overflow-hidden py-24"
+          style={{ backgroundColor: LANDING_BG_EDGE_INTELLIGENCE_SECTION }}
           aria-label="Features"
         >
-          <div className="cs-container-adaptive">
+          <div className="cs-container-adaptive relative z-10">
             <div className="text-center mb-14">
               <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--brand-primary)' }}>
                 Edge Intelligence
@@ -228,17 +230,18 @@ export default async function RootPage() {
 
         {/* ═══════════════════════════════════════════ ALERTS SPOTLIGHT */}
         <section
-          className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 overflow-hidden border-b border-white/[0.04] py-24"
+          className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 overflow-hidden py-24"
+          style={{ backgroundColor: LANDING_BG_INTELLIGENT_ROUTING_SECTION }}
           aria-label="Alerts spotlight"
         >
-          <div className="cs-container-adaptive">
+          <div className="cs-container-adaptive relative z-10">
             <div className="cs-card cs-card-glass relative overflow-hidden transition-all duration-300 hover:scale-[1.005]">
               <div className="cs-card-wash" aria-hidden />
-              {/* Theater spotlight dual glows */}
               <div
                 className="pointer-events-none absolute inset-0 opacity-100"
                 style={{
-                  backgroundImage: 'radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.12) 0%, transparent 55%), radial-gradient(circle at 100% 100%, rgba(34, 255, 136, 0.1) 0%, transparent 55%)'
+                  backgroundImage:
+                    'radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.12) 0%, transparent 55%), radial-gradient(circle at 100% 100%, rgba(34, 255, 136, 0.1) 0%, transparent 55%)',
                 }}
                 aria-hidden
               />
@@ -366,8 +369,11 @@ export default async function RootPage() {
         </section>
 
         {/* ══════════════════════════════════════════════════════ FINAL CTA */}
-        <section className="cs-container-adaptive pb-28">
-          <div className="text-center space-y-8">
+        <section
+          className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 pb-28"
+          style={{ backgroundColor: LANDING_BG_CTA_SECTION }}
+        >
+          <div className="cs-container-adaptive text-center space-y-8">
             <div
               className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold"
               style={{ borderColor: 'rgba(34,255,136,0.25)', background: 'rgba(34,255,136,0.08)', color: 'var(--brand-primary)' }}

@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
+import {
+  LANDING_BG_DASHBOARD_SECTION,
+  LANDING_BG_PLATFORM_SECTION,
+} from './landing-section-bg'
 
 const DEMO_SKELETON = <div className="min-h-[340px] w-full animate-pulse rounded-xl bg-white/[0.03]" />
 
@@ -25,17 +29,13 @@ const LandingHistoricalTrendsDemo = dynamic(
   { ssr: false, loading: () => DEMO_SKELETON },
 )
 
-/** Mesmo canvas do dashboard / screenshots */
-const SHOWCASE_CANVAS = '#0D1625'
+/** Mesmo overlay do card Intelligent Routing — radiais nos cantos, não vertical */
+const CARD_SPOTLIGHT_GRADIENT =
+  'radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.12) 0%, transparent 55%), radial-gradient(circle at 100% 100%, rgba(34, 255, 136, 0.1) 0%, transparent 55%)'
 
 function softAmbient(primary: string, secondary?: string): string {
-  const layers = [
-    `radial-gradient(ellipse 140% 90% at 50% 48%, ${primary} 0%, transparent 78%)`,
-    secondary
-      ? `radial-gradient(ellipse 100% 75% at 68% 82%, ${secondary} 0%, transparent 72%)`
-      : null,
-  ].filter(Boolean)
-  return layers.join(', ')
+  const mid = secondary ?? 'transparent'
+  return `linear-gradient(180deg, ${primary} 0%, ${mid} 48%, transparent 100%)`
 }
 
 type Slide = {
@@ -57,6 +57,9 @@ const PLATFORM_FEATURES = [
   'Security header validation, HSTS, CSP and SSL insights',
   'Intelligent Advisor with actionable recommendations',
   'Hourly patterns, weekly heatmaps and historical insight',
+  '',
+  '',
+  '',
 ] as const
 
 const SLIDES: Slide[] = [
@@ -123,7 +126,7 @@ function ShowcasePreview({
         className="relative mx-auto w-full"
         style={{ maxWidth }}
       >
-        <div className="rounded-xl overflow-hidden border border-white/10 shadow-2xl bg-[#0B1220] relative flex items-center justify-center">
+        <div className="rounded-xl overflow-hidden border border-white/10 shadow-2xl bg-[#0a101c] relative flex items-center justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={slide.mobileImage}
@@ -156,16 +159,6 @@ function ShowcasePreview({
   )
 }
 
-function ShowcaseAmbientLayer() {
-  return (
-    <div
-      className="pointer-events-none absolute inset-0 z-0"
-      style={{ background: SHOWCASE_CANVAS }}
-      aria-hidden
-    />
-  )
-}
-
 export function DashboardShowcase() {
   const [active, setActive] = useState(0)
   const [isTransitioning, setIsTransitioning] = useState(false)
@@ -189,31 +182,102 @@ export function DashboardShowcase() {
   }
 
   return (
-    <section
-      id="dashboard"
-      className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 scroll-mt-24 overflow-hidden border-y border-white/[0.04] shadow-[inset_0_24px_48px_-12px_rgba(0,0,0,0.65),inset_0_-24px_48px_-12px_rgba(0,0,0,0.65)]"
-      style={{ background: SHOWCASE_CANVAS }}
-      aria-label="Product previews"
-    >
-      {/* Dynamic ambient glow layer */}
-      <div className="absolute inset-0 z-0">
-        <ShowcaseAmbientLayer />
-      </div>
+    <>
+      <section
+        id="platform"
+        className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 overflow-hidden"
+        style={{ backgroundColor: LANDING_BG_PLATFORM_SECTION }}
+        aria-label="Platform"
+      >
+        <div className="py-12 sm:py-16">
+          <div className="cs-container-adaptive">
+          <div className="mb-14 text-center">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--brand-primary)' }}>
+              Platform
+            </p>
+            <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-white sm:text-3xl sm:leading-tight">
+              Everything you need to understand and optimize your edge — instantly.
+            </h2>
+          </div>
 
-      <div className="relative z-10 py-12 sm:py-16">
-        {/* Dashboard preview shell — tabs + active view + canvas */}
-        <div className="cs-container-adaptive relative z-10">
-          <div className="relative mx-auto overflow-hidden rounded-xl border border-white/[0.08] bg-[#0A111C]">
-            <div className="relative z-10 border-b border-white/[0.06] px-4 py-5 sm:px-6 sm:py-6">
-              <p
-                className="text-center text-xs font-semibold uppercase tracking-widest"
-                style={{ color: 'var(--brand-primary)' }}
-              >
-                Dashboard
+          <div className="cs-card cs-card-glass relative w-full overflow-hidden transition-all duration-300 hover:scale-[1.005]">
+            <div className="cs-card-wash" aria-hidden />
+            <div
+              className="pointer-events-none absolute inset-0 opacity-100"
+              style={{ backgroundImage: CARD_SPOTLIGHT_GRADIENT }}
+              aria-hidden
+            />
+
+            <div className="relative z-10 p-8 sm:p-12">
+              <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 lg:gap-5">
+                {PLATFORM_FEATURES.map((item, i) => (
+                  <li
+                    key={item || `platform-feature-${i}`}
+                    className={`flex min-h-[4.5rem] items-start gap-2.5 rounded-xl border px-4 py-3.5 text-sm leading-snug transition-colors ${
+                      item
+                        ? 'border-white/[0.08] bg-[#0b121c] text-zinc-400 hover:border-white/[0.12] hover:bg-[#0e161f]'
+                        : 'border-transparent bg-transparent text-transparent'
+                    }`}
+                  >
+                    {item ? (
+                      <svg
+                        className="mt-0.5 h-4 w-4 shrink-0"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        style={{ color: 'var(--brand-primary)' }}
+                        aria-hidden
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l3.5 3.5L13 4" />
+                      </svg>
+                    ) : (
+                      <span className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                    )}
+                    <span>{item || '\u00A0'}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-6 border-t border-white/[0.06] pt-6 text-center sm:mt-8 sm:pt-8">
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {['No agents', 'No SDKs', 'No configuration'].map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-300"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-3 text-sm leading-relaxed text-zinc-500">
+                Just paste your URL and get insights in seconds.
               </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        </div>
+      </section>
 
+      <section
+        id="dashboard"
+        className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 scroll-mt-24 overflow-hidden"
+        style={{ backgroundColor: LANDING_BG_DASHBOARD_SECTION }}
+        aria-label="Dashboard"
+      >
+        <div className="cs-container-adaptive py-12 sm:py-16">
+          <p
+            className="mb-5 text-center text-xs font-semibold uppercase tracking-widest sm:mb-6"
+            style={{ color: 'var(--brand-primary)' }}
+          >
+            Dashboard
+          </p>
+
+          <div className="relative mx-auto w-full overflow-hidden rounded-xl border border-white/[0.08] bg-[#090f18]">
+            <div className="relative z-10 border-b border-white/[0.06] px-4 py-5 sm:px-6 sm:py-6">
               <div
-                className="mx-auto mt-4 grid w-full max-w-2xl grid-cols-2 gap-1 rounded-xl bg-white/[0.04] p-1 sm:grid-cols-4"
+                className="mx-auto grid w-full max-w-2xl grid-cols-2 gap-1 rounded-xl bg-white/[0.04] p-1 sm:grid-cols-4"
                 role="tablist"
                 aria-label="Dashboard views"
               >
@@ -250,10 +314,10 @@ export function DashboardShowcase() {
               </div>
             </div>
 
-            <div className="relative z-10 bg-[#0A111C] px-3 py-4 sm:px-5 sm:py-6">
-              <div className="bg-[#0B1220]">
+            <div className="relative z-10 bg-[#090f18] px-3 pt-4 pb-10 sm:px-5 sm:pt-6 sm:pb-12">
+              <div className="bg-[#0a101c]">
                 <div
-                  className={`transition-opacity duration-200 ease-out ${
+                  className={`pb-3 transition-opacity duration-200 ease-out sm:pb-4 ${
                     isTransitioning ? 'opacity-40' : 'opacity-100'
                   }`}
                 >
@@ -263,60 +327,7 @@ export function DashboardShowcase() {
             </div>
           </div>
         </div>
-
-        <div className="cs-container-adaptive mt-8 sm:mt-10">
-          <div className="mx-auto max-w-2xl text-center">
-            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--brand-primary)' }}>
-              Platform
-            </p>
-            <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-white sm:text-3xl sm:leading-tight">
-              Everything you need to understand and optimize your edge — instantly.
-            </h2>
-          </div>
-
-          <div className="cs-card cs-card-glass relative mx-auto mt-5 max-w-3xl overflow-hidden p-4 sm:mt-6 sm:p-6">
-            <div className="cs-card-wash" aria-hidden />
-
-            <ul className="relative z-10 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-2.5">
-              {PLATFORM_FEATURES.map((item, i) => (
-                <li
-                  key={item || `platform-feature-${i}`}
-                  className="flex min-h-[4.25rem] items-start gap-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3.5 py-3 text-sm leading-snug text-zinc-400"
-                >
-                  <svg
-                    className="mt-0.5 h-4 w-4 shrink-0"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                    style={{ color: 'var(--brand-primary)' }}
-                    aria-hidden
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l3.5 3.5L13 4" />
-                  </svg>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-
-            <div className="relative z-10 mt-5 border-t border-white/[0.06] pt-5 text-center">
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                {['No agents', 'No SDKs', 'No configuration'].map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-300"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-              <p className="mt-3 text-sm leading-relaxed text-zinc-500">
-                Just paste your URL and get insights in seconds.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
+      </section>
+    </>
   )
 }
