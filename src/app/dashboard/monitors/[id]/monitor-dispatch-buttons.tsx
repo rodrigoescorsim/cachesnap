@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { PauseCircle, Snowflake } from 'lucide-react'
+import { Pause, PauseCircle, Snowflake } from 'lucide-react'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 
 export function MonitorDispatchButtons({
@@ -11,12 +11,14 @@ export function MonitorDispatchButtons({
   freezeStorageKey,
   isFrozen,
   onToggleFreeze,
+  freezeStartedAtMs = null,
 }: {
   monitorId: string
   variant?: 'default' | 'compact' | 'audit'
   freezeStorageKey?: string
   isFrozen?: boolean
   onToggleFreeze?: () => void
+  freezeStartedAtMs?: number | null
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -34,6 +36,15 @@ export function MonitorDispatchButtons({
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
   const liveFreezeStorageKey = freezeStorageKey ?? `live_updates_frozen_${monitorId}`
+
+  function formatFrozenAtClock(ms: number): string {
+    return new Date(ms).toLocaleTimeString('en-US', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+  }
 
   useEffect(() => {
     if (cooldown > 0) {
@@ -168,6 +179,18 @@ export function MonitorDispatchButtons({
             </button>
           </PremiumTooltip>
         )}
+
+        {isCompact && isFrozen && freezeStartedAtMs != null ? (
+          <div
+            className="flex h-9 items-center gap-1 whitespace-nowrap"
+            aria-live="polite"
+          >
+            <Pause className="h-3 w-3 shrink-0 text-indigo-400/80" aria-hidden />
+            <span className="text-[11px] font-normal tabular-nums tracking-tight text-indigo-300/85">
+              Frozen at {formatFrozenAtClock(freezeStartedAtMs)}
+            </span>
+          </div>
+        ) : null}
 
         {!isCompact && !isAudit && (
           <button

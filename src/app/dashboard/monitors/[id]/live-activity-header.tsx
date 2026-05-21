@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Pause } from 'lucide-react'
 import { LiveDot } from '@/components/dashboard/dashboard-ui'
 import { MonitorDispatchButtons } from './monitor-dispatch-buttons'
 
@@ -9,16 +8,6 @@ interface LiveActivityHeaderProps {
   monitorId: string
   freezeStorageKey: string
   latestDataAt: number | null
-}
-
-/** Hora exata do freeze — HH:mm:ss para leitura rápida e consistência com o pedido. */
-function formatFrozenAtClock(ms: number): string {
-  return new Date(ms).toLocaleTimeString('en-US', {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
 }
 
 export function LiveActivityHeader({ monitorId, freezeStorageKey, latestDataAt }: LiveActivityHeaderProps) {
@@ -73,26 +62,15 @@ export function LiveActivityHeader({ monitorId, freezeStorageKey, latestDataAt }
           Live Performance
         </h2>
 
-        <div className="relative flex shrink-0 flex-col items-end justify-center">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           <MonitorDispatchButtons
             monitorId={monitorId}
             variant="compact"
             freezeStorageKey={freezeStorageKey}
             isFrozen={isFrozen}
+            freezeStartedAtMs={freezeStartedAtMs}
             onToggleFreeze={handleToggleFreeze}
           />
-
-          {isFrozen && freezeStartedAtMs != null ? (
-            <div
-              className="absolute top-[calc(100%-2px)] right-0 flex items-center justify-end gap-1 transition-opacity duration-300 ease-out whitespace-nowrap"
-              aria-live="polite"
-            >
-              <Pause className="h-3 w-3 shrink-0 text-indigo-400/80" aria-hidden />
-              <span className="text-[11px] font-normal tabular-nums tracking-tight text-indigo-300/85">
-                Frozen at {formatFrozenAtClock(freezeStartedAtMs)}
-              </span>
-            </div>
-          ) : null}
         </div>
       </div>
     </div>
