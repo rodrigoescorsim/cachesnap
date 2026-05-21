@@ -50,6 +50,15 @@ type Slide = {
   mobileImage: string
 }
 
+const PLATFORM_FEATURES = [
+  'Live TTFB and real cache hit/miss rates across global regions',
+  'Edge vs Origin performance deltas and comparison',
+  'Latency trends, patterns and intelligent anomaly detection',
+  'Security header validation, HSTS, CSP and SSL insights',
+  'Intelligent Advisor with actionable recommendations',
+  'Hourly patterns, weekly heatmaps and historical insight',
+] as const
+
 const SLIDES: Slide[] = [
   {
     id: 'edge',
@@ -200,21 +209,62 @@ export function DashboardShowcase() {
         <ShowcaseAmbientLayer active={active} />
       </div>
 
-      <div className="relative z-10 py-16 sm:py-24">
-        <div className="cs-container-adaptive text-center mb-10">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--brand-primary)' }}>
-            Platform
-          </p>
-          <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
-            This is what you get, immediately.
-          </h2>
-          <p className="mx-auto mt-4 max-w-lg text-base leading-relaxed text-zinc-400">
-            Live latency, cache diagnostics, and security checks across every region — no setup required.
-          </p>
+      <div className="relative z-10 py-12 sm:py-16">
+        <div className="cs-container-adaptive mb-8">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--brand-primary)' }}>
+              Platform
+            </p>
+            <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-white sm:text-3xl sm:leading-tight">
+              Everything you need to understand and optimize your edge — instantly.
+            </h2>
+          </div>
+
+          <div className="cs-card cs-card-glass relative mx-auto mt-5 max-w-3xl overflow-hidden p-4 sm:mt-6 sm:p-6">
+            <div className="cs-card-wash" aria-hidden />
+
+            <ul className="relative z-10 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-2.5">
+              {PLATFORM_FEATURES.map((item, i) => (
+                <li
+                  key={item || `platform-feature-${i}`}
+                  className="flex min-h-[4.25rem] items-start gap-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3.5 py-3 text-sm leading-snug text-zinc-400"
+                >
+                  <svg
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    style={{ color: 'var(--brand-primary)' }}
+                    aria-hidden
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l3.5 3.5L13 4" />
+                  </svg>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+
+            <div className="relative z-10 mt-5 border-t border-white/[0.06] pt-5 text-center">
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {['No agents', 'No SDKs', 'No configuration'].map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-300"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-3 text-sm leading-relaxed text-zinc-500">
+                Just paste your URL and get insights in seconds.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Premium Sliding Pill Tabs Selector */}
-        <div className="relative flex flex-col items-center gap-6 mb-10 z-20">
+        <div className="relative z-20 mb-6 flex flex-col items-center gap-3">
           <div className="inline-flex rounded-xl bg-white/[0.02] border border-white/[0.08] p-1 backdrop-blur-md relative">
             {/* Sliding Pill Indicator */}
             <div
@@ -247,7 +297,7 @@ export function DashboardShowcase() {
               isTransitioning ? 'opacity-0 scale-95 translate-y-0.5' : 'opacity-100 scale-100 translate-y-0'
             }`}
           >
-            <p className="mx-auto max-w-xl text-center text-sm text-zinc-400 min-h-[40px] px-6 leading-relaxed">
+            <p className="mx-auto max-w-lg px-4 text-center text-sm leading-snug text-zinc-500">
               {SLIDES[active].description}
             </p>
           </div>

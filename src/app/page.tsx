@@ -151,9 +151,14 @@ export default async function RootPage() {
             </h1>
 
             {/* Subtitle */}
-            <p className="max-w-2xl text-center text-lg text-zinc-400 leading-relaxed">
-              The monitoring platform for real cache hit rates, edge vs origin TTFB, latency trends and patterns — across all continents. Zero code. Zero configuration.
-            </p>
+            <div className="space-y-3 max-w-2xl text-center">
+              <p className="text-lg text-zinc-400 leading-relaxed">
+                The only monitoring platform that truly understands cache behavior, edge vs origin performance and regional reality — across all continents.
+              </p>
+              <p className="text-sm font-semibold text-zinc-500 tracking-wide">
+                Zero code. Zero configuration.
+              </p>
+            </div>
 
             {/* Form */}
             <HeroUrlForm />
