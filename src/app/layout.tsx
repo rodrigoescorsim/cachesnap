@@ -31,7 +31,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} dark h-full antialiased bg-background text-foreground`}
+      className={`${inter.variable} dark h-full scroll-smooth antialiased bg-background text-foreground`}
     >
       <body className="min-h-full flex flex-col selection:bg-cyan-500/30">
         <QueryProvider>{children}</QueryProvider>

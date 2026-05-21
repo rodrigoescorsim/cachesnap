@@ -395,7 +395,7 @@ body {
 
   /** Marketing site chrome. */
   .cs-marketing-header {
-    @apply sticky top-0 z-50 w-full border-b border-border bg-background/96 backdrop-blur-md supports-[backdrop-filter]:bg-background/92;
+    @apply fixed top-0 left-0 right-0 z-50 w-full border-b border-white/[0.06] bg-background/96 backdrop-blur-md supports-[backdrop-filter]:bg-background/92;
   }
 
   .cs-marketing-footer {

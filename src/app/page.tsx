@@ -126,7 +126,7 @@ export default async function RootPage() {
 
         {/* ═══════════════════════════════════════════ HERO + HOW IT WORKS */}
         <section className="cs-container-adaptive pt-14 pb-20 sm:pt-16 sm:pb-24" aria-label="Hero and how it works">
-          <div className="flex flex-col items-center text-center gap-9 sm:gap-10">
+          <div className="flex flex-col items-center text-center gap-8">
             <div
               className="w-[148px] h-[148px] sm:w-[172px] sm:h-[172px] shrink-0"
               aria-hidden="true"
@@ -143,7 +143,7 @@ export default async function RootPage() {
               </span>
             </h1>
 
-            <div className="space-y-4 max-w-2xl text-center">
+            <div className="space-y-3 max-w-2xl text-center">
               <p className="text-lg text-zinc-400 leading-relaxed">
                 The only monitoring platform that truly understands cache behavior, edge vs origin performance and regional reality — across all continents.
               </p>
@@ -154,13 +154,13 @@ export default async function RootPage() {
 
             <HeroUrlForm />
 
-            <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest">
+            <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest -mt-2">
               Start testing for free · No credit card required
             </p>
           </div>
 
-          <div className="mt-16 text-center sm:mt-20">
-            <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: 'var(--brand-primary)' }}>
+          <div id="how-it-works" className="mt-14 scroll-mt-24 text-center sm:mt-16">
+            <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--brand-primary)' }}>
               How it Works
             </p>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
@@ -168,18 +168,18 @@ export default async function RootPage() {
             </h2>
           </div>
 
-          <div className="relative mt-12 grid grid-cols-1 gap-7 md:grid-cols-3 sm:mt-14">
+          <div className="relative mt-10 grid grid-cols-1 gap-6 md:grid-cols-3 sm:mt-12">
             <div className="hidden md:block absolute top-10 left-[calc(16.67%+1rem)] right-[calc(16.67%+1rem)] h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent" />
 
             {STEPS.map((step) => (
-              <div key={step.number} className="cs-card cs-card-glass relative flex flex-col items-center gap-6 overflow-hidden p-9 text-center transition-all duration-300 hover:scale-[1.01]">
+              <div key={step.number} className="cs-card cs-card-glass relative flex flex-col items-center gap-5 overflow-hidden p-8 text-center transition-all duration-300 hover:scale-[1.01]">
                 <div className="cs-card-wash" aria-hidden />
                 <div className="cs-icon-well-lg">
                   {step.icon}
                 </div>
                 <div className="relative z-10">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2.5">{step.number}</p>
-                  <h3 className="text-base font-bold text-white mb-2.5">{step.title}</h3>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">{step.number}</p>
+                  <h3 className="text-base font-bold text-white mb-2">{step.title}</h3>
                   <p className="text-sm text-zinc-400 leading-relaxed">{step.description}</p>
                 </div>
               </div>
