@@ -878,4 +878,9 @@ body {
   .cs-badge-live-age-danger {
     @apply bg-red-500/[0.07] text-red-400/78 ring-red-500/16;
   }
+
+  .cs-grid-pattern {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
 }

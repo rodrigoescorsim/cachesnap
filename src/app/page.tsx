@@ -141,24 +141,19 @@ export default async function RootPage() {
 
             {/* Headline */}
             <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white max-w-3xl leading-[1.1] drop-shadow-sm">
-              Edge performance,{' '}
+              Deep visibility into your{' '}
               <span
                 className="text-transparent bg-clip-text"
                 style={{ backgroundImage: 'linear-gradient(135deg, var(--brand-primary) 0%, #34d399 50%, #38bdf8 100%)' }}
               >
-                finally transparent.
+                edge stack.
               </span>
             </h1>
 
             {/* Subtitle */}
-            <div className="space-y-3 max-w-2xl text-center">
-              <p className="text-lg text-zinc-400 leading-relaxed">
-                Cache hit rate, edge vs origin TTFB, latency trends and patterns — across all continents.
-              </p>
-              <p className="text-sm font-semibold text-zinc-500 tracking-wide">
-                Zero integration. Zero configuration.
-              </p>
-            </div>
+            <p className="max-w-2xl text-center text-lg text-zinc-400 leading-relaxed">
+              The monitoring platform for real cache hit rates, edge vs origin TTFB, latency trends and patterns — across all continents. Zero code. Zero configuration.
+            </p>
 
             {/* Form */}
             <HeroUrlForm />
@@ -178,195 +173,216 @@ export default async function RootPage() {
         <DashboardPreview />
 
         {/* ══════════════════════════════════════════════════ HOW IT WORKS */}
-        <section className="cs-container-adaptive pb-28">
-          <div className="text-center mb-14">
-            <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--brand-primary)' }}>
-              How it works
-            </p>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-              From URL to insight in seconds
-            </h2>
-            <p className="mt-4 text-zinc-400 max-w-xl mx-auto">
-              No agents. No SDKs. If your URL is public, we can monitor it.
-            </p>
-          </div>
+        <section
+          className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 overflow-hidden border-y border-white/[0.04] py-24 cs-grid-pattern"
+          style={{
+            background: 'radial-gradient(circle at center, rgba(34, 255, 136, 0.04) 0%, transparent 65%), #0B1220'
+          }}
+          aria-label="How it works"
+        >
+          <div className="cs-container-adaptive">
+            <div className="text-center mb-14">
+              <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--brand-primary)' }}>
+                How it works
+              </p>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+                From URL to insight in seconds
+              </h2>
+              <p className="mt-4 text-zinc-400 max-w-xl mx-auto">
+                No agents. No SDKs. If your URL is public, we can monitor it.
+              </p>
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
-            {/* Connector line */}
-            <div className="hidden md:block absolute top-10 left-[calc(16.67%+1rem)] right-[calc(16.67%+1rem)] h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
+              {/* Connector line */}
+              <div className="hidden md:block absolute top-10 left-[calc(16.67%+1rem)] right-[calc(16.67%+1rem)] h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent" />
 
-            {STEPS.map((step) => (
-              <div key={step.number} className="cs-card cs-card-glass relative flex flex-col items-center gap-5 overflow-hidden p-8 text-center">
-                <div className="cs-card-wash" aria-hidden />
-                <div className="cs-icon-well-lg">
-                  {step.icon}
+              {STEPS.map((step) => (
+                <div key={step.number} className="cs-card cs-card-glass relative flex flex-col items-center gap-5 overflow-hidden p-8 text-center transition-all duration-300 hover:scale-[1.01]">
+                  <div className="cs-card-wash" aria-hidden />
+                  <div className="cs-icon-well-lg">
+                    {step.icon}
+                  </div>
+                  <div className="relative z-10">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">{step.number}</p>
+                    <h3 className="text-base font-bold text-white mb-2">{step.title}</h3>
+                    <p className="text-sm text-zinc-400 leading-relaxed">{step.description}</p>
+                  </div>
                 </div>
-                <div className="relative z-10">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">{step.number}</p>
-                  <h3 className="text-base font-bold text-white mb-2">{step.title}</h3>
-                  <p className="text-sm text-zinc-400 leading-relaxed">{step.description}</p>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </section>
 
         {/* ══════════════════════════════════════════════════ FEATURES GRID */}
-        <section className="cs-container-adaptive pb-28">
-          <div className="text-center mb-14">
-            <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--brand-primary)' }}>
-              Edge Intelligence
-            </p>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Observability built for modern edge stacks.
-            </h2>
-            <p className="mt-4 text-zinc-400 max-w-xl mx-auto">
-              Analyze cache hit-rates, CDN header states, and regional latency in real time. Absolute visibility into your edge performance.
-            </p>
-          </div>
+        <section
+          className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 overflow-hidden border-b border-white/[0.04] py-24 bg-gradient-to-b from-[#0B1220] via-[#09101E] to-[#0B1220]"
+          aria-label="Features"
+        >
+          <div className="cs-container-adaptive">
+            <div className="text-center mb-14">
+              <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--brand-primary)' }}>
+                Edge Intelligence
+              </p>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+                Observability built for modern edge stacks.
+              </h2>
+              <p className="mt-4 text-zinc-400 max-w-xl mx-auto">
+                Analyze cache hit-rates, CDN header states, and regional latency in real time. Absolute visibility into your edge performance.
+              </p>
+            </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {FEATURES.map((f) => (
-              <div
-                key={f.title}
-                className="cs-card cs-card-glass group relative overflow-hidden p-6 transition-all duration-200"
-              >
-                <div className="cs-card-wash" aria-hidden />
-                <div className="cs-icon-well-md">
-                  {f.icon}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {FEATURES.map((f) => (
+                <div
+                  key={f.title}
+                  className="cs-card cs-card-glass group relative overflow-hidden p-6 transition-all duration-300 hover:scale-[1.01] hover:border-[rgba(var(--brand-primary-rgb),0.3)]"
+                >
+                  <div className="cs-card-wash" aria-hidden />
+                  <div className="cs-icon-well-md transition-colors duration-300 group-hover:border-[rgba(var(--brand-primary-rgb),0.3)]">
+                    {f.icon}
+                  </div>
+                  <h3 className="relative z-10 mb-2 text-sm font-bold text-white transition-colors duration-300 group-hover:text-[var(--brand-primary)]">{f.title}</h3>
+                  <p className="relative z-10 text-sm leading-relaxed text-zinc-400">{f.description}</p>
                 </div>
-                <h3 className="relative z-10 mb-2 text-sm font-bold text-white">{f.title}</h3>
-                <p className="relative z-10 text-sm leading-relaxed text-zinc-400">{f.description}</p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </section>
 
         {/* ═══════════════════════════════════════════ ALERTS SPOTLIGHT */}
-        <section className="cs-container-adaptive pb-28">
-          <div className="cs-card cs-card-glass relative overflow-hidden">
-            <div className="cs-card-wash" aria-hidden />
-            <div
-              className="pointer-events-none absolute inset-0 opacity-30"
-              style={{ background: 'radial-gradient(ellipse at 70% 50%, rgba(34,255,136,0.12) 0%, transparent 70%)' }}
-              aria-hidden
-            />
+        <section
+          className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 overflow-hidden border-b border-white/[0.04] py-24"
+          aria-label="Alerts spotlight"
+        >
+          <div className="cs-container-adaptive">
+            <div className="cs-card cs-card-glass relative overflow-hidden transition-all duration-300 hover:scale-[1.005]">
+              <div className="cs-card-wash" aria-hidden />
+              {/* Theater spotlight dual glows */}
+              <div
+                className="pointer-events-none absolute inset-0 opacity-100"
+                style={{
+                  backgroundImage: 'radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.12) 0%, transparent 55%), radial-gradient(circle at 100% 100%, rgba(34, 255, 136, 0.1) 0%, transparent 55%)'
+                }}
+                aria-hidden
+              />
 
-            <div className="relative z-10 grid grid-cols-1 items-center gap-10 p-8 sm:p-12 lg:grid-cols-2">
-              {/* Copy */}
-              <div className="space-y-5">
-                <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--brand-primary)' }}>
-                  Intelligent Routing
-                </p>
-                <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
-                  Aggregated alerts.<br />Zero noise.
-                </h2>
-                <p className="text-zinc-400 leading-relaxed">
-                  CacheSnap automatically consolidates multi-region errors into a single structured incident. Get total context on a single thread instead of hundreds of duplicate emails.
-                </p>
-                <p className="text-zinc-300 leading-relaxed font-medium">
-                  Immediate notification triggers on the first edge failure, followed by smart regional updates. One issue, one clean thread.
-                </p>
-                <ul className="space-y-2.5 text-sm text-zinc-400">
-                  {[
-                    'One consolidated incident per active regional event',
-                    'Smart progressive quiet intervals to prevent flood',
-                    'One-click email snooze for 24 hours',
-                    'Instant recovery notifications upon resolution',
-                  ].map(item => (
-                    <li key={item} className="flex items-start gap-2.5">
-                      <svg className="h-4 w-4 mt-0.5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2} style={{ color: 'var(--brand-primary)' }}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l3.5 3.5L13 4" />
-                      </svg>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Before / After + incident cards */}
-              <div className="space-y-3">
-
-                {/* Before / After comparison */}
-                <div className="grid grid-cols-2 gap-2 mb-1">
-                  {/* Before */}
-                  <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 space-y-1.5">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-red-400 mb-2">Without CacheSnap</p>
-                    {['00:05', '00:10', '00:15'].map(t => (
-                      <div key={t} className="flex items-center gap-1.5">
-                        <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
-                        <span className="text-[10px] text-red-300 font-mono">cache_hit_low · {t}</span>
-                      </div>
-                    ))}
-                    <div className="flex items-center gap-1.5 opacity-50">
-                      <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
-                      <span className="text-[10px] text-red-300 font-mono">+21 more emails…</span>
-                    </div>
-                  </div>
-                  {/* After */}
-                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-1.5">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-400 mb-2">With CacheSnap</p>
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
-                      <span className="text-[10px] text-zinc-300 font-mono">1 incident opened</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 opacity-60">
-                      <span className="h-1.5 w-1.5 rounded-full bg-zinc-500 shrink-0" />
-                      <span className="text-[10px] text-zinc-500 font-mono">digest in 4h</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 opacity-40">
-                      <span className="h-1.5 w-1.5 rounded-full bg-zinc-500 shrink-0" />
-                      <span className="text-[10px] text-zinc-500 font-mono">digest in 8h</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
-                      <span className="text-[10px] text-emerald-400 font-mono">resolved ✓</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Open incident */}
-                <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-                      <span className="text-sm font-semibold text-white">cache_hit_low</span>
-                      <span className="rounded-full bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 text-[10px] font-bold text-amber-400 uppercase tracking-wide">Medium</span>
-                    </div>
-                    <span className="text-[11px] text-zinc-500">2h ago</span>
-                  </div>
-                  <p className="text-xs text-zinc-400">Cache hit rate dropped to <span className="text-amber-300 font-semibold">61%</span> in Cape Town — threshold is 80%.</p>
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-zinc-500">1 notification sent · next digest in 4h</span>
-                    <span className="text-zinc-500 underline cursor-default">Snooze 24h</span>
-                  </div>
-                </div>
-
-                {/* Resolved incident */}
-                <div className="cs-card cs-card-glass space-y-3 p-4 opacity-70">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                      <span className="text-sm font-semibold text-zinc-300">ssl_expiry</span>
-                      <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400 uppercase tracking-wide">Resolved</span>
-                    </div>
-                    <span className="text-[11px] text-zinc-500">3d ago</span>
-                  </div>
-                  <p className="text-xs text-zinc-500">SSL Certificate renewed · was expiring in 12 days. Open for 6 hours.</p>
-                </div>
-
-                {/* Notification preview */}
-                <div className="cs-card cs-card-glass space-y-2 p-4">
-                  <div className="flex items-center gap-2 text-xs text-zinc-400">
-                    <svg className="h-3.5 w-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                    <span className="font-medium text-zinc-300">Email notification</span>
-                    <span className="text-zinc-600">· alerts@cachesnap.com</span>
-                  </div>
-                  <p className="text-xs text-zinc-500 font-mono leading-relaxed">
-                    <span className="text-zinc-300">[CacheSnap] Cache hit rate low — stripe.com</span><br />
-                    Cape Town: 61% hit rate (threshold 80%)<br />
-                    <span style={{ color: 'var(--brand-primary)' }} className="underline cursor-default">→ Snooze for 24h</span>  ·  View dashboard
+              <div className="relative z-10 grid grid-cols-1 items-center gap-10 p-8 sm:p-12 lg:grid-cols-2">
+                {/* Copy */}
+                <div className="space-y-5">
+                  <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--brand-primary)' }}>
+                    Intelligent Routing
                   </p>
+                  <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
+                    Aggregated alerts.<br />Zero noise.
+                  </h2>
+                  <p className="text-zinc-400 leading-relaxed">
+                    CacheSnap automatically consolidates multi-region errors into a single structured incident. Get total context on a single thread instead of hundreds of duplicate emails.
+                  </p>
+                  <p className="text-zinc-300 leading-relaxed font-medium">
+                    Immediate notification triggers on the first edge failure, followed by smart regional updates. One issue, one clean thread.
+                  </p>
+                  <ul className="space-y-2.5 text-sm text-zinc-400">
+                    {[
+                      'One consolidated incident per active regional event',
+                      'Smart progressive quiet intervals to prevent flood',
+                      'One-click email snooze for 24 hours',
+                      'Instant recovery notifications upon resolution',
+                    ].map(item => (
+                      <li key={item} className="flex items-start gap-2.5">
+                        <svg className="h-4 w-4 mt-0.5 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2} style={{ color: 'var(--brand-primary)' }}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l3.5 3.5L13 4" />
+                        </svg>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Before / After + incident cards */}
+                <div className="space-y-3">
+
+                  {/* Before / After comparison */}
+                  <div className="grid grid-cols-2 gap-2 mb-1">
+                    {/* Before */}
+                    <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 space-y-1.5">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-red-400 mb-2">Without CacheSnap</p>
+                      {['00:05', '00:10', '00:15'].map(t => (
+                        <div key={t} className="flex items-center gap-1.5">
+                          <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
+                          <span className="text-[10px] text-red-300 font-mono">cache_hit_low · {t}</span>
+                        </div>
+                      ))}
+                      <div className="flex items-center gap-1.5 opacity-50">
+                        <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
+                        <span className="text-[10px] text-red-300 font-mono">+21 more emails…</span>
+                      </div>
+                    </div>
+                    {/* After */}
+                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-1.5">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-400 mb-2">With CacheSnap</p>
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+                        <span className="text-[10px] text-zinc-300 font-mono">1 incident opened</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 opacity-60">
+                        <span className="h-1.5 w-1.5 rounded-full bg-zinc-500 shrink-0" />
+                        <span className="text-[10px] text-zinc-500 font-mono">digest in 4h</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 opacity-40">
+                        <span className="h-1.5 w-1.5 rounded-full bg-zinc-500 shrink-0" />
+                        <span className="text-[10px] text-zinc-500 font-mono">digest in 8h</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
+                        <span className="text-[10px] text-emerald-400 font-mono">resolved ✓</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Open incident */}
+                  <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                        <span className="text-sm font-semibold text-white">cache_hit_low</span>
+                        <span className="rounded-full bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 text-[10px] font-bold text-amber-400 uppercase tracking-wide">Medium</span>
+                      </div>
+                      <span className="text-[11px] text-zinc-500">2h ago</span>
+                    </div>
+                    <p className="text-xs text-zinc-400">Cache hit rate dropped to <span className="text-amber-300 font-semibold">61%</span> in Cape Town — threshold is 80%.</p>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-zinc-500">1 notification sent · next digest in 4h</span>
+                      <span className="text-zinc-500 underline cursor-default">Snooze 24h</span>
+                    </div>
+                  </div>
+
+                  {/* Resolved incident */}
+                  <div className="cs-card cs-card-glass space-y-3 p-4 opacity-70">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                        <span className="text-sm font-semibold text-zinc-300">ssl_expiry</span>
+                        <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400 uppercase tracking-wide">Resolved</span>
+                      </div>
+                      <span className="text-[11px] text-zinc-500">3d ago</span>
+                    </div>
+                    <p className="text-xs text-zinc-500">SSL Certificate renewed · was expiring in 12 days. Open for 6 hours.</p>
+                  </div>
+
+                  {/* Notification preview */}
+                  <div className="cs-card cs-card-glass space-y-2 p-4">
+                    <div className="flex items-center gap-2 text-xs text-zinc-400">
+                      <svg className="h-3.5 w-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                      <span className="font-medium text-zinc-300">Email notification</span>
+                      <span className="text-zinc-600">· alerts@cachesnap.com</span>
+                    </div>
+                    <p className="text-xs text-zinc-500 font-mono leading-relaxed">
+                      <span className="text-zinc-300">[CacheSnap] Cache hit rate low — stripe.com</span><br />
+                      Cape Town: 61% hit rate (threshold 80%)<br />
+                      <span style={{ color: 'var(--brand-primary)' }} className="underline cursor-default">→ Snooze for 24h</span>  ·  View dashboard
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

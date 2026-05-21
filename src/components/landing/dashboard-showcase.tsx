@@ -26,7 +26,7 @@ const LandingHistoricalTrendsDemo = dynamic(
 )
 
 /** Mesmo canvas do dashboard / screenshots */
-const SHOWCASE_CANVAS = '#0B1220'
+const SHOWCASE_CANVAS = '#0D1625'
 
 function softAmbient(primary: string, secondary?: string): string {
   const layers = [
@@ -191,7 +191,7 @@ export function DashboardShowcase() {
 
   return (
     <section
-      className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 overflow-hidden"
+      className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 overflow-hidden border-y border-white/[0.04] shadow-[inset_0_24px_48px_-12px_rgba(0,0,0,0.65),inset_0_-24px_48px_-12px_rgba(0,0,0,0.65)]"
       style={{ background: SHOWCASE_CANVAS }}
       aria-label="Product previews"
     >
