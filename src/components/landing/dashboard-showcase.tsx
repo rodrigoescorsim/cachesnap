@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 
 const DEMO_SKELETON = <div className="min-h-[340px] w-full animate-pulse rounded-xl bg-white/[0.03]" />
@@ -38,27 +38,17 @@ function softAmbient(primary: string, secondary?: string): string {
   return layers.join(', ')
 }
 
-type Slide =
-  | {
-      id: string
-      kind: 'live'
-      live: 'edge-vs-origin' | 'period-performance' | 'monitors' | 'historical-trends'
-      maxWidth: number
-      title: string
-      description: string
-      ambient: string
-    }
-  | {
-      id: string
-      kind: 'image'
-      src: string
-      alt: string
-      width: number
-      height: number
-      title: string
-      description: string
-      ambient: string
-    }
+type Slide = {
+  id: string
+  kind: 'live'
+  live: 'edge-vs-origin' | 'period-performance' | 'monitors' | 'historical-trends'
+  maxWidth: number
+  title: string
+  tabLabel: string
+  description: string
+  ambient: string
+  mobileImage: string
+}
 
 const SLIDES: Slide[] = [
   {
@@ -67,8 +57,10 @@ const SLIDES: Slide[] = [
     live: 'edge-vs-origin',
     maxWidth: 1042,
     title: 'Edge vs Origin',
+    tabLabel: 'Edge vs Origin',
     description: 'See exactly how much your CDN saves per region — edge HIT vs origin MISS, side by side.',
     ambient: softAmbient('rgba(34,255,136,0.06)', 'rgba(16,185,129,0.04)'),
+    mobileImage: '/screenshots/edge-vs-origin.png',
   },
   {
     id: 'monitors',
@@ -76,8 +68,10 @@ const SLIDES: Slide[] = [
     live: 'monitors',
     maxWidth: 1224,
     title: 'Monitors',
+    tabLabel: 'Monitors',
     description: 'Every URL in one view — global averages, per-site metrics, regional health, and open incidents.',
     ambient: softAmbient('rgba(99,102,241,0.07)', 'rgba(56,189,248,0.04)'),
+    mobileImage: '/screenshots/monitors.png',
   },
   {
     id: 'performance',
@@ -85,8 +79,10 @@ const SLIDES: Slide[] = [
     live: 'period-performance',
     maxWidth: 1010,
     title: 'Period performance',
-    description: 'Edge cache TTFB vs origin TTFB per region for any time window.',
+    tabLabel: 'Performance',
+    description: 'Edge vs origin response times per region for any time window.',
     ambient: softAmbient('rgba(34,211,238,0.06)', 'rgba(20,184,166,0.04)'),
+    mobileImage: '/screenshots/performance.png',
   },
   {
     id: 'trends',
@@ -94,103 +90,59 @@ const SLIDES: Slide[] = [
     live: 'historical-trends',
     maxWidth: 1040,
     title: 'Historical trends',
-    description: 'TTFB and cache hit rate over time, per region. Spot regressions before users do.',
+    tabLabel: 'Trends',
+    description: 'Response times and cache hit rates over time, per region. Spot latency issues before users do.',
     ambient: softAmbient('rgba(244,114,182,0.05)', 'rgba(251,191,36,0.04)'),
+    mobileImage: '/screenshots/trends.png',
   },
 ]
 
 function ShowcasePreview({
   slide,
   visible,
+  isMobile,
 }: {
   slide: Slide
   visible: boolean
+  isMobile: boolean
 }) {
-  const maxWidth = slide.kind === 'live' ? slide.maxWidth : slide.width
+  const maxWidth = slide.maxWidth
+
+  if (isMobile && slide.mobileImage) {
+    return (
+      <div
+        className="relative mx-auto w-full"
+        style={{ maxWidth }}
+      >
+        <div className="rounded-xl overflow-hidden border border-white/10 shadow-2xl bg-[#0B1220] relative flex items-center justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={slide.mobileImage}
+            alt={slide.title}
+            width={slide.maxWidth}
+            className="block h-auto w-full select-none"
+            decoding="async"
+            draggable={false}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
       className={`landing-showcase-reveal relative mx-auto w-full overflow-x-auto ${visible ? 'is-visible' : ''}`}
       style={{ maxWidth }}
     >
-      {slide.kind === 'live' ? (
-        visible ? (
-          slide.live === 'edge-vs-origin' ? (
-            <LandingEdgeVsOriginDemo />
-          ) : slide.live === 'period-performance' ? (
-            <LandingPeriodPerformanceDemo />
-          ) : slide.live === 'monitors' ? (
-            <LandingMonitorsDemo />
-          ) : (
-            <LandingHistoricalTrendsDemo />
-          )
-        ) : (
-          <div className="min-h-[340px] w-full" />
-        )
+      {slide.live === 'edge-vs-origin' ? (
+        <LandingEdgeVsOriginDemo />
+      ) : slide.live === 'period-performance' ? (
+        <LandingPeriodPerformanceDemo />
+      ) : slide.live === 'monitors' ? (
+        <LandingMonitorsDemo />
       ) : (
-        /* eslint-disable-next-line @next/next/no-img-element */
-        <img
-          src={slide.src}
-          alt={slide.alt}
-          width={slide.width}
-          height={slide.height}
-          className="block h-auto w-full select-none"
-          style={{ maxWidth: slide.width }}
-          decoding="async"
-          draggable={false}
-        />
+        <LandingHistoricalTrendsDemo />
       )}
-    </div>
-  )
-}
-
-function ShowcaseSlidePanel({
-  slide,
-  index,
-  setStepRef,
-}: {
-  slide: Slide
-  index: number
-  setStepRef: (index: number, el: HTMLDivElement | null) => void
-}) {
-  const panelRef = useRef<HTMLDivElement>(null)
-  const [revealed, setRevealed] = useState(false)
-
-  useEffect(() => {
-    const el = panelRef.current
-    setStepRef(index, el)
-    if (!el) return
-
-    const revealObserver = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) setRevealed(true)
-      },
-      { threshold: 0.32, rootMargin: '-10% 0px -10% 0px' },
-    )
-
-    revealObserver.observe(el)
-    return () => {
-      setStepRef(index, null)
-      revealObserver.disconnect()
-    }
-  }, [index, setStepRef])
-
-  return (
-    <div
-      ref={panelRef}
-      data-step-index={index}
-      className="relative flex flex-col py-14 sm:py-16 md:py-20"
-    >
-      <div className="cs-container-adaptive relative z-10 flex w-full flex-col items-center px-4 sm:px-8">
-        <div
-          className={`landing-showcase-reveal-delay mx-auto mb-8 max-w-2xl text-center sm:mb-10 ${revealed ? 'is-visible' : ''}`}
-        >
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-white">{slide.title}</p>
-          <p className="mt-2 text-sm leading-relaxed text-zinc-400">{slide.description}</p>
-        </div>
-
-        <ShowcasePreview slide={slide} visible={revealed} />
-      </div>
     </div>
   )
 }
@@ -202,7 +154,7 @@ function ShowcaseAmbientLayer({ active }: { active: number }) {
       {SLIDES.map((slide, i) => (
         <div
           key={slide.id}
-          className="absolute inset-0 transition-opacity duration-[2.4s] ease-in-out"
+          className="absolute inset-0 transition-opacity duration-[1.2s] ease-in-out"
           style={{
             background: slide.ambient,
             opacity: i === active ? 0.55 : 0,
@@ -215,51 +167,41 @@ function ShowcaseAmbientLayer({ active }: { active: number }) {
 
 export function DashboardShowcase() {
   const [active, setActive] = useState(0)
-  const stepRefs = useRef<(HTMLDivElement | null)[]>([])
-
-  const setStepRef = useCallback((index: number, el: HTMLDivElement | null) => {
-    stepRefs.current[index] = el
-  }, [])
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
-    const syncActive = () => {
-      const steps = stepRefs.current.filter(Boolean) as HTMLDivElement[]
-      if (steps.length === 0) return
-
-      const viewportMid = window.innerHeight * 0.5
-      let bestIndex = 0
-      let bestDistance = Infinity
-
-      steps.forEach((el, i) => {
-        const rect = el.getBoundingClientRect()
-        const mid = rect.top + rect.height * 0.38
-        const distance = Math.abs(mid - viewportMid)
-        if (distance < bestDistance) {
-          bestDistance = distance
-          bestIndex = i
-        }
-      })
-
-      setActive(bestIndex)
-    }
-
-    syncActive()
-    window.addEventListener('scroll', syncActive, { passive: true })
-    window.addEventListener('resize', syncActive)
-    return () => {
-      window.removeEventListener('scroll', syncActive)
-      window.removeEventListener('resize', syncActive)
-    }
+    const mql = window.matchMedia('(max-width: 768px)')
+    setIsMobile(mql.matches)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mql.addEventListener('change', handler)
+    return () => mql.removeEventListener('change', handler)
   }, [])
+
+  const handleTabChange = (index: number) => {
+    if (index === active) return
+    setIsTransitioning(true)
+    setTimeout(() => {
+      setActive(index)
+      setIsTransitioning(false)
+    }, 180)
+  }
+
+  const tabWidth = isMobile ? 80 : 130
 
   return (
     <section
-      className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2"
+      className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 overflow-hidden"
       style={{ background: SHOWCASE_CANVAS }}
-      aria-label="Product screenshots"
+      aria-label="Product previews"
     >
-      <div className="relative z-10 py-20 sm:py-28">
-        <div className="cs-container-adaptive text-center">
+      {/* Dynamic ambient glow layer */}
+      <div className="absolute inset-0 z-0">
+        <ShowcaseAmbientLayer active={active} />
+      </div>
+
+      <div className="relative z-10 py-16 sm:py-24">
+        <div className="cs-container-adaptive text-center mb-10">
           <p className="mb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--brand-primary)' }}>
             Platform
           </p>
@@ -270,14 +212,59 @@ export function DashboardShowcase() {
             Live latency, cache diagnostics, and security checks across every region — no setup required.
           </p>
         </div>
-      </div>
 
-      <div className="relative">
-        <ShowcaseAmbientLayer active={active} />
+        {/* Premium Sliding Pill Tabs Selector */}
+        <div className="relative flex flex-col items-center gap-6 mb-10 z-20">
+          <div className="inline-flex rounded-xl bg-white/[0.02] border border-white/[0.08] p-1 backdrop-blur-md relative">
+            {/* Sliding Pill Indicator */}
+            <div
+              className="absolute top-1 bottom-1 rounded-lg bg-white/[0.07] border border-white/5 transition-all duration-300 ease-out pointer-events-none"
+              style={{
+                left: `${active * tabWidth + 4}px`,
+                width: `${tabWidth}px`,
+              }}
+            />
+            {SLIDES.map((slide, i) => (
+              <button
+                key={slide.id}
+                type="button"
+                onClick={() => handleTabChange(i)}
+                className={`relative z-10 py-2.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-colors duration-300 cursor-pointer select-none text-center ${
+                  active === i
+                    ? 'text-white'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+                style={{ width: `${tabWidth}px` }}
+              >
+                {slide.tabLabel}
+              </button>
+            ))}
+          </div>
 
-        {SLIDES.map((slide, i) => (
-          <ShowcaseSlidePanel key={slide.id} slide={slide} index={i} setStepRef={setStepRef} />
-        ))}
+          {/* Active Tab Concise Description */}
+          <div
+            className={`transition-all duration-200 ease-out transform ${
+              isTransitioning ? 'opacity-0 scale-95 translate-y-0.5' : 'opacity-100 scale-100 translate-y-0'
+            }`}
+          >
+            <p className="mx-auto max-w-xl text-center text-sm text-zinc-400 min-h-[40px] px-6 leading-relaxed">
+              {SLIDES[active].description}
+            </p>
+          </div>
+        </div>
+
+        {/* Main Canvas Frame with Premium Transitions */}
+        <div className="cs-container-adaptive relative z-10 px-4 sm:px-8">
+          <div
+            className={`transition-all duration-300 ease-out transform ${
+              isTransitioning
+                ? 'opacity-0 scale-[0.99] translate-y-1.5 filter blur-[2px]'
+                : 'opacity-100 scale-100 translate-y-0 filter blur-0'
+            }`}
+          >
+            <ShowcasePreview slide={SLIDES[active]} visible={true} isMobile={isMobile} />
+          </div>
+        </div>
       </div>
     </section>
   )
