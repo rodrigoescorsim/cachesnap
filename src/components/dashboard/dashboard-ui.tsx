@@ -20,12 +20,18 @@ interface ViewSectionHeaderProps {
  * Inclui o LiveDot opcional e mantém a altura fixa (h-9) para evitar saltos.
  */
 export const ViewSectionHeader = ({ title, showDot = true, dotColorClass, className = '', children }: ViewSectionHeaderProps) => (
-  <div className={`flex items-center justify-between gap-3 mb-5 px-1 ${className}`}>
-    <h2 className="cs-view-section-title">
+  <div
+    className={`mb-5 flex flex-col gap-3 overflow-x-clip px-1 md:flex-row md:items-center md:justify-between ${className}`}
+  >
+    <h2 className="cs-view-section-title min-w-0 max-md:w-full">
       {showDot && <LiveDot colorClass={dotColorClass} />}
       {title}
     </h2>
-    {children}
+    {children ? (
+      <div className="flex min-w-0 max-md:w-full items-center justify-start md:shrink-0 md:justify-end">
+        {children}
+      </div>
+    ) : null}
   </div>
 )
 

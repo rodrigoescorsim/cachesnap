@@ -1712,13 +1712,14 @@ export default async function MonitorDetailPage({
                   <section className="space-y-4">
                     <ViewSectionHeader
                       title={
-                        <div className="flex items-baseline gap-2">
-                          <span>Period Performance</span>
+                        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                          <span className="shrink-0">Period Performance</span>
                           <span className="text-[11px] font-black uppercase tracking-[0.1em] text-zinc-400 opacity-70">
                             · {range.toUpperCase()}
                           </span>
                         </div>
                       }
+                      showDot={false}
                     >
                       <TimeframeChipTrack view="performance" range={range} monitorId={monitor.id} />
                     </ViewSectionHeader>
@@ -1826,15 +1827,18 @@ export default async function MonitorDetailPage({
                     <section className="space-y-4">
                       <ViewSectionHeader
                         title={
-                          <div className="flex items-baseline gap-2">
-                            <span>Trends</span>
+                          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                            <span className="shrink-0">Trends</span>
                             <span className="text-[11px] font-black uppercase tracking-[0.1em] text-zinc-400 opacity-70">
                               · {range.toUpperCase()}
                             </span>
                           </div>
                         }
+                        showDot={false}
                       >
-                        <TimeframeChipTrack view="trends" range={range} monitorId={monitor.id} />
+                        <div className="max-md:w-full min-w-0">
+                          <TimeframeChipTrack view="trends" range={range} monitorId={monitor.id} />
+                        </div>
                       </ViewSectionHeader>
                       <div className="cs-card cs-card-glass min-h-[180px] flex flex-col items-center justify-center p-8 text-center animate-[cs-fade-in_0.5s_ease-out]">
                         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.02] shadow-[0_0_24px_-8px_rgba(34,211,238,0.15)]">

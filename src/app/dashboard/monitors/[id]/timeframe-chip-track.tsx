@@ -14,7 +14,7 @@ export function TimeframeChipTrack({
   monitorId: string
 }) {
   return (
-    <div className="cs-chip-track">
+    <div className="cs-chip-track max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
       {RANGES.map((r) => (
         <PremiumTooltip key={r} content={TIMEFRAME_TOOLTIPS[r]}>
           <Link

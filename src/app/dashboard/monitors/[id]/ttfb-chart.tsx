@@ -76,7 +76,7 @@ function TrendsTimeframeChips({
   onRangeChange?: (range: string) => void
 }) {
   return (
-    <div className="cs-chip-track">
+    <div className="cs-chip-track max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
       {TREND_RANGES.map((r) => (
         <PremiumTooltip key={r} content={TIMEFRAME_TOOLTIPS[r]}>
           {previewMode ? (
@@ -1341,20 +1341,23 @@ export function TtfbChart({
         <section className="space-y-4">
           <ViewSectionHeader
             title={
-              <div className="flex items-baseline gap-2">
-                <span>Trends</span>
+              <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <span className="shrink-0">Trends</span>
                 <span className="text-[11px] font-black uppercase tracking-[0.1em] text-zinc-400 opacity-70">
                   · {range.toUpperCase()}
                 </span>
               </div>
             }
+            showDot={false}
           >
-            <TrendsTimeframeChips
-              range={range}
-              monitorId={monitorId}
-              previewMode={previewMode}
-              onRangeChange={onRangeChange}
-            />
+            <div className="max-md:w-full min-w-0">
+              <TrendsTimeframeChips
+                range={range}
+                monitorId={monitorId}
+                previewMode={previewMode}
+                onRangeChange={onRangeChange}
+              />
+            </div>
           </ViewSectionHeader>
           <div className="cs-panel bg-surface/30 p-12 text-center">
             {isDown ? (
@@ -1385,22 +1388,24 @@ export function TtfbChart({
           <>
             <ViewSectionHeader
               title={
-                <div className="flex items-baseline gap-2">
-                  <span>Trends</span>
+                <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <span className="shrink-0">Trends</span>
                   <span className="text-[11px] font-black uppercase tracking-[0.1em] text-zinc-400 opacity-70">
                     · {range.toUpperCase()}
                   </span>
                 </div>
               }
+              showDot={false}
             >
-              <div className="flex min-w-0 items-center gap-2">
+              <div className="flex w-full min-w-0 max-md:flex-col max-md:items-stretch max-md:gap-2 md:flex-row md:items-center md:gap-2">
                 <PremiumTooltip
                   content={isSynced ? "Charts are synchronized. Click to decouple." : "Charts are independent. Click to synchronize."}
                   position="bottom-center"
                 >
                   <button
+                    type="button"
                     onClick={() => setIsSynced(!isSynced)}
-                    className={`flex shrink-0 h-9 items-center justify-center gap-1.5 px-2 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all shadow-sm active:scale-95 ${isSynced
+                    className={`flex h-9 max-md:w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border px-2 text-[9px] font-black uppercase tracking-wider shadow-sm transition-colors duration-200 max-md:active:scale-100 md:transition-all md:active:scale-95 ${isSynced
                       ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400/90 shadow-indigo-500/10'
                       : 'border-white/10 bg-white/[0.05] text-zinc-500 hover:border-white/15 hover:text-zinc-300'
                       }`}
@@ -1412,7 +1417,7 @@ export function TtfbChart({
                   </button>
                 </PremiumTooltip>
 
-                <div className="min-w-0 overflow-x-auto">
+                <div className="min-w-0 max-md:w-full overflow-x-auto">
                   <TrendsTimeframeChips
                     range={range}
                     monitorId={monitorId}
