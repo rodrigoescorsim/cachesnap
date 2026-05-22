@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parsePlan, getMonitorLimit, PLAN_LIMITS } from './plans'
+import { parsePlan, getMonitorLimit, getHistoryDays, capRangeToHistoryDays, PLAN_LIMITS, RANGE_DAYS } from './plans'
 
 describe('parsePlan', () => {
   it('returns "free" for valid free plan', () => {
@@ -50,6 +50,46 @@ describe('getMonitorLimit', () => {
 
   it('falls back to free limit for invalid plan', () => {
     expect(getMonitorLimit('invalid')).toBe(PLAN_LIMITS.free.monitors)
+  })
+})
+
+describe('getHistoryDays', () => {
+  it('returns 7 for free', () => expect(getHistoryDays('free')).toBe(7))
+  it('returns 30 for pro', () => expect(getHistoryDays('pro')).toBe(30))
+  it('returns 90 for team', () => expect(getHistoryDays('team')).toBe(90))
+  it('falls back to free (7) for invalid plan', () => expect(getHistoryDays('invalid')).toBe(7))
+})
+
+describe('capRangeToHistoryDays', () => {
+  it('returns the range unchanged when within plan limit', () => {
+    expect(capRangeToHistoryDays('7d', 7)).toBe('7d')
+    expect(capRangeToHistoryDays('7d', 30)).toBe('7d')
+    expect(capRangeToHistoryDays('30d', 30)).toBe('30d')
+    expect(capRangeToHistoryDays('90d', 90)).toBe('90d')
+  })
+
+  it('caps to 7d for free plan (historyDays=7)', () => {
+    expect(capRangeToHistoryDays('30d', 7)).toBe('7d')
+    expect(capRangeToHistoryDays('90d', 7)).toBe('7d')
+  })
+
+  it('caps to 30d for pro plan (historyDays=30)', () => {
+    expect(capRangeToHistoryDays('90d', 30)).toBe('30d')
+  })
+
+  it('does not cap sub-day ranges', () => {
+    expect(capRangeToHistoryDays('1h', 7)).toBe('1h')
+    expect(capRangeToHistoryDays('1d', 7)).toBe('1d')
+  })
+})
+
+describe('RANGE_DAYS', () => {
+  it('maps all expected ranges', () => {
+    expect(RANGE_DAYS['7d']).toBe(7)
+    expect(RANGE_DAYS['30d']).toBe(30)
+    expect(RANGE_DAYS['90d']).toBe(90)
+    expect(RANGE_DAYS['1d']).toBe(1)
+    expect(RANGE_DAYS['1h']).toBe(1)
   })
 })
 

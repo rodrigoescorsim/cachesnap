@@ -14,6 +14,7 @@ import {
   pgCacheHitPctSqlExpr,
 } from '@/lib/cache-utils'
 import sql from '@/lib/db'
+import { getHistoryDays, capRangeToHistoryDays } from '@/lib/plans'
 import { AutoRefresh } from './auto-refresh'
 import { TtfbChart, type ChartPoint } from './ttfb-chart'
 import { HourlyPatternChart } from './hourly-pattern-chart'
@@ -534,6 +535,8 @@ export default async function MonitorDetailPage({
   const user = await getSession()
   if (!user) return null
 
+  const historyDays = getHistoryDays(user.plan)
+
   const { id } = await params
   const rawSearchParams = await searchParams
   const rangeValue = readFirst(rawSearchParams.range)
@@ -548,15 +551,18 @@ export default async function MonitorDetailPage({
   const defaultRange = previewView === 'trends' ? '1h' : previewView === 'patterns' ? '7d' : '24h'
 
   const _patternsValidRanges = ['1d', '7d', '30d', '90d']
-  const range = previewView === 'patterns'
-    ? (_patternsValidRanges.includes(rangeValue ?? '') ? rangeValue! : '7d')
-    : rangeValue === '1h' ? '1h'
-      : rangeValue === '4h' ? '4h'
-        : rangeValue === '24h' ? '24h'
-          : rangeValue === '7d' ? '7d'
-            : rangeValue === '30d' ? '30d'
-              : rangeValue === '90d' ? '90d'
-                : defaultRange
+  const range = capRangeToHistoryDays(
+    previewView === 'patterns'
+      ? (_patternsValidRanges.includes(rangeValue ?? '') ? rangeValue! : '7d')
+      : rangeValue === '1h' ? '1h'
+        : rangeValue === '4h' ? '4h'
+          : rangeValue === '24h' ? '24h'
+            : rangeValue === '7d' ? '7d'
+              : rangeValue === '30d' ? '30d'
+                : rangeValue === '90d' ? '90d'
+                  : defaultRange,
+    historyDays,
+  )
   const dbInterval = range === '1h' ? '1 hour'
     : range === '4h' ? '4 hours'
       : range === '1d' ? '1 day'
@@ -571,9 +577,10 @@ export default async function MonitorDetailPage({
           : range === '30d' ? '1 day'
             : range === '90d' ? '3 days'
               : '30 minutes'
-  const heatmapRange = heatmapRangeValue === '7d' ? '7d'
-    : heatmapRangeValue === '90d' ? '90d'
-      : '30d'
+  const heatmapRange = capRangeToHistoryDays(
+    heatmapRangeValue === '7d' ? '7d' : heatmapRangeValue === '90d' ? '90d' : '30d',
+    historyDays,
+  )
   const heatmapDbInterval = heatmapRange === '7d' ? '7 days'
     : heatmapRange === '90d' ? '90 days'
       : '30 days'
@@ -2072,6 +2079,7 @@ export default async function MonitorDetailPage({
                           <ViewSectionHeader title="Hourly Pattern">
                             <TimeframeChipTrack
                               view="patterns" range={range} monitorId={id} ranges={PATTERNS_RANGES}
+                              planHistoryDays={historyDays}
                               buildHref={(r) => buildPatternsHref({ range: r, heatmapRange, region: patternRegion, monitorId: id })}
                             />
                           </ViewSectionHeader>
@@ -2094,6 +2102,7 @@ export default async function MonitorDetailPage({
                           <ViewSectionHeader title="Weekly Heatmap">
                             <TimeframeChipTrack
                               view="patterns" range={heatmapRange} monitorId={id} ranges={HEATMAP_RANGES}
+                              planHistoryDays={historyDays}
                               buildHref={(r) => buildPatternsHref({ range, heatmapRange: r, region: patternRegion, monitorId: id })}
                             />
                           </ViewSectionHeader>
