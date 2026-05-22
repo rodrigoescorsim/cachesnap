@@ -25,7 +25,7 @@ import { type TrendComparator } from './monitor-edit-form'
 import { LiveActivityHeader } from './live-activity-header'
 import { RealTimeHub } from '../../real-time-hub'
 import { ViewSectionHeader, LiveDot } from '@/components/dashboard/dashboard-ui'
-import { TimeframeChipTrack } from './timeframe-chip-track'
+import { TimeframeChipTrack, PATTERNS_RANGES, HEATMAP_RANGES } from './timeframe-chip-track'
 import { extractPop, popToCity, resolveCdnLabel } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
 import { MonitorSidebarRail } from './monitor-sidebar-rail'
@@ -53,7 +53,6 @@ import {
   AlertCircle,
   PlayCircle,
   History,
-  CalendarDays,
   AlertTriangle,
   TrendingUp,
   Zap,
@@ -537,33 +536,45 @@ export default async function MonitorDetailPage({
   const { id } = await params
   const rawSearchParams = await searchParams
   const rangeValue = readFirst(rawSearchParams.range)
+  const heatmapRangeValue = readFirst(rawSearchParams.heatmap_range)
   const tabValue = readFirst(rawSearchParams.tab)
   const viewValue = readFirst(rawSearchParams.view)
   const alertTypeValue = readFirst(rawSearchParams.alert_type)
 
   const previewTab = normalizeTab(tabValue)
   const previewView: PerformanceView = previewTab === 'performance' ? normalizeView(viewValue) : 'real-time'
-  const defaultRange = previewView === 'trends' ? '1h' : '24h'
+  const defaultRange = previewView === 'trends' ? '1h' : previewView === 'patterns' ? '7d' : '24h'
 
-  const range = rangeValue === '1h' ? '1h'
-    : rangeValue === '4h' ? '4h'
-      : rangeValue === '24h' ? '24h'
-        : rangeValue === '7d' ? '7d'
-          : rangeValue === '30d' ? '30d'
-            : rangeValue === '90d' ? '90d'
-              : defaultRange
+  const _patternsValidRanges = ['1d', '7d', '30d', '90d']
+  const range = previewView === 'patterns'
+    ? (_patternsValidRanges.includes(rangeValue ?? '') ? rangeValue! : '7d')
+    : rangeValue === '1h' ? '1h'
+      : rangeValue === '4h' ? '4h'
+        : rangeValue === '24h' ? '24h'
+          : rangeValue === '7d' ? '7d'
+            : rangeValue === '30d' ? '30d'
+              : rangeValue === '90d' ? '90d'
+                : defaultRange
   const dbInterval = range === '1h' ? '1 hour'
     : range === '4h' ? '4 hours'
-      : range === '7d' ? '7 days'
-        : range === '30d' ? '30 days'
-          : range === '90d' ? '90 days'
-            : '24 hours'
+      : range === '1d' ? '1 day'
+        : range === '7d' ? '7 days'
+          : range === '30d' ? '30 days'
+            : range === '90d' ? '90 days'
+              : '24 hours'
   const bucketSize = range === '1h' ? '5 minutes'
     : range === '4h' ? '15 minutes'
-      : range === '7d' ? '6 hours'
-        : range === '30d' ? '1 day'
-          : range === '90d' ? '3 days'
-            : '30 minutes'
+      : range === '1d' ? '30 minutes'
+        : range === '7d' ? '6 hours'
+          : range === '30d' ? '1 day'
+            : range === '90d' ? '3 days'
+              : '30 minutes'
+  const heatmapRange = heatmapRangeValue === '7d' ? '7d'
+    : heatmapRangeValue === '90d' ? '90d'
+      : '30d'
+  const heatmapDbInterval = heatmapRange === '7d' ? '7 days'
+    : heatmapRange === '90d' ? '90 days'
+      : '30 days'
   const activeTab = previewTab
   const activeView: PerformanceView = previewView
   const filteredAlertType =
@@ -945,7 +956,7 @@ export default async function MonitorDetailPage({
           COUNT(*)::int                                                           AS sample_count
         FROM probe_results
         WHERE monitor_id = ${id}
-          AND time > NOW() - CAST(${dbInterval} AS interval)
+          AND time > NOW() - CAST(${heatmapDbInterval} AS interval)
           AND ttfb_ms IS NOT NULL
         GROUP BY dow, hour_of_day
         ORDER BY dow, hour_of_day
@@ -1357,6 +1368,23 @@ export default async function MonitorDetailPage({
   const latestDataAt = latestProbes.length > 0
     ? Math.max(...latestProbes.map(p => p.last_probe_at ? new Date(p.last_probe_at).getTime() : 0))
     : null;
+
+  const _pIntervalMs: Record<string, number> = {
+    '1h': 3_600_000, '4h': 14_400_000, '1d': 86_400_000, '24h': 86_400_000,
+    '7d': 604_800_000, '30d': 2_592_000_000, '90d': 7_776_000_000,
+  }
+  const _pNow = new Date()
+  const _fmtMD = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+  const _makePeriodLabel = (r: string) => {
+    const start = new Date(_pNow.getTime() - (_pIntervalMs[r] ?? _pIntervalMs['24h']))
+    return start.getUTCMonth() === _pNow.getUTCMonth()
+      ? `${_fmtMD(start).replace(/\s\d+$/, '')} ${start.getUTCDate()}–${_pNow.getUTCDate()}, ${_pNow.getUTCFullYear()}`
+      : `${_fmtMD(start)} – ${_fmtMD(_pNow)}, ${_pNow.getUTCFullYear()}`
+  }
+  const patternsPeriodLabel = _makePeriodLabel(range)
+  const heatmapPeriodLabel = _makePeriodLabel(heatmapRange)
+  const hourlyTotalSamples = hourlyPattern.reduce((s, p) => s + p.sample_count, 0)
+  const heatmapTotalSamples = heatmapRows.reduce((s, r) => s + r.sample_count, 0)
 
   // GLOBAL WATERFALL AGGREGATES
   const liveGlobalWaterfallProbe: WaterfallProbe | null = latestProbes.length > 0 ? {
@@ -1996,55 +2024,36 @@ export default async function MonitorDetailPage({
                   )}
                   {hourlyPattern.length === 0 && heatmapRows.length === 0 ? (
                     <section id="patterns-empty-state" className="space-y-4">
-                      <ViewSectionHeader
-                        title={
-                          <div className="flex items-baseline gap-2">
-                            <span>Patterns Analysis</span>
-                            <span className="text-[11px] font-black uppercase tracking-[0.1em] text-zinc-400 opacity-70">
-                              · {range.toUpperCase()}
-                            </span>
-                          </div>
-                        }
-                      >
-                        <TimeframeChipTrack view="patterns" range={range} monitorId={id} />
-                      </ViewSectionHeader>
+                      <ViewSectionHeader title="Patterns Analysis" />
                       <div className="cs-card cs-card-glass min-h-[300px] flex flex-col items-center justify-center p-12 text-center animate-[cs-fade-in_0.5s_ease-out]">
                         <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.02] shadow-[0_0_32px_-8px_rgba(34,211,238,0.2)]">
                           <History className="h-7 w-7 text-zinc-500 animate-pulse" />
                         </div>
                         <h3 className="text-lg font-black tracking-tight text-zinc-300 uppercase">Awaiting Statistical Density</h3>
                         <p className="mt-2.5 max-w-[420px] text-[13px] leading-relaxed text-zinc-500">
-                          Meaningful hourly and weekly patterns require a broader historical window to emerge.
-                          Currently, your monitor needs more samples or a wider time selection.
+                          Meaningful hourly and weekly patterns require more historical data to emerge.
+                          Keep the monitor running and check back soon.
                         </p>
-                        <div className="mt-8">
-                          <Link
-                            id="btn-analyze-7d"
-                            href={buildViewHref('patterns', '7d', id)}
-                            className="inline-flex items-center gap-2 rounded-xl bg-white/[0.05] border border-white/10 px-6 py-3 text-[11px] font-black uppercase tracking-widest text-white transition-all hover:bg-white/10 hover:scale-[1.02] active:scale-[0.98] shadow-xl"
-                          >
-                            <CalendarDays className="h-4 w-4 text-emerald-400" />
-                            Analyze 7-Day History
-                          </Link>
-                        </div>
                       </div>
                     </section>
                   ) : (
                     <div className="space-y-8">
                       {hourlyPattern.length > 0 && (
                         <section id="hourly-pattern-section" className="space-y-4">
-                          <ViewSectionHeader
-                            title={
-                              <div className="flex items-baseline gap-2">
-                                <span>Hourly Pattern</span>
-                                <span className="text-[11px] font-black uppercase tracking-[0.1em] text-zinc-400 opacity-70">
-                                  · {range.toUpperCase()}
-                                </span>
-                              </div>
-                            }
-                          >
-                            <TimeframeChipTrack view="patterns" range={range} monitorId={id} />
+                          <ViewSectionHeader title="Hourly Pattern">
+                            <TimeframeChipTrack
+                              view="patterns" range={range} monitorId={id} ranges={PATTERNS_RANGES}
+                              buildHref={(r) => {
+                                const p = new URLSearchParams({ tab: 'performance', view: 'patterns' })
+                                if (r !== '7d') p.set('range', r)
+                                if (heatmapRange !== '30d') p.set('heatmap_range', heatmapRange)
+                                return `/dashboard/monitors/${id}?${p.toString()}`
+                              }}
+                            />
                           </ViewSectionHeader>
+                          <p className="-mt-3 px-1 text-[11px] font-medium text-zinc-500 tabular-nums">
+                            {patternsPeriodLabel} · {hourlyTotalSamples.toLocaleString()} probes · UTC
+                          </p>
                           <HourlyPatternChart
                             data={hourlyPattern}
                             range={range}
@@ -2058,18 +2067,20 @@ export default async function MonitorDetailPage({
 
                       {heatmapRows.length > 0 && (
                         <section id="weekly-pattern-section" className="space-y-4">
-                          <ViewSectionHeader
-                            title={
-                              <div className="flex items-baseline gap-2">
-                                <span>Weekly Heatmap</span>
-                                <span className="text-[11px] font-black uppercase tracking-[0.1em] text-zinc-400 opacity-70">
-                                  · {range.toUpperCase()}
-                                </span>
-                              </div>
-                            }
-                          >
-                            <TimeframeChipTrack view="patterns" range={range} monitorId={id} />
+                          <ViewSectionHeader title="Weekly Heatmap">
+                            <TimeframeChipTrack
+                              view="patterns" range={heatmapRange} monitorId={id} ranges={HEATMAP_RANGES}
+                              buildHref={(r) => {
+                                const p = new URLSearchParams({ tab: 'performance', view: 'patterns' })
+                                if (range !== '7d') p.set('range', range)
+                                if (r !== '30d') p.set('heatmap_range', r)
+                                return `/dashboard/monitors/${id}?${p.toString()}`
+                              }}
+                            />
                           </ViewSectionHeader>
+                          <p className="-mt-3 px-1 text-[11px] font-medium text-zinc-500 tabular-nums">
+                            {heatmapPeriodLabel} · {heatmapTotalSamples.toLocaleString()} probes · UTC
+                          </p>
                           <TtfbHeatmap
                             data={heatmapRows}
                             thresholdMs={monitor.alert_threshold_ms}

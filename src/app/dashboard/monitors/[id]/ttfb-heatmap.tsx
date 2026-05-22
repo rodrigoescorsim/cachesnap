@@ -56,17 +56,13 @@ export function TtfbHeatmap({ data, thresholdMs, thresholdHitMs, cacheWarnPct, c
       {/* Header with mode toggle */}
       <div className="flex items-center justify-between mb-4">
         <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-tight opacity-40">Weekly Pattern</span>
-        <div className="flex items-center gap-0.5 bg-white/5 rounded-lg p-0.5">
+        <div className="cs-chip-track">
           {(['ttfb', 'cache'] as Mode[]).map(m => (
             <button
               key={m}
               id={`btn-heatmap-mode-${m}`}
               onClick={() => setMode(m)}
-              className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all ${
-                mode === m
-                  ? 'bg-zinc-100 dark:bg-white/10 text-zinc-900 dark:text-zinc-100'
-                  : 'text-zinc-500 hover:text-zinc-300'
-              }`}
+              className={`cs-chip-link ${mode === m ? 'cs-chip-active' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'}`}
             >
               {m === 'ttfb' ? 'TTFB' : 'Cache'}
             </button>

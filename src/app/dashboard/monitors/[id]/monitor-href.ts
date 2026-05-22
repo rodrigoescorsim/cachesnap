@@ -3,6 +3,7 @@
 export const TIMEFRAME_TOOLTIPS: Record<string, string> = {
   '1h': 'Last 1 hour — most recent activity',
   '4h': 'Last 4 hours — short-term trends',
+  '1d': 'Last 1 day — daily pattern average',
   '24h': 'Last 24 hours — daily overview',
   '7d': 'Last 7 days — weekly patterns',
   '30d': 'Last 30 days — monthly overview',
@@ -87,7 +88,7 @@ const VIEW_DEFAULT_RANGE: Record<PerformanceView, string> = {
   'real-time': '24h',
   performance: '24h',
   trends: '1h',
-  patterns: '24h',
+  patterns: '7d',
   infrastructure: '24h',
 }
 
