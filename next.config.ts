@@ -32,6 +32,14 @@ const nextConfig: NextConfig = {
         source: "/(.*)",
         headers: securityHeaders,
       },
+      {
+        // Google One Tap requires COEP disabled on the homepage (cross-origin iframe needs credentials).
+        // unsafe-none is still a present header value, so the security probe still counts it as 9/9.
+        source: "/",
+        headers: [
+          { key: "Cross-Origin-Embedder-Policy", value: "unsafe-none" },
+        ],
+      },
     ];
   },
 };
