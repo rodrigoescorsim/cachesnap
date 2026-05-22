@@ -76,7 +76,7 @@ export function hourlyBarColor(ttfb: number, siteAvg: number): string {
   const absT = Math.max(0, Math.min(1, ttfb / 800))
   const min = siteAvg * 0.6
   const max = siteAvg * 1.4
-  const relT = Math.max(0, Math.min(1, (ttfb - min) / (max - min)))
+  const relT = max === min ? 0.5 : Math.max(0, Math.min(1, (ttfb - min) / (max - min)))
   
   const t = (relT * 0.4) + (absT * 0.6)
 

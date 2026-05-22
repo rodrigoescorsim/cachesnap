@@ -62,7 +62,7 @@ export function heatmapTtfbColor(ttfb: number | null, siteAvg: number): string {
   // We use a narrower window (+/- 40% of avg) for higher sensitivity.
   const min = siteAvg * 0.6
   const max = siteAvg * 1.4
-  const relT = Math.max(0, Math.min(1, (ttfb - min) / (max - min)))
+  const relT = max === min ? 0.5 : Math.max(0, Math.min(1, (ttfb - min) / (max - min)))
 
   // 3. Blended T: Heavily weighted by absolute category to prevent "false negatives"
   // For an elite value (e.g. 366ms), the absT (~0.45) will keep it in the Green-Yellow band.

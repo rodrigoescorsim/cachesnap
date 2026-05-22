@@ -92,6 +92,24 @@ const VIEW_DEFAULT_RANGE: Record<PerformanceView, string> = {
   infrastructure: '24h',
 }
 
+export function buildPatternsHref({
+  range,
+  heatmapRange,
+  region,
+  monitorId,
+}: {
+  range: string
+  heatmapRange: string
+  region: string | null
+  monitorId: string
+}): string {
+  const params = new URLSearchParams({ tab: 'performance', view: 'patterns' })
+  if (range !== '7d') params.set('range', range)
+  if (heatmapRange !== '30d') params.set('heatmap_range', heatmapRange)
+  if (region) params.set('region', region)
+  return `/dashboard/monitors/${monitorId}?${params.toString()}`
+}
+
 export function buildViewHref(view: PerformanceView, range: string, monitorId: string | null = null): string {
   const params = new URLSearchParams()
   params.set('tab', 'performance')

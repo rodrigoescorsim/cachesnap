@@ -67,6 +67,11 @@ describe('heatmapTtfbColor', () => {
     const g = parseInt(color.slice(3, 5), 16)
     expect(r).toBeGreaterThan(g)
   })
+
+  it('returns a valid hex color when siteAvg is 0', () => {
+    const color = heatmapTtfbColor(200, 0)
+    expect(color).toMatch(/^#[0-9a-fA-F]{6}$/)
+  })
 })
 
 // ── heatmapCacheColor ─────────────────────────────────────────────────────────
@@ -89,6 +94,10 @@ describe('heatmapCacheColor', () => {
     const g = parseInt(color.slice(3, 5), 16)
     expect(g).toBeGreaterThan(r)
   })
+
+  it('clamps values above 100 to 100', () => {
+    expect(heatmapCacheColor(110)).toBe(heatmapCacheColor(100))
+  })
 })
 
 // ── buildHeatmapGrid ──────────────────────────────────────────────────────────
@@ -104,5 +113,22 @@ describe('buildHeatmapGrid', () => {
     const cell = makeCell(3, 15, 400)
     const grid = buildHeatmapGrid([cell])
     expect(grid[3][15]).toEqual(cell)
+  })
+
+  it('first occurrence wins for duplicate dow+hour', () => {
+    const first = makeCell(2, 10, 100)
+    const second = makeCell(2, 10, 999)
+    const grid = buildHeatmapGrid([first, second])
+    expect(grid[2][10]?.ttfb_avg).toBe(100)
+  })
+
+  it('discards cells with out-of-range dow or hour_of_day', () => {
+    const grid = buildHeatmapGrid([
+      makeCell(7, 5),    // dow out of range
+      makeCell(-1, 5),   // dow negative
+      makeCell(3, 24),   // hour out of range
+      makeCell(3, -1),   // hour negative
+    ])
+    expect(grid.flat().every(c => c === null)).toBe(true)
   })
 })

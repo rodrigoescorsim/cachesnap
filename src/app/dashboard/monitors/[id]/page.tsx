@@ -26,6 +26,7 @@ import { LiveActivityHeader } from './live-activity-header'
 import { RealTimeHub } from '../../real-time-hub'
 import { ViewSectionHeader, LiveDot } from '@/components/dashboard/dashboard-ui'
 import { TimeframeChipTrack, PATTERNS_RANGES, HEATMAP_RANGES } from './timeframe-chip-track'
+import { buildPatternsHref } from './monitor-href'
 import { extractPop, popToCity, resolveCdnLabel } from '@/lib/edge-helpers'
 import { ProbeWaterfall, type WaterfallProbe } from './probe-waterfall'
 import { MonitorSidebarRail } from './monitor-sidebar-rail'
@@ -528,7 +529,7 @@ export default async function MonitorDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ range?: string | string[]; tab?: string | string[]; view?: string | string[]; alert_type?: string | string[]; alerts_limit?: string | string[] }>
+  searchParams: Promise<{ range?: string | string[]; heatmap_range?: string | string[]; region?: string | string[]; tab?: string | string[]; view?: string | string[]; alert_type?: string | string[]; alerts_limit?: string | string[] }>
 }) {
   const user = await getSession()
   if (!user) return null
@@ -932,39 +933,43 @@ export default async function MonitorDetailPage({
     LIMIT 5
   `
 
-  // Hourly pattern and heatmap queries
-  const hourlyPattern = await sql<HourlyPoint[]>`
-        SELECT
-          EXTRACT(HOUR FROM time)::int                                           AS hour_of_day,
-          ROUND(AVG(ttfb_ms)::numeric, 0)::int                                   AS ttfb_avg,
-          ROUND(
-            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ttfb_ms)::numeric, 0
-          )::int                                                                  AS ttfb_p95,
-          ${sql.unsafe(pgCacheHitPctSqlExpr({ decimals: 0, cast: 'int' }))}        AS cache_hit_pct,
-          COUNT(*)::int                                                           AS sample_count
-        FROM probe_results
-        WHERE monitor_id = ${id}
-          AND time > NOW() - CAST(${dbInterval} AS interval)
-          AND ttfb_ms IS NOT NULL
-          ${patternRegion ? sql`AND region = ${patternRegion}` : sql``}
-        GROUP BY hour_of_day
-        ORDER BY hour_of_day
-      `
-  const heatmapRows = await sql<HeatmapCell[]>`
-        SELECT
-          EXTRACT(DOW FROM time)::int                                            AS dow,
-          EXTRACT(HOUR FROM time)::int                                           AS hour_of_day,
-          ROUND(AVG(ttfb_ms)::numeric, 0)::int                                   AS ttfb_avg,
-          ${sql.unsafe(pgCacheHitPctSqlExpr({ decimals: 0, cast: 'int' }))}        AS cache_hit_pct,
-          COUNT(*)::int                                                           AS sample_count
-        FROM probe_results
-        WHERE monitor_id = ${id}
-          AND time > NOW() - CAST(${heatmapDbInterval} AS interval)
-          AND ttfb_ms IS NOT NULL
-          ${patternRegion ? sql`AND region = ${patternRegion}` : sql``}
-        GROUP BY dow, hour_of_day
-        ORDER BY dow, hour_of_day
-      `
+  // Hourly pattern and heatmap queries — only run on Patterns view, in parallel
+  const [hourlyPattern, heatmapRows] = previewView === 'patterns'
+    ? await Promise.all([
+        sql<HourlyPoint[]>`
+          SELECT
+            EXTRACT(HOUR FROM time)::int                                           AS hour_of_day,
+            ROUND(AVG(ttfb_ms)::numeric, 0)::int                                   AS ttfb_avg,
+            ROUND(
+              PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ttfb_ms)::numeric, 0
+            )::int                                                                  AS ttfb_p95,
+            ${sql.unsafe(pgCacheHitPctSqlExpr({ decimals: 0, cast: 'int' }))}        AS cache_hit_pct,
+            COUNT(*)::int                                                           AS sample_count
+          FROM probe_results
+          WHERE monitor_id = ${id}
+            AND time > NOW() - CAST(${dbInterval} AS interval)
+            AND ttfb_ms IS NOT NULL
+            ${patternRegion ? sql`AND region = ${patternRegion}` : sql``}
+          GROUP BY hour_of_day
+          ORDER BY hour_of_day
+        `,
+        sql<HeatmapCell[]>`
+          SELECT
+            EXTRACT(DOW FROM time)::int                                            AS dow,
+            EXTRACT(HOUR FROM time)::int                                           AS hour_of_day,
+            ROUND(AVG(ttfb_ms)::numeric, 0)::int                                   AS ttfb_avg,
+            ${sql.unsafe(pgCacheHitPctSqlExpr({ decimals: 0, cast: 'int' }))}        AS cache_hit_pct,
+            COUNT(*)::int                                                           AS sample_count
+          FROM probe_results
+          WHERE monitor_id = ${id}
+            AND time > NOW() - CAST(${heatmapDbInterval} AS interval)
+            AND ttfb_ms IS NOT NULL
+            ${patternRegion ? sql`AND region = ${patternRegion}` : sql``}
+          GROUP BY dow, hour_of_day
+          ORDER BY dow, hour_of_day
+        `,
+      ])
+    : [[] as HourlyPoint[], [] as HeatmapCell[]]
   const securityByRegion = await sql<SecurityByRegion[]>`
     SELECT DISTINCT ON (region)
       region,
@@ -1389,13 +1394,8 @@ export default async function MonitorDetailPage({
   const heatmapPeriodLabel = _makePeriodLabel(heatmapRange)
   const hourlyTotalSamples = hourlyPattern.reduce((s, p) => s + p.sample_count, 0)
   const heatmapTotalSamples = heatmapRows.reduce((s, r) => s + r.sample_count, 0)
-  const buildRegionHref = (regionId: string | null) => {
-    const p = new URLSearchParams({ tab: 'performance', view: 'patterns' })
-    if (range !== '7d') p.set('range', range)
-    if (heatmapRange !== '30d') p.set('heatmap_range', heatmapRange)
-    if (regionId) p.set('region', regionId)
-    return `/dashboard/monitors/${id}?${p.toString()}`
-  }
+  const buildRegionHref = (regionId: string | null) =>
+    buildPatternsHref({ range, heatmapRange, region: regionId, monitorId: id })
 
   // GLOBAL WATERFALL AGGREGATES
   const liveGlobalWaterfallProbe: WaterfallProbe | null = latestProbes.length > 0 ? {
@@ -2072,13 +2072,7 @@ export default async function MonitorDetailPage({
                           <ViewSectionHeader title="Hourly Pattern">
                             <TimeframeChipTrack
                               view="patterns" range={range} monitorId={id} ranges={PATTERNS_RANGES}
-                              buildHref={(r) => {
-                                const p = new URLSearchParams({ tab: 'performance', view: 'patterns' })
-                                if (r !== '7d') p.set('range', r)
-                                if (heatmapRange !== '30d') p.set('heatmap_range', heatmapRange)
-                                if (patternRegion) p.set('region', patternRegion)
-                                return `/dashboard/monitors/${id}?${p.toString()}`
-                              }}
+                              buildHref={(r) => buildPatternsHref({ range: r, heatmapRange, region: patternRegion, monitorId: id })}
                             />
                           </ViewSectionHeader>
                           <p className="-mt-3 px-1 text-[11px] font-medium text-zinc-500 tabular-nums">
@@ -2100,13 +2094,7 @@ export default async function MonitorDetailPage({
                           <ViewSectionHeader title="Weekly Heatmap">
                             <TimeframeChipTrack
                               view="patterns" range={heatmapRange} monitorId={id} ranges={HEATMAP_RANGES}
-                              buildHref={(r) => {
-                                const p = new URLSearchParams({ tab: 'performance', view: 'patterns' })
-                                if (range !== '7d') p.set('range', range)
-                                if (r !== '30d') p.set('heatmap_range', r)
-                                if (patternRegion) p.set('region', patternRegion)
-                                return `/dashboard/monitors/${id}?${p.toString()}`
-                              }}
+                              buildHref={(r) => buildPatternsHref({ range, heatmapRange: r, region: patternRegion, monitorId: id })}
                             />
                           </ViewSectionHeader>
                           <p className="-mt-3 px-1 text-[11px] font-medium text-zinc-500 tabular-nums">
