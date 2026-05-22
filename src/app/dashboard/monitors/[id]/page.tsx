@@ -1767,7 +1767,7 @@ export default async function MonitorDetailPage({
                       }
                       showDot={false}
                     >
-                      <TimeframeChipTrack view="performance" range={range} monitorId={monitor.id} />
+                      <TimeframeChipTrack view="performance" range={range} monitorId={monitor.id} planHistoryDays={historyDays} />
                     </ViewSectionHeader>
 
                     {!isCollecting && (
@@ -1883,7 +1883,7 @@ export default async function MonitorDetailPage({
                         showDot={false}
                       >
                         <div className="max-md:w-full min-w-0">
-                          <TimeframeChipTrack view="trends" range={range} monitorId={monitor.id} />
+                          <TimeframeChipTrack view="trends" range={range} monitorId={monitor.id} planHistoryDays={historyDays} />
                         </div>
                       </ViewSectionHeader>
                       <div className="cs-card cs-card-glass min-h-[180px] flex flex-col items-center justify-center p-8 text-center animate-[cs-fade-in_0.5s_ease-out]">
