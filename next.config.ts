@@ -16,9 +16,10 @@ const csp = [
   "form-action 'self' https://accounts.google.com",
 ].join("; ");
 
-// Vercel injects HSTS, X-Frame-Options, X-Content-Type-Options, and Referrer-Policy automatically.
-// Only define headers that Vercel does not provide to avoid duplicated values across regions.
+// Vercel injects X-Frame-Options, X-Content-Type-Options, and Referrer-Policy automatically.
+// HSTS is added here explicitly because Vercel does not inject it consistently across all probe regions.
 const securityHeaders = [
+  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains; preload" },
   { key: "Content-Security-Policy", value: csp },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
