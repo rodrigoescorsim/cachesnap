@@ -537,6 +537,7 @@ export default async function MonitorDetailPage({
   const rawSearchParams = await searchParams
   const rangeValue = readFirst(rawSearchParams.range)
   const heatmapRangeValue = readFirst(rawSearchParams.heatmap_range)
+  const patternRegionValue = readFirst(rawSearchParams.region)
   const tabValue = readFirst(rawSearchParams.tab)
   const viewValue = readFirst(rawSearchParams.view)
   const alertTypeValue = readFirst(rawSearchParams.alert_type)
@@ -610,6 +611,7 @@ export default async function MonitorDetailPage({
   if (!monitor) notFound()
 
   const regionRows = await getRegions()
+  const patternRegion = regionRows.some(r => r.id === patternRegionValue) ? patternRegionValue! : null
   const regionLabels = Object.fromEntries(regionRows.map(r => [r.id, r.label]))
   const regionDescriptions = Object.fromEntries(regionRows.map(r => [r.id, r.description]))
   const regionMeta = Object.fromEntries(regionRows.map(r => [r.id, { label: r.label, color: r.color }]))
@@ -944,6 +946,7 @@ export default async function MonitorDetailPage({
         WHERE monitor_id = ${id}
           AND time > NOW() - CAST(${dbInterval} AS interval)
           AND ttfb_ms IS NOT NULL
+          ${patternRegion ? sql`AND region = ${patternRegion}` : sql``}
         GROUP BY hour_of_day
         ORDER BY hour_of_day
       `
@@ -958,6 +961,7 @@ export default async function MonitorDetailPage({
         WHERE monitor_id = ${id}
           AND time > NOW() - CAST(${heatmapDbInterval} AS interval)
           AND ttfb_ms IS NOT NULL
+          ${patternRegion ? sql`AND region = ${patternRegion}` : sql``}
         GROUP BY dow, hour_of_day
         ORDER BY dow, hour_of_day
       `
@@ -1385,6 +1389,13 @@ export default async function MonitorDetailPage({
   const heatmapPeriodLabel = _makePeriodLabel(heatmapRange)
   const hourlyTotalSamples = hourlyPattern.reduce((s, p) => s + p.sample_count, 0)
   const heatmapTotalSamples = heatmapRows.reduce((s, r) => s + r.sample_count, 0)
+  const buildRegionHref = (regionId: string | null) => {
+    const p = new URLSearchParams({ tab: 'performance', view: 'patterns' })
+    if (range !== '7d') p.set('range', range)
+    if (heatmapRange !== '30d') p.set('heatmap_range', heatmapRange)
+    if (regionId) p.set('region', regionId)
+    return `/dashboard/monitors/${id}?${p.toString()}`
+  }
 
   // GLOBAL WATERFALL AGGREGATES
   const liveGlobalWaterfallProbe: WaterfallProbe | null = latestProbes.length > 0 ? {
@@ -2022,6 +2033,22 @@ export default async function MonitorDetailPage({
                   {patternsAdvisorState && (
                     <AdvisorCard state={patternsAdvisorState} hideActions={true} />
                   )}
+                  {/* Region filter */}
+                  <div className="flex items-center gap-3 px-1">
+                    <span className="shrink-0 text-[10px] font-black uppercase tracking-widest text-zinc-500">Region</span>
+                    <div className="cs-chip-track min-w-0 flex-1 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+                      <Link href={buildRegionHref(null)} scroll={false}
+                        className={`cs-chip-link ${!patternRegion ? 'cs-chip-active' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'}`}>
+                        All
+                      </Link>
+                      {regionRows.map(r => (
+                        <Link key={r.id} href={buildRegionHref(r.id)} scroll={false}
+                          className={`cs-chip-link ${patternRegion === r.id ? 'cs-chip-active' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'}`}>
+                          {r.label}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
                   {hourlyPattern.length === 0 && heatmapRows.length === 0 ? (
                     <section id="patterns-empty-state" className="space-y-4">
                       <ViewSectionHeader title="Patterns Analysis" />
@@ -2031,8 +2058,10 @@ export default async function MonitorDetailPage({
                         </div>
                         <h3 className="text-lg font-black tracking-tight text-zinc-300 uppercase">Awaiting Statistical Density</h3>
                         <p className="mt-2.5 max-w-[420px] text-[13px] leading-relaxed text-zinc-500">
-                          Meaningful hourly and weekly patterns require more historical data to emerge.
-                          Keep the monitor running and check back soon.
+                          {patternRegion
+                            ? `No pattern data for ${regionLabels[patternRegion] ?? patternRegion} in this period. Try a different region or a longer time window.`
+                            : 'Meaningful hourly and weekly patterns require more historical data to emerge. Keep the monitor running and check back soon.'
+                          }
                         </p>
                       </div>
                     </section>
@@ -2047,6 +2076,7 @@ export default async function MonitorDetailPage({
                                 const p = new URLSearchParams({ tab: 'performance', view: 'patterns' })
                                 if (r !== '7d') p.set('range', r)
                                 if (heatmapRange !== '30d') p.set('heatmap_range', heatmapRange)
+                                if (patternRegion) p.set('region', patternRegion)
                                 return `/dashboard/monitors/${id}?${p.toString()}`
                               }}
                             />
@@ -2074,6 +2104,7 @@ export default async function MonitorDetailPage({
                                 const p = new URLSearchParams({ tab: 'performance', view: 'patterns' })
                                 if (range !== '7d') p.set('range', range)
                                 if (r !== '30d') p.set('heatmap_range', r)
+                                if (patternRegion) p.set('region', patternRegion)
                                 return `/dashboard/monitors/${id}?${p.toString()}`
                               }}
                             />
