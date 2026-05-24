@@ -6,10 +6,15 @@ const PROTECTED_PREFIXES = ['/dashboard', '/admin']
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const token = getSessionTokenFromCookie(request.headers.get('cookie'))
+
+  if (pathname === '/') {
+    if (token) return NextResponse.redirect(new URL('/monitors', request.url))
+    return NextResponse.next()
+  }
 
   if (!PROTECTED_PREFIXES.some(p => pathname.startsWith(p))) return NextResponse.next()
 
-  const token = getSessionTokenFromCookie(request.headers.get('cookie'))
   if (!token) {
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('next', pathname)
@@ -20,5 +25,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/admin/:path*'],
+  matcher: ['/', '/dashboard/:path*', '/admin/:path*'],
 }
