@@ -241,7 +241,7 @@ export default async function RootPage() {
                   {step.icon}
                 </div>
                 <div className="relative z-10">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">{step.number}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mb-2">{step.number}</p>
                   <h3 className="text-base font-bold text-white mb-2">{step.title}</h3>
                   <p className="text-sm text-zinc-400 leading-relaxed">{step.description}</p>
                 </div>
@@ -417,7 +417,7 @@ export default async function RootPage() {
                     <div className="flex items-center gap-2 text-xs text-zinc-400">
                       <svg className="h-3.5 w-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                       <span className="font-medium text-zinc-300">Email notification</span>
-                      <span className="text-zinc-600">· alerts@cachesnap.com</span>
+                      <span className="text-zinc-400">· alerts@cachesnap.com</span>
                     </div>
                     <p className="text-xs text-zinc-400 font-mono leading-relaxed">
                       <span className="text-zinc-300">[CacheSnap] Cache hit rate low — stripe.com</span><br />

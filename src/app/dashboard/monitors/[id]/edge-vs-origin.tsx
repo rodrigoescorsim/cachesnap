@@ -51,9 +51,9 @@ function ReadinessBanner({ readiness, isOffline }: { readiness: EdgeVsOriginRead
       <div className="cs-card-wash opacity-40" />
       <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
       <div className="relative z-10 space-y-1 flex-1">
-        <h3 className="text-[10px] font-black uppercase tracking-widest text-amber-400">
+        <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">
           {isOffline ? 'Comparison paused — site offline' : 'Edge vs Origin unavailable'}
-        </h3>
+        </p>
         <p className="text-xs leading-relaxed font-medium text-amber-200/60">
           {isOffline
             ? 'Site is currently unreachable from probed regions. Edge vs Origin needs successful responses to compare edge and origin performance. Check Diagnostics to troubleshoot connection issues.'
@@ -337,10 +337,10 @@ export function EdgeVsOrigin({ data, regionLabels, readiness, isDown }: EdgeVsOr
           <div className="cs-card px-6 py-4 border-t-0 bg-white/[0.02]">
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="space-y-1">
-                <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
                   <Activity className="w-3 h-3 text-[var(--brand-primary)]" />
                   Regional summary
-                </h4>
+                </p>
                 <p className="text-xs text-zinc-500 font-medium leading-relaxed">
                   Leveraging edge effectively across most regions.
                   {bestRegion && ` Strongest gain: ${regionLabels[bestRegion.region] ?? bestRegion.region} (+${Math.round(((bestRegion.origin_ttfb - bestRegion.edge_ttfb) / bestRegion.origin_ttfb) * 100)}% faster vs origin).`}
@@ -372,7 +372,7 @@ export function EdgeVsOrigin({ data, regionLabels, readiness, isDown }: EdgeVsOr
             <div className="cs-card-wash opacity-40" />
             <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5" />
             <div className="relative z-10 space-y-1">
-              <h3 className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Partial signal</h3>
+              <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest">Partial signal</p>
               <p className="text-xs leading-relaxed text-amber-200/60 font-medium">
                 Could not obtain Origin metrics in some regions due to infrastructure optimizations (forced CDN hits).
               </p>
