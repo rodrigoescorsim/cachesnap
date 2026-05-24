@@ -341,14 +341,14 @@ export function EdgeVsOrigin({ data, regionLabels, readiness, isDown }: EdgeVsOr
                   <Activity className="w-3 h-3 text-[var(--brand-primary)]" />
                   Regional summary
                 </p>
-                <p className="text-xs text-zinc-500 font-medium leading-relaxed">
+                <p className="text-xs text-zinc-400 font-medium leading-relaxed">
                   Leveraging edge effectively across most regions.
                   {bestRegion && ` Strongest gain: ${regionLabels[bestRegion.region] ?? bestRegion.region} (+${Math.round(((bestRegion.origin_ttfb - bestRegion.edge_ttfb) / bestRegion.origin_ttfb) * 100)}% faster vs origin).`}
                 </p>
               </div>
               <div className="flex items-center gap-4 border-l border-white/5 pl-6">
                 <div className="space-y-0.5">
-                  <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest block">Next target</span>
+                  <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest block">Next target</span>
                   <p className="text-[11px] text-zinc-400 font-bold">
                     {worstRegion && worstRegion !== bestRegion ? (() => {
                       const saving = Math.round(((worstRegion.origin_ttfb - worstRegion.edge_ttfb) / worstRegion.origin_ttfb) * 100);

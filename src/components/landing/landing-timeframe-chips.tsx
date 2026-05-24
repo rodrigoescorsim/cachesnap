@@ -30,7 +30,7 @@ export function LandingTimeframeChips({
             onClick={() => setRange(r)}
             className={`cs-chip-link ${range === r
               ? 'cs-chip-active'
-              : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
+              : 'text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
               }`}
           >
             {r}
