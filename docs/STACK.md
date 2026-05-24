@@ -18,32 +18,42 @@
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  API RUST (axum)  — porta 3001                                  │
-│  ├─ POST /api/ingest          → persiste no TimescaleDB         │
-│  ├─ GET  /api/monitors/active → lista monitors ativos           │
-│  ├─ GET  /health              → status da API                   │
-│  ├─ GET  /api/events          → SSE fan-out por user_id         │
-│  ├─ POST /api/monitors/:id/dispatch → disparo on-demand         │
-│  ├─ scheduler/         → loop 1s, Redis Lua atômico             │
-│  ├─ baseline/          → calcula avg/stddev por região (hourly) │
-│  ├─ diagnosis/engine   → regras de inferência (rule-based)      │
-│  └─ alerts/            → detecta anomalias + notifica           │
-└────────┬──────────────────────────────┬────────────────────────┘
-         │                              │
-         ▼                              ▼
-┌─────────────────┐          ┌─────────────────────┐
-│  TimescaleDB    │          │  Redis              │
-│  (PostgreSQL)   │          │  Rate limiting      │
-│  porta 5432     │          │  Cache de resultados│
-│                 │          │  porta 6379         │
-└─────────────────┘          └─────────────────────┘
-         │
-         ▼
+│  CLOUDFLARE (Free) — CDN global                                 │
+│  cachesnap.com      → proxied (nuvem laranja) — edge cache      │
+│  api.cachesnap.com  → DNS only (nuvem cinza)  — SSE direto      │
+│  Cache Rule: HTML do "/" cacheado no edge p/ usuários anônimos  │
+│  SSL/TLS: Full (strict) — valida cert Let's Encrypt da VPS      │
+└────────────────────────┬────────────────────────────────────────┘
+                         │
+                         ▼ (nginx reverse proxy)
 ┌─────────────────────────────────────────────────────────────────┐
-│  NEXT.JS 16 (App Router)  — porta 3000                          │
-│  Dashboard "conselheiro" + Auth custom (bcryptjs + pg sessions) │
-│  Lê dados direto do PostgreSQL via postgres.js                  │
-│  Deploy: Vercel (prod) ou container Docker (VPS alternativo)    │
+│  VPS Hetzner (Frankfurt) — Ubuntu                               │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  NEXT.JS 16 (App Router)  — porta 3000 (pm2)            │   │
+│  │  Dashboard + Auth custom (bcryptjs + pg sessions)        │   │
+│  │  Lê dados direto do PostgreSQL via postgres.js           │   │
+│  │  proxy.ts: redirect / e proteção /dashboard/** /admin/** │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │  API RUST (axum)  — porta 3001 (Docker)                 │   │
+│  │  ├─ POST /api/ingest          → persiste no TimescaleDB  │   │
+│  │  ├─ GET  /api/monitors/active → lista monitors ativos    │   │
+│  │  ├─ GET  /health              → status da API            │   │
+│  │  ├─ GET  /api/events          → SSE fan-out por user_id  │   │
+│  │  ├─ POST /api/monitors/:id/dispatch → disparo on-demand  │   │
+│  │  ├─ scheduler/  → loop 1s, Redis Lua atômico             │   │
+│  │  ├─ baseline/   → avg/stddev por região (hourly)         │   │
+│  │  ├─ diagnosis/  → regras de inferência (rule-based)      │   │
+│  │  └─ alerts/     → detecta anomalias + notifica           │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌──────────────────┐     ┌──────────────────────┐             │
+│  │  TimescaleDB     │     │  Redis               │             │
+│  │  (PostgreSQL 16) │     │  Rate limiting       │             │
+│  │  porta 5432      │     │  Cache de resultados │             │
+│  └──────────────────┘     └──────────────────────┘             │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -609,7 +619,8 @@ Na VPS, o Docker roda tudo. No local, só a infra vai pro Docker.
 
 | Camada | Tecnologia | Versão | Por quê |
 |:---|:---|:---|:---|
-| Dashboard | Next.js | 16.2 (App Router) | SSR, React Server Components, deploy Vercel |
+| CDN | Cloudflare | Free | Edge cache global, TCP/TLS termination, SSL/TLS Full strict |
+| Dashboard | Next.js | 16.2 (App Router) | SSR, React Server Components, deploy VPS (pm2) |
 | Estilo | Tailwind CSS | 4 | Velocidade de desenvolvimento |
 | Backend API | Rust / axum | axum 0.7 | Performance, confiabilidade para processos longos |
 | Async runtime | tokio | 1 | Padrão para Rust async |
