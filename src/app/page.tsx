@@ -1,8 +1,6 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { getSession } from '@/lib/auth'
 import { HeroUrlForm } from './hero-url-form'
 import { MarketingFooter, MarketingHeader } from '@/components/marketing/marketing-chrome'
 import { DashboardPreview } from '@/components/landing/dashboard-preview'
@@ -165,9 +163,6 @@ const STEPS = [
 const animatedLogoSvg = readFileSync(join(process.cwd(), 'public/logo-animated.svg'), 'utf-8')
 
 export default async function RootPage() {
-  const user = await getSession()
-  if (user) redirect('/monitors')
-
   const googleClientId = process.env.GOOGLE_CLIENT_ID
 
   return (

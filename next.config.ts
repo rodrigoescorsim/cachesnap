@@ -37,9 +37,12 @@ const nextConfig: NextConfig = {
       {
         // Google One Tap requires COEP disabled on the homepage (cross-origin iframe needs credentials).
         // unsafe-none is still a present header value, so the security probe still counts it as 9/9.
+        // s-maxage lets Cloudflare cache the static HTML; stale-while-revalidate serves stale while
+        // the CDN fetches a fresh copy in the background after a deploy.
         source: "/",
         headers: [
           { key: "Cross-Origin-Embedder-Policy", value: "unsafe-none" },
+          { key: "Cache-Control", value: "public, s-maxage=3600, stale-while-revalidate=86400" },
         ],
       },
     ];
