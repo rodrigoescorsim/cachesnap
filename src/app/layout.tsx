@@ -11,8 +11,27 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "CacheSnap — Edge Performance Monitoring",
-  description: "Monitor latency from 5 global regions. Detect cache misses, edge vs. origin issues, and get plain-English diagnoses — no SDK required.",
+  metadataBase: new URL(process.env.APP_URL || "https://cachesnap.com"),
+  title: {
+    default: "CacheSnap — Edge Performance Monitoring",
+    template: "%s | CacheSnap",
+  },
+  description: "Deep visibility into your edge stack — cache hit rates, CDN performance, and regional latency across global regions. Zero code, zero configuration.",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    siteName: "CacheSnap",
+    title: "CacheSnap — Edge Performance Monitoring",
+    description: "Deep visibility into your edge stack — cache hit rates, CDN performance, and regional latency across global regions. Zero code, zero configuration.",
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "CacheSnap — Edge Performance Monitoring",
+    description: "Deep visibility into your edge stack — cache hit rates, CDN performance, and regional latency across global regions. Zero code, zero configuration.",
+  },
   icons: {
     icon: [
       { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
@@ -20,6 +39,13 @@ export const metadata: Metadata = {
       { url: '/favicon.svg', type: 'image/svg+xml' },
     ],
     apple: { url: '/apple-touch-icon.png', sizes: '512x512', type: 'image/png' },
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  verification: {
+    google: "lISHRsfX7WTk4lGcR692TA4LHZL8Gc6Il-F16oBOHkI",
   },
 };
 
