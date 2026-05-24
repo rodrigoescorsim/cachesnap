@@ -36,6 +36,8 @@ export function GoogleOneTap({ clientId }: GoogleOneTapProps) {
 
     initializedRef.current = true
 
+    if (window.location.protocol !== 'https:') return
+
     window.google.accounts.id.initialize({
       client_id: clientId,
       callback: handleCredential,
