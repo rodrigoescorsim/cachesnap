@@ -133,7 +133,7 @@ export function MarketingHeader({ activeNav }: MarketingHeaderProps) {
               >
                 Start free
               </Link>
-              <p className="text-center text-[10px] font-medium uppercase tracking-widest text-zinc-500">
+              <p className="text-center text-[10px] font-medium uppercase tracking-widest text-zinc-400">
                 No credit card
               </p>
             </div>
@@ -152,7 +152,7 @@ const FOOTER_LINK_CLASS = 'text-sm text-zinc-400 transition-colors hover:text-wh
 function FooterColumn({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500">{title}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400">{title}</p>
       <ul className="flex flex-col gap-2.5">{children}</ul>
     </div>
   )
@@ -177,7 +177,7 @@ export function MarketingFooter() {
             <Link href="/" className="w-fit transition-opacity hover:opacity-80">
               <Logo className="h-8 opacity-80" />
             </Link>
-            <p className="max-w-[14rem] text-sm leading-relaxed text-zinc-500">
+            <p className="max-w-[14rem] text-sm leading-relaxed text-zinc-400">
               Edge monitoring platform.
             </p>
           </div>
@@ -204,10 +204,10 @@ export function MarketingFooter() {
         </div>
 
         <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-white/[0.06] pt-6 md:flex-row md:gap-6">
-          <p className="text-[11px] font-medium uppercase tracking-widest text-zinc-500">
+          <p className="text-[11px] font-medium uppercase tracking-widest text-zinc-400">
             © 2026 CacheSnap
           </p>
-          <p className="text-center text-[11px] font-medium uppercase tracking-widest text-zinc-500 md:text-right">
+          <p className="text-center text-[11px] font-medium uppercase tracking-widest text-zinc-400 md:text-right">
             No SDK · No Agent · No DNS changes
           </p>
         </div>

@@ -6,7 +6,7 @@ const csp = [
   "default-src 'self'",
   // React requires eval() in dev mode for call stack reconstruction; never used in production.
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://accounts.google.com`,
-  "style-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://accounts.google.com",
   "img-src 'self' data: https://www.google.com",
   "font-src 'self'",
   "connect-src 'self' https://accounts.google.com",

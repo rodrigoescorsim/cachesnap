@@ -210,14 +210,14 @@ export default async function RootPage() {
               <p className="text-lg text-zinc-400 leading-relaxed">
                 The only monitoring platform that truly understands cache behavior, edge vs origin performance and regional reality — across all continents.
               </p>
-              <p className="text-sm font-semibold text-zinc-500 tracking-wide">
+              <p className="text-sm font-semibold text-zinc-400 tracking-wide">
                 Zero code. Zero configuration.
               </p>
             </div>
 
             <HeroUrlForm />
 
-            <p className="text-xs font-medium text-zinc-500 uppercase tracking-widest -mt-2">
+            <p className="text-xs font-medium text-zinc-400 uppercase tracking-widest -mt-2">
               Start testing for free · No credit card required
             </p>
           </div>
@@ -368,12 +368,12 @@ export default async function RootPage() {
                         <span className="text-[10px] text-zinc-300 font-mono">1 incident opened</span>
                       </div>
                       <div className="flex items-center gap-1.5 opacity-60">
-                        <span className="h-1.5 w-1.5 rounded-full bg-zinc-500 shrink-0" />
-                        <span className="text-[10px] text-zinc-500 font-mono">digest in 4h</span>
+                        <span className="h-1.5 w-1.5 rounded-full bg-zinc-400 shrink-0" />
+                        <span className="text-[10px] text-zinc-400 font-mono">digest in 4h</span>
                       </div>
                       <div className="flex items-center gap-1.5 opacity-40">
-                        <span className="h-1.5 w-1.5 rounded-full bg-zinc-500 shrink-0" />
-                        <span className="text-[10px] text-zinc-500 font-mono">digest in 8h</span>
+                        <span className="h-1.5 w-1.5 rounded-full bg-zinc-400 shrink-0" />
+                        <span className="text-[10px] text-zinc-400 font-mono">digest in 8h</span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
@@ -390,12 +390,12 @@ export default async function RootPage() {
                         <span className="text-sm font-semibold text-white">cache_hit_low</span>
                         <span className="rounded-full bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 text-[10px] font-bold text-amber-400 uppercase tracking-wide">Medium</span>
                       </div>
-                      <span className="text-[11px] text-zinc-500">2h ago</span>
+                      <span className="text-[11px] text-zinc-400">2h ago</span>
                     </div>
                     <p className="text-xs text-zinc-400">Cache hit rate dropped to <span className="text-amber-300 font-semibold">61%</span> in Cape Town — threshold is 80%.</p>
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-zinc-500">1 notification sent · next digest in 4h</span>
-                      <span className="text-zinc-500 underline cursor-default">Snooze 24h</span>
+                      <span className="text-zinc-400">1 notification sent · next digest in 4h</span>
+                      <span className="text-zinc-400 underline cursor-default">Snooze 24h</span>
                     </div>
                   </div>
 
@@ -407,9 +407,9 @@ export default async function RootPage() {
                         <span className="text-sm font-semibold text-zinc-300">ssl_expiry</span>
                         <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400 uppercase tracking-wide">Resolved</span>
                       </div>
-                      <span className="text-[11px] text-zinc-500">3d ago</span>
+                      <span className="text-[11px] text-zinc-400">3d ago</span>
                     </div>
-                    <p className="text-xs text-zinc-500">SSL Certificate renewed · was expiring in 12 days. Open for 6 hours.</p>
+                    <p className="text-xs text-zinc-400">SSL Certificate renewed · was expiring in 12 days. Open for 6 hours.</p>
                   </div>
 
                   {/* Notification preview */}
@@ -419,7 +419,7 @@ export default async function RootPage() {
                       <span className="font-medium text-zinc-300">Email notification</span>
                       <span className="text-zinc-600">· alerts@cachesnap.com</span>
                     </div>
-                    <p className="text-xs text-zinc-500 font-mono leading-relaxed">
+                    <p className="text-xs text-zinc-400 font-mono leading-relaxed">
                       <span className="text-zinc-300">[CacheSnap] Cache hit rate low — stripe.com</span><br />
                       Cape Town: 61% hit rate (threshold 80%)<br />
                       <span style={{ color: 'var(--brand-primary)' }} className="underline cursor-default">→ Snooze for 24h</span>  ·  View dashboard

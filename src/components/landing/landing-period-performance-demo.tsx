@@ -222,7 +222,7 @@ export function LandingPeriodPerformanceDemo() {
 
             <div className="bg-black/10 p-5">
               <div className="mb-4 flex items-center gap-2">
-                <h3 className="cs-view-section-title !text-[10px] !text-zinc-500">Global Performance Breakdown</h3>
+                <p className="cs-view-section-title !text-[10px] !text-zinc-400">Global Performance Breakdown</p>
               </div>
               <ProbeWaterfall
                 probes={[waterfallProbe]}

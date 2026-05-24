@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
+import Image from 'next/image'
 import {
   LANDING_BG_DASHBOARD_SECTION,
   LANDING_BG_PLATFORM_SECTION,
@@ -43,6 +44,7 @@ type Slide = {
   kind: 'live'
   live: 'edge-vs-origin' | 'period-performance' | 'monitors' | 'historical-trends'
   maxWidth: number
+  mobileImageHeight: number
   title: string
   tabLabel: string
   description: string
@@ -103,6 +105,7 @@ const SLIDES: Slide[] = [
     kind: 'live',
     live: 'edge-vs-origin',
     maxWidth: 1042,
+    mobileImageHeight: 821,
     title: 'Edge vs Origin',
     tabLabel: 'Edge vs Origin',
     description: 'See exactly how much your CDN saves per region — edge HIT vs origin MISS, side by side.',
@@ -114,6 +117,7 @@ const SLIDES: Slide[] = [
     kind: 'live',
     live: 'historical-trends',
     maxWidth: 1040,
+    mobileImageHeight: 1092,
     title: 'Historical trends',
     tabLabel: 'Trends',
     description: 'Response times and cache hit rates over time, per region. Spot latency issues before users do.',
@@ -125,6 +129,7 @@ const SLIDES: Slide[] = [
     kind: 'live',
     live: 'period-performance',
     maxWidth: 1010,
+    mobileImageHeight: 639,
     title: 'Period performance',
     tabLabel: 'Performance',
     description: 'Edge vs origin response times per region for any time window.',
@@ -136,6 +141,7 @@ const SLIDES: Slide[] = [
     kind: 'live',
     live: 'monitors',
     maxWidth: 1224,
+    mobileImageHeight: 1078,
     title: 'Monitors',
     tabLabel: 'Monitors',
     description: 'Every URL in one view — global averages, per-site metrics, regional health, and open incidents.',
@@ -162,13 +168,14 @@ function ShowcasePreview({
         style={{ maxWidth }}
       >
         <div className="rounded-xl overflow-hidden border border-white/10 shadow-2xl bg-[#0a101c] relative flex items-center justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Image
             src={slide.mobileImage}
             alt={slide.title}
             width={slide.maxWidth}
+            height={slide.mobileImageHeight}
             className="block h-auto w-full select-none"
-            decoding="async"
+            style={{ height: 'auto' }}
+            sizes="(max-width: 768px) 100vw, 80vw"
             draggable={false}
           />
         </div>
@@ -265,7 +272,7 @@ export function DashboardShowcase() {
                   </span>
                 ))}
               </div>
-              <p className="mt-3 text-sm leading-relaxed text-zinc-500">
+              <p className="mt-3 text-sm leading-relaxed text-zinc-400">
                 Just paste your URL and get insights in seconds.
               </p>
               </div>

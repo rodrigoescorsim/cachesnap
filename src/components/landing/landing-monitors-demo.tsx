@@ -298,8 +298,8 @@ export function LandingMonitorsDemo() {
       <ViewSection>
         <ViewSectionHeader title="Monitors List" showDot={false}>
           <div className="flex items-center gap-3">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
-              <span className="text-zinc-400">{activeCount}</span> Active Monitors
+            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+              <span className="text-zinc-300">{activeCount}</span> Active Monitors
             </span>
             <button
               type="button"
