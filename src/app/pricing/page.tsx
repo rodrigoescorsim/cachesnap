@@ -1,6 +1,21 @@
 import Link from 'next/link'
 import { MarketingFooter, MarketingHeader } from '@/components/marketing/marketing-chrome'
 
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'Pricing',
+  description:
+    'Start monitoring CDN cache performance for free. 8 global regions, TTFB analytics, and intelligent alerts. Pro from $19/mo — no credit card required.',
+  alternates: { canonical: '/pricing' },
+  openGraph: {
+    title: 'Pricing — CacheSnap',
+    description:
+      'Start monitoring CDN cache performance for free. 8 global regions, TTFB analytics, and intelligent alerts. Pro from $19/mo — no credit card required.',
+    url: '/pricing',
+  },
+}
+
 // ─── Data ────────────────────────────────────────────────────────────────────
 
 const PLANS = [
