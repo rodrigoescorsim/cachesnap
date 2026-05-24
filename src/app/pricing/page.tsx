@@ -111,7 +111,7 @@ export default function PricingPage() {
 
       <MarketingHeader activeNav="pricing" />
 
-      <main className="flex-1 relative z-10">
+      <main id="main-content" className="flex-1 relative z-10">
 
         {/* ═══════════════════════════════════════════════════════════ HERO */}
         <section className="cs-container-adaptive pt-20 pb-14 text-center">

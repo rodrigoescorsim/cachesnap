@@ -14,6 +14,60 @@ import {
   LANDING_BG_INTELLIGENT_ROUTING_SECTION,
 } from '@/components/landing/landing-section-bg'
 
+// ─── Structured Data ─────────────────────────────────────────────────────────
+
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'CacheSnap',
+    applicationCategory: 'DeveloperApplication',
+    operatingSystem: 'Web',
+    url: 'https://cachesnap.com',
+    description:
+      'Edge performance monitoring platform. Monitor CDN cache hit rates, edge vs. origin latency, and regional performance from 8 global regions. Zero code, zero configuration.',
+    featureList: [
+      'CDN cache hit rate monitoring',
+      'Edge vs. origin latency comparison',
+      '8 global regions',
+      'TTFB analytics',
+      'Intelligent alert grouping',
+      'SSL and security header monitoring',
+      'Smart thresholds',
+      'Zero code setup',
+    ],
+    offers: [
+      {
+        '@type': 'Offer',
+        name: 'Free',
+        price: '0',
+        priceCurrency: 'USD',
+        description: '2 monitors, 8 global regions, 7-day history. No credit card required.',
+      },
+      {
+        '@type': 'Offer',
+        name: 'Pro',
+        price: '19',
+        priceCurrency: 'USD',
+        description: '20 monitors, 8 global regions, 30-day history, Slack & webhook alerts.',
+      },
+      {
+        '@type': 'Offer',
+        name: 'Team',
+        price: '59',
+        priceCurrency: 'USD',
+        description: '100 monitors, 8 global regions, 90-day history, multiple recipients.',
+      },
+    ],
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'CacheSnap',
+    url: 'https://cachesnap.com',
+  },
+]
+
 // ─── Data ────────────────────────────────────────────────────────────────────
 
 const FEATURES = [
@@ -117,11 +171,16 @@ export default async function RootPage() {
   const googleClientId = process.env.GOOGLE_CLIENT_ID
 
   return (
+    <>
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+    />
     <div className="min-h-screen flex flex-col relative overflow-x-hidden text-foreground">
       {googleClientId ? <GoogleOneTap clientId={googleClientId} /> : null}
       <MarketingHeader />
 
-      <main className="flex-1 relative z-10">
+      <main id="main-content" className="flex-1 relative z-10">
 
         {/* ═══════════════════════════════════════════ HERO + HOW IT WORKS */}
         <section
@@ -446,5 +505,6 @@ export default async function RootPage() {
       <MarketingFooter />
 
     </div>
+    </>
   )
 }
