@@ -45,7 +45,7 @@ const PLAN_ORDER: Plan[] = ['free', 'pro', 'team']
 export default async function BillingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ success?: string; subscription_id?: string; checkout?: string }>
+  searchParams: Promise<{ success?: string; subscription_id?: string; checkout?: string; plan_changed?: string }>
 }) {
   const user = await getSession()
   if (!user) redirect('/login')
@@ -57,6 +57,7 @@ export default async function BillingPage({
     (params.checkout === 'pro' || params.checkout === 'team') && parsePlan(user.plan) === 'free'
       ? params.checkout
       : null
+  const planChanged = params.plan_changed === '1'
 
   const plan = parsePlan(user.plan)
   const limits = PLAN_LIMITS[plan]
@@ -77,6 +78,12 @@ export default async function BillingPage({
       {autoCheckoutPlan && <BillingAutoCheckout plan={autoCheckoutPlan} />}
       {pendingSubscriptionId && (
         <BillingSuccessVerifier subscriptionId={pendingSubscriptionId} />
+      )}
+      {planChanged && (
+        <div className="flex items-center gap-3 rounded-xl border border-[rgba(var(--brand-primary-rgb),0.25)] bg-[rgba(var(--brand-primary-rgb),0.06)] px-4 py-3">
+          <Check className="h-4 w-4 shrink-0 text-[var(--brand-primary)]" strokeWidth={2.5} />
+          <p className="text-sm font-semibold text-[var(--brand-primary)]">Plan updated successfully.</p>
+        </div>
       )}
       <ViewSection>
         <ViewSectionHeader title="Billing & Plan" showDot={false} />
