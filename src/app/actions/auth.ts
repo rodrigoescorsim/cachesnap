@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { z } from 'zod'
+import { Resend } from 'resend'
 import sql from '@/lib/db'
 import { createSession, deleteSession } from '@/lib/auth'
 import { MONITOR_AUDIT_INTERVAL_SECONDS, MONITOR_CHECK_INTERVAL_SECONDS } from '@/lib/monitor-schedule'
@@ -59,7 +60,7 @@ export async function signup(
       if (normalizedUrl.endsWith('/')) normalizedUrl = normalizedUrl.slice(0, -1)
       const name = normalizedUrl.replace(/^https?:\/\//, '')
 
-      await sql`
+      const [newMonitor] = await sql<{ id: string }[]>`
         INSERT INTO monitors (
           user_id, url, name, check_interval_seconds, audit_interval_seconds,
           audit_readiness_state, alert_threshold_ms, alert_threshold_hit_ms,
@@ -79,7 +80,18 @@ export async function signup(
           ARRAY['prev_hour', 'day_avg'],
           ${email}, true
         )
+        RETURNING id
       `
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+      fetch(`${apiUrl}/api/monitors/${newMonitor.id}/dispatch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-probe-secret': process.env.PROBE_SECRET ?? '',
+        },
+        body: JSON.stringify({ bypass: false, is_manual: false }),
+      }).catch(() => {})
     } catch {
       // URL inválida — ignora, usuário vai criar o monitor manualmente
     }
@@ -177,14 +189,25 @@ export async function requestPasswordReset(
     VALUES (${user.id}, ${token}, ${expiresAt})
   `
 
-  // 5. Simulated Email Send
-  const resetLink = `http://localhost:3000/reset-password?token=${token}`
-  console.log(`\n======================================================`)
-  console.log(`🔑 PASSWORD RESET LINK REQUESTED`)
-  console.log(`For user: ${email}`)
-  console.log(`Link: ${resetLink}`)
-  console.log(`Expires at: ${expiresAt.toISOString()}`)
-  console.log(`======================================================\n`)
+  // 5. Send reset email via Resend
+  const appUrl = process.env.APP_URL ?? 'http://localhost:3000'
+  const resetLink = `${appUrl}/reset-password?token=${token}`
+  const fromEmail = process.env.ALERT_FROM_EMAIL ?? 'CacheSnap <noreply@cachesnap.com>'
+  const resendKey = process.env.RESEND_API_KEY
+
+  if (resendKey) {
+    const resend = new Resend(resendKey)
+    await resend.emails.send({
+      from: fromEmail,
+      to: email,
+      subject: 'Reset your CacheSnap password',
+      html: buildPasswordResetEmail(resetLink, appUrl),
+    }).catch((err) => {
+      console.error('[PASSWORD RESET] Failed to send email:', err)
+    })
+  } else {
+    console.warn('[PASSWORD RESET] RESEND_API_KEY not set — link:', resetLink)
+  }
 
   return { success: true }
 }
@@ -312,6 +335,85 @@ export async function loginGoogleSandbox(
     return { errors: { global: ['Failed to log in with simulated Google account'] } }
   }
 
-  redirect('/dashboard')
+  redirect('/monitors')
 }
 
+// ── Email Templates ────────────────────────────────────────────────────────────
+
+function buildPasswordResetEmail(resetLink: string, appUrl: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reset your CacheSnap password</title>
+</head>
+<body style="margin:0;padding:0;background:#09090b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#09090b;padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
+
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <a href="${appUrl}" style="text-decoration:none;">
+                <span style="font-size:22px;font-weight:900;letter-spacing:-0.5px;color:#22ff88;">Cache</span><span style="font-size:22px;font-weight:900;letter-spacing:-0.5px;color:#ffffff;">Snap</span>
+              </a>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background:#18181b;border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:40px 36px;">
+
+              <!-- Header -->
+              <p style="margin:0 0 8px;font-size:20px;font-weight:800;color:#ffffff;letter-spacing:-0.3px;">Reset your password</p>
+              <p style="margin:0 0 28px;font-size:14px;color:#71717a;line-height:1.6;">
+                We received a request to reset the password for your CacheSnap account. Click the button below to set a new password. This link expires in <strong style="color:#a1a1aa;">1 hour</strong>.
+              </p>
+
+              <!-- CTA Button -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding-bottom:28px;">
+                    <a href="${resetLink}"
+                       style="display:inline-block;background:#22ff88;color:#09090b;font-size:14px;font-weight:800;text-decoration:none;padding:14px 32px;border-radius:10px;letter-spacing:0.01em;">
+                      Reset password →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Divider -->
+              <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:0 0 24px;" />
+
+              <!-- Fallback link -->
+              <p style="margin:0 0 8px;font-size:12px;color:#52525b;">If the button doesn't work, copy and paste this link into your browser:</p>
+              <p style="margin:0;font-size:11px;word-break:break-all;">
+                <a href="${resetLink}" style="color:#22ff88;text-decoration:none;">${resetLink}</a>
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding-top:24px;" align="center">
+              <p style="margin:0;font-size:11px;color:#3f3f46;line-height:1.6;">
+                If you didn't request a password reset, you can safely ignore this email.<br/>
+                Your password won't change until you click the link above.
+              </p>
+              <p style="margin:12px 0 0;font-size:11px;color:#3f3f46;">
+                <a href="${appUrl}" style="color:#52525b;text-decoration:none;">cachesnap.com</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}

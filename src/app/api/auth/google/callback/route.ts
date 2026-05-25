@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     // 4. Create local session
     await createSession(userId)
 
-    return NextResponse.redirect(`${appUrl}/dashboard`)
+    return NextResponse.redirect(`${appUrl}/monitors`)
   } catch (error) {
     console.error('[GOOGLE CALLBACK EXCEPTION]', error)
     return NextResponse.redirect(`${appUrl}/login?error=internal_auth_error`)
