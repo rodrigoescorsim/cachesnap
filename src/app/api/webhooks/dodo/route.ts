@@ -21,15 +21,26 @@ export async function POST(req: NextRequest) {
   switch (event.type) {
     case 'subscription.active': {
       const sub = event.data
-      const userId = sub.metadata?.user_id
       const plan = planFromProductId(sub.product_id)
-      if (userId && plan) {
+      if (!plan) break
+
+      const userId = sub.metadata?.user_id
+      if (userId) {
+        // Initial checkout: metadata carries user_id
         await sql`
           UPDATE users
           SET plan = ${plan},
               dodo_customer_id = ${sub.customer.customer_id},
               dodo_subscription_id = ${sub.subscription_id}
           WHERE id = ${userId}
+        `
+      } else if (sub.customer.customer_id) {
+        // Plan change via changePlan: no metadata, match by customer_id
+        await sql`
+          UPDATE users
+          SET plan = ${plan},
+              dodo_subscription_id = ${sub.subscription_id}
+          WHERE dodo_customer_id = ${sub.customer.customer_id}
         `
       }
       break
@@ -49,6 +60,13 @@ export async function POST(req: NextRequest) {
           UPDATE users
           SET plan = 'free', dodo_subscription_id = NULL
           WHERE id = ${userId}
+        `
+      } else if (sub.customer.customer_id) {
+        // Subscription created via changePlan has no metadata
+        await sql`
+          UPDATE users
+          SET plan = 'free', dodo_subscription_id = NULL
+          WHERE dodo_customer_id = ${sub.customer.customer_id}
         `
       }
       break

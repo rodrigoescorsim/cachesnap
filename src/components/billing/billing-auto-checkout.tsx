@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 export function BillingAutoCheckout({ plan }: { plan: 'pro' | 'team' }) {
   const router = useRouter()
   const fired = useRef(false)
+  const [error, setError] = useState(false)
 
   useEffect(() => {
     if (fired.current) return
@@ -16,13 +17,30 @@ export function BillingAutoCheckout({ plan }: { plan: 'pro' | 'team' }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ plan }),
     })
-      .then((res) => res.json())
-      .then(({ url }) => {
-        if (url) window.location.href = url
-        else router.replace('/dashboard/billing')
+      .then(async (res) => {
+        const data = await res.json()
+        if (res.ok && data.url) window.location.href = data.url
+        else setError(true)
       })
-      .catch(() => router.replace('/dashboard/billing'))
+      .catch(() => setError(true))
   }, [plan, router])
+
+  if (error) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-background/90 backdrop-blur-sm">
+        <div className="flex max-w-sm flex-col items-center gap-3 rounded-xl border border-amber-500/20 bg-zinc-900 px-6 py-6 text-center">
+          <p className="text-sm font-bold text-amber-400">Could not start checkout</p>
+          <p className="text-xs text-zinc-400">Something went wrong redirecting to checkout. Please try again from the billing page.</p>
+          <button
+            onClick={() => router.replace('/dashboard/billing')}
+            className="cs-btn-secondary-md mt-1"
+          >
+            Go to billing
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-background/90 backdrop-blur-sm">

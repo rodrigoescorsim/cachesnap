@@ -45,7 +45,7 @@ const PLAN_ORDER: Plan[] = ['free', 'pro', 'team']
 export default async function BillingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ success?: string; subscription_id?: string; checkout?: string; plan_changed?: string }>
+  searchParams: Promise<{ success?: string; subscription_id?: string; checkout?: string; plan_changed?: string; activated?: string }>
 }) {
   const user = await getSession()
   if (!user) redirect('/login')
@@ -58,6 +58,7 @@ export default async function BillingPage({
       ? params.checkout
       : null
   const planChanged = params.plan_changed === '1'
+  const planActivated = params.activated === '1'
 
   const plan = parsePlan(user.plan)
   const limits = PLAN_LIMITS[plan]
@@ -79,10 +80,22 @@ export default async function BillingPage({
       {pendingSubscriptionId && (
         <BillingSuccessVerifier subscriptionId={pendingSubscriptionId} />
       )}
+      {planActivated && (
+        <div className="flex items-start gap-3 rounded-xl border border-[rgba(var(--brand-primary-rgb),0.25)] bg-[rgba(var(--brand-primary-rgb),0.06)] px-4 py-4">
+          <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand-primary)]" strokeWidth={2.5} />
+          <div>
+            <p className="text-sm font-bold text-[var(--brand-primary)]">Subscription activated.</p>
+            <p className="mt-0.5 text-xs text-zinc-400">Welcome aboard! Your plan is now active.</p>
+          </div>
+        </div>
+      )}
       {planChanged && (
-        <div className="flex items-center gap-3 rounded-xl border border-[rgba(var(--brand-primary-rgb),0.25)] bg-[rgba(var(--brand-primary-rgb),0.06)] px-4 py-3">
-          <Check className="h-4 w-4 shrink-0 text-[var(--brand-primary)]" strokeWidth={2.5} />
-          <p className="text-sm font-semibold text-[var(--brand-primary)]">Plan updated successfully.</p>
+        <div className="flex items-start gap-3 rounded-xl border border-[rgba(var(--brand-primary-rgb),0.25)] bg-[rgba(var(--brand-primary-rgb),0.06)] px-4 py-4">
+          <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--brand-primary)]" strokeWidth={2.5} />
+          <div>
+            <p className="text-sm font-bold text-[var(--brand-primary)]">Plan upgraded successfully.</p>
+            <p className="mt-0.5 text-xs text-zinc-400">Your plan has been updated. A prorated charge for the current billing period may appear shortly.</p>
+          </div>
         </div>
       )}
       <ViewSection>

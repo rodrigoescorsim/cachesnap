@@ -16,6 +16,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Subscription not active' }, { status: 400 })
   }
 
+  // Ownership check: the subscription must belong to this user (by metadata or customer_id)
+  const [row] = await sql<[{ dodo_customer_id: string | null }]>`
+    SELECT dodo_customer_id FROM users WHERE id = ${user.id}
+  `
+  const ownedByMetadata = sub.metadata?.user_id === user.id
+  const ownedByCustomer = row?.dodo_customer_id && sub.customer.customer_id === row.dodo_customer_id
+
+  if (!ownedByMetadata && !ownedByCustomer) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const plan = planFromProductId(sub.product_id)
   if (!plan) {
     return NextResponse.json({ error: 'Unknown product' }, { status: 400 })

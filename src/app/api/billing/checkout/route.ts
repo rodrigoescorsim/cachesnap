@@ -23,13 +23,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Already on this plan' }, { status: 409 })
     }
 
-    // Upgrade or downgrade: change the existing subscription plan
     const isUpgrade = (PLAN_ORDER[plan] ?? 0) > (PLAN_ORDER[row.plan] ?? 0)
-    await dodo.subscriptions.changePlan(row.dodo_subscription_id, {
-      product_id: PRODUCT_IDS[plan],
-      proration_billing_mode: isUpgrade ? 'prorated_immediately' : 'do_not_bill',
-      quantity: 1,
-    })
+
+    try {
+      await dodo.subscriptions.changePlan(row.dodo_subscription_id, {
+        product_id: PRODUCT_IDS[plan],
+        proration_billing_mode: isUpgrade ? 'prorated_immediately' : 'do_not_bill',
+        quantity: 1,
+      })
+    } catch (err) {
+      const dodoErr = err as { error?: { code?: string } }
+      if (dodoErr?.error?.code === 'PLAN_CHANGE_NOT_ALLOWED_FOR_SCHEDULED_CANCELLATION') {
+        // Subscription is scheduled to cancel — reactivate it, then retry the plan change
+        try {
+          await dodo.subscriptions.update(row.dodo_subscription_id, { cancel_at_next_billing_date: false })
+          await dodo.subscriptions.changePlan(row.dodo_subscription_id, {
+            product_id: PRODUCT_IDS[plan],
+            proration_billing_mode: isUpgrade ? 'prorated_immediately' : 'do_not_bill',
+            quantity: 1,
+          })
+        } catch (retryErr) {
+          console.error('[BILLING] changePlan retry after reactivation failed:', retryErr)
+          return NextResponse.json({ error: 'Failed to change plan. Please try again.' }, { status: 502 })
+        }
+      } else {
+        console.error('[BILLING] changePlan failed:', err)
+        return NextResponse.json({ error: 'Failed to change plan. Please try again.' }, { status: 502 })
+      }
+    }
 
     await sql`UPDATE users SET plan = ${plan} WHERE id = ${user.id}`
 
