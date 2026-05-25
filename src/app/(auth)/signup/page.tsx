@@ -7,10 +7,15 @@ import { useSearchParams } from 'next/navigation'
 import { signup } from '@/app/actions/auth'
 import { Logo } from '@/components/logo'
 
+const PLAN_LABELS: Record<string, string> = { pro: 'Pro', team: 'Team' }
+const PLAN_PRICES: Record<string, string> = { pro: '$19/mo', team: '$59/mo' }
+
 function SignupForm() {
   const [state, action, pending] = useActionState(signup, undefined)
   const searchParams = useSearchParams()
   const urlParam = searchParams.get('url') ?? ''
+  const planParam = searchParams.get('plan') ?? ''
+  const isPaidPlan = planParam === 'pro' || planParam === 'team'
 
   return (
     <div className="w-full max-w-sm">
@@ -18,7 +23,15 @@ function SignupForm() {
         <Link href="/" className="mb-6 hover:opacity-80 transition-opacity">
           <Logo className="h-16" />
         </Link>
-        {urlParam ? (
+        {isPaidPlan ? (
+          <div className="text-center space-y-1">
+            <p className="text-sm text-zinc-400 font-medium">Create your account to activate</p>
+            <p className="text-sm font-bold text-white">
+              {PLAN_LABELS[planParam]} plan{' '}
+              <span style={{ color: 'var(--brand-primary)' }}>{PLAN_PRICES[planParam]}</span>
+            </p>
+          </div>
+        ) : urlParam ? (
           <p className="text-sm text-zinc-500 font-medium text-center">
             Create your account to start monitoring<br />
             <span className="text-zinc-300 font-semibold">{urlParam}</span>
@@ -30,6 +43,7 @@ function SignupForm() {
 
       <form action={action} className="space-y-4">
         {urlParam && <input type="hidden" name="url" value={urlParam} />}
+        {isPaidPlan && <input type="hidden" name="plan" value={planParam} />}
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-zinc-400 mb-1">
             Email

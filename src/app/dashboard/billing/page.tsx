@@ -6,6 +6,7 @@ import { ViewSection, ViewSectionHeader } from '@/components/dashboard/dashboard
 import { PLAN_LIMITS, parsePlan, type Plan } from '@/lib/plans'
 import { UpgradeButton, ManageButton } from '@/components/billing/upgrade-button'
 import { BillingSuccessVerifier } from '@/components/billing/billing-success-verifier'
+import { BillingAutoCheckout } from '@/components/billing/billing-auto-checkout'
 
 const PLAN_LABELS: Record<Plan, string> = { free: 'Free', pro: 'Pro', team: 'Team' }
 const PLAN_PRICES: Record<Plan, string> = { free: '$0', pro: '$19', team: '$59' }
@@ -44,7 +45,7 @@ const PLAN_ORDER: Plan[] = ['free', 'pro', 'team']
 export default async function BillingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ success?: string; subscription_id?: string }>
+  searchParams: Promise<{ success?: string; subscription_id?: string; checkout?: string }>
 }) {
   const user = await getSession()
   if (!user) redirect('/login')
@@ -52,6 +53,10 @@ export default async function BillingPage({
   const params = await searchParams
   const pendingSubscriptionId =
     params.success === '1' && params.subscription_id ? params.subscription_id : null
+  const autoCheckoutPlan =
+    (params.checkout === 'pro' || params.checkout === 'team') && parsePlan(user.plan) === 'free'
+      ? params.checkout
+      : null
 
   const plan = parsePlan(user.plan)
   const limits = PLAN_LIMITS[plan]
@@ -69,6 +74,7 @@ export default async function BillingPage({
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 py-2">
+      {autoCheckoutPlan && <BillingAutoCheckout plan={autoCheckoutPlan} />}
       {pendingSubscriptionId && (
         <BillingSuccessVerifier subscriptionId={pendingSubscriptionId} />
       )}

@@ -51,6 +51,11 @@ export async function signup(
 
   await createSession(user.id)
 
+  const planParam = formData.get('plan')?.toString().trim()
+  const redirectTo = (planParam === 'pro' || planParam === 'team')
+    ? `/dashboard/billing?checkout=${planParam}`
+    : '/monitors'
+
   const rawUrl = formData.get('url')?.toString().trim()
   if (rawUrl) {
     try {
@@ -97,7 +102,7 @@ export async function signup(
     }
   }
 
-  redirect('/monitors')
+  redirect(redirectTo)
 }
 
 export async function login(

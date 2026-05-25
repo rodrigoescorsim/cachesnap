@@ -68,6 +68,39 @@ const jsonLd = [
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
+const LANDING_PLANS = [
+  {
+    name: 'Free',
+    price: '$0',
+    period: null,
+    sub: 'No credit card required.',
+    cta: 'Get started free',
+    ctaHref: '/signup',
+    highlighted: false,
+    specs: ['2 monitors', '7-day history', 'Global regions', 'Email alerts'],
+  },
+  {
+    name: 'Pro',
+    price: '$19',
+    period: '/mo',
+    sub: 'For teams shipping to the edge.',
+    cta: 'Start Pro',
+    ctaHref: '/signup?plan=pro',
+    highlighted: true,
+    specs: ['20 monitors', '30-day history', 'Global regions', 'Slack & webhooks'],
+  },
+  {
+    name: 'Team',
+    price: '$59',
+    period: '/mo',
+    sub: 'Scale across your infrastructure.',
+    cta: 'Start Team',
+    ctaHref: '/signup?plan=team',
+    highlighted: false,
+    specs: ['100 monitors', '90-day history', 'Global regions', 'Multiple recipients'],
+  },
+]
+
 const FEATURES = [
   {
     icon: (
@@ -423,6 +456,97 @@ export default async function RootPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════════════════════ PRICING */}
+        <section
+          className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 overflow-hidden py-28"
+          style={{ backgroundColor: LANDING_BG_EDGE_INTELLIGENCE_SECTION }}
+          aria-label="Pricing"
+        >
+          {/* Glow */}
+          <div
+            className="pointer-events-none absolute left-1/2 top-0 h-72 w-[min(100%,48rem)] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-30 blur-3xl"
+            style={{ background: 'radial-gradient(ellipse, rgba(var(--brand-primary-rgb),0.35) 0%, transparent 70%)' }}
+            aria-hidden
+          />
+
+          <div className="cs-container-adaptive relative z-10">
+
+            {/* Header */}
+            <div className="text-center mb-16">
+              <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--brand-primary)' }}>
+                Pricing
+              </p>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+                Simple, transparent pricing.
+              </h2>
+              <p className="mt-4 text-zinc-400 max-w-sm mx-auto text-[15px] leading-relaxed">
+                Start free. Upgrade when you're ready.
+              </p>
+            </div>
+
+            {/* Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-4xl mx-auto items-stretch">
+              {LANDING_PLANS.map((plan) => (
+                <div
+                  key={plan.name}
+                  className="relative flex flex-col rounded-2xl border border-[rgba(var(--brand-primary-rgb),0.22)] bg-[rgba(var(--brand-primary-rgb),0.03)] shadow-[0_0_32px_-14px_rgba(var(--brand-primary-rgb),0.2)] transition-all duration-300 hover:border-[rgba(var(--brand-primary-rgb),0.38)] hover:shadow-[0_0_40px_-12px_rgba(var(--brand-primary-rgb),0.3)]"
+                >
+                  <div className="flex flex-col gap-7 p-7">
+
+                    {/* Plan name */}
+                    <p className="text-[13px] font-black uppercase tracking-[0.15em] text-zinc-500">
+                      {plan.name}
+                    </p>
+
+                    {/* Price */}
+                    <div>
+                      <div className="flex items-end gap-1">
+                        <span className="text-[42px] font-black tracking-tight text-white leading-none">
+                          {plan.price}
+                        </span>
+                        {plan.period && (
+                          <span className="text-sm text-zinc-500 font-medium mb-1.5">{plan.period}</span>
+                        )}
+                      </div>
+                      <p className="mt-2 text-[13px] text-zinc-500 leading-snug">{plan.sub}</p>
+                    </div>
+
+                    {/* Specs */}
+                    <ul className="space-y-2.5">
+                      {plan.specs.map((spec) => (
+                        <li key={spec} className="flex items-center gap-2.5">
+                          <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={2.5} style={{ color: 'var(--brand-primary)' }}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 7l3 3 6-6" />
+                          </svg>
+                          <span className="text-[13px] text-zinc-300 font-medium">{spec}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    {/* CTA */}
+                    <Link
+                      href={plan.ctaHref}
+                      className="mt-auto rounded-xl py-2.5 text-center text-[13px] font-bold border border-[rgba(var(--brand-primary-rgb),0.25)] bg-[rgba(var(--brand-primary-rgb),0.06)] text-zinc-200 hover:bg-[rgba(var(--brand-primary-rgb),0.12)] hover:border-[rgba(var(--brand-primary-rgb),0.4)] hover:text-white transition-all duration-200"
+                    >
+                      {plan.cta}
+                    </Link>
+
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer note */}
+            <p className="mt-12 text-center text-[12px] text-zinc-600">
+              All plans include 5-minute probe intervals across independent global regions.{' '}
+              <Link href="/pricing" className="text-zinc-500 hover:text-zinc-300 underline underline-offset-2 transition-colors">
+                Full details →
+              </Link>
+            </p>
+
           </div>
         </section>
 
