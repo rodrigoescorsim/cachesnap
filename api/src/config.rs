@@ -130,7 +130,7 @@ impl Config {
             probe_secret: required("PROBE_SECRET")?,
             resend_api_key: optional("RESEND_API_KEY"),
             alert_from_email: std::env::var("ALERT_FROM_EMAIL")
-                .unwrap_or_else(|_| "CacheSnap <onboarding@resend.dev>".to_string()),
+                .unwrap_or_else(|_| "CacheSnap <alerts@cachesnap.com>".to_string()),
             slack_webhook_url: optional("SLACK_WEBHOOK_URL"),
             app_url: std::env::var("APP_URL")
                 .unwrap_or_else(|_| "http://localhost:3000".to_string()),
