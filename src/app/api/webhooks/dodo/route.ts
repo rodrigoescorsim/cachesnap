@@ -50,6 +50,12 @@ export async function POST(req: NextRequest) {
       // Plan stays — no action needed
       break
 
+    case 'payment.failed':
+      // Dodo handles dunning (retries). We do not revoke access here —
+      // subscription.failed fires only after all retries are exhausted.
+      console.warn('[BILLING] payment.failed received — Dodo will retry automatically.')
+      break
+
     case 'subscription.cancelled':
     case 'subscription.expired':
     case 'subscription.failed': {

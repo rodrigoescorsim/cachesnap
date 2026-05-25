@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { Check } from 'lucide-react'
 import { getSession } from '@/lib/auth'
 import sql from '@/lib/db'
+import { dodo } from '@/lib/dodo'
 import { ViewSection, ViewSectionHeader } from '@/components/dashboard/dashboard-ui'
 import { PLAN_LIMITS, parsePlan, type Plan } from '@/lib/plans'
 import { UpgradeButton, ManageButton } from '@/components/billing/upgrade-button'
@@ -70,6 +71,19 @@ export default async function BillingPage({
     SELECT dodo_subscription_id FROM users WHERE id = ${user.id}
   `
 
+  // Check if subscription is scheduled for cancellation
+  let cancellingAt: string | null = null
+  if (dodo_subscription_id) {
+    try {
+      const sub = await dodo.subscriptions.retrieve(dodo_subscription_id)
+      if (sub.cancel_at_next_billing_date) {
+        cancellingAt = sub.next_billing_date
+      }
+    } catch {
+      // Non-critical: if Dodo is unreachable, skip the warning
+    }
+  }
+
   const usagePct = Math.min(100, Math.round((count / limits.monitors) * 100))
   const isAtLimit = count >= limits.monitors
   const currentPlanIndex = PLAN_ORDER.indexOf(plan)
@@ -98,6 +112,22 @@ export default async function BillingPage({
           </div>
         </div>
       )}
+      {cancellingAt && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-4 py-4">
+          <span className="mt-0.5 shrink-0 text-sm text-amber-400">⚠</span>
+          <div>
+            <p className="text-sm font-bold text-amber-400">Your subscription is scheduled to cancel.</p>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              You keep full access until{' '}
+              <span className="font-semibold text-zinc-300">
+                {new Date(cancellingAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+              </span>
+              . After that, your account reverts to the Free plan. To reactivate, use <span className="font-semibold text-zinc-300">Manage subscription</span> below.
+            </p>
+          </div>
+        </div>
+      )}
+
       <ViewSection>
         <ViewSectionHeader title="Billing & Plan" showDot={false} />
         <p className="px-1 text-xs leading-relaxed text-zinc-500">
@@ -112,7 +142,10 @@ export default async function BillingPage({
         <div className="relative z-10 -mt-2 space-y-2">
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-2xl font-extrabold tracking-tight text-white">{PLAN_LABELS[plan]}</span>
-            <span className="cs-badge cs-badge-success">Active</span>
+            {cancellingAt
+              ? <span className="cs-badge cs-badge-warning">Cancels {new Date(cancellingAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+              : <span className="cs-badge cs-badge-success">Active</span>
+            }
           </div>
           <p className="text-sm text-zinc-400">
             {PLAN_PRICES[plan]}{' '}
