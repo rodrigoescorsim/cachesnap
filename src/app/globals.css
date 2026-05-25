@@ -144,6 +144,14 @@ body {
     max-width: 72ch;
   }
 
+  .prose-legal ul {
+    @apply list-disc pl-5 space-y-1;
+  }
+
+  .prose-legal a {
+    @apply text-zinc-300 underline underline-offset-2 hover:text-white transition-colors;
+  }
+
   /* PREMIUM COMPONENT SYSTEM */
 
   .cs-card {

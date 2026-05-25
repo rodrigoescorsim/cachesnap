@@ -200,6 +200,8 @@ export function MarketingFooter() {
                 Contact
               </a>
             </li>
+            <FooterLink href="/privacy">Privacy Policy</FooterLink>
+            <FooterLink href="/terms">Terms of Service</FooterLink>
           </FooterColumn>
         </div>
 

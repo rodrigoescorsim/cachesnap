@@ -600,6 +600,8 @@ fn build_incident_email_html(
             <a href="{monitor_url}" style="color:#2563eb;text-decoration:none">View monitor</a>
             &nbsp;&middot;&nbsp;
             <a href="{dashboard_url}" style="color:#6b7280;text-decoration:none">Dashboard</a>
+            &nbsp;&middot;&nbsp;
+            <a href="mailto:hello@cachesnap.com" style="color:#9ca3af;text-decoration:underline">Support</a>
           </td>
           <td align="right" style="font-size:11px;color:#d1d5db">CacheSnap</td>
         </tr>
@@ -762,7 +764,7 @@ fn build_recovery_email_html(
       {metric_html}
       <p style="margin:0;font-size:13px;color:#9ca3af">{notification_count} notification{s} sent during this incident.</p>
       <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0 16px">
-      <p style="margin:0;font-size:11px;color:#d1d5db">CacheSnap &mdash; Edge performance monitoring</p>
+      <p style="margin:0;font-size:11px;color:#d1d5db">CacheSnap &mdash; Edge performance monitoring &middot; <a href="mailto:hello@cachesnap.com" style="color:#9ca3af;text-decoration:underline">Support</a></p>
     </td>
   </tr>
 </table>

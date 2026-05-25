@@ -70,7 +70,17 @@ function ChangePasswordForm({ isOAuthUser }: { isOAuthUser: boolean }) {
 
       <div className="relative z-10 space-y-4">
         {state?.success && <SuccessBanner message="Password changed. Other active sessions have been signed out." />}
-        {globalErrors.length > 0 && <ErrorBanner messages={globalErrors} />}
+        {globalErrors.length > 0 && (
+          <>
+            <ErrorBanner messages={globalErrors} />
+            <p className="text-[11px] text-zinc-600">
+              Need help?{' '}
+              <a href="mailto:hello@cachesnap.com" className="text-zinc-500 underline underline-offset-2 hover:text-zinc-300 transition-colors">
+                Contact support
+              </a>
+            </p>
+          </>
+        )}
 
         {!state?.success && (
           <form action={action} className="space-y-4">
@@ -189,7 +199,17 @@ function DeleteAccountForm({ isOAuthUser, currentEmail }: { isOAuthUser: boolean
           </div>
         ) : (
           <div className="space-y-4 rounded-xl border border-white/5 bg-white/[0.02] p-4">
-            {globalErrors.length > 0 && <ErrorBanner messages={globalErrors} />}
+            {globalErrors.length > 0 && (
+              <>
+                <ErrorBanner messages={globalErrors} />
+                <p className="text-[11px] text-zinc-600">
+                  Need help?{' '}
+                  <a href="mailto:hello@cachesnap.com" className="text-zinc-500 underline underline-offset-2 hover:text-zinc-300 transition-colors">
+                    Contact support
+                  </a>
+                </p>
+              </>
+            )}
 
             <form action={action} className="space-y-4">
               <div>

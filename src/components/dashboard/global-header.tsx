@@ -160,6 +160,14 @@ export function GlobalHeader({ userEmail, logoutAction }: GlobalHeaderProps) {
                   </Link>
                 </li>
               )}
+              <li className="pt-1">
+                <a
+                  href="mailto:hello@cachesnap.com"
+                  className="flex items-center rounded-lg px-3 py-2.5 text-[14px] font-medium text-zinc-500 transition-colors hover:bg-white/[0.03] hover:text-zinc-300"
+                >
+                  Support
+                </a>
+              </li>
             </ul>
           </nav>
         </div>

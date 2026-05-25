@@ -9,7 +9,7 @@
  */
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
-import { CreditCard, LogOut, Settings } from 'lucide-react'
+import { CreditCard, HelpCircle, LogOut, Settings } from 'lucide-react'
 
 function emailInitials(email: string): string {
   const local = email.split('@')[0] ?? email
@@ -112,6 +112,15 @@ export function UserDropdown({ email, logoutAction, variant = 'default', avatarT
               <CreditCard className="h-4 w-4 shrink-0 text-slate-400" strokeWidth={2} />
               <span className="flex-1">Billing</span>
             </Link>
+
+            <a
+              href="mailto:hello@cachesnap.com"
+              role="menuitem"
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium text-slate-300 transition-colors duration-200 ease-out hover:bg-white/[0.04] hover:text-white focus:outline-none focus-visible:bg-white/[0.04]"
+            >
+              <HelpCircle className="h-4 w-4 shrink-0 text-slate-400" strokeWidth={2} />
+              <span className="flex-1">Support</span>
+            </a>
 
             <div className="my-1.5 border-t border-slate-600/30" />
 

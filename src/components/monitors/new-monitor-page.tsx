@@ -263,7 +263,19 @@ export function NewMonitorPage({ userEmail, logoutAction, plan, monitorCount, mo
               <p className="px-1 text-[11px] font-medium leading-relaxed text-zinc-400">
                 CacheSnap will probe this URL from multiple global regions. Bypass checks are automatic.
               </p>
-              {errors.url ? <p className="cs-error-msg mt-1.5">{errors.url}</p> : null}
+              {errors.url ? (
+                <div className="mt-1.5 space-y-1">
+                  <p className="cs-error-msg">{errors.url}</p>
+                  {errors.url === 'Failed to create monitor' && (
+                    <p className="text-[11px] text-zinc-600">
+                      Still having issues?{' '}
+                      <a href="mailto:hello@cachesnap.com" className="text-zinc-500 underline underline-offset-2 hover:text-zinc-300 transition-colors">
+                        Contact support
+                      </a>
+                    </p>
+                  )}
+                </div>
+              ) : null}
             </div>
 
             {/* NAME INPUT */}
