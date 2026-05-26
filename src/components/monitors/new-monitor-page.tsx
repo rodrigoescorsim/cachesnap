@@ -7,6 +7,7 @@ import { useState, useTransition, useRef } from 'react'
 import { invalidateMonitorsSummary } from '@/hooks/use-monitors'
 import { BarChart3, Check, ChevronRight, Globe, Lightbulb, Map, X, Zap } from 'lucide-react'
 import { GlobalHeader } from '@/components/dashboard/global-header'
+import { EmailVerificationBanner } from '@/components/dashboard/email-verification-banner'
 
 type UrlStatus = 'idle' | 'validating' | 'valid' | 'invalid'
 
@@ -40,9 +41,10 @@ type NewMonitorPageProps = {
   plan: string
   monitorCount: number
   monitorLimit: number
+  emailVerified?: boolean
 }
 
-export function NewMonitorPage({ userEmail, logoutAction, plan, monitorCount, monitorLimit }: NewMonitorPageProps) {
+export function NewMonitorPage({ userEmail, logoutAction, plan, monitorCount, monitorLimit, emailVerified }: NewMonitorPageProps) {
   const isAtLimit = monitorCount >= monitorLimit
   const isNearLimit = !isAtLimit && monitorCount === monitorLimit - 1
   const router = useRouter()
@@ -127,6 +129,7 @@ export function NewMonitorPage({ userEmail, logoutAction, plan, monitorCount, mo
   return (
     <div className="min-h-screen bg-background">
       <GlobalHeader userEmail={userEmail} logoutAction={logoutAction} />
+      {!emailVerified && <EmailVerificationBanner userEmail={userEmail} />}
 
       <div className="mx-auto max-w-[460px] pb-24 pt-8 sm:pt-10 animate-[cs-fade-in_0.4s_ease-out]">
         <div className="mb-8 text-center">

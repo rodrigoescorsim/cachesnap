@@ -16,6 +16,7 @@ import {
   Globe,
 } from 'lucide-react'
 import { GlobalHeader } from '@/components/dashboard/global-header'
+import { EmailVerificationBanner } from '@/components/dashboard/email-verification-banner'
 import { type MonitorQuickFilterId, monitorCacheHitIsComparable } from '@/types/monitor'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import { GlobalMetricCard } from './global-metric-card'
@@ -76,9 +77,10 @@ type MonitorsStageOneProps = {
   serverTime: number
   userEmail: string
   logoutAction: () => Promise<void>
+  emailVerified?: boolean
 }
 
-export function MonitorsStageOne({ serverTime, userEmail, logoutAction }: MonitorsStageOneProps) {
+export function MonitorsStageOne({ serverTime, userEmail, logoutAction, emailVerified }: MonitorsStageOneProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -287,6 +289,7 @@ export function MonitorsStageOne({ serverTime, userEmail, logoutAction }: Monito
   return (
     <div className="min-h-full bg-background">
       <GlobalHeader userEmail={userEmail} logoutAction={logoutAction} />
+      {!emailVerified && <EmailVerificationBanner userEmail={userEmail} />}
 
       <main className="cs-container-adaptive space-y-3.5 pb-8 pt-3">
         {/* ── Global summary: design-system cards; compact metrics; list stays primary ── */}

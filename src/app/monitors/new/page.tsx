@@ -21,6 +21,7 @@ export default async function MonitorsNewPage() {
       plan={user.plan}
       monitorCount={count}
       monitorLimit={monitorLimit}
+      emailVerified={user.emailVerified}
     />
   )
 }

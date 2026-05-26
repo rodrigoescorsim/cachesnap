@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { GlobalHeader } from '@/components/dashboard/global-header'
+import { EmailVerificationBanner } from '@/components/dashboard/email-verification-banner'
 import { ViewSection, ViewSectionHeader, LiveDot } from '@/components/dashboard/dashboard-ui'
 import { GlobalMetricCard } from '@/components/monitors/global-metric-card'
 import { useMonitors } from '@/hooks/use-monitors'
@@ -776,9 +777,10 @@ type InsightsViewProps = {
   serverTime: number
   userEmail: string
   logoutAction: () => Promise<void>
+  emailVerified?: boolean
 }
 
-export function InsightsView({ serverTime, userEmail, logoutAction }: InsightsViewProps) {
+export function InsightsView({ serverTime, userEmail, logoutAction, emailVerified }: InsightsViewProps) {
   const { monitors, isLoading, refetch } = useMonitors({ refetchInterval: 60_000 })
 
   // ── Bridge: router.refresh() → React Query refetch ───────────────────────
@@ -899,6 +901,7 @@ export function InsightsView({ serverTime, userEmail, logoutAction }: InsightsVi
   return (
     <div className="min-h-full bg-background">
       <GlobalHeader userEmail={userEmail} logoutAction={logoutAction} />
+      {!emailVerified && <EmailVerificationBanner userEmail={userEmail} />}
 
       <main className="cs-container-adaptive space-y-4 pb-10 pt-4">
 

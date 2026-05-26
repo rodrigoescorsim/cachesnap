@@ -22,7 +22,7 @@ export default async function InsightsPage() {
           </div>
         }
       >
-        <InsightsView userEmail={user.email} logoutAction={logout} serverTime={Date.now()} />
+        <InsightsView userEmail={user.email} logoutAction={logout} serverTime={Date.now()} emailVerified={user.emailVerified} />
       </Suspense>
     </>
   )

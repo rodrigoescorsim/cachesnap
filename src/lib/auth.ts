@@ -10,6 +10,7 @@ export interface SessionUser {
   id: string
   email: string
   plan: string
+  emailVerified: boolean
 }
 
 export async function createSession(userId: string): Promise<string> {
@@ -39,8 +40,8 @@ export const getSession = cache(async function getSession(): Promise<SessionUser
   const token = cookieStore.get(COOKIE_NAME)?.value
   if (!token) return null
 
-  const rows = await sql<{ id: string; email: string; plan: string }[]>`
-    SELECT u.id, u.email, u.plan
+  const rows = await sql<{ id: string; email: string; plan: string; emailVerified: boolean }[]>`
+    SELECT u.id, u.email, u.plan, u.email_verified_at IS NOT NULL AS "emailVerified"
     FROM sessions s
     JOIN users u ON u.id = s.user_id
     WHERE s.session_token = ${token}

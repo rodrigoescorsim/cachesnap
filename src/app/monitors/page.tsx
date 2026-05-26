@@ -27,6 +27,7 @@ export default async function MonitorsPage() {
           userEmail={user.email}
           logoutAction={logout}
           serverTime={Date.now()}
+          emailVerified={user.emailVerified}
         />
       </Suspense>
     </>

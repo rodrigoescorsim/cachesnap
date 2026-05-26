@@ -7,7 +7,7 @@ import crypto from 'crypto'
 import { z } from 'zod'
 import { Resend } from 'resend'
 import sql from '@/lib/db'
-import { createSession, deleteSession } from '@/lib/auth'
+import { createSession, deleteSession, getSession } from '@/lib/auth'
 import { MONITOR_AUDIT_INTERVAL_SECONDS, MONITOR_CHECK_INTERVAL_SECONDS } from '@/lib/monitor-schedule'
 import { checkRateLimit } from '@/lib/rate-limit'
 
@@ -59,6 +59,27 @@ export async function signup(
   `
 
   await createSession(user.id)
+
+  // Send verification email (fire-and-forget — never blocks the redirect)
+  const verifyToken = crypto.randomBytes(32).toString('hex')
+  const verifyExpires = new Date(Date.now() + 24 * 60 * 60 * 1000)
+  sql`
+    INSERT INTO email_verification_tokens (user_id, token, expires_at)
+    VALUES (${user.id}, ${verifyToken}, ${verifyExpires})
+  `.then(() => {
+    const appUrl = process.env.APP_URL ?? 'http://localhost:3000'
+    const verifyLink = `${appUrl}/verify-email?token=${verifyToken}`
+    const fromEmail = process.env.ALERT_FROM_EMAIL ?? 'CacheSnap <noreply@cachesnap.com>'
+    const resendKey = process.env.RESEND_API_KEY
+    if (resendKey) {
+      new Resend(resendKey).emails.send({
+        from: fromEmail,
+        to: email,
+        subject: 'Verify your CacheSnap email address',
+        html: buildEmailVerificationEmail(verifyLink, appUrl),
+      }).catch(() => {})
+    }
+  }).catch(() => {})
 
   const planParam = formData.get('plan')?.toString().trim()
   const redirectTo = (planParam === 'pro' || planParam === 'team')
@@ -130,8 +151,14 @@ export async function login(
   const { email: rawEmail, password } = parsed.data
   const email = rawEmail.toLowerCase()
 
-  const allowed = await checkRateLimit(`login:${email}`, 10, 15 * 60)
-  if (!allowed) {
+  const h = await headers()
+  const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+
+  const [allowedByEmail, allowedByIp] = await Promise.all([
+    checkRateLimit(`login:${email}`, 10, 15 * 60),
+    checkRateLimit(`login:ip:${ip}`, 30, 15 * 60),
+  ])
+  if (!allowedByEmail || !allowedByIp) {
     return { errors: { email: ['Too many attempts. Please try again in 15 minutes.'] } }
   }
 
@@ -315,17 +342,21 @@ export async function syncGoogleUser({
   let userId = existingUser?.id
 
   if (!userId) {
-    // Register new user (Google Auth)
-    // Generate dummy password hash
+    // Register new user (Google Auth) — auto-verified since Google confirmed the email
     const dummyPassword = Math.random().toString(36) + Math.random().toString(36)
     const passwordHash = await bcrypt.hash(dummyPassword, 12)
 
     const [newUser] = await sql<{ id: string }[]>`
-      INSERT INTO users (email, password_hash)
-      VALUES (${email}, ${passwordHash})
+      INSERT INTO users (email, password_hash, email_verified_at)
+      VALUES (${email}, ${passwordHash}, NOW())
       RETURNING id
     `
     userId = newUser.id
+  } else {
+    // Verify email for existing users who sign in with Google for the first time
+    await sql`
+      UPDATE users SET email_verified_at = COALESCE(email_verified_at, NOW()) WHERE id = ${userId}
+    `
   }
 
   // Create the link account row
@@ -360,7 +391,106 @@ export async function loginGoogleSandbox(
   redirect('/monitors')
 }
 
+// ── Email Verification ────────────────────────────────────────────────────────
+
+export async function resendVerificationEmail(): Promise<void> {
+  const user = await getSession()
+  if (!user) return
+
+  const [row] = await sql<{ email_verified_at: Date | null }[]>`
+    SELECT email_verified_at FROM users WHERE id = ${user.id} LIMIT 1
+  `
+  if (row?.email_verified_at) return
+
+  const allowed = await checkRateLimit(`verify-email:${user.id}`, 3, 60 * 60)
+  if (!allowed) return
+
+  const token = crypto.randomBytes(32).toString('hex')
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
+
+  await sql`DELETE FROM email_verification_tokens WHERE user_id = ${user.id}`
+  await sql`
+    INSERT INTO email_verification_tokens (user_id, token, expires_at)
+    VALUES (${user.id}, ${token}, ${expiresAt})
+  `
+
+  const appUrl = process.env.APP_URL ?? 'http://localhost:3000'
+  const verifyLink = `${appUrl}/verify-email?token=${token}`
+  const fromEmail = process.env.ALERT_FROM_EMAIL ?? 'CacheSnap <noreply@cachesnap.com>'
+  const resendKey = process.env.RESEND_API_KEY
+
+  if (resendKey) {
+    new Resend(resendKey).emails.send({
+      from: fromEmail,
+      to: user.email,
+      subject: 'Verify your CacheSnap email address',
+      html: buildEmailVerificationEmail(verifyLink, appUrl),
+    }).catch(err => console.error('[EMAIL VERIFY] Failed to send:', err))
+  }
+}
+
 // ── Email Templates ────────────────────────────────────────────────────────────
+
+function buildEmailVerificationEmail(verifyLink: string, appUrl: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verify your CacheSnap email</title>
+</head>
+<body style="margin:0;padding:0;background:#09090b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#09090b;padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <a href="${appUrl}" style="text-decoration:none;">
+                <span style="font-size:22px;font-weight:900;letter-spacing:-0.5px;color:#22ff88;">Cache</span><span style="font-size:22px;font-weight:900;letter-spacing:-0.5px;color:#ffffff;">Snap</span>
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#18181b;border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:40px 36px;">
+              <p style="margin:0 0 8px;font-size:20px;font-weight:800;color:#ffffff;letter-spacing:-0.3px;">Verify your email address</p>
+              <p style="margin:0 0 28px;font-size:14px;color:#71717a;line-height:1.6;">
+                Click the button below to verify your email address and secure your CacheSnap account. This link expires in <strong style="color:#a1a1aa;">24 hours</strong>.
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding-bottom:28px;">
+                    <a href="${verifyLink}"
+                       style="display:inline-block;background:#22ff88;color:#09090b;font-size:14px;font-weight:800;text-decoration:none;padding:14px 32px;border-radius:10px;letter-spacing:0.01em;">
+                      Verify email address →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:0 0 24px;" />
+              <p style="margin:0 0 8px;font-size:12px;color:#52525b;">If the button doesn't work, paste this link into your browser:</p>
+              <p style="margin:0;font-size:11px;word-break:break-all;">
+                <a href="${verifyLink}" style="color:#22ff88;text-decoration:none;">${verifyLink}</a>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-top:24px;" align="center">
+              <p style="margin:0;font-size:11px;color:#3f3f46;line-height:1.6;">
+                If you didn't create a CacheSnap account, you can safely ignore this email.
+              </p>
+              <p style="margin:12px 0 0;font-size:11px;color:#3f3f46;">
+                <a href="${appUrl}" style="color:#52525b;text-decoration:none;">cachesnap.com</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
 
 function buildPasswordResetEmail(resetLink: string, appUrl: string): string {
   return `<!DOCTYPE html>
