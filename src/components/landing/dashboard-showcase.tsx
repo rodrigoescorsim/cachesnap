@@ -53,28 +53,20 @@ type Slide = {
   mobileImage: string
 }
 
-const PLATFORM_FEATURE_COLUMNS = [
-  [
-    'Real-time global probes from multiple continents',
-    'Live TTFB + DNS, TCP, TLS connection breakdown',
-    'Real cache hit/miss rates with Edge Cache Age analysis',
-    'Edge vs Origin performance deltas and comparison',
-    'Flexible time ranges: 1h, 4h, 24h, 7d, 30d, 90d',
-  ],
-  [
-    'Recent performance spikes & TTFB anomaly detection',
-    'Latency trends, patterns and intelligent anomaly detection',
-    'Weekly heatmaps, hourly patterns and historical insights',
-    'Performance baselines and historical comparisons',
-    'Live sync and real-time regional monitoring',
-  ],
-  [
-    'Global Resilience Score',
-    'Active Incidents with smart grouping',
-    'Configurable alerts by threshold and behavioral change',
-    'Global Security Profile with automated scoring',
-    'Intelligent Advisor with actionable recommendations',
-  ],
+/** Row-major order so a single CSS grid aligns rows at every breakpoint (avoids uneven columns). */
+const PLATFORM_FEATURES = [
+  'Real-time global probes from multiple continents',
+  'Flexible time ranges: 1h, 4h, 24h, 7d, 30d, 90d',
+  'Active Incidents with smart grouping',
+  'Live TTFB + DNS, TCP, TLS connection breakdown',
+  'Advanced trends, patterns and intelligent anomaly detection',
+  'Configurable alerts by threshold and behavioral change',
+  'Real cache hit/miss rates with Edge vs Origin comparison',
+  'Weekly heatmaps, hourly patterns and historical insights',
+  'Global Security Profile with automated scoring',
+  'Performance baselines and historical comparisons',
+  'Live sync and real-time regional monitoring',
+  'Intelligent Advisor with actionable recommendations',
 ] as const
 
 function PlatformFeatureCard({ text }: { text: string }) {
@@ -252,15 +244,14 @@ export function DashboardShowcase() {
             />
 
             <div className="relative z-10 p-8 sm:p-12">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
-                {PLATFORM_FEATURE_COLUMNS.map((column, columnIndex) => (
-                  <ul key={columnIndex} className="flex flex-col gap-3 sm:gap-3.5">
-                    {column.map((item) => (
-                      <PlatformFeatureCard key={item} text={item} />
-                    ))}
-                  </ul>
+              <ul
+                className="m-0 grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-2 lg:grid-cols-3 lg:gap-6"
+                role="list"
+              >
+                {PLATFORM_FEATURES.map((item) => (
+                  <PlatformFeatureCard key={item} text={item} />
                 ))}
-              </div>
+              </ul>
 
               <div className="mt-6 border-t border-white/[0.06] pt-6 text-center sm:mt-8 sm:pt-8">
               <div className="flex flex-wrap items-center justify-center gap-2">
