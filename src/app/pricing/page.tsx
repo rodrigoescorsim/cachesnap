@@ -36,7 +36,6 @@ const PLANS = [
       { label: 'Email alerts', included: true },
       { label: 'Cache & TTFB analytics', included: true },
       { label: 'Slack & webhook', included: false },
-      { label: 'Multiple recipients', included: false },
     ],
   },
   {
@@ -56,7 +55,6 @@ const PLANS = [
       { label: 'Email alerts', included: true },
       { label: 'Cache & TTFB analytics', included: true },
       { label: 'Slack & webhook', included: true },
-      { label: 'Multiple recipients', included: false },
     ],
   },
   {
@@ -76,7 +74,6 @@ const PLANS = [
       { label: 'Email alerts', included: true },
       { label: 'Cache & TTFB analytics', included: true },
       { label: 'Slack & webhook', included: true },
-      { label: 'Multiple recipients', included: true },
     ],
   },
 ]

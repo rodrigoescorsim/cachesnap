@@ -57,7 +57,7 @@ const jsonLd = [
         name: 'Team',
         price: '59',
         priceCurrency: 'USD',
-        description: '100 monitors, 8 global regions, 90-day history, multiple recipients.',
+        description: '100 monitors, 8 global regions, 90-day history, Slack & webhook alerts.',
       },
     ],
   },
@@ -100,7 +100,7 @@ const LANDING_PLANS = [
     cta: 'Start Team',
     ctaHref: '/signup?plan=team',
     highlighted: false,
-    specs: ['100 monitors', '90-day history', 'Global regions', 'Multiple recipients'],
+    specs: ['100 monitors', '90-day history', 'Global regions', 'Slack & webhooks'],
   },
 ]
 

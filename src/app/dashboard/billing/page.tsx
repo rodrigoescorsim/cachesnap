@@ -36,7 +36,6 @@ const PLAN_FEATURES: Record<Plan, string[]> = {
     'Email alerts',
     'Cache & TTFB analytics',
     'Slack & webhook alerts',
-    'Multiple recipients',
   ],
 }
 
@@ -232,8 +231,8 @@ export default async function BillingPage({
                   <li className="text-xs text-zinc-400">{PLAN_LIMITS[p].monitors} monitors</li>
                   <li className="text-xs text-zinc-400">{PLAN_LIMITS[p].historyDays}-day history</li>
                   {p === 'free' && <li className="text-xs text-zinc-400">Email</li>}
-                  {p === 'pro' && <li className="text-xs text-zinc-400">Email + Slack</li>}
-                  {p === 'team' && <li className="text-xs text-zinc-400">Email + Slack + Multi</li>}
+                  {p === 'pro' && <li className="text-xs text-zinc-400">Email + Slack + Webhooks</li>}
+                  {p === 'team' && <li className="text-xs text-zinc-400">Email + Slack + Webhooks</li>}
                 </ul>
 
                 {isCurrent && (
