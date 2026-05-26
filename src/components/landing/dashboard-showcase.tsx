@@ -3,6 +3,20 @@
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
+import Link from 'next/link'
+import {
+  Activity,
+  Bell,
+  Clock,
+  GitCompare,
+  Globe2,
+  History,
+  LayoutGrid,
+  Lightbulb,
+  Radio,
+  Shield,
+  TrendingUp,
+} from 'lucide-react'
 import { LandingSectionBlend } from './landing-section-blend'
 import {
   LANDING_BG_DASHBOARD_SECTION,
@@ -53,41 +67,78 @@ type Slide = {
   mobileImage: string
 }
 
+/** Ícones discretos por tema (medição, tempo, alertas, segurança, conselho) — mesmo peso visual do check antigo. */
+const PLATFORM_FEATURE_ICON_CLASS =
+  'relative z-10 mt-0.5 h-4 w-4 shrink-0 text-[var(--brand-primary)] transition-[filter] duration-200 group-hover:drop-shadow-[0_0_6px_rgba(var(--brand-primary-rgb),0.35)]'
+
+type PlatformFeatureIconId =
+  | 'globe'
+  | 'clock'
+  | 'bell'
+  | 'activity'
+  | 'trending'
+  | 'gitCompare'
+  | 'grid'
+  | 'shield'
+  | 'history'
+  | 'radio'
+  | 'lightbulb'
+
+function PlatformFeatureIcon({ id }: { id: PlatformFeatureIconId }) {
+  const p = { className: PLATFORM_FEATURE_ICON_CLASS, strokeWidth: 2, 'aria-hidden': true as const }
+  switch (id) {
+    case 'globe':
+      return <Globe2 {...p} />
+    case 'clock':
+      return <Clock {...p} />
+    case 'bell':
+      return <Bell {...p} />
+    case 'activity':
+      return <Activity {...p} />
+    case 'trending':
+      return <TrendingUp {...p} />
+    case 'gitCompare':
+      return <GitCompare {...p} />
+    case 'grid':
+      return <LayoutGrid {...p} />
+    case 'shield':
+      return <Shield {...p} />
+    case 'history':
+      return <History {...p} />
+    case 'radio':
+      return <Radio {...p} />
+    case 'lightbulb':
+      return <Lightbulb {...p} />
+    default:
+      return <Globe2 {...p} />
+  }
+}
+
 /** Row-major order so a single CSS grid aligns rows at every breakpoint (avoids uneven columns). */
 const PLATFORM_FEATURES = [
-  'Real-time global probes from multiple continents',
-  'Flexible time ranges: 1h, 4h, 24h, 7d, 30d, 90d',
-  'Active Incidents with smart grouping',
-  'Live TTFB + DNS, TCP, TLS connection breakdown',
-  'Advanced trends, patterns and intelligent anomaly detection',
-  'Configurable alerts by threshold and behavioral change',
-  'Real cache hit/miss rates with Edge vs Origin comparison',
-  'Weekly heatmaps, hourly patterns and historical insights',
-  'Global Security Profile with automated scoring',
-  'Performance baselines and historical comparisons',
-  'Live sync and real-time regional monitoring',
-  'Intelligent Advisor with actionable recommendations',
+  { text: 'Real-time probes from multiple continents', icon: 'globe' as const },
+  { text: 'Flexible time ranges: 1h, 4h, 24h, 7d, 30d, 90d', icon: 'clock' as const },
+  { text: 'Active Incidents with smart grouping', icon: 'bell' as const },
+  { text: 'Live TTFB, DNS, TCP & TLS breakdown', icon: 'activity' as const },
+  { text: 'Advanced trends, patterns & anomaly detection', icon: 'trending' as const },
+  { text: 'Configurable alerts by threshold & behavior', icon: 'bell' as const },
+  { text: 'Real cache hit/miss rates with Edge vs Origin comparison', icon: 'gitCompare' as const },
+  { text: 'Weekly heatmaps, hourly patterns & historical insights', icon: 'grid' as const },
+  { text: 'Global Security Profile with automated scoring', icon: 'shield' as const },
+  { text: 'Performance baselines and historical comparisons', icon: 'history' as const },
+  { text: 'Live sync and real-time regional monitoring', icon: 'radio' as const },
+  { text: 'Intelligent Advisor with actionable recommendations', icon: 'lightbulb' as const },
 ] as const
 
-function PlatformFeatureCard({ text }: { text: string }) {
+function PlatformFeatureCard({ text, icon }: { text: string; icon: PlatformFeatureIconId }) {
   return (
-    <li className="group relative flex items-start gap-2.5 overflow-hidden rounded-xl border border-white/[0.1] bg-[#0e1826] px-4 py-3.5 text-sm leading-snug text-zinc-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.07),0_2px_10px_-3px_rgba(0,0,0,0.38)] transition-[border-color,background-color,box-shadow,color] duration-200 hover:border-white/[0.14] hover:bg-[#101c2a] hover:text-zinc-100 hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.09),0_4px_18px_-4px_rgba(0,0,0,0.45)]">
+    <li className="group relative flex min-h-0 items-start gap-2.5 overflow-hidden rounded-xl border border-white/[0.1] bg-[#0e1826] px-3.5 py-3 text-sm leading-snug text-zinc-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.07),0_2px_10px_-3px_rgba(0,0,0,0.38)] transition-[border-color,background-color,box-shadow,color] duration-200 hover:border-white/[0.14] hover:bg-[#101c2a] hover:text-zinc-100 hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.09),0_4px_18px_-4px_rgba(0,0,0,0.45)] sm:px-4 sm:py-[0.875rem]">
       <div
         className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.05] via-transparent to-[rgba(var(--brand-primary-rgb),0.04)]"
         aria-hidden
       />
-      <svg
-        className="relative z-10 mt-0.5 h-4 w-4 shrink-0 transition-[filter] duration-200 group-hover:drop-shadow-[0_0_6px_rgba(var(--brand-primary-rgb),0.4)]"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2}
-        style={{ color: 'var(--brand-primary)' }}
-        aria-hidden
-      >
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l3.5 3.5L13 4" />
-      </svg>
-      <span className="relative z-10">{text}</span>
+      <PlatformFeatureIcon id={icon} />
+      <span className="relative z-10 min-w-0 flex-1">{text}</span>
     </li>
   )
 }
@@ -224,9 +275,9 @@ export function DashboardShowcase() {
         style={{ backgroundColor: LANDING_BG_PLATFORM_SECTION }}
         aria-label="Platform"
       >
-        <div className="py-12 sm:py-16">
+        <div className="py-11 sm:py-[3.25rem]">
           <div className="cs-container-adaptive">
-          <div className="mb-14 text-center">
+          <div className="mb-11 text-center sm:mb-12">
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--brand-primary)' }}>
               Platform
             </p>
@@ -243,17 +294,17 @@ export function DashboardShowcase() {
               aria-hidden
             />
 
-            <div className="relative z-10 p-8 sm:p-12">
+            <div className="relative z-10 p-6 sm:p-9">
               <ul
-                className="m-0 grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-2 lg:grid-cols-3 lg:gap-6"
+                className="m-0 grid list-none grid-cols-1 gap-3.5 p-0 sm:grid-cols-2 sm:gap-4"
                 role="list"
               >
-                {PLATFORM_FEATURES.map((item) => (
-                  <PlatformFeatureCard key={item} text={item} />
+                {PLATFORM_FEATURES.map(({ text, icon }) => (
+                  <PlatformFeatureCard key={text} text={text} icon={icon} />
                 ))}
               </ul>
 
-              <div className="mt-6 border-t border-white/[0.06] pt-6 text-center sm:mt-8 sm:pt-8">
+              <div className="mt-5 border-t border-white/[0.06] pt-5 text-center sm:mt-6 sm:pt-6">
               <div className="flex flex-wrap items-center justify-center gap-2">
                 {['No agents', 'No SDKs', 'No configuration'].map((tag) => (
                   <span
@@ -267,6 +318,20 @@ export function DashboardShowcase() {
               <p className="mt-3 text-sm leading-relaxed text-zinc-400">
                 Just paste your URL and get insights in seconds.
               </p>
+              <div className="mt-5 flex flex-col items-stretch justify-center gap-3 sm:mt-6 sm:flex-row sm:items-center sm:justify-center sm:gap-4">
+                <Link
+                  href="/signup"
+                  className="cs-btn-primary inline-flex items-center justify-center rounded-xl px-6 py-3 text-center text-sm font-bold shadow-[0_0_24px_-8px_rgba(var(--brand-primary-rgb),0.45)] sm:px-7 sm:text-[15px]"
+                >
+                  Start free
+                </Link>
+                <Link
+                  href="/pricing"
+                  className="inline-flex items-center justify-center py-1.5 text-center text-sm font-semibold text-zinc-400 underline decoration-white/15 underline-offset-4 transition-colors hover:text-zinc-200"
+                >
+                  View pricing
+                </Link>
+              </div>
               </div>
             </div>
           </div>

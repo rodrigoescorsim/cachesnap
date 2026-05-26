@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { z } from 'zod'
@@ -8,6 +9,7 @@ import { Resend } from 'resend'
 import sql from '@/lib/db'
 import { createSession, deleteSession } from '@/lib/auth'
 import { MONITOR_AUDIT_INTERVAL_SECONDS, MONITOR_CHECK_INTERVAL_SECONDS } from '@/lib/monitor-schedule'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 const signupSchema = z.object({
   email: z.string().email('Invalid email'),
@@ -25,6 +27,13 @@ export async function signup(
   _prev: ActionResult | undefined,
   formData: FormData
 ): Promise<ActionResult> {
+  const h = await headers()
+  const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+  const allowed = await checkRateLimit(`signup:${ip}`, 5, 60 * 60)
+  if (!allowed) {
+    return { errors: { email: ['Too many attempts. Please try again later.'] } }
+  }
+
   const parsed = signupSchema.safeParse({
     email: formData.get('email'),
     password: formData.get('password'),
@@ -121,6 +130,11 @@ export async function login(
   const { email: rawEmail, password } = parsed.data
   const email = rawEmail.toLowerCase()
 
+  const allowed = await checkRateLimit(`login:${email}`, 10, 15 * 60)
+  if (!allowed) {
+    return { errors: { email: ['Too many attempts. Please try again in 15 minutes.'] } }
+  }
+
   const [user] = await sql<{ id: string; password_hash: string }[]>`
     SELECT id, password_hash FROM users WHERE email = ${email} LIMIT 1
   `
@@ -171,6 +185,12 @@ export async function requestPasswordReset(
 
   const { email: rawEmail } = parsed.data
   const email = rawEmail.toLowerCase()
+
+  const allowed = await checkRateLimit(`reset:${email}`, 3, 60 * 60)
+  if (!allowed) {
+    // Return success to avoid leaking that this email is rate-limited
+    return { success: true }
+  }
 
   // 1. Find user in database
   const [user] = await sql<{ id: string }[]>`
