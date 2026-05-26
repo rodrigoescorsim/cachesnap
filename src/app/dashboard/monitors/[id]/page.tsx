@@ -593,6 +593,7 @@ export default async function MonitorDetailPage({
     id: string; url: string; name: string | null; is_active: boolean; check_interval_seconds: number; audit_interval_seconds: number;
     notify_email: string | null; notify_email_enabled: boolean;
     notify_slack_webhook: string | null; notify_slack_enabled: boolean;
+    notify_webhook_url: string | null; notify_webhook_enabled: boolean;
     alert_threshold_ms: number; alert_threshold_hit_ms: number; alert_sensitivity: number;
     alert_down_enabled: boolean; alert_ttfb_enabled: boolean; alert_ttfb_anomaly_enabled: boolean;
     alert_anycast_enabled: boolean; alert_cache_age_enabled: boolean; alert_cache_age_threshold_hours: number;
@@ -605,6 +606,7 @@ export default async function MonitorDetailPage({
   }[]>`
     SELECT id, url, name, is_active, check_interval_seconds, audit_interval_seconds,
            notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
+           notify_webhook_url, notify_webhook_enabled,
            alert_threshold_ms, alert_threshold_hit_ms, alert_sensitivity,
            alert_down_enabled, alert_ttfb_enabled, alert_ttfb_anomaly_enabled,
            alert_anycast_enabled, alert_cache_age_enabled, alert_cache_age_threshold_hours,
@@ -2182,6 +2184,8 @@ export default async function MonitorDetailPage({
                     notifyEmailEnabled={monitor.notify_email_enabled}
                     notifySlackWebhook={monitor.notify_slack_webhook}
                     notifySlackEnabled={monitor.notify_slack_enabled}
+                    notifyWebhookUrl={monitor.notify_webhook_url}
+                    notifyWebhookEnabled={monitor.notify_webhook_enabled}
                     alertThresholdMs={monitor.alert_threshold_ms}
                     alertThresholdHitMs={monitor.alert_threshold_hit_ms}
                     alertSensitivity={monitor.alert_sensitivity}

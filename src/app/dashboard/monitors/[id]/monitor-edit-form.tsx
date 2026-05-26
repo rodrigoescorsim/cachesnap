@@ -18,6 +18,8 @@ export interface MonitorEditFormProps {
   notifyEmailEnabled: boolean
   notifySlackWebhook: string | null
   notifySlackEnabled: boolean
+  notifyWebhookUrl: string | null
+  notifyWebhookEnabled: boolean
   alertThresholdMs: number
   alertThresholdHitMs: number
   alertSensitivity: number
@@ -59,6 +61,8 @@ export function MonitorEditForm({
   notifyEmailEnabled,
   notifySlackWebhook,
   notifySlackEnabled,
+  notifyWebhookUrl,
+  notifyWebhookEnabled,
   alertThresholdMs,
   alertThresholdHitMs,
   alertSensitivity,
@@ -100,6 +104,8 @@ export function MonitorEditForm({
     notify_email_enabled: notifyEmailEnabled ?? false,
     notify_slack_webhook: notifySlackWebhook ?? '',
     notify_slack_enabled: notifySlackEnabled ?? false,
+    notify_webhook_url: notifyWebhookUrl ?? '',
+    notify_webhook_enabled: notifyWebhookEnabled ?? false,
     alert_threshold_ms: alertThresholdMs || 1500,
     alert_threshold_hit_ms: alertThresholdHitMs || 500,
     alert_sensitivity: alertSensitivity || 2,
@@ -143,6 +149,10 @@ export function MonitorEditForm({
       if (!value) return 'Webhook URL is required'
       if (!textValue.startsWith('http')) return 'Invalid webhook URL'
     }
+    if (field === 'notify_webhook_url' && currentValues.notify_webhook_enabled) {
+      if (!value) return 'Webhook URL is required'
+      if (!textValue.startsWith('https://')) return 'Must be an HTTPS URL'
+    }
     if (field === 'alert_threshold_ms' || field === 'alert_threshold_hit_ms') {
       const n = Number(value)
       const min = field === 'alert_threshold_ms' ? 100 : 50
@@ -174,6 +184,7 @@ export function MonitorEditForm({
   const triggerSave = useCallback(async (current: FormValues) => {
     const emailErr = validate('notify_email', current.notify_email, current)
     const slackErr = validate('notify_slack_webhook', current.notify_slack_webhook, current)
+    const webhookErr = validate('notify_webhook_url', current.notify_webhook_url, current)
     const thresholdErr = validate('alert_threshold_ms', current.alert_threshold_ms, current)
     const thresholdHitErr = validate('alert_threshold_hit_ms', current.alert_threshold_hit_ms, current)
     const cacheAgeHoursErr = validate('alert_cache_age_threshold_hours', current.alert_cache_age_threshold_hours, current)
@@ -184,11 +195,12 @@ export function MonitorEditForm({
     const cacheHitTrendGlobalErr = validate('alert_cache_hit_trend_global_threshold_pp', current.alert_cache_hit_trend_global_threshold_pp, current)
     const ttfbTrendGlobalErr = validate('alert_ttfb_trend_global_threshold_pct', current.alert_ttfb_trend_global_threshold_pct, current)
 
-    if (emailErr || slackErr || thresholdErr || thresholdHitErr || cacheAgeHoursErr || cacheHitErr || cacheHitCriticalErr || cacheHitTrendErr || ttfbTrendErr || cacheHitTrendGlobalErr || ttfbTrendGlobalErr) {
+    if (emailErr || slackErr || webhookErr || thresholdErr || thresholdHitErr || cacheAgeHoursErr || cacheHitErr || cacheHitCriticalErr || cacheHitTrendErr || ttfbTrendErr || cacheHitTrendGlobalErr || ttfbTrendGlobalErr) {
       setErrors(prev => ({
         ...prev,
         notify_email: emailErr,
         notify_slack_webhook: slackErr,
+        notify_webhook_url: webhookErr,
         alert_threshold_ms: thresholdErr,
         alert_threshold_hit_ms: thresholdHitErr,
         alert_cache_age_threshold_hours: cacheAgeHoursErr,
@@ -214,6 +226,7 @@ export function MonitorEditForm({
         name: current.name.trim(),
         notify_email: current.notify_email.trim() || null,
         notify_slack_webhook: current.notify_slack_webhook.trim() || null,
+        notify_webhook_url: current.notify_webhook_url.trim() || null,
         check_interval_seconds: MONITOR_CHECK_INTERVAL_SECONDS,
         audit_interval_seconds: MONITOR_AUDIT_INTERVAL_SECONDS,
       }
@@ -255,6 +268,7 @@ export function MonitorEditForm({
       values.name !== lastSavedValues.current.name ||
       values.notify_email !== lastSavedValues.current.notify_email ||
       values.notify_slack_webhook !== lastSavedValues.current.notify_slack_webhook ||
+      values.notify_webhook_url !== lastSavedValues.current.notify_webhook_url ||
       values.alert_threshold_ms !== lastSavedValues.current.alert_threshold_ms ||
       values.alert_threshold_hit_ms !== lastSavedValues.current.alert_threshold_hit_ms ||
       values.alert_cache_age_threshold_hours !== lastSavedValues.current.alert_cache_age_threshold_hours ||
@@ -279,6 +293,9 @@ export function MonitorEditForm({
       }
       if (field === 'notify_slack_enabled' && !value) {
         setErrors(errs => ({ ...errs, notify_slack_webhook: null }))
+      }
+      if (field === 'notify_webhook_enabled' && !value) {
+        setErrors(errs => ({ ...errs, notify_webhook_url: null }))
       }
       const err = validate(field, value, next)
       setErrors(errs => ({ ...errs, [field]: err }))
@@ -370,7 +387,7 @@ export function MonitorEditForm({
           <div className="cs-card-wash" />
           <h3 className="cs-section-header">Where to send alerts</h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8 relative z-10">
             <div className="space-y-4">
               <div className="flex items-center gap-3">
                 <CsCheckbox
@@ -382,16 +399,18 @@ export function MonitorEditForm({
                   Email
                 </label>
               </div>
-              <input
-                type="email"
-                value={values.notify_email}
-                onChange={(e) => handleInputChange('notify_email', e.target.value)}
-                disabled={!values.notify_email_enabled}
-                placeholder="alerts@yourcompany.com"
-                className={`w-full h-11 cs-input ${errors.notify_email ? 'cs-input-error' : ''}`}
-              />
-              {errors.notify_email && <span className="cs-error-msg">{errors.notify_email}</span>}
-              <p className="text-xs text-zinc-400 leading-relaxed">We&apos;ll send a message every time an alert fires or recovers.</p>
+              <div className="space-y-2">
+                <input
+                  type="email"
+                  value={values.notify_email}
+                  onChange={(e) => handleInputChange('notify_email', e.target.value)}
+                  disabled={!values.notify_email_enabled}
+                  placeholder="alerts@yourcompany.com"
+                  className={`w-full h-11 cs-input ${errors.notify_email ? 'cs-input-error' : ''}`}
+                />
+                {errors.notify_email && <span className="cs-error-msg">{errors.notify_email}</span>}
+                <p className="text-xs text-zinc-500 leading-relaxed">We&apos;ll send a message every time an alert fires or recovers.</p>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -405,15 +424,62 @@ export function MonitorEditForm({
                   Slack / Discord Webhook
                 </label>
               </div>
-              <input
-                type="url"
-                value={values.notify_slack_webhook}
-                onChange={(e) => handleInputChange('notify_slack_webhook', e.target.value)}
-                disabled={!values.notify_slack_enabled}
-                placeholder="https://hooks.slack.com/services/..."
-                className={`w-full h-11 cs-input ${errors.notify_slack_webhook ? 'cs-input-error' : ''}`}
-              />
-              {errors.notify_slack_webhook && <span className="cs-error-msg">{errors.notify_slack_webhook}</span>}
+              <div className="space-y-2">
+                <input
+                  type="url"
+                  value={values.notify_slack_webhook}
+                  onChange={(e) => handleInputChange('notify_slack_webhook', e.target.value)}
+                  disabled={!values.notify_slack_enabled}
+                  placeholder="https://hooks.slack.com/services/..."
+                  className={`w-full h-11 cs-input ${errors.notify_slack_webhook ? 'cs-input-error' : ''}`}
+                />
+                {errors.notify_slack_webhook && <span className="cs-error-msg">{errors.notify_slack_webhook}</span>}
+                <p className="text-xs text-zinc-500 leading-relaxed">Discord webhook URLs are supported natively.</p>
+              </div>
+            </div>
+
+            {/* WEBHOOK — full width */}
+            <div className="md:col-span-2 pt-5 border-t border-white/5">
+              <div className="flex flex-col md:flex-row md:items-start gap-6">
+                <div className="md:w-64 shrink-0 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <CsCheckbox
+                      id={`${p}-notify-webhook-toggle`}
+                      checked={values.notify_webhook_enabled}
+                      onChange={(e) => handleInputChange('notify_webhook_enabled', e.target.checked)}
+                    />
+                    <label htmlFor={`${p}-notify-webhook-toggle`} className="text-xs font-bold text-zinc-300 cursor-pointer select-none">
+                      Webhook
+                    </label>
+                  </div>
+                  <p className="text-xs text-zinc-500 leading-relaxed">
+                    POST structured JSON to any HTTPS endpoint — use with automation platforms or custom scripts.
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {['Zapier', 'n8n', 'Make', 'PagerDuty', 'Teams'].map(name => (
+                      <span key={name} className="px-2 py-0.5 rounded text-[10px] font-semibold text-zinc-500 bg-white/[0.04] border border-white/8">
+                        {name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex-1 space-y-2">
+                  <input
+                    type="url"
+                    value={values.notify_webhook_url}
+                    onChange={(e) => handleInputChange('notify_webhook_url', e.target.value)}
+                    disabled={!values.notify_webhook_enabled}
+                    placeholder="https://hooks.zapier.com/hooks/catch/..."
+                    className={`w-full h-11 cs-input ${errors.notify_webhook_url ? 'cs-input-error' : ''}`}
+                  />
+                  {errors.notify_webhook_url && <span className="cs-error-msg">{errors.notify_webhook_url}</span>}
+                  {values.notify_webhook_enabled && !errors.notify_webhook_url && (
+                    <p className="text-[11px] text-zinc-500">
+                      CacheSnap sends <code className="text-zinc-400 bg-white/[0.04] px-1 py-0.5 rounded text-[10px]">Content-Type: application/json</code> with a versioned payload on every alert event.
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </section>

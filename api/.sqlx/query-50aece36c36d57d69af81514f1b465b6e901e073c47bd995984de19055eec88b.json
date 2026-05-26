@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE alerts SET notified_email = $1, notified_slack = $2, notified_webhook = $3 WHERE id = $4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bool",
+        "Bool",
+        "Bool",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "50aece36c36d57d69af81514f1b465b6e901e073c47bd995984de19055eec88b"
+}

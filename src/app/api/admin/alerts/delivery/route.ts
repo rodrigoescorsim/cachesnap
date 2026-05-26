@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     sql<{ total: number; delivered: number }[]>`
       SELECT
         COUNT(*)::int                                                              AS total,
-        COUNT(*) FILTER (WHERE notified_email OR notified_slack)::int             AS delivered
+        COUNT(*) FILTER (WHERE notified_email OR notified_slack OR notified_webhook)::int AS delivered
       FROM alerts
       WHERE created_at > ${since}
     `,
@@ -32,8 +32,8 @@ export async function GET(request: NextRequest) {
       SELECT
         alert_type,
         COUNT(*)::int                                                              AS total,
-        COUNT(*) FILTER (WHERE notified_email OR notified_slack)::int             AS delivered,
-        COUNT(*) FILTER (WHERE NOT notified_email AND NOT notified_slack)::int    AS failed
+        COUNT(*) FILTER (WHERE notified_email OR notified_slack OR notified_webhook)::int AS delivered,
+        COUNT(*) FILTER (WHERE NOT notified_email AND NOT notified_slack AND NOT notified_webhook)::int AS failed
       FROM alerts
       WHERE created_at > ${since}
       GROUP BY alert_type

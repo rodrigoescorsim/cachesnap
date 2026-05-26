@@ -15,6 +15,8 @@ export function MonitorSettingsPanel(props: {
   notifyEmailEnabled: boolean
   notifySlackWebhook: string | null
   notifySlackEnabled: boolean
+  notifyWebhookUrl: string | null
+  notifyWebhookEnabled: boolean
   alertThresholdMs: number
   alertThresholdHitMs: number
   alertSensitivity: number

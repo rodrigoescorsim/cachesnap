@@ -70,11 +70,14 @@ struct MonitorNotifConfig {
     notify_email_enabled: bool,
     notify_slack_webhook: Option<String>,
     notify_slack_enabled: bool,
+    notify_webhook_url: Option<String>,
+    notify_webhook_enabled: bool,
 }
 
 async fn fetch_monitor_config(state: &AppState, monitor_id: Uuid) -> Option<MonitorNotifConfig> {
     let row = sqlx::query!(
-        "SELECT url, name, notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled
+        "SELECT url, name, notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
+                notify_webhook_url, notify_webhook_enabled
          FROM monitors WHERE id = $1",
         monitor_id
     )
@@ -89,6 +92,8 @@ async fn fetch_monitor_config(state: &AppState, monitor_id: Uuid) -> Option<Moni
             notify_email_enabled: m.notify_email_enabled,
             notify_slack_webhook: m.notify_slack_webhook,
             notify_slack_enabled: m.notify_slack_enabled,
+            notify_webhook_url: m.notify_webhook_url,
+            notify_webhook_enabled: m.notify_webhook_enabled,
         }),
         Ok(None) => None,
         Err(e) => {
@@ -226,6 +231,7 @@ pub async fn notify_incident(state: AppState, notif: IncidentNotification) {
 
     let mut notified_email = false;
     let mut notified_slack = false;
+    let mut notified_webhook = false;
 
     if monitor.notify_email_enabled {
         if let Some(to_email) = &monitor.notify_email {
@@ -340,11 +346,59 @@ pub async fn notify_incident(state: AppState, notif: IncidentNotification) {
         }
     }
 
-    if notified_email || notified_slack {
+    if monitor.notify_webhook_enabled {
+        if let Some(webhook_url) = &monitor.notify_webhook_url {
+            let payload = build_webhook_incident_payload(
+                &notif,
+                &monitor,
+                &region_label,
+                &region_labels,
+                &state.config.app_url,
+            );
+            let t0 = std::time::Instant::now();
+            match send_webhook(webhook_url, &payload).await {
+                Ok(()) => {
+                    notified_webhook = true;
+                    let latency_ms = t0.elapsed().as_millis() as f64;
+                    info!("notifier: webhook sent for incident {}", notif.incident_id);
+                    record_delivery(
+                        &state,
+                        "webhook",
+                        "custom",
+                        true,
+                        latency_ms,
+                        notif.notification_type.as_str(),
+                        None,
+                    )
+                    .await;
+                }
+                Err(e) => {
+                    let latency_ms = t0.elapsed().as_millis() as f64;
+                    error!(
+                        "notifier: webhook failed for incident {}: {}",
+                        notif.incident_id, e
+                    );
+                    record_delivery(
+                        &state,
+                        "webhook",
+                        "custom",
+                        false,
+                        latency_ms,
+                        notif.notification_type.as_str(),
+                        Some(e),
+                    )
+                    .await;
+                }
+            }
+        }
+    }
+
+    if notified_email || notified_slack || notified_webhook {
         let _ = sqlx::query!(
-            "UPDATE alerts SET notified_email = $1, notified_slack = $2 WHERE id = $3",
+            "UPDATE alerts SET notified_email = $1, notified_slack = $2, notified_webhook = $3 WHERE id = $4",
             notified_email,
             notified_slack,
+            notified_webhook,
             notif.alert_record_id
         )
         .execute(&state.db)
@@ -424,6 +478,20 @@ pub async fn notify_recovery(state: AppState, notif: RecoveryNotification) {
             );
             if let Ok(()) = send_slack(webhook_url, &text).await {
                 info!("notifier: recovery slack sent for {}", notif.alert_type);
+            }
+        }
+    }
+
+    if monitor.notify_webhook_enabled {
+        if let Some(webhook_url) = &monitor.notify_webhook_url {
+            let payload = build_webhook_recovery_payload(
+                &notif,
+                &monitor,
+                &region_labels,
+                &state.config.app_url,
+            );
+            if let Ok(()) = send_webhook(webhook_url, &payload).await {
+                info!("notifier: recovery webhook sent for {}", notif.alert_type);
             }
         }
     }
@@ -985,6 +1053,131 @@ fn format_webhook_url(webhook_url: &str) -> String {
         url.push_str("/slack");
     }
     url
+}
+
+// --- Webhook payload builders ---
+
+fn build_webhook_incident_payload(
+    n: &IncidentNotification,
+    monitor: &MonitorNotifConfig,
+    region_label: &str,
+    region_labels: &HashMap<String, String>,
+    app_url: &str,
+) -> serde_json::Value {
+    let severity = alert_severity(&n.alert_type);
+    let type_label = alert_type_display(&n.alert_type);
+    let unit = metric_unit(&n.alert_type);
+
+    let event = match n.notification_type {
+        NotificationType::FirstFire => "incident.fired",
+        NotificationType::Digest => "incident.updated",
+        NotificationType::Recovery => "incident.recovered",
+    };
+
+    let diagnosis = n.diagnosis.as_deref()
+        .map(|d| replace_region_ids_and_normalize_legacy_trend(d, region_labels));
+    let action = n.action.as_deref()
+        .map(|a| replace_region_ids_and_normalize_legacy_trend(a, region_labels));
+
+    let monitor_name = monitor.name.as_deref().unwrap_or(monitor.url.as_str());
+    let dashboard_url = format!("{}/dashboard/monitors/{}", app_url, n.monitor_id);
+
+    json!({
+        "event": event,
+        "version": "1",
+        "monitor": {
+            "id": n.monitor_id.to_string(),
+            "url": monitor.url,
+            "name": monitor_name,
+        },
+        "incident": {
+            "id": n.incident_id.to_string(),
+            "alert_type": n.alert_type,
+            "alert_type_label": type_label,
+            "severity": severity.as_str(),
+            "affected_regions": n.affected_regions,
+            "affected_regions_label": region_label,
+            "opened_at": n.opened_at.to_rfc3339(),
+            "duration_seconds": n.duration.num_seconds(),
+            "notification_count": n.notification_count,
+        },
+        "metrics": {
+            "actual": n.actual,
+            "threshold": n.threshold,
+            "unit": unit,
+            "delta_pct": n.delta_pct,
+            "comparator": n.comparator,
+        },
+        "diagnosis": diagnosis,
+        "action": action,
+        "links": {
+            "dashboard": dashboard_url,
+        },
+    })
+}
+
+fn build_webhook_recovery_payload(
+    n: &RecoveryNotification,
+    monitor: &MonitorNotifConfig,
+    region_labels: &HashMap<String, String>,
+    app_url: &str,
+) -> serde_json::Value {
+    let severity = alert_severity(&n.alert_type);
+    let type_label = alert_type_display(&n.alert_type);
+    let unit = metric_unit(&n.alert_type);
+    let region_label = format_region_summary(&n.affected_regions, region_labels);
+    let monitor_name = monitor.name.as_deref().unwrap_or(monitor.url.as_str());
+    let dashboard_url = format!("{}/dashboard/monitors/{}", app_url, n.monitor_id);
+
+    json!({
+        "event": "incident.recovered",
+        "version": "1",
+        "monitor": {
+            "id": n.monitor_id.to_string(),
+            "url": monitor.url,
+            "name": monitor_name,
+        },
+        "incident": {
+            "alert_type": n.alert_type,
+            "alert_type_label": type_label,
+            "severity": severity.as_str(),
+            "affected_regions": n.affected_regions,
+            "affected_regions_label": region_label,
+            "duration_seconds": n.duration.num_seconds(),
+            "notification_count": n.notification_count,
+        },
+        "metrics": {
+            "actual": n.actual,
+            "threshold": n.threshold,
+            "unit": unit,
+            "delta_pct": serde_json::Value::Null,
+            "comparator": serde_json::Value::Null,
+        },
+        "diagnosis": serde_json::Value::Null,
+        "action": serde_json::Value::Null,
+        "links": {
+            "dashboard": dashboard_url,
+        },
+    })
+}
+
+async fn send_webhook(url: &str, payload: &serde_json::Value) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let res = client
+        .post(url)
+        .header("User-Agent", "CacheSnap-Alerts/1.0")
+        .json(payload)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if res.status().is_success() {
+        Ok(())
+    } else {
+        let status = res.status();
+        let body = res.text().await.unwrap_or_default();
+        Err(format!("Webhook {}: {}", status, body))
+    }
 }
 
 async fn send_slack(webhook_url: &str, text: &str) -> Result<(), String> {
