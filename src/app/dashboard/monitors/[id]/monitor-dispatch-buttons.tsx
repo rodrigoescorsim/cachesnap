@@ -12,6 +12,7 @@ export function MonitorDispatchButtons({
   isFrozen,
   onToggleFreeze,
   freezeStartedAtMs = null,
+  hideFreezeControl = false,
 }: {
   monitorId: string
   variant?: 'default' | 'compact' | 'audit'
@@ -19,6 +20,8 @@ export function MonitorDispatchButtons({
   isFrozen?: boolean
   onToggleFreeze?: () => void
   freezeStartedAtMs?: number | null
+  /** Live tab: freeze causes glitches on touch; parent forces thaw and hides control on narrow viewports. */
+  hideFreezeControl?: boolean
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -108,8 +111,12 @@ export function MonitorDispatchButtons({
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex max-md:flex-col max-md:items-stretch flex-wrap items-center gap-2">
+    <div className={`flex flex-col gap-1.5 ${isCompact ? 'w-full md:w-auto' : ''}`}>
+      <div
+        className={`flex items-center gap-2 max-md:flex-col max-md:items-stretch ${
+          isCompact ? 'w-full md:flex-nowrap' : 'flex-wrap'
+        }`}
+      >
         <PremiumTooltip
           content={isCompact ? 'Run a fresh probe across all regions right now. Cooldown: 30 seconds.' : 'Dispatch a manual refresh now.'}
           position="top-center"
@@ -153,7 +160,7 @@ export function MonitorDispatchButtons({
           </button>
         </PremiumTooltip>
 
-        {isCompact && (
+        {isCompact && !hideFreezeControl && (
           <PremiumTooltip
             content={
               isFrozen
@@ -180,7 +187,7 @@ export function MonitorDispatchButtons({
           </PremiumTooltip>
         )}
 
-        {isCompact && isFrozen && freezeStartedAtMs != null ? (
+        {isCompact && !hideFreezeControl && isFrozen && freezeStartedAtMs != null ? (
           <div
             className="flex h-9 items-center gap-1 whitespace-nowrap"
             aria-live="polite"
