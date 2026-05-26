@@ -2,14 +2,19 @@ import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV === "development";
 
+// The Rust API may live on a different origin (e.g. localhost:3001 in dev).
+// We must explicitly allow it in connect-src so EventSource (SSE) and fetch work.
+const apiOrigin = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
 const csp = [
   "default-src 'self'",
   // React requires eval() in dev mode for call stack reconstruction; never used in production.
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://accounts.google.com`,
   "style-src 'self' 'unsafe-inline' https://accounts.google.com",
-  "img-src 'self' data: https://www.google.com",
+  // t3.gstatic.com serves website favicons via the Google FaviconV2 API used in monitors table.
+  "img-src 'self' data: https://www.google.com https://t3.gstatic.com",
   "font-src 'self'",
-  "connect-src 'self' https://accounts.google.com",
+  `connect-src 'self' https://accounts.google.com ${apiOrigin}`,
   "frame-src https://accounts.google.com",
   "frame-ancestors 'self'",
   "base-uri 'self'",

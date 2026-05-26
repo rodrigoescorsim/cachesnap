@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import type { SortingState } from '@tanstack/react-table'
@@ -72,11 +72,13 @@ function coerceFilter(value: string | null): MonitorQuickFilterId {
 // ─── MonitorsStageOne ─────────────────────────────────────────────────────────
 
 type MonitorsStageOneProps = {
+  /** Passed from the server component; changes on every router.refresh(), bridging SSE → React Query. */
+  serverTime: number
   userEmail: string
   logoutAction: () => Promise<void>
 }
 
-export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOneProps) {
+export function MonitorsStageOne({ serverTime, userEmail, logoutAction }: MonitorsStageOneProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -112,6 +114,19 @@ export function MonitorsStageOne({ userEmail, logoutAction }: MonitorsStageOnePr
         }
       : false,
   })
+
+  // ── Bridge: router.refresh() → React Query refetch ───────────────────────
+  // RealTimeHub (in the page server component) calls router.refresh() on SSE
+  // events. That re-renders MonitorsPage on the server, producing a new
+  // serverTime value. When serverTime changes here, we call refetch() so
+  // React Query picks up the fresh data without waiting for the poll interval.
+  const refetchRef = useRef(refetch)
+  refetchRef.current = refetch
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return }
+    refetchRef.current()
+  }, [serverTime])
 
   // Sync urlSearch to searchInput when the URL updates externally (e.g. Back button or AdvisorCard)
   useEffect(() => {

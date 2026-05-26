@@ -23,7 +23,11 @@ export default async function MonitorsPage() {
           </div>
         </div>
       }>
-        <MonitorsStageOne userEmail={user.email} logoutAction={logout} />
+        <MonitorsStageOne
+          userEmail={user.email}
+          logoutAction={logout}
+          serverTime={Date.now()}
+        />
       </Suspense>
     </>
   )
