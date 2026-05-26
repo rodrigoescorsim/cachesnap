@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Activity,
@@ -772,12 +772,23 @@ function MonitorQuickCard({ monitor, rank }: { monitor: Monitor; rank: number })
 // ─── InsightsView ─────────────────────────────────────────────────────────────
 
 type InsightsViewProps = {
+  /** Passed from the server component; changes on every router.refresh(), bridging SSE → React Query. */
+  serverTime: number
   userEmail: string
   logoutAction: () => Promise<void>
 }
 
-export function InsightsView({ userEmail, logoutAction }: InsightsViewProps) {
-  const { monitors, isLoading } = useMonitors({ refetchInterval: 60_000 })
+export function InsightsView({ serverTime, userEmail, logoutAction }: InsightsViewProps) {
+  const { monitors, isLoading, refetch } = useMonitors({ refetchInterval: 60_000 })
+
+  // ── Bridge: router.refresh() → React Query refetch ───────────────────────
+  const refetchRef = useRef(refetch)
+  refetchRef.current = refetch
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return }
+    refetchRef.current()
+  }, [serverTime])
 
   // ── Global metrics ────────────────────────────────────────────────────────
   const { activeCount, avgTtfb1h, avgHit1h, avgTtfb24h, avgHit24h, healthScore, ttfbDelta, hitDelta } = useMemo(() => {
