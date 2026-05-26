@@ -5,11 +5,14 @@ import { HeroUrlForm } from './hero-url-form'
 import { MarketingFooter, MarketingHeader } from '@/components/marketing/marketing-chrome'
 import { DashboardPreview } from '@/components/landing/dashboard-preview'
 import { GoogleOneTap } from '@/components/landing/google-one-tap'
+import { LandingSectionBlend } from '@/components/landing/landing-section-blend'
 import {
   LANDING_BG_CTA_SECTION,
+  LANDING_BG_DASHBOARD_SECTION,
   LANDING_BG_EDGE_INTELLIGENCE_SECTION,
   LANDING_BG_HERO_SECTION,
   LANDING_BG_INTELLIGENT_ROUTING_SECTION,
+  LANDING_BG_PLATFORM_SECTION,
 } from '@/components/landing/landing-section-bg'
 
 // ─── Structured Data ─────────────────────────────────────────────────────────
@@ -279,8 +282,18 @@ export default async function RootPage() {
           </div>
         </section>
 
+        <LandingSectionBlend
+          from={LANDING_BG_HERO_SECTION}
+          to={LANDING_BG_PLATFORM_SECTION}
+        />
+
         {/* ═══════════════════════════════════════════ DASHBOARD + PLATFORM */}
         <DashboardPreview />
+
+        <LandingSectionBlend
+          from={LANDING_BG_DASHBOARD_SECTION}
+          to={LANDING_BG_EDGE_INTELLIGENCE_SECTION}
+        />
 
         {/* ══════════════════════════════════════════════════ FEATURES GRID */}
         <section
@@ -318,6 +331,11 @@ export default async function RootPage() {
             </div>
           </div>
         </section>
+
+        <LandingSectionBlend
+          from={LANDING_BG_EDGE_INTELLIGENCE_SECTION}
+          to={LANDING_BG_INTELLIGENT_ROUTING_SECTION}
+        />
 
         {/* ═══════════════════════════════════════════ ALERTS SPOTLIGHT */}
         <section
@@ -459,6 +477,11 @@ export default async function RootPage() {
           </div>
         </section>
 
+        <LandingSectionBlend
+          from={LANDING_BG_INTELLIGENT_ROUTING_SECTION}
+          to={LANDING_BG_EDGE_INTELLIGENCE_SECTION}
+        />
+
         {/* ══════════════════════════════════════════════════════════ PRICING */}
         <section
           className="relative left-1/2 w-screen max-w-[100vw] -translate-x-1/2 overflow-hidden py-28"
@@ -549,6 +572,11 @@ export default async function RootPage() {
 
           </div>
         </section>
+
+        <LandingSectionBlend
+          from={LANDING_BG_EDGE_INTELLIGENCE_SECTION}
+          to={LANDING_BG_CTA_SECTION}
+        />
 
         {/* ══════════════════════════════════════════════════════ FINAL CTA */}
         <section

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
+import { LandingSectionBlend } from './landing-section-blend'
 import {
   LANDING_BG_DASHBOARD_SECTION,
   LANDING_BG_PLATFORM_SECTION,
@@ -281,6 +282,11 @@ export function DashboardShowcase() {
         </div>
         </div>
       </section>
+
+      <LandingSectionBlend
+        from={LANDING_BG_PLATFORM_SECTION}
+        to={LANDING_BG_DASHBOARD_SECTION}
+      />
 
       <section
         id="dashboard"
