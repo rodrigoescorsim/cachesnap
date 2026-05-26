@@ -178,10 +178,7 @@ export async function requestPasswordReset(
   `
 
   // 2. Security: Return success even if email doesn't exist (no email enumeration)
-  if (!user) {
-    console.log(`[PASSWORD RESET] Simulated recovery request for email: ${email}`)
-    return { success: true }
-  }
+  if (!user) return { success: true }
 
   // 3. Generate token & expiration (1 hour)
   const token = crypto.randomBytes(32).toString('hex')

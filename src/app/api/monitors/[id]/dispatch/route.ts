@@ -22,7 +22,7 @@ export async function POST(
   const bypass = body.bypass === true
 
   // 2. Chamar a API Rust para o dispatch real
-  const rustApiUrl = 'http://127.0.0.1:3001'
+  const rustApiUrl = process.env.RUST_API_URL || 'http://127.0.0.1:3001'
   const probeSecret = process.env.PROBE_SECRET
   
   try {

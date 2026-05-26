@@ -18,7 +18,7 @@ export async function POST(
   `
   if (!monitor) return NextResponse.json({ error: 'Monitor not found' }, { status: 404 })
 
-  const rustApiUrl = 'http://127.0.0.1:3001'
+  const rustApiUrl = process.env.RUST_API_URL || 'http://127.0.0.1:3001'
   const probeSecret = process.env.PROBE_SECRET
 
   try {
