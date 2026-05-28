@@ -63,7 +63,8 @@ pub struct RecoveryNotification {
     pub threshold: Option<f64>,
 }
 
-struct MonitorNotifConfig {
+#[derive(Clone)]
+pub(crate) struct MonitorNotifConfig {
     url: String,
     name: Option<String>,
     notify_email: Option<String>,
@@ -72,6 +73,27 @@ struct MonitorNotifConfig {
     notify_slack_enabled: bool,
     notify_webhook_url: Option<String>,
     notify_webhook_enabled: bool,
+}
+
+fn channel_enabled_with_value(enabled: bool, value: Option<&String>) -> bool {
+    enabled && value.is_some_and(|v| !v.trim().is_empty())
+}
+
+/// True when the monitor has at least one enabled channel with a non-empty destination.
+pub(crate) fn has_notification_destination(m: &MonitorNotifConfig) -> bool {
+    channel_enabled_with_value(m.notify_email_enabled, m.notify_email.as_ref())
+        || channel_enabled_with_value(m.notify_slack_enabled, m.notify_slack_webhook.as_ref())
+        || channel_enabled_with_value(m.notify_webhook_enabled, m.notify_webhook_url.as_ref())
+}
+
+pub(crate) async fn monitor_has_delivery_destination(
+    state: &AppState,
+    monitor_id: Uuid,
+) -> bool {
+    match fetch_monitor_config(state, monitor_id).await {
+        Some(m) => has_notification_destination(&m),
+        None => false,
+    }
 }
 
 async fn fetch_monitor_config(state: &AppState, monitor_id: Uuid) -> Option<MonitorNotifConfig> {
@@ -1776,5 +1798,32 @@ mod tests {
             "no metric row when values are None"
         );
         assert!(html.contains("1 notification"), "singular form");
+    }
+
+    #[test]
+    fn test_has_notification_destination_requires_enabled_channel_with_value() {
+        let with_email = MonitorNotifConfig {
+            url: "https://example.com".to_string(),
+            name: None,
+            notify_email: Some("ops@example.com".to_string()),
+            notify_email_enabled: true,
+            notify_slack_webhook: None,
+            notify_slack_enabled: false,
+            notify_webhook_url: None,
+            notify_webhook_enabled: false,
+        };
+        assert!(has_notification_destination(&with_email));
+
+        let disabled_email = MonitorNotifConfig {
+            notify_email_enabled: false,
+            ..with_email.clone()
+        };
+        assert!(!has_notification_destination(&disabled_email));
+
+        let empty_email = MonitorNotifConfig {
+            notify_email: Some("   ".to_string()),
+            ..with_email
+        };
+        assert!(!has_notification_destination(&empty_email));
     }
 }

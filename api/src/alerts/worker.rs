@@ -566,8 +566,19 @@ pub async fn handle_incident(
     .fetch_one(&state.db)
     .await?;
 
+    if !notifier::monitor_has_delivery_destination(state, monitor_id).await {
+        info!(
+            "incident_decision: monitor_id={} alert_type={} incident_id={} \
+             decision=skip reason=no_delivery_destination",
+            monitor_id,
+            alert_type,
+            row.id
+        );
+        return Ok(());
+    }
+
     // --- Notification gate ---
-    let notif_type = if row.is_new {
+    let notif_type = if row.is_new || row.last_notified_at.is_none() {
         NotificationType::FirstFire
     } else {
         if row.snoozed_until.map_or(false, |t| t > Utc::now()) {

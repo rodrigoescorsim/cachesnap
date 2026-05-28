@@ -30,6 +30,31 @@ async fn get_test_state() -> AppState {
     }
 }
 
+const TEST_NOTIFY_EMAIL: &str = "alerts@test.com";
+
+async fn insert_monitor_with_delivery(
+    state: &AppState,
+    monitor_id: Uuid,
+    user_id: Uuid,
+    url: &str,
+    name: &str,
+) {
+    sqlx::query(
+        "INSERT INTO monitors (id, user_id, url, name, is_active, notify_email, notify_email_enabled)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    )
+    .bind(monitor_id)
+    .bind(user_id)
+    .bind(url)
+    .bind(name)
+    .bind(true)
+    .bind(TEST_NOTIFY_EMAIL)
+    .bind(true)
+    .execute(&state.db)
+    .await
+    .unwrap();
+}
+
 fn create_test_payload(monitor_id: Uuid, region: &str) -> ProbeResultPayload {
     ProbeResultPayload {
         monitor_id,
@@ -92,12 +117,13 @@ async fn test_downtime_aggregation_logic() {
         .execute(&state.db).await.unwrap();
 
     sqlx::query(
-        "INSERT INTO monitors (id, user_id, url, name, is_active, alert_down_enabled, alert_threshold_ms, alert_threshold_hit_ms)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+        "INSERT INTO monitors (id, user_id, url, name, is_active, alert_down_enabled, alert_threshold_ms, alert_threshold_hit_ms, notify_email, notify_email_enabled)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"
     )
     .bind(monitor_id).bind(user_id)
     .bind("http://test-aggregation.com").bind("Test Aggregation")
     .bind(true).bind(true).bind(1000).bind(500)
+    .bind(TEST_NOTIFY_EMAIL).bind(true)
     .execute(&state.db).await.unwrap();
 
     // Three 5xx probes from distinct regions. Each is also persisted to
@@ -425,12 +451,13 @@ async fn test_worker_cache_hit_aggregation() {
         .execute(&state.db).await.unwrap();
 
     sqlx::query(
-        "INSERT INTO monitors (id, user_id, url, name, is_active, alert_cache_hit_enabled, alert_cache_hit_threshold_pct)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)"
+        "INSERT INTO monitors (id, user_id, url, name, is_active, alert_cache_hit_enabled, alert_cache_hit_threshold_pct, notify_email, notify_email_enabled)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
     )
     .bind(monitor_id).bind(user_id)
     .bind("http://worker-test.com").bind("Worker Test")
     .bind(true).bind(true).bind(90.0)
+    .bind(TEST_NOTIFY_EMAIL).bind(true)
     .execute(&state.db).await.unwrap();
 
     // 50% cache hit rate (5 HIT, 5 MISS) in 2 regions
@@ -584,6 +611,86 @@ async fn test_worker_cache_hit_skips_intentional_dynamic() {
         .ok();
 }
 
+// ── Scenario 2b: No delivery destination skips alert history and notification ─
+
+#[tokio::test]
+async fn test_no_delivery_destination_skips_alert_record() {
+    use crate::alerts::worker::handle_incident;
+
+    let state = get_test_state().await;
+    let monitor_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    sqlx::query("INSERT INTO users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(format!("no-dest-{}@test.com", user_id))
+        .bind("hash")
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+    sqlx::query("INSERT INTO monitors (id, user_id, url, name, is_active) VALUES ($1, $2, $3, $4, $5)")
+        .bind(monitor_id)
+        .bind(user_id)
+        .bind("http://no-dest-test.com")
+        .bind("No Dest Test")
+        .bind(true)
+        .execute(&state.db)
+        .await
+        .unwrap();
+
+    handle_incident(
+        &state,
+        monitor_id,
+        "cache_hit_low",
+        vec!["us-east".to_string()],
+        Some(30.0),
+        Some(80.0),
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+
+    let incident_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'cache_hit_low' AND resolved_at IS NULL",
+    )
+    .bind(monitor_id)
+    .fetch_one(&state.db)
+    .await
+    .unwrap();
+    assert_eq!(incident_count, 1, "Incident must still open for in-app visibility");
+
+    let notif_count: i32 = sqlx::query_scalar(
+        "SELECT notification_count FROM alert_incidents WHERE monitor_id = $1 AND alert_type = 'cache_hit_low'",
+    )
+    .bind(monitor_id)
+    .fetch_one(&state.db)
+    .await
+    .unwrap();
+    assert_eq!(
+        notif_count, 0,
+        "No delivery destination must not increment notification_count"
+    );
+
+    let alert_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM alerts WHERE monitor_id = $1",
+    )
+    .bind(monitor_id)
+    .fetch_one(&state.db)
+    .await
+    .unwrap();
+    assert_eq!(
+        alert_count, 0,
+        "No delivery destination must not create an alerts history row"
+    );
+
+    cleanup(&state, monitor_id, user_id).await;
+}
+
 // ── Scenario 3: Digest is sent after the repeat cooldown window elapses ──────
 
 #[tokio::test]
@@ -600,9 +707,10 @@ async fn test_digest_after_cooldown_elapsed() {
         .bind("hash")
         .execute(&state.db).await.unwrap();
 
-    sqlx::query("INSERT INTO monitors (id, user_id, url, name, is_active) VALUES ($1, $2, $3, $4, $5)")
+    sqlx::query("INSERT INTO monitors (id, user_id, url, name, is_active, notify_email, notify_email_enabled) VALUES ($1, $2, $3, $4, $5, $6, $7)")
         .bind(monitor_id).bind(user_id)
         .bind("http://digest-test.com").bind("Digest Test").bind(true)
+        .bind(TEST_NOTIFY_EMAIL).bind(true)
         .execute(&state.db).await.unwrap();
 
     // First call → FirstFire (notification_count = 1)
@@ -787,10 +895,14 @@ async fn test_critical_incident_recovery_eligible() {
         .bind(user_id).bind(format!("crit-{}@test.com", user_id)).bind("hash")
         .execute(&state.db).await.unwrap();
 
-    sqlx::query("INSERT INTO monitors (id, user_id, url, name, is_active) VALUES ($1, $2, $3, $4, $5)")
-        .bind(monitor_id).bind(user_id)
-        .bind("http://crit-test.com").bind("Crit Test").bind(true)
-        .execute(&state.db).await.unwrap();
+    insert_monitor_with_delivery(
+        &state,
+        monitor_id,
+        user_id,
+        "http://crit-test.com",
+        "Crit Test",
+    )
+    .await;
 
     // Open a CRITICAL (down) incident via handle_incident → FirstFire
     handle_incident(&state, monitor_id, "down",
@@ -843,10 +955,14 @@ async fn test_snooze_blocks_notification() {
         .bind(user_id).bind(format!("snooze-{}@test.com", user_id)).bind("hash")
         .execute(&state.db).await.unwrap();
 
-    sqlx::query("INSERT INTO monitors (id, user_id, url, name, is_active) VALUES ($1, $2, $3, $4, $5)")
-        .bind(monitor_id).bind(user_id)
-        .bind("http://snooze-test.com").bind("Snooze Test").bind(true)
-        .execute(&state.db).await.unwrap();
+    insert_monitor_with_delivery(
+        &state,
+        monitor_id,
+        user_id,
+        "http://snooze-test.com",
+        "Snooze Test",
+    )
+    .await;
 
     // Fire → FirstFire
     handle_incident(&state, monitor_id, "cache_hit_low",
@@ -895,10 +1011,14 @@ async fn test_expired_snooze_allows_notification() {
         .bind(user_id).bind(format!("expsnz-{}@test.com", user_id)).bind("hash")
         .execute(&state.db).await.unwrap();
 
-    sqlx::query("INSERT INTO monitors (id, user_id, url, name, is_active) VALUES ($1, $2, $3, $4, $5)")
-        .bind(monitor_id).bind(user_id)
-        .bind("http://expsnooze-test.com").bind("ExpSnooze Test").bind(true)
-        .execute(&state.db).await.unwrap();
+    insert_monitor_with_delivery(
+        &state,
+        monitor_id,
+        user_id,
+        "http://expsnooze-test.com",
+        "ExpSnooze Test",
+    )
+    .await;
 
     // Fire → FirstFire
     handle_incident(&state, monitor_id, "cache_hit_low",
@@ -942,10 +1062,14 @@ async fn test_independent_incidents_same_monitor() {
         .bind(user_id).bind(format!("indep-{}@test.com", user_id)).bind("hash")
         .execute(&state.db).await.unwrap();
 
-    sqlx::query("INSERT INTO monitors (id, user_id, url, name, is_active) VALUES ($1, $2, $3, $4, $5)")
-        .bind(monitor_id).bind(user_id)
-        .bind("http://indep-test.com").bind("Indep Test").bind(true)
-        .execute(&state.db).await.unwrap();
+    insert_monitor_with_delivery(
+        &state,
+        monitor_id,
+        user_id,
+        "http://indep-test.com",
+        "Indep Test",
+    )
+    .await;
 
     // Open two different incident types
     handle_incident(&state, monitor_id, "cache_hit_low",
