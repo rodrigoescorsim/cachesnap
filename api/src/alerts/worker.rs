@@ -566,7 +566,18 @@ pub async fn handle_incident(
     .fetch_one(&state.db)
     .await?;
 
-    if !notifier::monitor_has_delivery_destination(state, monitor_id).await {
+    let Some(monitor) = notifier::fetch_monitor_config(state, monitor_id).await else {
+        info!(
+            "incident_decision: monitor_id={} alert_type={} incident_id={} \
+             decision=skip reason=monitor_not_found",
+            monitor_id,
+            alert_type,
+            row.id
+        );
+        return Ok(());
+    };
+
+    if !notifier::has_notification_destination(&monitor) {
         info!(
             "incident_decision: monitor_id={} alert_type={} incident_id={} \
              decision=skip reason=no_delivery_destination",
@@ -692,6 +703,7 @@ pub async fn handle_incident(
             diagnosis,
             action,
         },
+        monitor,
     ));
 
     info!(

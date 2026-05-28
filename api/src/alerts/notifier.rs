@@ -86,17 +86,7 @@ pub(crate) fn has_notification_destination(m: &MonitorNotifConfig) -> bool {
         || channel_enabled_with_value(m.notify_webhook_enabled, m.notify_webhook_url.as_ref())
 }
 
-pub(crate) async fn monitor_has_delivery_destination(
-    state: &AppState,
-    monitor_id: Uuid,
-) -> bool {
-    match fetch_monitor_config(state, monitor_id).await {
-        Some(m) => has_notification_destination(&m),
-        None => false,
-    }
-}
-
-async fn fetch_monitor_config(state: &AppState, monitor_id: Uuid) -> Option<MonitorNotifConfig> {
+pub(crate) async fn fetch_monitor_config(state: &AppState, monitor_id: Uuid) -> Option<MonitorNotifConfig> {
     let row = sqlx::query!(
         "SELECT url, name, notify_email, notify_email_enabled, notify_slack_webhook, notify_slack_enabled,
                 notify_webhook_url, notify_webhook_enabled
@@ -233,12 +223,11 @@ fn severity_context(alert_type: &str) -> (&'static str, &'static str) {
     }
 }
 
-pub async fn notify_incident(state: AppState, notif: IncidentNotification) {
-    let monitor = match fetch_monitor_config(&state, notif.monitor_id).await {
-        Some(m) => m,
-        None => return,
-    };
-
+pub async fn notify_incident(
+    state: AppState,
+    notif: IncidentNotification,
+    monitor: MonitorNotifConfig,
+) {
     let monitor_label = monitor
         .name
         .as_deref()
@@ -315,6 +304,16 @@ pub async fn notify_incident(state: AppState, notif: IncidentNotification) {
                     "notifier: RESEND_API_KEY not set — skipping email for incident {}",
                     notif.incident_id
                 );
+                record_delivery(
+                    &state,
+                    "email",
+                    "resend",
+                    false,
+                    0.0,
+                    notif.notification_type.as_str(),
+                    Some("RESEND_API_KEY not configured".to_string()),
+                )
+                .await;
             }
         }
     }
