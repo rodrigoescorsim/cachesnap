@@ -14,6 +14,7 @@ import {
   Database,
   HardDrive,
   Cpu,
+  Globe,
 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -261,6 +262,23 @@ interface SystemResourcesData {
       source: string
     }
     network: { rx_bytes_per_sec: null; tx_bytes_per_sec: null; source: string }
+  }
+}
+
+interface PublicCheckerData {
+  data: {
+    window: string
+    total_checks: number
+    completed: number
+    errors: number
+    unique_ips: number
+    completion_rate: number | null
+    avg_ttfb_ms: number | null
+    rate_limited: number
+    running_now: number
+    top_urls: { url: string; checks: number }[]
+    top_cdns: { cdn_provider: string; total: number }[]
+    sparkline_24h: { hour: string; checks: number }[]
   }
 }
 
@@ -1285,6 +1303,116 @@ function SystemSection({
   )
 }
 
+// ─── Public Check Tool ───────────────────────────────────────────────────────
+
+function PublicCheckerSection({
+  data,
+  loading,
+}: {
+  data: PublicCheckerData | null
+  loading: boolean
+}) {
+  if (loading) {
+    return (
+      <section>
+        <SectionTitle icon={Globe} title="Public Check Tool" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
+        </div>
+      </section>
+    )
+  }
+  if (!data) {
+    return (
+      <section>
+        <SectionTitle icon={Globe} title="Public Check Tool" />
+        <p className="py-4 text-[12px] text-zinc-600">Data unavailable — auto-retry in 30s.</p>
+      </section>
+    )
+  }
+
+  const d = data.data
+
+  return (
+    <section>
+      <SectionTitle icon={Globe} title="Public Check Tool" badge={d.running_now > 0 ? `${d.running_now} active` : undefined} />
+
+      {/* KPI grid */}
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          ['Total Checks', d.total_checks, 'text-zinc-100'],
+          ['Unique IPs', d.unique_ips, 'text-zinc-300'],
+          ['Completion Rate', d.completion_rate !== null ? `${d.completion_rate}%` : '—', d.completion_rate === null ? 'text-zinc-600' : d.completion_rate >= 90 ? 'text-emerald-400' : 'text-amber-400'],
+          ['Avg TTFB', d.avg_ttfb_ms !== null ? `${d.avg_ttfb_ms}ms` : '—', d.avg_ttfb_ms === null ? 'text-zinc-600' : d.avg_ttfb_ms < 300 ? 'text-emerald-400' : d.avg_ttfb_ms < 800 ? 'text-amber-400' : 'text-rose-400'],
+        ].map(([label, val, cls]) => (
+          <div key={label as string} className="cs-card px-4 py-4">
+            <div className="cs-card-wash" />
+            <p className="relative z-10 mb-1 text-[10px] font-black uppercase tracking-widest text-zinc-500">{label}</p>
+            <p className={`relative z-10 text-[22px] font-black tabular-nums leading-none ${cls}`}>{val as string | number}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-3">
+        {/* Status breakdown */}
+        <div className="cs-card px-4 py-4">
+          <div className="cs-card-wash" />
+          <p className="relative z-10 mb-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Status</p>
+          <div className="relative z-10 space-y-2">
+            {[
+              ['Completed', d.completed, 'text-emerald-400'],
+              ['Errors', d.errors, d.errors > 0 ? 'text-rose-400' : 'text-zinc-600'],
+              ['Rate Limited', d.rate_limited, d.rate_limited > 0 ? 'text-amber-400' : 'text-zinc-600'],
+              ['Running Now', d.running_now, d.running_now > 0 ? 'text-zinc-300' : 'text-zinc-600'],
+            ].map(([label, val, cls]) => (
+              <div key={label as string} className="flex justify-between text-[13px]">
+                <span className="text-zinc-400">{label}</span>
+                <span className={`font-bold tabular-nums ${cls}`}>{val as number}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Top CDNs */}
+        <div className="cs-card px-4 py-4">
+          <div className="cs-card-wash" />
+          <p className="relative z-10 mb-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Top CDNs</p>
+          {d.top_cdns.length === 0 ? (
+            <p className="relative z-10 text-[12px] text-zinc-600">No data yet</p>
+          ) : (
+            <div className="relative z-10 space-y-1.5">
+              {d.top_cdns.map(c => (
+                <div key={c.cdn_provider} className="flex items-center justify-between text-[12px]">
+                  <span className="truncate text-zinc-300">{c.cdn_provider}</span>
+                  <span className="ml-2 shrink-0 tabular-nums text-zinc-500">{c.total}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Top URLs */}
+        <div className="cs-card px-4 py-4">
+          <div className="cs-card-wash" />
+          <p className="relative z-10 mb-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Top URLs</p>
+          {d.top_urls.length === 0 ? (
+            <p className="relative z-10 text-[12px] text-zinc-600">No data yet</p>
+          ) : (
+            <div className="relative z-10 space-y-1.5">
+              {d.top_urls.slice(0, 5).map(u => (
+                <div key={u.url} className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className="truncate font-mono text-zinc-400">{u.url.replace(/^https?:\/\//, '')}</span>
+                  <span className="shrink-0 tabular-nums text-zinc-600">{u.checks}×</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function ObservabilityDashboard() {
@@ -1302,6 +1430,7 @@ export function ObservabilityDashboard() {
   const [dbSummary, setDbSummary] = useState<DbSummaryData | null>(null)
   const [dbLocks, setDbLocks] = useState<DbLocksData | null>(null)
   const [system, setSystem] = useState<SystemResourcesData | null>(null)
+  const [publicChecker, setPublicChecker] = useState<PublicCheckerData | null>(null)
 
   const [initialLoading, setInitialLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -1321,7 +1450,7 @@ export function ObservabilityDashboard() {
 
     const q = `?window=${timeWindow}`
 
-    const [ovR, svcR, provR, sloR, ingR, prR, flR, delR, tenR, dbSumR, dbLockR, sysR] =
+    const [ovR, svcR, provR, sloR, ingR, prR, flR, delR, tenR, dbSumR, dbLockR, sysR, pubR] =
       await Promise.allSettled([
         safeFetch('/api/admin/health/overview'),
         safeFetch('/api/admin/health/services'),
@@ -1335,6 +1464,7 @@ export function ObservabilityDashboard() {
         safeFetch('/api/admin/db/summary'),
         safeFetch('/api/admin/db/locks'),
         safeFetch('/api/admin/system/resources'),
+        safeFetch(`/api/admin/public-checker/stats${q}`),
       ])
 
     if (ovR.status === 'fulfilled') setOverview(ovR.value)
@@ -1349,6 +1479,7 @@ export function ObservabilityDashboard() {
     if (dbSumR.status === 'fulfilled') setDbSummary(dbSumR.value)
     if (dbLockR.status === 'fulfilled') setDbLocks(dbLockR.value)
     if (sysR.status === 'fulfilled') setSystem(sysR.value)
+    if (pubR.status === 'fulfilled') setPublicChecker(pubR.value)
 
     setLastUpdated(new Date())
     setInitialLoading(false)
@@ -1464,6 +1595,7 @@ export function ObservabilityDashboard() {
       <TenantsSection data={tenants} loading={initialLoading} />
       <DbSection summary={dbSummary} locks={dbLocks} loading={initialLoading} />
       <SystemSection data={system} loading={initialLoading} />
+      <PublicCheckerSection data={publicChecker} loading={initialLoading} />
     </div>
   )
 }
