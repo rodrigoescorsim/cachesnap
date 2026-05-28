@@ -248,9 +248,20 @@ export default async function RootPage() {
 
             <HeroUrlForm />
 
-            <p className="text-xs font-medium text-zinc-400 uppercase tracking-widest -mt-2">
-              Start testing for free · No credit card required
-            </p>
+            <div className="flex flex-col items-center gap-2 -mt-2">
+              <p className="text-xs font-medium text-zinc-400 uppercase tracking-widest">
+                Start testing for free · No credit card required
+              </p>
+              <p className="text-xs text-zinc-600">
+                Just want a quick check?{' '}
+                <Link
+                  href="/cdn-cache-checker"
+                  className="text-zinc-500 underline underline-offset-2 transition-colors hover:text-zinc-300"
+                >
+                  Test any URL instantly — no signup →
+                </Link>
+              </p>
+            </div>
           </div>
 
           <div id="how-it-works" className="mt-14 scroll-mt-24 text-center sm:mt-16">
@@ -569,6 +580,21 @@ export default async function RootPage() {
                 Full details →
               </Link>
             </p>
+
+            {/* Free tool nudge */}
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <span className="h-px w-12 bg-white/[0.06]" aria-hidden />
+              <p className="text-center text-[12px] text-zinc-600">
+                Not ready to commit?{' '}
+                <Link
+                  href="/cdn-cache-checker"
+                  className="font-medium text-zinc-500 underline underline-offset-2 transition-colors hover:text-zinc-300"
+                >
+                  Check your CDN for free — no account needed →
+                </Link>
+              </p>
+              <span className="h-px w-12 bg-white/[0.06]" aria-hidden />
+            </div>
 
           </div>
         </section>

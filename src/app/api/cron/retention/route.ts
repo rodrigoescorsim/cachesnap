@@ -10,15 +10,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const result = await sql<{ deleted: number }[]>`
-    WITH deleted AS (
-      DELETE FROM probe_results
-      WHERE time < NOW() - (${RETENTION_DAYS} * INTERVAL '1 day')
-      RETURNING 1
-    )
-    SELECT COUNT(*)::int AS deleted FROM deleted
-  `
+  const [probeResult, publicJobsResult] = await Promise.all([
+    sql<{ deleted: number }[]>`
+      WITH deleted AS (
+        DELETE FROM probe_results
+        WHERE time < NOW() - (${RETENTION_DAYS} * INTERVAL '1 day')
+        RETURNING 1
+      )
+      SELECT COUNT(*)::int AS deleted FROM deleted
+    `,
+    // CASCADE handles public_check_results cleanup automatically
+    sql<{ deleted: number }[]>`
+      WITH deleted AS (
+        DELETE FROM public_check_jobs
+        WHERE expires_at < NOW()
+        RETURNING 1
+      )
+      SELECT COUNT(*)::int AS deleted FROM deleted
+    `.catch(() => [{ deleted: 0 }]),
+  ])
 
-  const deleted = result[0]?.deleted ?? 0
-  return NextResponse.json({ ok: true, deleted, retentionDays: RETENTION_DAYS })
+  return NextResponse.json({
+    ok: true,
+    deleted: probeResult[0]?.deleted ?? 0,
+    publicJobsDeleted: publicJobsResult[0]?.deleted ?? 0,
+    retentionDays: RETENTION_DAYS,
+  })
 }

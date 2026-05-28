@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Menu, X } from 'lucide-react'
 import { Logo } from '@/components/logo'
 
-type MarketingNav = 'home' | 'pricing'
+type MarketingNav = 'home' | 'pricing' | 'cdn-cache-checker'
 
 type MarketingHeaderProps = {
   activeNav?: MarketingNav
@@ -63,6 +63,22 @@ export function MarketingHeader({ activeNav }: MarketingHeaderProps) {
           <Link href="/pricing" className={navLinkClass(activeNav === 'pricing')}>
             Pricing
           </Link>
+          <Link
+            href="/cdn-cache-checker"
+            className={`${navLinkClass(activeNav === 'cdn-cache-checker')} flex items-center gap-1.5`}
+          >
+            CDN Checker
+            <span
+              className="rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider leading-none"
+              style={{
+                backgroundColor: 'rgba(var(--brand-primary-rgb), 0.12)',
+                color: 'var(--brand-primary)',
+                border: '1px solid rgba(var(--brand-primary-rgb), 0.25)',
+              }}
+            >
+              Free
+            </span>
+          </Link>
         </nav>
 
         <div className="relative z-10 flex items-center gap-2 sm:gap-3">
@@ -117,6 +133,25 @@ export function MarketingHeader({ activeNav }: MarketingHeaderProps) {
               onClick={closeMenu}
             >
               Pricing
+            </Link>
+            <Link
+              href="/cdn-cache-checker"
+              className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:bg-white/[0.04] hover:text-white ${
+                activeNav === 'cdn-cache-checker' ? 'text-white' : 'text-zinc-300'
+              }`}
+              onClick={closeMenu}
+            >
+              CDN Cache Checker
+              <span
+                className="rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider leading-none"
+                style={{
+                  backgroundColor: 'rgba(var(--brand-primary-rgb), 0.12)',
+                  color: 'var(--brand-primary)',
+                  border: '1px solid rgba(var(--brand-primary-rgb), 0.25)',
+                }}
+              >
+                Free
+              </span>
             </Link>
             <Link
               href="/login"
@@ -187,6 +222,20 @@ export function MarketingFooter() {
             <FooterLink href="/#dashboard">Dashboard</FooterLink>
             <FooterLink href="/pricing">Pricing</FooterLink>
             <FooterLink href="/signup">Start free</FooterLink>
+            <li>
+              <Link href="/cdn-cache-checker" className={`${FOOTER_LINK_CLASS} inline-flex items-center gap-1.5`}>
+                CDN Checker
+                <span
+                  className="rounded px-1 py-0.5 text-[9px] font-black uppercase tracking-wider leading-none"
+                  style={{
+                    backgroundColor: 'rgba(var(--brand-primary-rgb), 0.1)',
+                    color: 'var(--brand-primary)',
+                  }}
+                >
+                  free
+                </span>
+              </Link>
+            </li>
           </FooterColumn>
 
           <FooterColumn title="Account">
