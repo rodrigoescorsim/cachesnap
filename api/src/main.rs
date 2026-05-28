@@ -134,6 +134,7 @@ async fn main() -> Result<()> {
         .route("/health", get(routes::health::handler))
         .route("/api/events", get(routes::events::handler))
         .route("/api/ingest", post(routes::ingest::handler))
+        .route("/api/public/dispatch", post(routes::public_dispatch::handler))
         .route("/api/monitors/active", get(routes::monitors::list_active))
         .route("/api/monitors/:id/dispatch", post(routes::dispatch::handler))
         .route("/api/monitors/:id/evaluate-readiness", post(routes::evaluate::handler))

@@ -6,3 +6,4 @@ pub mod health;
 pub mod ingest;
 pub mod monitors;
 pub mod events;
+pub mod public_dispatch;
