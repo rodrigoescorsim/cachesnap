@@ -33,3 +33,25 @@ export async function checkRateLimit(
     return true
   }
 }
+
+/**
+ * Deletes the most recently inserted rate limit record for `key`.
+ * Call this to refund a slot when a request was rejected server-side
+ * (e.g. dispatch failure) so the user is not penalized for a service error.
+ * Non-critical — failure is silently ignored.
+ */
+export async function refundRateLimit(key: string): Promise<void> {
+  try {
+    await sql`
+      DELETE FROM rate_limit_attempts
+      WHERE id = (
+        SELECT id FROM rate_limit_attempts
+        WHERE key = ${key}
+        ORDER BY created_at DESC
+        LIMIT 1
+      )
+    `
+  } catch {
+    // Non-critical
+  }
+}
