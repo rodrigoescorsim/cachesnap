@@ -21,7 +21,7 @@ export async function GET() {
 
   const since15m = new Date(Date.now() - 15 * 60 * 1000)
 
-  const [regions, regionErrors, resendRows] = await Promise.all([
+  const [regions, regionErrors, resendRows, otherChannels] = await Promise.all([
     sql<{ id: string }[]>`
       SELECT id FROM regions WHERE enabled = true ORDER BY id
     `,
@@ -59,6 +59,22 @@ export async function GET() {
         AND provider = 'resend'
         AND time > ${since15m}
     `.catch(() => []),
+    sql<{
+      channel: string
+      provider: string
+      success_count: number
+      fail_count: number
+    }[]>`
+      SELECT
+        channel,
+        provider,
+        COALESCE(SUM(success_count), 0)::int AS success_count,
+        COALESCE(SUM(fail_count), 0)::int AS fail_count
+      FROM ops_alert_delivery_stats
+      WHERE time > ${since15m}
+        AND NOT (channel = 'email' AND provider = 'resend')
+      GROUP BY channel, provider
+    `.catch(() => []),
   ])
 
   const regionIds = regions.map(r => r.id)
@@ -90,6 +106,34 @@ export async function GET() {
       last_success_age_s: resend?.last_success_age_s ?? null,
     },
   ]
+
+  for (const row of otherChannels) {
+    const success = Number(row.success_count)
+    const failures = Number(row.fail_count)
+    const total = success + failures
+    if (total === 0) continue
+
+    const label =
+      row.channel === 'slack'
+        ? 'Slack'
+        : row.channel === 'webhook'
+          ? 'Custom Webhook'
+          : `${row.channel} (${row.provider})`
+    const status: ProviderStatus =
+      failures === 0 ? 'healthy' : success === 0 ? 'critical' : 'warning'
+    const detail =
+      failures > 0
+        ? `${failures} failed / ${success} delivered in 15 min`
+        : `${success} delivered in 15 min`
+
+    providers.push({
+      name: label,
+      status,
+      detail,
+      error_count_15m: failures,
+      last_success_age_s: null,
+    })
+  }
 
   for (const regionId of regionIds) {
     const info = regionMap.get(regionId)

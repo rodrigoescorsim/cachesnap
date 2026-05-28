@@ -10,6 +10,15 @@ const WINDOW_MINUTES: Record<string, number> = {
   '7d': 10080,
 }
 
+/** Monitors with at least one enabled channel and a non-empty destination. */
+const MONITOR_HAS_DESTINATION = sql`
+  (
+    (m.notify_email_enabled AND NULLIF(BTRIM(m.notify_email), '') IS NOT NULL)
+    OR (m.notify_slack_enabled AND NULLIF(BTRIM(m.notify_slack_webhook), '') IS NOT NULL)
+    OR (m.notify_webhook_enabled AND NULLIF(BTRIM(m.notify_webhook_url), '') IS NOT NULL)
+  )
+`
+
 export async function GET(request: NextRequest) {
   const admin = await getAdminSession()
   if (!admin) return unauthorized()
@@ -20,54 +29,89 @@ export async function GET(request: NextRequest) {
   const windowMinutes = WINDOW_MINUTES[windowParam] ?? 15
   const since = new Date(Date.now() - windowMinutes * 60 * 1000)
 
-  const [totals, byType, providerTotals] = await Promise.all([
+  const [totals, byType, byChannel, recentErrors, latencyRow] = await Promise.all([
     sql<{ total: number; delivered: number }[]>`
       SELECT
-        COUNT(*)::int                                                              AS total,
-        COUNT(*) FILTER (WHERE notified_email OR notified_slack OR notified_webhook)::int AS delivered
-      FROM alerts
-      WHERE created_at > ${since}
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE a.notified_email OR a.notified_slack OR a.notified_webhook)::int AS delivered
+      FROM alerts a
+      JOIN monitors m ON m.id = a.monitor_id
+      WHERE a.created_at > ${since}
+        AND ${MONITOR_HAS_DESTINATION}
     `,
     sql<{ alert_type: string; total: number; delivered: number; failed: number }[]>`
       SELECT
-        alert_type,
-        COUNT(*)::int                                                              AS total,
-        COUNT(*) FILTER (WHERE notified_email OR notified_slack OR notified_webhook)::int AS delivered,
-        COUNT(*) FILTER (WHERE NOT notified_email AND NOT notified_slack AND NOT notified_webhook)::int AS failed
-      FROM alerts
-      WHERE created_at > ${since}
-      GROUP BY alert_type
+        a.alert_type,
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE a.notified_email OR a.notified_slack OR a.notified_webhook)::int AS delivered,
+        COUNT(*) FILTER (WHERE NOT a.notified_email AND NOT a.notified_slack AND NOT a.notified_webhook)::int AS failed
+      FROM alerts a
+      JOIN monitors m ON m.id = a.monitor_id
+      WHERE a.created_at > ${since}
+        AND ${MONITOR_HAS_DESTINATION}
+      GROUP BY a.alert_type
       ORDER BY total DESC
     `,
     sql<{
-      total: number
+      channel: string
+      provider: string
       delivered: number
       failed: number
-      mean_latency_ms: number | null
     }[]>`
       SELECT
-        COALESCE(SUM(success_count + fail_count), 0)::int AS total,
+        channel,
+        provider,
         COALESCE(SUM(success_count), 0)::int AS delivered,
-        COALESCE(SUM(fail_count), 0)::int AS failed,
-        ROUND(AVG(avg_latency_ms))::int AS mean_latency_ms
+        COALESCE(SUM(fail_count), 0)::int AS failed
       FROM ops_alert_delivery_stats
       WHERE time > ${since}
+      GROUP BY channel, provider
+      ORDER BY SUM(fail_count) DESC, channel
+    `.catch(() => []),
+    sql<{
+      channel: string
+      provider: string
+      error_message: string
+      time: Date
+    }[]>`
+      SELECT channel, provider, error_message, time
+      FROM ops_alert_delivery_stats
+      WHERE time > ${since}
+        AND fail_count > 0
+        AND error_message IS NOT NULL
+      ORDER BY time DESC
+      LIMIT 8
+    `.catch(() => []),
+    sql<{ mean_latency_ms: number | null }[]>`
+      SELECT ROUND(AVG(avg_latency_ms))::int AS mean_latency_ms
+      FROM ops_alert_delivery_stats
+      WHERE time > ${since}
+        AND success_count > 0
+        AND avg_latency_ms IS NOT NULL
     `.catch(() => []),
   ])
 
-  const providerTotal = providerTotals[0]?.total ?? 0
-  const total = providerTotal || totals[0]?.total || 0
-  const delivered = providerTotal ? providerTotals[0]?.delivered ?? 0 : totals[0]?.delivered ?? 0
+  const total = totals[0]?.total ?? 0
+  const delivered = totals[0]?.delivered ?? 0
+  const failed = Math.max(0, total - delivered)
   const deliveryRate = total > 0 ? Math.round((delivered / total) * 1000) / 10 : null
 
   return NextResponse.json({
     data: {
       window: windowParam,
       total_alerts: total,
+      delivered,
+      failed_deliveries: failed,
       by_type: byType,
+      by_channel: byChannel,
+      recent_errors: recentErrors.map(row => ({
+        channel: row.channel,
+        provider: row.provider,
+        message: row.error_message,
+        time: row.time.toISOString(),
+      })),
       delivery_rate: deliveryRate,
-      failed_deliveries: providerTotals[0]?.failed ?? null,
-      mean_delivery_latency_ms: providerTotals[0]?.mean_latency_ms ?? null,
+      mean_delivery_latency_ms: latencyRow[0]?.mean_latency_ms ?? null,
     },
   })
 }

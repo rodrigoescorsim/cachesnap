@@ -67,13 +67,19 @@ export async function GET(request: NextRequest) {
       WHERE time > ${since}
     `,
 
-    // Notification delivery: alerts with at least one delivery channel
+    // Notification delivery: alerts for monitors with a configured destination
     sql<{ total: number; delivered: number }[]>`
       SELECT
-        COUNT(*)::int                                                          AS total,
-        COUNT(*) FILTER (WHERE notified_email OR notified_slack OR notified_webhook)::int AS delivered
-      FROM alerts
-      WHERE created_at > ${since}
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE a.notified_email OR a.notified_slack OR a.notified_webhook)::int AS delivered
+      FROM alerts a
+      JOIN monitors m ON m.id = a.monitor_id
+      WHERE a.created_at > ${since}
+        AND (
+          (m.notify_email_enabled AND NULLIF(BTRIM(m.notify_email), '') IS NOT NULL)
+          OR (m.notify_slack_enabled AND NULLIF(BTRIM(m.notify_slack_webhook), '') IS NOT NULL)
+          OR (m.notify_webhook_enabled AND NULLIF(BTRIM(m.notify_webhook_url), '') IS NOT NULL)
+        )
     `,
 
     // Ingest success rate from ops table (populated by Rust ingest route).

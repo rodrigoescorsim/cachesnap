@@ -146,11 +146,28 @@ interface DeliveryData {
   data: {
     window: string
     total_alerts: number
+    delivered: number
     by_type: AlertByType[]
+    by_channel: DeliveryChannel[]
+    recent_errors: DeliveryError[]
     delivery_rate: number | null
     failed_deliveries: number | null
     mean_delivery_latency_ms: number | null
   }
+}
+
+interface DeliveryChannel {
+  channel: string
+  provider: string
+  delivered: number
+  failed: number
+}
+
+interface DeliveryError {
+  channel: string
+  provider: string
+  message: string
+  time: string
 }
 
 interface TenantsData {
@@ -763,9 +780,11 @@ function DeliverySection({ data, loading }: { data: DeliveryData | null; loading
 
   const rate = data.data.delivery_rate
   const total = data.data.total_alerts
-  const failed = data.data.failed_deliveries ?? data.data.by_type.reduce((sum, t) => sum + t.failed, 0)
-  const delivered = Math.max(0, total - failed)
+  const failed = data.data.failed_deliveries ?? 0
+  const delivered = data.data.delivered ?? Math.max(0, total - failed)
   const latency = data.data.mean_delivery_latency_ms
+  const byChannel = data.data.by_channel ?? []
+  const recentErrors = data.data.recent_errors ?? []
 
   return (
     <section>
@@ -828,8 +847,50 @@ function DeliverySection({ data, loading }: { data: DeliveryData | null; loading
           </div>
         </div>
         <p className="relative z-10 mb-3 border-t border-border/60 pt-3 text-[10px] text-zinc-600">
-          Window: {data.data.window}
+          Window: {data.data.window} · Monitors with a notification channel only
         </p>
+        {byChannel.length > 0 && (
+          <div className="relative z-10 mb-4 space-y-1.5">
+            <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">
+              By channel
+            </p>
+            {byChannel.map(row => (
+              <div
+                key={`${row.channel}-${row.provider}`}
+                className="flex items-center gap-3 text-[11px]"
+              >
+                <span className="min-w-[72px] capitalize text-zinc-500">{row.channel}</span>
+                <span className="text-zinc-600">{row.provider}</span>
+                <span className="tabular-nums text-emerald-400/80">{row.delivered} ok</span>
+                {row.failed > 0 && (
+                  <span className="tabular-nums text-rose-400">{row.failed} failed</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {recentErrors.length > 0 && (
+          <div className="relative z-10 mb-4 space-y-1.5">
+            <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">
+              Recent errors
+            </p>
+            {recentErrors.map(row => (
+              <div
+                key={`${row.time}-${row.channel}-${row.message.slice(0, 24)}`}
+                className="rounded-md border border-rose-500/20 bg-rose-500/5 px-3 py-2"
+              >
+                <div className="mb-1 flex items-center gap-2 text-[10px]">
+                  <span className="font-semibold capitalize text-rose-300">{row.channel}</span>
+                  <span className="text-zinc-600">{row.provider}</span>
+                  <span className="ml-auto tabular-nums text-zinc-600">
+                    {formatAge(new Date(row.time))}
+                  </span>
+                </div>
+                <p className="text-[11px] leading-snug text-zinc-400">{row.message}</p>
+              </div>
+            ))}
+          </div>
+        )}
         {data.data.by_type.length > 0 && (
           <div className="relative z-10 space-y-1.5">
             {data.data.by_type.map(t => (
