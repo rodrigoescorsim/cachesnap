@@ -9,7 +9,7 @@ use uuid::Uuid;
 use tokio::sync::broadcast;
 
 async fn get_test_state() -> AppState {
-    dotenvy::dotenv().ok();
+    crate::env::load_dotenv_files();
     let config = Arc::new(config::Config::from_env().unwrap());
     let db = db::connect(&config.database_url).await.unwrap();
     db::run_migrations(&db).await.unwrap();

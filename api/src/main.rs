@@ -4,6 +4,7 @@ mod cache_status;
 mod config;
 mod db;
 mod diagnosis;
+mod env;
 mod models;
 mod redis;
 mod routes;
@@ -65,8 +66,8 @@ impl AppState {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Carregar .env
-    dotenvy::dotenv().ok();
+    // Root .env + api/.env (monorepo — RESEND_API_KEY etc. live at repo root)
+    env::load_dotenv_files();
 
     // Logging — set RUST_LOG_FORMAT=json for structured JSON output (e.g. Loki, CloudWatch).
     let log_filter = tracing_subscriber::EnvFilter::try_from_default_env()
