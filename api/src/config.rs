@@ -132,8 +132,18 @@ impl Config {
             alert_from_email: std::env::var("ALERT_FROM_EMAIL")
                 .unwrap_or_else(|_| "CacheSnap <alerts@cachesnap.com>".to_string()),
             slack_webhook_url: optional("SLACK_WEBHOOK_URL"),
-            app_url: std::env::var("APP_URL")
-                .unwrap_or_else(|_| "http://localhost:3000".to_string()),
+            app_url: {
+                let url = std::env::var("APP_URL")
+                    .unwrap_or_else(|_| "http://localhost:3000".to_string());
+                if is_loopback_url(&url) {
+                    warn!(
+                        url = %url,
+                        "APP_URL is a loopback address — Lambda workers cannot POST public check \
+                         results to /api/public/ingest. Set APP_URL to the public-facing Next.js URL."
+                    );
+                }
+                url
+            },
             api_url: {
                 let url = std::env::var("API_URL")
                     .unwrap_or_else(|_| "http://localhost:3001".to_string());
