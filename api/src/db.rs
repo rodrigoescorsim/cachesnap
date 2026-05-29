@@ -36,7 +36,7 @@ async fn resync_embedded_migration_checksums(pool: &PgPool, migrator: &sqlx::mig
 
 pub async fn run_migrations(pool: &PgPool) -> Result<()> {
     // Force rebuild when adding files under ../migrations (sqlx embeds at compile time).
-    let migrator = sqlx::migrate!("../migrations"); // v22 public_check_redirect_count
+    let migrator = sqlx::migrate!("../migrations"); // v23 public_check_timing
     match migrator.run(pool).await {
         Ok(()) => {}
         Err(MigrateError::VersionMismatch(version)) => {
