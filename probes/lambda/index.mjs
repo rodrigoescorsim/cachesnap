@@ -152,7 +152,7 @@ export const handler = async (event) => {
     body = event;
   }
 
-  const { monitor_id, url, ingest_url, run_bypass, is_manual } = body;
+  const { monitor_id, job_id, url, ingest_url, run_bypass, is_manual } = body;
   const probeSecret = process.env.PROBE_SECRET;
   const region = process.env.REGION || 'unknown';
 
@@ -297,8 +297,13 @@ export const handler = async (event) => {
   // 4. Report to CacheSnap ingest API
   const reportData = {
     ...result,
-    probe_version: "1.29"
+    probe_version: "1.29",
   };
+  // Public CDN checker uses Next.js /api/public/ingest (job_id), not monitor ingest.
+  if (ingest_url.includes('/api/public/ingest')) {
+    reportData.job_id = job_id || monitor_id;
+    delete reportData.monitor_id;
+  }
   await sendToIngest(ingest_url, reportData, probeSecret);
 
   return {
