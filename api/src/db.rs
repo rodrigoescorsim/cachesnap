@@ -35,8 +35,8 @@ async fn resync_embedded_migration_checksums(pool: &PgPool, migrator: &sqlx::mig
 }
 
 pub async fn run_migrations(pool: &PgPool) -> Result<()> {
-    // Force rebuild comment to embed new sqlx migrations
-    let migrator = sqlx::migrate!("../migrations");
+    // Force rebuild when adding files under ../migrations (sqlx embeds at compile time).
+    let migrator = sqlx::migrate!("../migrations"); // v21 public_check_job_region_unique
     match migrator.run(pool).await {
         Ok(()) => {}
         Err(MigrateError::VersionMismatch(version)) => {
