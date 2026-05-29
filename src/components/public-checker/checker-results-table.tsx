@@ -3,10 +3,80 @@
 import { useEffect, useRef, useState } from 'react'
 import { CheckerLiveTable } from './checker-live-table'
 import { CheckerSummaryBar } from './checker-summary-bar'
+import { ProbeWaterfall, type WaterfallProbe } from '@/app/dashboard/monitors/[id]/probe-waterfall'
 import { PUBLIC_PROBE_REGION_IDS } from '@/lib/public-regions'
 import type { CheckJobResponse, CheckResult } from './types'
 
 const POLL_INTERVAL_MS = 1500
+
+function avg(results: CheckResult[], field: keyof CheckResult): number | null {
+  const vals = results
+    .map(r => r[field] as number | null)
+    .filter((v): v is number => v != null)
+  return vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null
+}
+
+function rangeOf(results: CheckResult[], field: keyof CheckResult) {
+  const vals = results
+    .map(r => r[field] as number | null)
+    .filter((v): v is number => v != null)
+  return vals.length > 0 ? { min: Math.min(...vals), max: Math.max(...vals) } : null
+}
+
+function buildGlobalProbe(results: CheckResult[]): WaterfallProbe | null {
+  const completed = results.filter(r => r.ttfb_ms != null)
+  if (completed.length === 0) return null
+
+  const hitRate = Math.round(
+    completed.filter(r => r.cache_status?.toUpperCase() === 'HIT').length / completed.length * 100
+  )
+
+  const tcpAvg = avg(completed, 'tcp_ms')
+  const breakdown: Record<string, number> = {}
+  if (tcpAvg != null) breakdown.tcp_ms = tcpAvg
+
+  const validStbs = completed
+    .map(r => r.server_timing_breakdown)
+    .filter((v): v is Record<string, number> => v != null && Object.keys(v).length > 0)
+  for (const key of new Set(validStbs.flatMap(b => Object.keys(b)))) {
+    if (key === 'tcp_ms') continue
+    const vals = validStbs.map(b => b[key]).filter((v): v is number => typeof v === 'number')
+    if (vals.length > 0) breakdown[key] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
+  }
+
+  const latestProbedAt = completed
+    .map(r => new Date(r.probed_at))
+    .reduce((latest, d) => (d > latest ? d : latest), new Date(0))
+
+  return {
+    region: 'Global',
+    dns_ms: avg(completed, 'dns_ms'),
+    tls_ms: avg(completed, 'tls_ms'),
+    ttfb_ms: avg(completed, 'ttfb_ms'),
+    download_ms: avg(completed, 'download_ms'),
+    total_ms: avg(completed, 'total_ms'),
+    edge_ms: avg(completed, 'edge_ms'),
+    origin_ms: avg(completed, 'origin_ms'),
+    redirect_count: null,
+    cache_status: null,
+    served_by: null,
+    cdn_provider: null,
+    age_s: null,
+    server_timing_breakdown: Object.keys(breakdown).length > 0 ? breakdown : null,
+    probed_at: latestProbedAt,
+    ranges: {
+      dns_ms: rangeOf(completed, 'dns_ms'),
+      tls_ms: rangeOf(completed, 'tls_ms'),
+      ttfb_ms: rangeOf(completed, 'ttfb_ms'),
+      download_ms: rangeOf(completed, 'download_ms'),
+      total_ms: rangeOf(completed, 'total_ms'),
+      edge_ms: rangeOf(completed, 'edge_ms'),
+      origin_ms: rangeOf(completed, 'origin_ms'),
+    },
+  }
+}
+
+const GLOBAL_REGION_LABELS: Record<string, string> = { Global: 'Global Average' }
 const TIMEOUT_MS = 30_000
 
 interface Props {
@@ -123,6 +193,23 @@ export function CheckerResultsTable({ jobId, regionsTotal = 8 }: Props) {
         pendingRegionIds={!isDone ? pendingRegionIds : []}
         loading={isLoading && !timedOut && (data?.results.length ?? 0) === 0}
       />
+
+      {isDone && data && (() => {
+        const globalProbe = buildGlobalProbe(data.results)
+        return globalProbe ? (
+          <div className="cs-card px-4 py-4">
+            <div className="cs-card-wash" />
+            <div className="relative z-10">
+              <ProbeWaterfall
+                probes={[globalProbe]}
+                regionLabels={GLOBAL_REGION_LABELS}
+                hideHeader={false}
+                hideLegend={false}
+              />
+            </div>
+          </div>
+        ) : null
+      })()}
 
       {isDone && data && <CacheControlDetails results={data.results} />}
     </div>
