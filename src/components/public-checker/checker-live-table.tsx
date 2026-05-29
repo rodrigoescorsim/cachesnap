@@ -1,6 +1,7 @@
 'use client'
 
-import { Zap, ShieldAlert } from 'lucide-react'
+import { useState } from 'react'
+import { Zap, ShieldAlert, ChevronDown, ChevronRight } from 'lucide-react'
 import { PremiumTooltip } from '@/components/premium-tooltip'
 import { VisualGlow } from '@/app/dashboard/visual-glow'
 import {
@@ -9,6 +10,7 @@ import {
   ttfbMetricCellClass,
   TH_TTFB_HEADER,
 } from '@/app/dashboard/monitors/[id]/monitor-table-styles'
+import { ProbeWaterfall, type WaterfallProbe } from '@/app/dashboard/monitors/[id]/probe-waterfall'
 import { extractPop, popToCity, resolveCdnLabel } from '@/lib/edge-helpers'
 import { isCacheHit, isCacheMiss, getCacheDisplayLabel, getCacheStatusTooltip } from '@/lib/cache-utils'
 import { getTtfbTooltip, MONITOR_TTFB, ttfbRowFastMs } from '@/lib/thresholds'
@@ -24,6 +26,31 @@ interface Props {
   results: CheckResult[]
   pendingRegionIds?: string[]
   loading?: boolean
+}
+
+function toWaterfallProbe(result: CheckResult): WaterfallProbe {
+  return {
+    region: result.region,
+    dns_ms: result.dns_ms ?? null,
+    tls_ms: result.tls_ms ?? null,
+    ttfb_ms: result.ttfb_ms ?? null,
+    download_ms: result.download_ms ?? null,
+    total_ms: result.total_ms ?? null,
+    edge_ms: result.edge_ms ?? null,
+    origin_ms: result.origin_ms ?? null,
+    redirect_count: result.redirect_count ?? null,
+    cache_status: result.cache_status ?? null,
+    served_by: result.served_by ?? null,
+    cdn_provider: result.cdn_provider ?? null,
+    age_s: result.age_s ?? null,
+    server_timing_breakdown: {
+      ...(result.server_timing_breakdown ?? {}),
+      ...(result.tcp_ms != null && !(result.server_timing_breakdown?.tcp_ms)
+        ? { tcp_ms: result.tcp_ms }
+        : {}),
+    } as Record<string, number>,
+    probed_at: result.probed_at ? new Date(result.probed_at) : null,
+  }
 }
 
 function LoadingRow({ regionId }: { regionId: string }) {
@@ -42,7 +69,15 @@ function LoadingRow({ regionId }: { regionId: string }) {
   )
 }
 
-function ResultRow({ result }: { result: CheckResult }) {
+function ResultRow({
+  result,
+  expanded,
+  onToggle,
+}: {
+  result: CheckResult
+  expanded: boolean
+  onToggle: () => void
+}) {
   const pop = extractPop(result.served_by)
   const cdnLabel = resolveCdnLabel(result.cdn_provider, result.served_by)
   const isError = !!result.error && (result.ttfb_ms === null || result.ttfb_ms === undefined)
@@ -61,163 +96,202 @@ function ResultRow({ result }: { result: CheckResult }) {
   const ttfbFastMs = ttfbRowFastMs(result.cache_status)
   const hops = Number(result.redirect_count ?? 0)
 
+  const hasTimingData =
+    result.ttfb_ms != null &&
+    (result.dns_ms != null ||
+      result.tls_ms != null ||
+      result.edge_ms != null ||
+      result.origin_ms != null ||
+      (result.server_timing_breakdown != null &&
+        Object.keys(result.server_timing_breakdown).length > 0))
+
   return (
-    <tr className={`${MONITOR_TABLE.tbodyRow} hover:bg-white/[0.02] transition-colors`}>
-      <td className="cs-table-compact-td font-bold text-zinc-200">
-        <PremiumTooltip
-          content={PUBLIC_REGION_DESCRIPTIONS[result.region] ?? result.region}
-          position="top-left"
-        >
-          {regionLabel}
-        </PremiumTooltip>
-      </td>
-      <td className="cs-table-compact-td text-center">
-        {pop ? (
-          <PremiumTooltip content={`PoP code: ${pop}`} position="top-center" direction="top">
-            <span className="cs-pop-tag uppercase whitespace-nowrap">{popToCity(pop) || pop}</span>
-          </PremiumTooltip>
-        ) : (
-          <span className="cs-pop-tag">—</span>
-        )}
-      </td>
-      <td className="cs-table-compact-td text-center">
-        {cdnLabel ? (
-          <PremiumTooltip content={result.served_by || 'No edge hint'} position="top-center" direction="top">
-            <span className="cs-pop-tag truncate max-w-[140px]">{cdnLabel}</span>
-          </PremiumTooltip>
-        ) : (
-          <span className="cs-pop-tag">—</span>
-        )}
-      </td>
-      <td className="cs-table-compact-td text-center">
-        {(() => {
-          const status = result.cache_status
-          if (isError && !status) {
-            return (
-              <PremiumTooltip content={result.error || 'Connection failed'} position="top-center" direction="top">
-                <span className="cs-badge-cache-miss">ERROR</span>
-              </PremiumTooltip>
-            )
-          }
-          if (!status) {
-            return (
-              <PremiumTooltip content="No cache header detected" position="top-center" direction="top">
-                <span className="cs-badge-cache-not-reported">NO HEADER</span>
-              </PremiumTooltip>
-            )
-          }
-          const displayStatus = getCacheDisplayLabel(status)
-          const cacheTip = getCacheStatusTooltip(status)
-          if (isCacheHit(status)) {
-            return (
-              <PremiumTooltip content={cacheTip} position="top-center" direction="top">
-                <span className="cs-badge-cache-hit">
-                  <Zap className="h-[10px] w-[10px] fill-current" />
-                  {displayStatus}
-                </span>
-              </PremiumTooltip>
-            )
-          }
-          if (isCacheMiss(status)) {
-            return (
-              <PremiumTooltip content={cacheTip} position="top-center" direction="top">
-                <span className="cs-badge-cache-miss">{displayStatus}</span>
-              </PremiumTooltip>
-            )
-          }
-          return (
-            <PremiumTooltip content={cacheTip} position="top-center" direction="top">
-              <span className="cs-badge-cache-not-reported">{displayStatus}</span>
-            </PremiumTooltip>
-          )
-        })()}
-      </td>
-      <td
-        className={`${
-          isError
-            ? 'cs-table-compact-td'
-            : ttfbMetricCellClass(result.ttfb_ms, ttfbFastMs, MONITOR_TTFB.SLOW)
-        } !px-3 !py-2 text-[13px] text-center ${isWafBlock ? '!text-zinc-500' : ''}`}
+    <>
+      <tr
+        className={`${MONITOR_TABLE.tbodyRow} hover:bg-white/[0.02] transition-colors ${hasTimingData ? 'cursor-pointer' : ''}`}
+        onClick={hasTimingData ? onToggle : undefined}
       >
-        <div className="flex items-center justify-center gap-1.5">
-          <PremiumTooltip
-            content={
-              isError
-                ? result.error || 'Connection failed'
-                : isWafBlock
-                  ? 'WAF detected: this latency reflects security filtering, not page load speed.'
-                  : result.ttfb_ms != null
-                    ? getTtfbTooltip(result.ttfb_ms, 'monitor', ttfbFastMs, MONITOR_TTFB.SLOW)
-                    : 'No data'
-            }
-            position="top-right"
-            direction="top"
-          >
-            <div className="flex items-center justify-center gap-1.5">
-              {isWafBlock && <ShieldAlert className="w-3.5 h-3.5 text-orange-400" />}
-              <VisualGlow value={isWafBlock || isError ? null : result.ttfb_ms}>
-                {result.ttfb_ms != null && !isError ? `${Math.round(result.ttfb_ms)}ms` : '—'}
-              </VisualGlow>
-            </div>
-          </PremiumTooltip>
-        </div>
-      </td>
-      <td className="cs-table-compact-td text-right">
-        {age > 0 && ageVisual ? (
-          <div className="flex justify-end">
-            <PremiumTooltip content={ageVisual.tooltip} position="top-right" direction="top">
-              <span className={ageVisual.className}>{formatCacheAgeShort(age)}</span>
+        <td className="cs-table-compact-td font-bold text-zinc-200">
+          <div className="flex items-center gap-1.5">
+            {hasTimingData ? (
+              expanded
+                ? <ChevronDown className="h-3 w-3 shrink-0 text-zinc-500" />
+                : <ChevronRight className="h-3 w-3 shrink-0 text-zinc-500" />
+            ) : (
+              <span className="w-3 shrink-0" />
+            )}
+            <PremiumTooltip
+              content={PUBLIC_REGION_DESCRIPTIONS[result.region] ?? result.region}
+              position="top-left"
+            >
+              {regionLabel}
             </PremiumTooltip>
           </div>
-        ) : (
-          <span className="cs-pop-tag">—</span>
-        )}
-      </td>
-      <td className="cs-table-compact-td text-center">
-        <div className="flex items-center justify-end gap-1">
-          {hops > 0 && (
-            <PremiumTooltip
-              content={`This request was redirected ${hops} time${hops === 1 ? '' : 's'}.`}
-              position="top-right"
-            >
-              <span className="cs-badge-flat cs-badge-flat-muted" style={{ fontSize: '8px' }}>
-                {hops}↷
-              </span>
+        </td>
+        <td className="cs-table-compact-td text-center">
+          {pop ? (
+            <PremiumTooltip content={`PoP code: ${pop}`} position="top-center" direction="top">
+              <span className="cs-pop-tag uppercase whitespace-nowrap">{popToCity(pop) || pop}</span>
             </PremiumTooltip>
+          ) : (
+            <span className="cs-pop-tag">—</span>
           )}
-          {isRedirect ? (
-            <PremiumTooltip
-              content="HTTP redirect. Metrics reflect this response, not the final page after redirects."
-              position="top-right"
-              direction="top"
-            >
-              <span className="cs-badge-flat cs-badge-flat-warning">{result.status_code}</span>
+        </td>
+        <td className="cs-table-compact-td text-center">
+          {cdnLabel ? (
+            <PremiumTooltip content={result.served_by || 'No edge hint'} position="top-center" direction="top">
+              <span className="cs-pop-tag truncate max-w-[140px]">{cdnLabel}</span>
             </PremiumTooltip>
-          ) : isStatusErr ? (
+          ) : (
+            <span className="cs-pop-tag">—</span>
+          )}
+        </td>
+        <td className="cs-table-compact-td text-center">
+          {(() => {
+            const status = result.cache_status
+            if (isError && !status) {
+              return (
+                <PremiumTooltip content={result.error || 'Connection failed'} position="top-center" direction="top">
+                  <span className="cs-badge-cache-miss">ERROR</span>
+                </PremiumTooltip>
+              )
+            }
+            if (!status) {
+              return (
+                <PremiumTooltip content="No cache header detected" position="top-center" direction="top">
+                  <span className="cs-badge-cache-not-reported">NO HEADER</span>
+                </PremiumTooltip>
+              )
+            }
+            const displayStatus = getCacheDisplayLabel(status)
+            const cacheTip = getCacheStatusTooltip(status)
+            if (isCacheHit(status)) {
+              return (
+                <PremiumTooltip content={cacheTip} position="top-center" direction="top">
+                  <span className="cs-badge-cache-hit">
+                    <Zap className="h-[10px] w-[10px] fill-current" />
+                    {displayStatus}
+                  </span>
+                </PremiumTooltip>
+              )
+            }
+            if (isCacheMiss(status)) {
+              return (
+                <PremiumTooltip content={cacheTip} position="top-center" direction="top">
+                  <span className="cs-badge-cache-miss">{displayStatus}</span>
+                </PremiumTooltip>
+              )
+            }
+            return (
+              <PremiumTooltip content={cacheTip} position="top-center" direction="top">
+                <span className="cs-badge-cache-not-reported">{displayStatus}</span>
+              </PremiumTooltip>
+            )
+          })()}
+        </td>
+        <td
+          className={`${
+            isError
+              ? 'cs-table-compact-td'
+              : ttfbMetricCellClass(result.ttfb_ms, ttfbFastMs, MONITOR_TTFB.SLOW)
+          } !px-3 !py-2 text-[13px] text-center ${isWafBlock ? '!text-zinc-500' : ''}`}
+        >
+          <div className="flex items-center justify-center gap-1.5">
             <PremiumTooltip
               content={
-                isWafBlock
-                  ? 'Blocked by edge security (WAF)'
-                  : result.error || 'The edge server returned an error status or connection failed.'
+                isError
+                  ? result.error || 'Connection failed'
+                  : isWafBlock
+                    ? 'WAF detected: this latency reflects security filtering, not page load speed.'
+                    : result.ttfb_ms != null
+                      ? getTtfbTooltip(result.ttfb_ms, 'monitor', ttfbFastMs, MONITOR_TTFB.SLOW)
+                      : 'No data'
               }
               position="top-right"
               direction="top"
             >
-              <span className="cs-badge-flat cs-badge-flat-danger">{result.status_code || 'ERR'}</span>
+              <div className="flex items-center justify-center gap-1.5">
+                {isWafBlock && <ShieldAlert className="w-3.5 h-3.5 text-orange-400" />}
+                <VisualGlow value={isWafBlock || isError ? null : result.ttfb_ms}>
+                  {result.ttfb_ms != null && !isError ? `${Math.round(result.ttfb_ms)}ms` : '—'}
+                </VisualGlow>
+              </div>
             </PremiumTooltip>
+          </div>
+        </td>
+        <td className="cs-table-compact-td text-right">
+          {age > 0 && ageVisual ? (
+            <div className="flex justify-end">
+              <PremiumTooltip content={ageVisual.tooltip} position="top-right" direction="top">
+                <span className={ageVisual.className}>{formatCacheAgeShort(age)}</span>
+              </PremiumTooltip>
+            </div>
           ) : (
-            <PremiumTooltip content="Successful request" position="top-right" direction="top">
-              <span className={`cs-badge-flat ${statusColorClass}`}>{result.status_code ?? '200'}</span>
-            </PremiumTooltip>
+            <span className="cs-pop-tag">—</span>
           )}
-        </div>
-      </td>
-    </tr>
+        </td>
+        <td className="cs-table-compact-td text-center">
+          <div className="flex items-center justify-end gap-1">
+            {hops > 0 && (
+              <PremiumTooltip
+                content={`This request was redirected ${hops} time${hops === 1 ? '' : 's'}.`}
+                position="top-right"
+              >
+                <span className="cs-badge-flat cs-badge-flat-muted" style={{ fontSize: '8px' }}>
+                  {hops}↷
+                </span>
+              </PremiumTooltip>
+            )}
+            {isRedirect ? (
+              <PremiumTooltip
+                content="HTTP redirect. Metrics reflect this response, not the final page after redirects."
+                position="top-right"
+                direction="top"
+              >
+                <span className="cs-badge-flat cs-badge-flat-warning">{result.status_code}</span>
+              </PremiumTooltip>
+            ) : isStatusErr ? (
+              <PremiumTooltip
+                content={
+                  isWafBlock
+                    ? 'Blocked by edge security (WAF)'
+                    : result.error || 'The edge server returned an error status or connection failed.'
+                }
+                position="top-right"
+                direction="top"
+              >
+                <span className="cs-badge-flat cs-badge-flat-danger">{result.status_code || 'ERR'}</span>
+              </PremiumTooltip>
+            ) : (
+              <PremiumTooltip content="Successful request" position="top-right" direction="top">
+                <span className={`cs-badge-flat ${statusColorClass}`}>{result.status_code ?? '200'}</span>
+              </PremiumTooltip>
+            )}
+          </div>
+        </td>
+      </tr>
+
+      {expanded && hasTimingData && (
+        <tr className={MONITOR_TABLE.tbodyRow}>
+          <td colSpan={7} className="px-4 pb-4 pt-0">
+            <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-4">
+              <ProbeWaterfall
+                probes={[toWaterfallProbe(result)]}
+                regionLabels={PUBLIC_REGION_LABELS}
+                hideHeader
+                hideLegend={false}
+              />
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   )
 }
 
 export function CheckerLiveTable({ results, pendingRegionIds = [], loading }: Props) {
-  const resultMap = new Map(results.map((r) => [r.region, r]))
+  const [expandedRegion, setExpandedRegion] = useState<string | null>(null)
+
   const sortedResults = [...results].sort((a, b) => (b.ttfb_ms ?? 0) - (a.ttfb_ms ?? 0))
 
   const pendingSet = new Set(pendingRegionIds)
@@ -233,7 +307,7 @@ export function CheckerLiveTable({ results, pendingRegionIds = [], loading }: Pr
           <thead>
             <tr className={MONITOR_TABLE.theadRow}>
               <th className="cs-table-compact-th !text-center">
-                <PremiumTooltip content="Geographic region" position="top-center" direction="top">
+                <PremiumTooltip content="Geographic region — click row to expand timing" position="top-center" direction="top">
                   Region
                 </PremiumTooltip>
               </th>
@@ -279,7 +353,12 @@ export function CheckerLiveTable({ results, pendingRegionIds = [], loading }: Pr
               : (
                 <>
                   {sortedResults.map((r) => (
-                    <ResultRow key={r.region} result={r} />
+                    <ResultRow
+                      key={r.region}
+                      result={r}
+                      expanded={expandedRegion === r.region}
+                      onToggle={() => setExpandedRegion(prev => prev === r.region ? null : r.region)}
+                    />
                   ))}
                   {orderedPending.map((id) => (
                     <LoadingRow key={`pending-${id}`} regionId={id} />

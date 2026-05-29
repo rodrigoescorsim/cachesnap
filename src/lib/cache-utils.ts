@@ -46,10 +46,10 @@ export function pgTtfbExceedsRowLimitSql(opts: {
 }): string {
   const status = opts.statusExpr ?? 'cache_status'
   const hitFilter = PG_CACHE_CDN_HIT_FILTER.replace(/^cache_status/, status)
-  const missList = CACHE_MISS_STATUSES.map((s) => `'${s}'`).join(', ')
+  const missFilter = PG_CACHE_CDN_MISS_FILTER.replace(/^cache_status/, status)
   return `CASE
     WHEN ${hitFilter} THEN ${opts.ttfbExpr} > ${opts.hitMsExpr}
-    WHEN ${status} IN (${missList}) THEN ${opts.ttfbExpr} > ${opts.missMsExpr}
+    WHEN ${missFilter} THEN ${opts.ttfbExpr} > ${opts.missMsExpr}
     ELSE ${opts.ttfbExpr} > ${opts.hitMsExpr}
   END`
 }

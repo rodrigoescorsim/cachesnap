@@ -125,6 +125,7 @@ describe('cache-utils', () => {
         statusExpr: 'l.cache_status',
       })
       expect(sql).toContain('l.cache_status')
+      expect(sql).toContain("l.cache_status IN ('MISS', 'EXPIRED', 'ERROR')")
       expect(sql).toMatch(/ELSE l\.ttfb_ms > m\.alert_threshold_hit_ms/)
     })
   })
