@@ -5,6 +5,12 @@ interface ResultRow {
   region: string
   ttfb_ms: number | null
   total_ms: number | null
+  dns_ms: number | null
+  tcp_ms: number | null
+  tls_ms: number | null
+  edge_ms: number | null
+  origin_ms: number | null
+  download_ms: number | null
   cache_status: string | null
   cdn_provider: string | null
   served_by: string | null
@@ -14,6 +20,7 @@ interface ResultRow {
   security_score: number | null
   error: string | null
   redirect_count: number | null
+  server_timing_breakdown: Record<string, number> | null
   probed_at: Date
 }
 
@@ -44,6 +51,12 @@ export async function GET(
       region,
       ttfb_ms,
       total_ms,
+      dns_ms,
+      tcp_ms,
+      tls_ms,
+      edge_ms,
+      origin_ms,
+      download_ms,
       cache_status,
       cdn_provider,
       served_by,
@@ -53,6 +66,7 @@ export async function GET(
       security_score,
       error,
       redirect_count,
+      server_timing_breakdown,
       probed_at
     FROM public_check_results
     WHERE job_id = ${jobId}
@@ -68,6 +82,12 @@ export async function GET(
       region: r.region,
       ttfb_ms: r.ttfb_ms,
       total_ms: r.total_ms,
+      dns_ms: r.dns_ms,
+      tcp_ms: r.tcp_ms,
+      tls_ms: r.tls_ms,
+      edge_ms: r.edge_ms,
+      origin_ms: r.origin_ms,
+      download_ms: r.download_ms,
       cache_status: r.cache_status,
       cdn_provider: r.cdn_provider,
       served_by: r.served_by,
@@ -77,6 +97,7 @@ export async function GET(
       security_score: r.security_score,
       error: r.error,
       redirect_count: r.redirect_count,
+      server_timing_breakdown: r.server_timing_breakdown,
       probed_at: r.probed_at instanceof Date ? r.probed_at.toISOString() : r.probed_at,
     })),
   })

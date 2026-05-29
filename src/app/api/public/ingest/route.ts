@@ -30,6 +30,12 @@ export async function POST(request: NextRequest) {
     region?: string
     ttfb_ms?: number | null
     total_ms?: number | null
+    dns_ms?: number | null
+    tcp_ms?: number | null
+    tls_ms?: number | null
+    edge_ms?: number | null
+    origin_ms?: number | null
+    download_ms?: number | null
     status_code?: number | null
     cache_status?: string | null
     cdn_provider?: string | null
@@ -42,6 +48,7 @@ export async function POST(request: NextRequest) {
     error?: string | null
     probe_version?: string | null
     redirect_count?: number | null
+    server_timing_breakdown?: Record<string, number> | null
   }
 
   try {
@@ -70,6 +77,12 @@ export async function POST(request: NextRequest) {
 
   const ttfbMs = toIntMs(body.ttfb_ms)
   const totalMs = toIntMs(body.total_ms)
+  const dnsMs = toIntMs(body.dns_ms)
+  const tcpMs = toIntMs(body.tcp_ms)
+  const tlsMs = toIntMs(body.tls_ms)
+  const edgeMs = toIntMs(body.edge_ms)
+  const originMs = toIntMs(body.origin_ms)
+  const downloadMs = toIntMs(body.download_ms)
   const statusCode =
     body.status_code === null || body.status_code === undefined
       ? null
@@ -81,6 +94,9 @@ export async function POST(request: NextRequest) {
     body.redirect_count === null || body.redirect_count === undefined
       ? null
       : toIntMs(body.redirect_count)
+  const serverTimingBreakdown = body.server_timing_breakdown != null
+    ? sql.json(body.server_timing_breakdown)
+    : null
 
   // Single atomic statement: INSERT the result, then increment regions_done
   // ONLY if the INSERT actually created a new row (i.e., not a Lambda retry).
@@ -91,15 +107,19 @@ export async function POST(request: NextRequest) {
       INSERT INTO public_check_results (
         job_id, region,
         ttfb_ms, total_ms, status_code,
+        dns_ms, tcp_ms, tls_ms, edge_ms, origin_ms, download_ms,
         cache_status, cdn_provider, served_by,
         age_s, cache_control, cf_ray, x_cache,
-        security_score, error, probe_version, redirect_count
+        security_score, error, probe_version, redirect_count,
+        server_timing_breakdown
       ) VALUES (
         ${jobId}, ${region},
         ${ttfbMs}, ${totalMs}, ${statusCode},
+        ${dnsMs}, ${tcpMs}, ${tlsMs}, ${edgeMs}, ${originMs}, ${downloadMs},
         ${body.cache_status ?? null}, ${body.cdn_provider ?? null}, ${servedBy},
         ${ageS}, ${body.cache_control ?? null}, ${body.cf_ray ?? null}, ${body.x_cache ?? null},
-        ${securityScore}, ${body.error ?? null}, ${body.probe_version ?? null}, ${redirectCount}
+        ${securityScore}, ${body.error ?? null}, ${body.probe_version ?? null}, ${redirectCount},
+        ${serverTimingBreakdown}
       )
       ON CONFLICT (job_id, region) DO NOTHING
       RETURNING id
