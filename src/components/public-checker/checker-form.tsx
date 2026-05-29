@@ -1,10 +1,30 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Globe, Check, X } from 'lucide-react'
+import { Globe, Check, X, Clock } from 'lucide-react'
 import { CheckerResultsTable } from './checker-results-table'
 
 const COOLDOWN_LS_KEY = 'cs_pub_cooldown_ts'
+const HISTORY_LS_KEY = 'cs_pub_url_history'
+const MAX_HISTORY = 8
+
+function loadHistory(): string[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_LS_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function saveToHistory(url: string) {
+  const next = [url, ...loadHistory().filter(u => u !== url)].slice(0, MAX_HISTORY)
+  localStorage.setItem(HISTORY_LS_KEY, JSON.stringify(next))
+}
+
+function removeFromHistory(url: string) {
+  localStorage.setItem(HISTORY_LS_KEY, JSON.stringify(loadHistory().filter(u => u !== url)))
+}
 
 type UrlStatus = 'idle' | 'validating' | 'valid' | 'invalid'
 
@@ -44,6 +64,12 @@ export function CheckerForm() {
   const [error, setError] = useState<StartError | null>(null)
   const [cooldownRemaining, setCooldownRemaining] = useState(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const [history, setHistory] = useState<string[]>([])
+  const [showHistory, setShowHistory] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { setHistory(loadHistory()) }, [])
 
   // On mount: ask the server for the real remaining cooldown (IP-based, works
   // across all browsers). localStorage is only used as an instant fallback
@@ -172,6 +198,8 @@ export function CheckerForm() {
       }
 
       setJobId(data.jobId)
+      saveToHistory(urlValue.trim())
+      setHistory(loadHistory())
       const expiry = new Date(data.cooldownExpiresAt).getTime()
       localStorage.setItem(COOLDOWN_LS_KEY, String(expiry))
       const remainingSeconds = Math.ceil((expiry - Date.now()) / 1000)
@@ -210,12 +238,16 @@ export function CheckerForm() {
           </div>
 
           <input
+            ref={inputRef}
             type="url"
             value={urlValue}
             onChange={e => handleUrlChange(e.target.value)}
+            onFocus={() => setShowHistory(true)}
+            onBlur={() => setTimeout(() => setShowHistory(false), 150)}
             placeholder="https://your-site.com/path"
             required
             disabled={isDisabled}
+            autoComplete="off"
             className={[
               'cs-input h-11 w-full !pl-[44px] !pr-[40px] text-sm font-semibold tracking-tight transition-all duration-200',
               urlStatus === 'valid' && !error
@@ -225,6 +257,44 @@ export function CheckerForm() {
                   : '',
             ].join(' ')}
           />
+
+          {/* URL history dropdown */}
+          {showHistory && history.length > 0 && (() => {
+            const filtered = urlValue.trim()
+              ? history.filter(u => u.toLowerCase().includes(urlValue.toLowerCase()))
+              : history
+            if (filtered.length === 0) return null
+            return (
+              <div className="absolute top-full left-0 right-0 z-50 mt-1.5 overflow-hidden rounded-lg border border-border bg-surface shadow-xl">
+                {filtered.map(url => (
+                  <div
+                    key={url}
+                    className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-white/[0.05] cursor-pointer group/item transition-colors"
+                    onMouseDown={e => {
+                      e.preventDefault()
+                      handleUrlChange(url)
+                      setShowHistory(false)
+                    }}
+                  >
+                    <Clock className="h-3.5 w-3.5 shrink-0 text-zinc-600" />
+                    <span className="flex-1 truncate text-sm text-zinc-300">{url}</span>
+                    <button
+                      type="button"
+                      className="shrink-0 text-zinc-700 opacity-0 transition-opacity group-hover/item:opacity-100 hover:!text-zinc-400"
+                      onMouseDown={e => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        removeFromHistory(url)
+                        setHistory(loadHistory())
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
 
           {/* Right validation indicator */}
           <div className="pointer-events-none absolute right-3.5 top-1/2 z-20 -translate-y-1/2">
