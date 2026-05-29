@@ -20,6 +20,7 @@ import {
   type WaterfallProbe 
 } from './probe-waterfall'
 import { isCacheHit, isCacheMiss, getCacheDisplayLabel, getCacheStatusTooltip } from '@/lib/cache-utils'
+import { ttfbRowFastMs } from '@/lib/thresholds'
 
 interface BreakdownTableProps {
   probes: WaterfallProbe[]
@@ -70,7 +71,8 @@ export function BreakdownTable({ probes, regionLabels, regionDescriptions }: Bre
               const pop = extractPop(p.served_by)
               const cdnLabel = resolveCdnLabel(p.cdn_provider, p.served_by)
               const cacheVariant = getCacheVariant(p.cache_status)
-              
+              const ttfbFast = ttfbRowFastMs(p.cache_status)
+
               return (
                 <React.Fragment key={p.region}>
                   <tr 
@@ -118,7 +120,7 @@ export function BreakdownTable({ probes, regionLabels, regionDescriptions }: Bre
                         </PremiumTooltip>
                       )}
                     </td>
-                    <td className={`${ttfbMetricCellClass(p.ttfb_ms)} !px-3 !py-2 text-[13px] text-center`}>
+                    <td className={`${ttfbMetricCellClass(p.ttfb_ms, ttfbFast)} !px-3 !py-2 text-[13px] text-center`}>
                       <VisualGlow value={p.ttfb_ms}>
                         {p.ttfb_ms != null ? `${Math.round(p.ttfb_ms)}ms` : '—'}
                       </VisualGlow>

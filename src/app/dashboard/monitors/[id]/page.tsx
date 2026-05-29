@@ -46,7 +46,7 @@ import { type Alert } from '@/types/monitor'
 import { AlertHistoryTable } from './alert-history-table'
 import { TIMING } from './timing-metrics-palette'
 import { getRegions } from '@/lib/regions'
-import { MONITOR_TTFB, MONITOR_CACHE, getCacheColor, getTtfbColorClass, getTtfbTooltip, getCacheTooltip } from '@/lib/thresholds'
+import { MONITOR_TTFB, MONITOR_CACHE, getCacheColor, getTtfbColorClass, getTtfbTooltip, getCacheTooltip, ttfbRowFastMs } from '@/lib/thresholds'
 import { VisualGlow } from '../../visual-glow'
 import {
   Activity,
@@ -1249,12 +1249,18 @@ export default async function MonitorDetailPage({
 
   // ADVISOR INPUTS
   const slowLiveRegionCount = validLiveTtfb.filter(p => {
-    const limit = isCacheHit(p.common_cache_status) ? monitor.alert_threshold_hit_ms : monitor.alert_threshold_ms
+    const limit = ttfbRowFastMs(p.common_cache_status, {
+      thresholdHitMs: monitor.alert_threshold_hit_ms,
+      thresholdMs: monitor.alert_threshold_ms,
+    })
     return (p.ttfb_ms ?? 0) > limit
   }).length
   const slowLiveRegionLabels = validLiveTtfb
     .filter(p => {
-      const limit = isCacheHit(p.common_cache_status) ? monitor.alert_threshold_hit_ms : monitor.alert_threshold_ms
+      const limit = ttfbRowFastMs(p.common_cache_status, {
+        thresholdHitMs: monitor.alert_threshold_hit_ms,
+        thresholdMs: monitor.alert_threshold_ms,
+      })
       return (p.ttfb_ms ?? 0) > limit
     })
     .map(p => regionLabels[p.region] ?? p.region)
@@ -1299,12 +1305,18 @@ export default async function MonitorDetailPage({
     cacheCriticalPct: monitor.cache_hit_critical_pct,
   })
   const slowHistoricalRegions = stats.filter(s => {
-    const limit = isCacheHit(s.common_cache_status) ? monitor.alert_threshold_hit_ms : monitor.alert_threshold_ms
+    const limit = ttfbRowFastMs(s.common_cache_status, {
+      thresholdHitMs: monitor.alert_threshold_hit_ms,
+      thresholdMs: monitor.alert_threshold_ms,
+    })
     return (s.ttfb_avg_ms || 0) > limit
   }).length
   const slowHistoricalRegionLabels = stats
     .filter(s => {
-      const limit = isCacheHit(s.common_cache_status) ? monitor.alert_threshold_hit_ms : monitor.alert_threshold_ms
+      const limit = ttfbRowFastMs(s.common_cache_status, {
+        thresholdHitMs: monitor.alert_threshold_hit_ms,
+        thresholdMs: monitor.alert_threshold_ms,
+      })
       return (s.ttfb_avg_ms || 0) > limit
     })
     .map(s => regionLabels[s.region] ?? s.region)

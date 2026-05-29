@@ -19,7 +19,8 @@ import {
   ProbeWaterfall
 } from './probe-waterfall'
 import { isCacheHit, isCacheMiss, getCacheDisplayLabel, getCacheStatusTooltip } from '@/lib/cache-utils'
-import { getTtfbTooltip, getTtfbColorClass } from '@/lib/thresholds'
+import { getTtfbTooltip, getTtfbColorClass, ttfbRowFastMs } from '@/lib/thresholds'
+import { formatCacheAgeShort, cacheAgeColumnVisual } from '@/lib/cache-age-display'
 
 export interface LiveProbe {
   region: string
@@ -54,58 +55,6 @@ interface LiveTableProps {
   /** When false, Age column stays neutral gray; tooltips describe duration only. */
   alertCacheAgeEnabled?: boolean
   alertCacheAgeThresholdHours?: number
-}
-
-function formatCacheAgeShort(seconds: number): React.ReactNode {
-  const unitStyle = "text-[9px] opacity-70 ml-0.5 font-medium"
-  if (seconds < 60) return <>{seconds}<span className={unitStyle}>s</span></>
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return <>{minutes}<span className={unitStyle}>m</span></>
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return <>{hours}<span className={unitStyle}>h</span></>
-  const days = Math.floor(hours / 24)
-  return <>{days}<span className={unitStyle}>d</span></>
-}
-
-/** Full-word duration for tooltips (no s/m/h/d abbreviations). */
-function formatCacheAgeVerbose(seconds: number): string {
-  const s = Math.floor(Math.max(0, seconds))
-  let rem = s
-  const days = Math.floor(rem / 86400)
-  rem %= 86400
-  const hours = Math.floor(rem / 3600)
-  rem %= 3600
-  const minutes = Math.floor(rem / 60)
-  const secs = rem % 60
-  const parts: string[] = []
-  if (days) parts.push(`${days} day${days === 1 ? '' : 's'}`)
-  if (hours) parts.push(`${hours} hour${hours === 1 ? '' : 's'}`)
-  if (minutes) parts.push(`${minutes} minute${minutes === 1 ? '' : 's'}`)
-  if (secs || parts.length === 0) parts.push(`${secs} second${secs === 1 ? '' : 's'}`)
-  return parts.join(', ')
-}
-
-function cacheAgeColumnVisual(
-  ageSeconds: number,
-  alertEnabled: boolean,
-  thresholdHours: number
-): { className: string; tooltip: string } {
-  const verbose = formatCacheAgeVerbose(ageSeconds)
-  if (!alertEnabled) {
-    return {
-      className: 'cs-badge-live-age cs-badge-live-age-muted',
-      tooltip: `Edge-reported cache age: ${verbose}.`,
-    }
-  }
-  const limitSeconds = Math.max(1, Math.floor(thresholdHours)) * 3600
-  const limitVerbose = formatCacheAgeVerbose(limitSeconds)
-  const within = ageSeconds <= limitSeconds
-  return {
-    className: `cs-badge-live-age ${within ? 'cs-badge-live-age-success' : 'cs-badge-live-age-danger'}`,
-    tooltip: within
-      ? `${verbose}. Within the Cache Age Alert limit (${limitVerbose}).`
-      : `${verbose}. Above the Cache Age Alert limit (${limitVerbose}).`,
-  }
 }
 
 function getSyncStatus(lastProbeAt: Date | null): { colorClass: string; tooltip: string; text: string } {
@@ -239,6 +188,7 @@ export function LiveTable({
               const isStatusErr = isError || (p.status_code != null && p.status_code >= 400)
               const isWafBlock = p.status_code === 401 || p.status_code === 403
               const statusColorClass = p.status_code != null && p.status_code < 400 ? 'cs-badge-flat-success' : 'cs-badge-flat-danger'
+              const ttfbFast = ttfbRowFastMs(p.common_cache_status, { thresholdHitMs, thresholdMs })
 
               return (
                 <React.Fragment key={p.region}>
@@ -312,10 +262,10 @@ export function LiveTable({
                         )
                       })()}
                     </td>
-                    <td className={`${isError ? 'cs-table-compact-td' : ttfbMetricCellClass(p.ttfb_ms, isCacheHit(p.common_cache_status) ? thresholdHitMs : thresholdMs)} !px-3 !py-2 text-[13px] text-center ${isWafBlock ? '!text-zinc-500' : ''}`}>
+                    <td className={`${isError ? 'cs-table-compact-td' : ttfbMetricCellClass(p.ttfb_ms, ttfbFast)} !px-3 !py-2 text-[13px] text-center ${isWafBlock ? '!text-zinc-500' : ''}`}>
                       <div className="flex items-center justify-center gap-1.5">
                         <PremiumTooltip 
-                          content={isError ? (p.error || 'Connection failed') : isWafBlock ? "WAF detected: this latency reflects security filtering, not page load speed." : (p.ttfb_ms ? getTtfbTooltip(p.ttfb_ms, 'monitor', isCacheHit(p.common_cache_status) ? thresholdHitMs : thresholdMs, thresholdMs) : 'No data')}
+                          content={isError ? (p.error || 'Connection failed') : isWafBlock ? "WAF detected: this latency reflects security filtering, not page load speed." : (p.ttfb_ms ? getTtfbTooltip(p.ttfb_ms, 'monitor', ttfbFast, thresholdMs) : 'No data')}
                           position="top-right" 
                           direction="top"
                         >
