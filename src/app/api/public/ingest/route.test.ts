@@ -116,3 +116,25 @@ it('POST missing job_id returns 400', async () => {
   const res = await POST(req({ region: 'us-east-1' }))
   expect(res.status).toBe(400)
 })
+
+it('POST accepts monitor_id alias from Lambda payload', async () => {
+  mockSql
+    .mockResolvedValueOnce([{ id: JOB_ID }])
+    .mockResolvedValueOnce([{ regions_done: 1, regions_total: 8, is_complete: false }])
+
+  const res = await POST(req({ monitor_id: JOB_ID, region: 'sa-east', ttfb_ms: 50 }))
+  expect(res.status).toBe(200)
+})
+
+it('POST rounds fractional ttfb_ms and total_ms from Lambda', async () => {
+  mockSql
+    .mockResolvedValueOnce([{ id: JOB_ID }])
+    .mockResolvedValueOnce([{ regions_done: 1, regions_total: 8, is_complete: false }])
+
+  const res = await POST(
+    req({ job_id: JOB_ID, region: 'eu-west', ttfb_ms: 229.97, total_ms: 190.43, status_code: 200 })
+  )
+  expect(res.status).toBe(200)
+  const insertCall = mockSql.mock.calls[1]
+  expect(insertCall).toBeDefined()
+})

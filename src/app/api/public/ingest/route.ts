@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import sql from '@/lib/db'
 
+/** Lambda sends sub-ms floats; public_check_results stores INTEGER ms columns. */
+function toIntMs(v: number | null | undefined): number | null {
+  if (v === null || v === undefined) return null
+  const n = Number(v)
+  if (!Number.isFinite(n)) return null
+  return Math.round(n)
+}
+
 export async function POST(request: NextRequest) {
   const probeSecret = request.headers.get('x-probe-secret')
   if (!probeSecret || probeSecret !== process.env.PROBE_SECRET) {
@@ -9,6 +17,8 @@ export async function POST(request: NextRequest) {
 
   let body: {
     job_id?: string
+    /** Legacy alias sent by Lambda when dispatch uses monitor_id field name */
+    monitor_id?: string
     region?: string
     ttfb_ms?: number | null
     total_ms?: number | null
@@ -31,22 +41,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 })
   }
 
-  const { job_id, region } = body
-  if (!job_id || !region) {
+  const jobId = body.job_id ?? body.monitor_id
+  const { region } = body
+  if (!jobId || !region) {
     return NextResponse.json({ error: 'job_id and region are required.' }, { status: 400 })
   }
 
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(job_id)) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId)) {
     return NextResponse.json({ error: 'Invalid job_id format.' }, { status: 400 })
   }
 
   const [job] = await sql<{ id: string }[]>`
     SELECT id FROM public_check_jobs
-    WHERE id = ${job_id} AND expires_at > NOW()
+    WHERE id = ${jobId} AND expires_at > NOW()
   `
   if (!job) {
     return NextResponse.json({ error: 'Job not found or expired.' }, { status: 404 })
   }
+
+  const ttfbMs = toIntMs(body.ttfb_ms)
+  const totalMs = toIntMs(body.total_ms)
+  const statusCode =
+    body.status_code === null || body.status_code === undefined
+      ? null
+      : toIntMs(body.status_code)
+  const ageS = toIntMs(body.age_s)
+  const securityScore = toIntMs(body.security_score)
 
   // Single atomic statement: INSERT the result, then increment regions_done
   // ONLY if the INSERT actually created a new row (i.e., not a Lambda retry).
@@ -61,11 +81,11 @@ export async function POST(request: NextRequest) {
         age_s, cache_control, cf_ray, x_cache,
         security_score, error, probe_version
       ) VALUES (
-        ${job_id}, ${region},
-        ${body.ttfb_ms ?? null}, ${body.total_ms ?? null}, ${body.status_code ?? null},
+        ${jobId}, ${region},
+        ${ttfbMs}, ${totalMs}, ${statusCode},
         ${body.cache_status ?? null}, ${body.cdn_provider ?? null}, ${body.served_by ?? null},
-        ${body.age_s ?? null}, ${body.cache_control ?? null}, ${body.cf_ray ?? null}, ${body.x_cache ?? null},
-        ${body.security_score ?? null}, ${body.error ?? null}, ${body.probe_version ?? null}
+        ${ageS}, ${body.cache_control ?? null}, ${body.cf_ray ?? null}, ${body.x_cache ?? null},
+        ${securityScore}, ${body.error ?? null}, ${body.probe_version ?? null}
       )
       ON CONFLICT (job_id, region) DO NOTHING
       RETURNING id
@@ -77,7 +97,7 @@ export async function POST(request: NextRequest) {
         WHEN regions_done + 1 >= regions_total THEN 'complete'
         ELSE 'running'
       END
-    WHERE id = ${job_id}
+    WHERE id = ${jobId}
       AND regions_done < regions_total
       AND EXISTS (SELECT 1 FROM ins)
     RETURNING
