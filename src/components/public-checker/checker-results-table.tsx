@@ -188,12 +188,6 @@ export function CheckerResultsTable({ jobId, regionsTotal = 8 }: Props) {
         </div>
       )}
 
-      <CheckerLiveTable
-        results={data?.results ?? []}
-        pendingRegionIds={!isDone ? pendingRegionIds : []}
-        loading={isLoading && !timedOut && (data?.results.length ?? 0) === 0}
-      />
-
       {isDone && data && (() => {
         const globalProbe = buildGlobalProbe(data.results)
         return globalProbe ? (
@@ -210,6 +204,12 @@ export function CheckerResultsTable({ jobId, regionsTotal = 8 }: Props) {
           </div>
         ) : null
       })()}
+
+      <CheckerLiveTable
+        results={data?.results ?? []}
+        pendingRegionIds={!isDone ? pendingRegionIds : []}
+        loading={isLoading && !timedOut && (data?.results.length ?? 0) === 0}
+      />
 
       {isDone && data && <CacheControlDetails results={data.results} />}
     </div>
