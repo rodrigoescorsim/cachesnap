@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import Script from "next/script";
 import { QueryProvider } from "@/components/providers/query-provider";
 import "./globals.css";
 
@@ -69,6 +70,12 @@ export default function RootLayout({
           Skip to content
         </a>
         <QueryProvider>{children}</QueryProvider>
+        <Script
+          defer
+          data-url="https://devhunt.org/tool/cachesnap"
+          src="https://cdn.jsdelivr.net/gh/sidiDev/devhunt-banner/indexV0.js"
+          strategy="lazyOnload"
+        />
       </body>
     </html>
   );
