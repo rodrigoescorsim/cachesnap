@@ -52,10 +52,10 @@ it('POST with wrong probe-secret returns 401', async () => {
 // ── Job lookup ────────────────────────────────────────────────────────────────
 
 it('POST with valid payload returns 200 and saves result', async () => {
+  // CTE combines INSERT + UPDATE into a single SQL call (2 total: job check + CTE)
   mockSql
     .mockResolvedValueOnce([{ id: JOB_ID }])              // job exists check
-    .mockResolvedValueOnce([])                             // INSERT result
-    .mockResolvedValueOnce([{                              // atomic UPDATE
+    .mockResolvedValueOnce([{                              // CTE: INSERT + UPDATE
       regions_done: 1,
       regions_total: 8,
       is_complete: false,
@@ -78,7 +78,6 @@ it('POST with non-existent jobId returns 404', async () => {
 it('POST completing last region marks job complete', async () => {
   mockSql
     .mockResolvedValueOnce([{ id: JOB_ID }])
-    .mockResolvedValueOnce([])
     .mockResolvedValueOnce([{
       regions_done: 8,
       regions_total: 8,
@@ -93,7 +92,6 @@ it('POST completing last region marks job complete', async () => {
 it('POST with probe error payload still saves with error field', async () => {
   mockSql
     .mockResolvedValueOnce([{ id: JOB_ID }])
-    .mockResolvedValueOnce([])
     .mockResolvedValueOnce([{ regions_done: 1, regions_total: 8, is_complete: false }])
 
   const errorPayload = {

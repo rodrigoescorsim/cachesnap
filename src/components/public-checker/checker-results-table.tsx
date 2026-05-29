@@ -101,7 +101,7 @@ export function CheckerResultsTable({ jobId, regionsTotal = 8 }: Props) {
         />
       )}
 
-      {/* Progress / timeout indicator */}
+      {/* Progress / timeout / error indicator */}
       {isLoading && !timedOut && (
         <div className="flex items-center gap-2.5 text-[12px] text-zinc-500">
           <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400 animate-pulse" />
@@ -112,6 +112,12 @@ export function CheckerResultsTable({ jobId, regionsTotal = 8 }: Props) {
         <p className="text-[12px] text-amber-400">
           Timed out — showing partial results from {data?.regionsDone ?? 0} regions.
         </p>
+      )}
+      {data?.status === 'error' && (data?.results.length ?? 0) === 0 && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-sm text-rose-400">
+          <span className="mt-0.5 shrink-0">⚠</span>
+          <span>Check failed — no results returned. The probe service may be temporarily unavailable. Try again in a moment.</span>
+        </div>
       )}
 
       {/* Results table */}

@@ -40,7 +40,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid job_id format.' }, { status: 400 })
   }
 
-  // Verify job exists and is not expired — single fast lookup
   const [job] = await sql<{ id: string }[]>`
     SELECT id FROM public_check_jobs
     WHERE id = ${job_id} AND expires_at > NOW()
@@ -49,29 +48,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Job not found or expired.' }, { status: 404 })
   }
 
-  // Insert result — ON CONFLICT DO NOTHING guards against Lambda retries
-  // (backed by UNIQUE INDEX idx_public_results_job_region)
-  await sql`
-    INSERT INTO public_check_results (
-      job_id, region,
-      ttfb_ms, total_ms, status_code,
-      cache_status, cdn_provider, served_by,
-      age_s, cache_control, cf_ray, x_cache,
-      security_score, error, probe_version
-    ) VALUES (
-      ${job_id}, ${region},
-      ${body.ttfb_ms ?? null}, ${body.total_ms ?? null}, ${body.status_code ?? null},
-      ${body.cache_status ?? null}, ${body.cdn_provider ?? null}, ${body.served_by ?? null},
-      ${body.age_s ?? null}, ${body.cache_control ?? null}, ${body.cf_ray ?? null}, ${body.x_cache ?? null},
-      ${body.security_score ?? null}, ${body.error ?? null}, ${body.probe_version ?? null}
-    )
-    ON CONFLICT (job_id, region) DO NOTHING
-  `
-
-  // Atomic increment — avoids read-then-write race when multiple Lambdas return simultaneously.
-  // Only increments if this region was not already counted (result was just inserted).
-  // Returns the updated counters so the caller can determine completion without an extra query.
+  // Single atomic statement: INSERT the result, then increment regions_done
+  // ONLY if the INSERT actually created a new row (i.e., not a Lambda retry).
+  // The CTE `ins` exposes whether the INSERT succeeded via EXISTS — this is the
+  // guard that prevents retried deliveries from double-counting regions_done.
   const [updated] = await sql<{ regions_done: number; regions_total: number; is_complete: boolean }[]>`
+    WITH ins AS (
+      INSERT INTO public_check_results (
+        job_id, region,
+        ttfb_ms, total_ms, status_code,
+        cache_status, cdn_provider, served_by,
+        age_s, cache_control, cf_ray, x_cache,
+        security_score, error, probe_version
+      ) VALUES (
+        ${job_id}, ${region},
+        ${body.ttfb_ms ?? null}, ${body.total_ms ?? null}, ${body.status_code ?? null},
+        ${body.cache_status ?? null}, ${body.cdn_provider ?? null}, ${body.served_by ?? null},
+        ${body.age_s ?? null}, ${body.cache_control ?? null}, ${body.cf_ray ?? null}, ${body.x_cache ?? null},
+        ${body.security_score ?? null}, ${body.error ?? null}, ${body.probe_version ?? null}
+      )
+      ON CONFLICT (job_id, region) DO NOTHING
+      RETURNING id
+    )
     UPDATE public_check_jobs
     SET
       regions_done = regions_done + 1,
@@ -81,6 +79,7 @@ export async function POST(request: NextRequest) {
       END
     WHERE id = ${job_id}
       AND regions_done < regions_total
+      AND EXISTS (SELECT 1 FROM ins)
     RETURNING
       regions_done,
       regions_total,
