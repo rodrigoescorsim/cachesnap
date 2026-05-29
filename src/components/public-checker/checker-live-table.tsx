@@ -28,6 +28,18 @@ interface Props {
   loading?: boolean
 }
 
+function hasTimingData(result: CheckResult): boolean {
+  return (
+    result.ttfb_ms != null &&
+    (result.dns_ms != null ||
+      result.tls_ms != null ||
+      result.edge_ms != null ||
+      result.origin_ms != null ||
+      (result.server_timing_breakdown != null &&
+        Object.keys(result.server_timing_breakdown).length > 0))
+  )
+}
+
 function toWaterfallProbe(result: CheckResult): WaterfallProbe {
   return {
     region: result.region,
@@ -96,24 +108,17 @@ function ResultRow({
   const ttfbFastMs = ttfbRowFastMs(result.cache_status)
   const hops = Number(result.redirect_count ?? 0)
 
-  const hasTimingData =
-    result.ttfb_ms != null &&
-    (result.dns_ms != null ||
-      result.tls_ms != null ||
-      result.edge_ms != null ||
-      result.origin_ms != null ||
-      (result.server_timing_breakdown != null &&
-        Object.keys(result.server_timing_breakdown).length > 0))
+  const canExpand = hasTimingData(result)
 
   return (
     <>
       <tr
-        className={`${MONITOR_TABLE.tbodyRow} hover:bg-white/[0.02] transition-colors ${hasTimingData ? 'cursor-pointer' : ''}`}
-        onClick={hasTimingData ? onToggle : undefined}
+        className={`${MONITOR_TABLE.tbodyRow} hover:bg-white/[0.02] transition-colors ${canExpand ? 'cursor-pointer' : ''}`}
+        onClick={canExpand ? onToggle : undefined}
       >
         <td className="cs-table-compact-td font-bold text-zinc-200">
           <div className="flex items-center gap-1.5">
-            {hasTimingData ? (
+            {canExpand ? (
               expanded
                 ? <ChevronDown className="h-3 w-3 shrink-0 text-zinc-500" />
                 : <ChevronRight className="h-3 w-3 shrink-0 text-zinc-500" />
@@ -271,7 +276,7 @@ function ResultRow({
         </td>
       </tr>
 
-      {expanded && hasTimingData && (
+      {expanded && canExpand && (
         <tr className={MONITOR_TABLE.tbodyRow}>
           <td colSpan={7} className="px-4 pb-4 pt-0">
             <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-4">
@@ -290,7 +295,7 @@ function ResultRow({
 }
 
 export function CheckerLiveTable({ results, pendingRegionIds = [], loading }: Props) {
-  const [expandedRegion, setExpandedRegion] = useState<string | null>(null)
+  const [expandedRegions, setExpandedRegions] = useState<Set<string>>(new Set())
 
   const sortedResults = [...results].sort((a, b) => (b.ttfb_ms ?? 0) - (a.ttfb_ms ?? 0))
 
@@ -299,6 +304,21 @@ export function CheckerLiveTable({ results, pendingRegionIds = [], loading }: Pr
 
   const showFullSkeleton = loading && results.length === 0 && pendingRegionIds.length === 0
 
+  const expandableIds = sortedResults.filter(hasTimingData).map(r => r.region)
+  const allExpanded = expandableIds.length > 0 && expandableIds.every(id => expandedRegions.has(id))
+
+  function toggleAll() {
+    setExpandedRegions(allExpanded ? new Set() : new Set(expandableIds))
+  }
+
+  function toggleOne(region: string) {
+    setExpandedRegions(prev => {
+      const next = new Set(prev)
+      next.has(region) ? next.delete(region) : next.add(region)
+      return next
+    })
+  }
+
   return (
     <div className={MONITOR_TABLE.outerWrapper}>
       <div className={BRAND_TABLE_SURFACE_GRADIENT} />
@@ -306,10 +326,22 @@ export function CheckerLiveTable({ results, pendingRegionIds = [], loading }: Pr
         <table className={`${MONITOR_TABLE.tableBase} ${MONITOR_TABLE.transition} ${MONITOR_TABLE.tableDense}`}>
           <thead>
             <tr className={MONITOR_TABLE.theadRow}>
-              <th className="cs-table-compact-th !text-center">
-                <PremiumTooltip content="Geographic region — click row to expand timing" position="top-center" direction="top">
-                  Region
-                </PremiumTooltip>
+              <th className="cs-table-compact-th !text-left">
+                <button
+                  onClick={expandableIds.length > 0 ? toggleAll : undefined}
+                  className={`flex items-center gap-1.5 ${expandableIds.length > 0 ? 'cursor-pointer hover:text-zinc-300 transition-colors' : 'cursor-default'}`}
+                >
+                  {expandableIds.length > 0 ? (
+                    allExpanded
+                      ? <ChevronDown className="h-3 w-3 shrink-0 text-zinc-500" />
+                      : <ChevronRight className="h-3 w-3 shrink-0 text-zinc-500" />
+                  ) : (
+                    <span className="w-3 shrink-0" />
+                  )}
+                  <PremiumTooltip content="Click to expand timing breakdown for all regions" position="top-left" direction="top">
+                    Region
+                  </PremiumTooltip>
+                </button>
               </th>
               <th className="cs-table-compact-th !text-center">
                 <PremiumTooltip content="Edge node location (PoP)" position="top-center" direction="top">
@@ -356,8 +388,8 @@ export function CheckerLiveTable({ results, pendingRegionIds = [], loading }: Pr
                     <ResultRow
                       key={r.region}
                       result={r}
-                      expanded={expandedRegion === r.region}
-                      onToggle={() => setExpandedRegion(prev => prev === r.region ? null : r.region)}
+                      expanded={expandedRegions.has(r.region)}
+                      onToggle={() => toggleOne(r.region)}
                     />
                   ))}
                   {orderedPending.map((id) => (
