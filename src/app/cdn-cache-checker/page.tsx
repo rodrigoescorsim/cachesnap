@@ -8,12 +8,12 @@ import { CheckerCta } from '@/components/public-checker/checker-cta'
 export const metadata: Metadata = {
   title: 'Free CDN Cache Checker — Test from 8 Global Regions | CacheSnap',
   description:
-    'Check your CDN cache headers, hit rate, and TTFB from 8 global regions instantly. No signup required.',
+    'Check CDN cache status, hit rate, TTFB, and full timing breakdown from 8 global regions. No signup required.',
   alternates: { canonical: '/cdn-cache-checker' },
   openGraph: {
     title: 'Free CDN Cache Checker | CacheSnap',
     description:
-      'Check your CDN cache headers, hit rate, and TTFB from 8 global regions instantly. No signup required.',
+      'Check CDN cache status, hit rate, TTFB, and full timing breakdown from 8 global regions. No signup required.',
     url: '/cdn-cache-checker',
   },
 }
@@ -70,7 +70,7 @@ export default function Page() {
               CDN Cache Checker
             </h1>
             <p className="text-lg text-zinc-400">
-              Instantly check cache headers, hit rate, TTFB, and CDN provider from 8 global regions.
+              Instantly check cache status, hit rate, TTFB, and timing breakdown from 8 global regions.
             </p>
           </div>
 
