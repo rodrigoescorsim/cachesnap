@@ -1,6 +1,8 @@
 use crate::{
     alerts::worker,
-    baseline::stratified::{probe_is_cache_hit, STRATIFIED_BASELINE_MIN_SAMPLES},
+    baseline::stratified::{
+        probe_is_cache_hit, probe_ttfb_row_fast_threshold_ms, STRATIFIED_BASELINE_MIN_SAMPLES,
+    },
     models::probe_result::ProbeResultPayload,
     AppState,
 };
@@ -214,11 +216,11 @@ pub async fn check_probe_alerts(state: AppState, payload: ProbeResultPayload) {
     };
 
     let is_hit = probe_is_cache_hit(payload.cache_status.as_deref());
-    let effective_threshold = if is_hit {
-        cfg.alert_threshold_hit_ms as f64
-    } else {
-        cfg.alert_threshold_ms as f64
-    };
+    let effective_threshold = probe_ttfb_row_fast_threshold_ms(
+        payload.cache_status.as_deref(),
+        cfg.alert_threshold_hit_ms,
+        cfg.alert_threshold_ms,
+    ) as f64;
     let ttfb_over_threshold = payload.ttfb_ms.map(|t| t > effective_threshold).unwrap_or(false);
 
     // Classify the probe failure (if any). A single timeout or socket reset
