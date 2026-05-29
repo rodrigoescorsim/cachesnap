@@ -28,6 +28,10 @@ export function extractPop(servedBy: string | null): string | null {
   const cfPop = servedBy.match(/^([A-Z]{3,4})\d+-[A-Z]\d+$/i)
   if (cfPop) return cfPop[1].toUpperCase()
 
+  // 5. Akamai origin-hop: leading token may be edge id; trailing segment sometimes IATA
+  const akamaiHop = servedBy.match(/;([A-Z]{3,4})(?:;|$)/)
+  if (akamaiHop) return akamaiHop[1]
+
   return null
 }
 

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { unauthorized } from '@/lib/api-auth'
 import sql from '@/lib/db'
-import { PG_CACHE_CDN_HIT_FILTER, pgCacheHitPctSqlExpr } from '@/lib/cache-utils'
+import { pgCacheHitPctSqlExpr, pgTtfbExceedsRowLimitSql } from '@/lib/cache-utils'
 
 // Static flag map — region IDs are stable, no need to store in DB
 const FLAG_MAP: Record<string, string> = {
@@ -92,13 +92,14 @@ export async function GET() {
       SELECT
         l.monitor_id,
         COUNT(*) FILTER (
-          WHERE l.ttfb_ms IS NOT NULL AND l.error IS NULL AND (
-            CASE
-              WHEN ${sql.unsafe(PG_CACHE_CDN_HIT_FILTER)}
-                THEN l.ttfb_ms > m.alert_threshold_hit_ms
-              ELSE l.ttfb_ms > m.alert_threshold_ms
-            END
-          )
+          WHERE l.ttfb_ms IS NOT NULL AND l.error IS NULL AND ${sql.unsafe(
+            pgTtfbExceedsRowLimitSql({
+              ttfbExpr: 'l.ttfb_ms',
+              hitMsExpr: 'm.alert_threshold_hit_ms',
+              missMsExpr: 'm.alert_threshold_ms',
+              statusExpr: 'l.cache_status',
+            })
+          )}
         )::int AS slow_region_count
       FROM latest l
       JOIN monitors m ON m.id = l.monitor_id AND m.user_id = ${user.id}
@@ -113,11 +114,14 @@ export async function GET() {
           jsonb_build_object(
             'code',    l.region,
             'label',   COALESCE(r.label, l.region),
-            'isSlow',  (l.error IS NULL AND l.ttfb_ms IS NOT NULL AND CASE
-              WHEN ${sql.unsafe(PG_CACHE_CDN_HIT_FILTER)}
-                THEN l.ttfb_ms > m.alert_threshold_hit_ms
-              ELSE l.ttfb_ms > m.alert_threshold_ms
-            END),
+            'isSlow',  (l.error IS NULL AND l.ttfb_ms IS NOT NULL AND ${sql.unsafe(
+              pgTtfbExceedsRowLimitSql({
+                ttfbExpr: 'l.ttfb_ms',
+                hitMsExpr: 'm.alert_threshold_hit_ms',
+                missMsExpr: 'm.alert_threshold_ms',
+                statusExpr: 'l.cache_status',
+              })
+            )}),
             'isError', (l.error IS NOT NULL)
           )
           ORDER BY l.region

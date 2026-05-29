@@ -422,6 +422,8 @@ async function measureUrl(targetUrl, isBypass = false, deadline = null) {
 
           if (!servedBy) {
             servedBy =
+              h['akamai-origin-hop'] || // Akamai edge trace (PoP hints)
+              h['x-akamai-request-id'] ||
               h['x-vercel-id'] ||    // Vercel
               h['x-served-by'] ||    // Fastly / Varnish
               h['x-amz-cf-id'] ||    // CloudFront (generic ID if not already caught)
@@ -481,6 +483,8 @@ async function measureUrl(targetUrl, isBypass = false, deadline = null) {
             status_code: res.statusCode,
             cache_status: cacheStatus,
             served_by: servedBy,
+            cf_ray: h['cf-ray'] || null,
+            cache_control: h['cache-control'] || null,
             server_timing: serverTimingRaw,
             http_version: httpVersion,
             content_length: parseInt(h['content-length'] || '0', 10) || bodyLength,

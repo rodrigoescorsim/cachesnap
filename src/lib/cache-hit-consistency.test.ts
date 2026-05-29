@@ -53,6 +53,11 @@ describe('cache-hit consistency in critical SQL files', () => {
     'src/app/dashboard/monitors/[id]/page.tsx',
   ]
 
+  it('summary route uses pgTtfbExceedsRowLimitSql for slow regions', () => {
+    const content = readProjectFile('src/app/api/monitors/summary/route.ts')
+    expect(content).toContain('pgTtfbExceedsRowLimitSql')
+  })
+
   for (const file of tsHelperConsumers) {
     it(`${file} routes cache-hit SQL through cache-utils helpers`, () => {
       const content = readProjectFile(file)

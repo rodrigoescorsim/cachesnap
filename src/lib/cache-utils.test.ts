@@ -8,6 +8,7 @@ import {
   CACHE_HIT_STATUSES,
   CACHE_MISS_STATUSES,
   CACHE_BYPASS_STATUSES,
+  pgTtfbExceedsRowLimitSql,
 } from './cache-utils'
 
 describe('cache-utils', () => {
@@ -112,6 +113,19 @@ describe('cache-utils', () => {
       expect(getCacheDisplayLabel('BYPASS:AWS CLOUDFRONT NOTCACHEABLE FROM CHILD')).toBe(
         'NOT CACHEABLE'
       )
+    })
+  })
+
+  describe('pgTtfbExceedsRowLimitSql', () => {
+    it('uses hit threshold for NO HEADER (strict tier)', () => {
+      const sql = pgTtfbExceedsRowLimitSql({
+        ttfbExpr: 'l.ttfb_ms',
+        hitMsExpr: 'm.alert_threshold_hit_ms',
+        missMsExpr: 'm.alert_threshold_ms',
+        statusExpr: 'l.cache_status',
+      })
+      expect(sql).toContain('l.cache_status')
+      expect(sql).toMatch(/ELSE l\.ttfb_ms > m\.alert_threshold_hit_ms/)
     })
   })
 

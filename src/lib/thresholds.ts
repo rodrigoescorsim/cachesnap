@@ -3,11 +3,15 @@
  * Differentiates between individual monitor performance and global aggregate performance.
  */
 
+import { isCacheHit, isCacheMiss } from '@/lib/cache-utils'
+
 // ─── Individual Monitor Thresholds ──────────────────────────────────────────
 export const MONITOR_TTFB = {
   ELITE: 250, // ms — ultra fast
-  FAST: 500, // ms
+  FAST: 500, // ms — default alert_threshold_hit_ms (cache HIT rows)
   SLOW: 1000, // ms
+  /** Default alert_threshold_ms — lenient fast tier for cache MISS rows in Live tables. */
+  MISS_FAST: 1500,
 }
 
 export const MONITOR_CACHE = {
@@ -36,6 +40,21 @@ export const GLOBAL_HEALTH = {
 }
 
 // ─── Utility Helpers ────────────────────────────────────────────────────────
+/**
+ * Per-row TTFB "fast" tier (green boundary) for Live + public checker tables.
+ * HIT → hit threshold; MISS → miss threshold; NO HEADER / bypass → hit threshold (strict).
+ */
+export function ttfbRowFastMs(
+  cacheStatus: string | null | undefined,
+  opts?: { thresholdHitMs?: number; thresholdMs?: number }
+): number {
+  const hitFast = opts?.thresholdHitMs ?? MONITOR_TTFB.FAST
+  const missFast = opts?.thresholdMs ?? MONITOR_TTFB.MISS_FAST
+  if (isCacheHit(cacheStatus)) return hitFast
+  if (isCacheMiss(cacheStatus)) return missFast
+  return hitFast
+}
+
 export function getTtfbTone(ms: number, type: 'monitor' | 'global' = 'monitor') {
   const t = type === 'global' ? GLOBAL_TTFB : MONITOR_TTFB
   if (ms < t.FAST) return 'success'

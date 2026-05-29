@@ -30,6 +30,30 @@ export const PG_CACHE_CDN_HIT_FILTER =
 export const PG_CACHE_CDN_CLASSIFIABLE_FILTER =
   "cache_status IN ('HIT', 'MISS', 'STALE', 'REVALIDATED', 'UPDATING', 'EXPIRED', 'REVALIDATE', 'REFRESH_HIT', 'REFRESH_MISS')"
 
+/** Explicit CDN misses — lenient TTFB tier in row tables and slow-region SQL. */
+export const PG_CACHE_CDN_MISS_FILTER =
+  `cache_status IN (${CACHE_MISS_STATUSES.map((s) => `'${s}'`).join(', ')})`
+
+/**
+ * SQL boolean: row TTFB exceeds the per-row fast limit (slow region).
+ * Aligns with `ttfbRowFastMs` in `thresholds.ts` (NO HEADER / bypass → hit threshold).
+ */
+export function pgTtfbExceedsRowLimitSql(opts: {
+  ttfbExpr: string
+  hitMsExpr: string
+  missMsExpr: string
+  statusExpr?: string
+}): string {
+  const status = opts.statusExpr ?? 'cache_status'
+  const hitFilter = PG_CACHE_CDN_HIT_FILTER.replace(/^cache_status/, status)
+  const missList = CACHE_MISS_STATUSES.map((s) => `'${s}'`).join(', ')
+  return `CASE
+    WHEN ${hitFilter} THEN ${opts.ttfbExpr} > ${opts.hitMsExpr}
+    WHEN ${status} IN (${missList}) THEN ${opts.ttfbExpr} > ${opts.missMsExpr}
+    ELSE ${opts.ttfbExpr} > ${opts.hitMsExpr}
+  END`
+}
+
 /**
  * SQL fragment options shared by the cache-hit helpers below.
  * - `extraFilter`: AND-appended to the inner `cache_status IN (...)` predicate
