@@ -1,7 +1,9 @@
 use crate::{
     alerts::worker,
-    baseline::stratified::{
-        probe_is_cache_hit, probe_ttfb_row_fast_threshold_ms, STRATIFIED_BASELINE_MIN_SAMPLES,
+    baseline::stratified::{probe_ttfb_row_fast_threshold_ms, STRATIFIED_BASELINE_MIN_SAMPLES},
+    cache_status::{
+        probe_anomaly_stratum_label, probe_is_cache_hit, probe_is_cache_miss,
+        probe_ttfb_limit_alert_label,
     },
     models::probe_result::ProbeResultPayload,
     AppState,
@@ -193,7 +195,7 @@ fn effective_baseline_for_anomaly(
                 return (avg, mb.ttfb_hit_stddev_ms.unwrap_or(0.0));
             }
         }
-    } else if cache_status.is_some() && !probe_is_cache_hit(cache_status) {
+    } else if probe_is_cache_miss(cache_status) {
         if mb.ttfb_miss_sample_count.unwrap_or(0) >= STRATIFIED_BASELINE_MIN_SAMPLES {
             if let Some(avg) = mb.ttfb_miss_avg_ms {
                 return (avg, mb.ttfb_miss_stddev_ms.unwrap_or(0.0));
@@ -215,7 +217,6 @@ pub async fn check_probe_alerts(state: AppState, payload: ProbeResultPayload) {
         }
     };
 
-    let is_hit = probe_is_cache_hit(payload.cache_status.as_deref());
     let effective_threshold = probe_ttfb_row_fast_threshold_ms(
         payload.cache_status.as_deref(),
         cfg.alert_threshold_hit_ms,
@@ -284,9 +285,10 @@ pub async fn check_probe_alerts(state: AppState, payload: ProbeResultPayload) {
         .await;
 
         if breach_count >= consecutive_limit {
-            let hit_miss_label = if is_hit { "Cache HIT" } else { "Cache MISS" };
+            let cache_label =
+                probe_ttfb_limit_alert_label(payload.cache_status.as_deref());
             let summary =
-                format!("{} TTFB exceeded your limit ({:.0}ms).", hit_miss_label, effective_threshold);
+                format!("{} TTFB exceeded your limit ({:.0}ms).", cache_label, effective_threshold);
             dispatch_probe_alert(
                 &state,
                 payload.clone(),
@@ -318,13 +320,8 @@ pub async fn check_probe_alerts(state: AppState, payload: ProbeResultPayload) {
             let sigma_factor = sensitivity_to_sigma(cfg.alert_sensitivity);
 
             if is_ttfb_anomalous(actual_ttfb, avg, stddev, sigma_factor) {
-                let stratum = if probe_is_cache_hit(payload.cache_status.as_deref()) {
-                    "cached responses"
-                } else if payload.cache_status.is_some() {
-                    "uncached / edge-miss responses"
-                } else {
-                    "all responses"
-                };
+                let stratum =
+                    probe_anomaly_stratum_label(payload.cache_status.as_deref());
                 let summary = format!(
                     "Significant TTFB deviation vs 7-day baseline for {} in this region ({:.0}ms typical).",
                     stratum, avg
