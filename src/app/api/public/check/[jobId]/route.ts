@@ -7,11 +7,13 @@ interface ResultRow {
   total_ms: number | null
   cache_status: string | null
   cdn_provider: string | null
+  served_by: string | null
   status_code: number | null
   age_s: number | null
   cache_control: string | null
   security_score: number | null
   error: string | null
+  redirect_count: number | null
   probed_at: Date
 }
 
@@ -44,11 +46,13 @@ export async function GET(
       total_ms,
       cache_status,
       cdn_provider,
+      served_by,
       status_code,
       age_s,
       cache_control,
       security_score,
       error,
+      redirect_count,
       probed_at
     FROM public_check_results
     WHERE job_id = ${jobId}
@@ -66,11 +70,13 @@ export async function GET(
       total_ms: r.total_ms,
       cache_status: r.cache_status,
       cdn_provider: r.cdn_provider,
+      served_by: r.served_by,
       status_code: r.status_code,
       age_s: r.age_s,
       cache_control: r.cache_control,
       security_score: r.security_score,
       error: r.error,
+      redirect_count: r.redirect_count,
       probed_at: r.probed_at instanceof Date ? r.probed_at.toISOString() : r.probed_at,
     })),
   })

@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import sql from '@/lib/db'
 
+function resolveServedBy(body: {
+  served_by?: string | null
+  cf_ray?: string | null
+}): string | null {
+  const raw = body.served_by?.trim() || body.cf_ray?.trim() || ''
+  return raw.length > 0 ? raw : null
+}
+
 /** Lambda sends sub-ms floats; public_check_results stores INTEGER ms columns. */
 function toIntMs(v: number | null | undefined): number | null {
   if (v === null || v === undefined) return null
@@ -33,6 +41,7 @@ export async function POST(request: NextRequest) {
     security_score?: number | null
     error?: string | null
     probe_version?: string | null
+    redirect_count?: number | null
   }
 
   try {
@@ -67,6 +76,11 @@ export async function POST(request: NextRequest) {
       : toIntMs(body.status_code)
   const ageS = toIntMs(body.age_s)
   const securityScore = toIntMs(body.security_score)
+  const servedBy = resolveServedBy(body)
+  const redirectCount =
+    body.redirect_count === null || body.redirect_count === undefined
+      ? null
+      : toIntMs(body.redirect_count)
 
   // Single atomic statement: INSERT the result, then increment regions_done
   // ONLY if the INSERT actually created a new row (i.e., not a Lambda retry).
@@ -79,13 +93,13 @@ export async function POST(request: NextRequest) {
         ttfb_ms, total_ms, status_code,
         cache_status, cdn_provider, served_by,
         age_s, cache_control, cf_ray, x_cache,
-        security_score, error, probe_version
+        security_score, error, probe_version, redirect_count
       ) VALUES (
         ${jobId}, ${region},
         ${ttfbMs}, ${totalMs}, ${statusCode},
-        ${body.cache_status ?? null}, ${body.cdn_provider ?? null}, ${body.served_by ?? null},
+        ${body.cache_status ?? null}, ${body.cdn_provider ?? null}, ${servedBy},
         ${ageS}, ${body.cache_control ?? null}, ${body.cf_ray ?? null}, ${body.x_cache ?? null},
-        ${securityScore}, ${body.error ?? null}, ${body.probe_version ?? null}
+        ${securityScore}, ${body.error ?? null}, ${body.probe_version ?? null}, ${redirectCount}
       )
       ON CONFLICT (job_id, region) DO NOTHING
       RETURNING id

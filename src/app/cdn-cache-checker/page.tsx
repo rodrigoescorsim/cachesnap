@@ -74,7 +74,7 @@ export default function Page() {
             </p>
           </div>
 
-          <div className="mx-auto max-w-2xl">
+          <div className="mx-auto w-full max-w-4xl px-1 sm:px-0">
             <CheckerForm />
           </div>
         </section>

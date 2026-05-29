@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { CheckerRegionRow } from './checker-region-row'
+import { CheckerLiveTable } from './checker-live-table'
 import { CheckerSummaryBar } from './checker-summary-bar'
+import { PUBLIC_PROBE_REGION_IDS } from '@/lib/public-regions'
 import type { CheckJobResponse, CheckResult } from './types'
 
 const POLL_INTERVAL_MS = 1500
@@ -20,7 +21,6 @@ export function CheckerResultsTable({ jobId, regionsTotal = 8 }: Props) {
   const startedAt = useRef(Date.now())
 
   useEffect(() => {
-    // Reset state for new job
     startedAt.current = Date.now()
     setData(null)
     setTimedOut(false)
@@ -84,16 +84,15 @@ export function CheckerResultsTable({ jobId, regionsTotal = 8 }: Props) {
     resultMap.set(r.region, r)
   }
 
-  const knownRegions = Array.from(resultMap.keys()).sort()
   const totalRegions = data?.regionsTotal ?? regionsTotal
-  const pendingCount = Math.max(0, totalRegions - knownRegions.length)
+  const completedIds = new Set(resultMap.keys())
+  const pendingRegionIds = PUBLIC_PROBE_REGION_IDS.filter((id) => !completedIds.has(id))
 
   const isLoading = !data || data.status === 'pending' || data.status === 'running'
   const isDone = data?.status === 'complete' || data?.status === 'error' || timedOut
 
   return (
     <div className="space-y-4">
-      {/* Summary bar — shown as soon as any results arrive */}
       {(data?.results.length ?? 0) > 0 && (
         <CheckerSummaryBar
           results={data!.results}
@@ -101,7 +100,6 @@ export function CheckerResultsTable({ jobId, regionsTotal = 8 }: Props) {
         />
       )}
 
-      {/* Progress / timeout / error indicator */}
       {isLoading && !timedOut && (
         <div className="flex items-center gap-2.5 text-[12px] text-zinc-500">
           <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400 animate-pulse" />
@@ -120,41 +118,11 @@ export function CheckerResultsTable({ jobId, regionsTotal = 8 }: Props) {
         </div>
       )}
 
-      {/* Results table */}
-      <div className="cs-card overflow-hidden">
-        <div className="cs-card-wash" />
-        <div className="relative z-10 overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-border/60">
-                <th className="py-2.5 pl-4 pr-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Region</th>
-                <th className="py-2.5 px-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Cache</th>
-                <th className="py-2.5 px-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">CDN</th>
-                <th className="py-2.5 px-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">TTFB</th>
-                <th className="py-2.5 px-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">HTTP</th>
-                <th className="py-2.5 px-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Age</th>
-                <th className="py-2.5 px-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">Sec</th>
-              </tr>
-            </thead>
-            <tbody>
-              {knownRegions.map(region => (
-                <CheckerRegionRow
-                  key={region}
-                  result={resultMap.get(region) ?? null}
-                  loading={false}
-                />
-              ))}
-              {!isDone && Array.from({ length: pendingCount }).map((_, i) => (
-                <CheckerRegionRow
-                  key={`pending-${i}`}
-                  result={null}
-                  loading={true}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <CheckerLiveTable
+        results={data?.results ?? []}
+        pendingRegionIds={!isDone ? pendingRegionIds : []}
+        loading={isLoading && !timedOut && (data?.results.length ?? 0) === 0}
+      />
 
       {isDone && data && <CacheControlDetails results={data.results} />}
     </div>
@@ -165,8 +133,8 @@ function CacheControlDetails({ results }: { results: CheckResult[] }) {
   const unique = Array.from(
     new Map(
       results
-        .filter(r => r.cache_control)
-        .map(r => [r.cache_control!, r.region])
+        .filter((r) => r.cache_control)
+        .map((r) => [r.cache_control!, r.region])
     ).entries()
   )
   if (unique.length === 0) return null
