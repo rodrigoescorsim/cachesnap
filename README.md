@@ -75,12 +75,20 @@ api/            Rust API — ingest, scheduler, diagnosis, baselines, alerts, SS
 probes/lambda/  AWS Lambda probe (Node.js 20, zero dependencies)
 src/            Next.js dashboard, auth, billing and app API routes
 migrations/     SQL schema (TimescaleDB hypertables, aggregates, retention)
-docs/           Product, architecture and operations notes
-infra/          Production configuration
+docs/           Architecture, feature and security reference
+infra/          Production configuration and deployment guide
 scripts/        Local dev and deployment helpers
 ```
 
-Good starting points: [`docs/STACK.md`](docs/STACK.md) (technical reference), [`docs/FEATURES.md`](docs/FEATURES.md) (feature catalog) and [`api/WORKERS.md`](api/WORKERS.md).
+| Document | What it covers |
+|---|---|
+| [`docs/STACK.md`](docs/STACK.md) | Technical reference: endpoints, schema, environment variables |
+| [`docs/FEATURES.md`](docs/FEATURES.md) | Feature catalog and alert behavior |
+| [`docs/cachesnap_probe_architecture.md`](docs/cachesnap_probe_architecture.md) | Probe lifecycle, from dispatch to dashboard |
+| [`docs/advisor-framework.md`](docs/advisor-framework.md) · [`docs/advisor-rules.md`](docs/advisor-rules.md) | Diagnosis engine design and rules |
+| [`docs/probe-data-dictionary.md`](docs/probe-data-dictionary.md) | Fields collected by each probe |
+| [`docs/SECURITY.md`](docs/SECURITY.md) | Security headers and hardening |
+| [`api/WORKERS.md`](api/WORKERS.md) | Background workers: scheduler, alerts, baselines, trends |
 
 ---
 
@@ -101,6 +109,12 @@ Probes need a publicly reachable API URL and deployed Lambda functions (see [`pr
 cd api && cargo test          # Rust tests
 npm run lint && npm test      # web app checks
 ```
+
+---
+
+## License
+
+[MIT](LICENSE) © 2024–2026 Rodrigo Maia Escorsim
 
 ---
 
