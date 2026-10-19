@@ -121,4 +121,4 @@ npm run lint && npm test      # web app checks
 ## Author
 
 **Rodrigo Maia Escorsim** — Senior Software Engineer (C++ · Rust)
-[LinkedIn](https://linkedin.com/in/rodrigoescorsin) · [GitHub](https://github.com/rodrigoescorsim)
+[LinkedIn](https://linkedin.com/in/rodrigoescorsim) · [GitHub](https://github.com/rodrigoescorsim)
