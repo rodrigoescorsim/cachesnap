@@ -62,3 +62,6 @@ cloudflared.log
 
 # img backups
 img/bkp/
+
+# Claude Code local settings
+.claude/settings.local.json
